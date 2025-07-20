@@ -6,7 +6,6 @@ using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
 using Microsoft.AspNetCore.Components.WebAssembly.Server;
 using Polly.CircuitBreaker; // Explicitly add this using directive
-using PoRepoLineTracker.Domain.Models; // Add this line
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -77,13 +76,6 @@ try
     })
     .WithName("AddRepository");
 
-    app.MapPost("/api/repositories/{repositoryId}/analyze", async (Guid repositoryId, IRepositoryService repoService) =>
-    {
-        await repoService.AnalyzeRepositoryCommitsAsync(repositoryId);
-        return Results.Accepted();
-    })
-    .WithName("AnalyzeRepository");
-
     app.MapGet("/api/repositories", async (IRepositoryService repoService) =>
     {
         var repositories = await repoService.GetAllRepositoriesAsync();
@@ -97,6 +89,36 @@ try
         return Results.Ok(lineCounts);
     })
     .WithName("GetRepositoryLineCounts");
+
+    app.MapGet("/api/repositories/{repositoryId}/linehistory/{days}", async (Guid repositoryId, int days, IRepositoryService repoService) =>
+    {
+        try
+        {
+            var lineHistory = await repoService.GetLineCountHistoryAsync(repositoryId, days);
+            return Results.Ok(lineHistory);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving line count history for repository {RepositoryId}", repositoryId);
+            return Results.Problem($"Error retrieving line count history: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+        }
+    })
+    .WithName("GetRepositoryLineHistory");
+
+    app.MapGet("/api/repositories/allcharts/{days}", async (int days, IRepositoryService repoService) =>
+    {
+        try
+        {
+            var allChartsData = await repoService.GetAllRepositoriesLineCountHistoryAsync(days);
+            return Results.Ok(allChartsData);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving line count history for all repositories");
+            return Results.Problem($"Error retrieving all repositories line count history: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+        }
+    })
+    .WithName("GetAllRepositoriesLineHistory");
 
     // Health Check Endpoints
     app.MapGet("/api/health/azure-table-storage", async (IRepositoryDataService repoDataService) =>

@@ -12,4 +12,5 @@ public interface IRepositoryService
     Task UpdateRepositoryAsync(GitHubRepository repository);
     Task<IEnumerable<CommitLineCount>> GetLineCountsForRepositoryAsync(Guid repositoryId);
     Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(Guid repositoryId, int days);
+    Task<IEnumerable<RepositoryLineCountHistoryDto>> GetAllRepositoriesLineCountHistoryAsync(int days);
 }

@@ -81,6 +81,19 @@ public class RepositoryService : IRepositoryService
 
         await _repositoryDataService.AddRepositoryAsync(newRepo);
         _logger.LogInformation("Repository {Owner}/{RepoName} added successfully.", owner, repoName);
+        
+        // Automatically analyze the repository after adding it
+        _logger.LogInformation("Starting automatic analysis for newly added repository {Owner}/{RepoName}", owner, repoName);
+        try
+        {
+            await AnalyzeRepositoryCommitsAsync(newRepo.Id);
+            _logger.LogInformation("Automatic analysis completed for repository {Owner}/{RepoName}", owner, repoName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to automatically analyze repository {Owner}/{RepoName}: {ErrorMessage}", owner, repoName, ex.Message);
+        }
+        
         return newRepo;
     }
 
@@ -149,7 +162,7 @@ public class RepositoryService : IRepositoryService
                 Id = Guid.NewGuid(),
                 RepositoryId = repository.Id,
                 CommitSha = commitSha,
-                CommitDate = commitDate.UtcDateTime, // Use UTC DateTime to avoid Azure Table Storage issues
+                CommitDate = commitDate, // commitDate is already DateTime
                 TotalLines = totalLines,
                 LinesAdded = linesAdded,
                 LinesRemoved = linesRemoved,
@@ -221,22 +234,112 @@ public class RepositoryService : IRepositoryService
             return Enumerable.Empty<DailyLineCountDto>();
         }
 
-        // Temporarily return dummy data for chart testing
-        var dummyData = new List<DailyLineCountDto>();
-        var random = new Random();
-        long currentLines = 10000; // Starting line count
-
-        for (int i = days - 1; i >= 0; i--)
+        // Get all commit line counts for this repository
+        var commitLineCounts = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(repositoryId);
+        
+        if (!commitLineCounts.Any())
         {
-            var date = DateTime.UtcNow.Date.AddDays(-i);
-            // Simulate some fluctuation
-            currentLines += random.Next(-500, 501);
-            if (currentLines < 0) currentLines = 0;
-
-            dummyData.Add(new DailyLineCountDto { Date = date, TotalLines = currentLines });
+            _logger.LogInformation("No commit data found for repository ID: {RepositoryId}", repositoryId);
+            return Enumerable.Empty<DailyLineCountDto>();
         }
 
-        _logger.LogInformation("Returning dummy line count data for repository ID: {RepositoryId}", repositoryId);
-        return await Task.FromResult(dummyData.OrderBy(d => d.Date).ToList());
+        // Group commits by date and calculate daily stats
+        var dailyStats = new List<DailyLineCountDto>();
+        var endDate = DateTime.UtcNow.Date;
+        var startDate = endDate.AddDays(-days + 1);
+
+        // Get commits within the date range and group by date
+        var commitsInRange = commitLineCounts
+            .Where(c => c.CommitDate.Date >= startDate && c.CommitDate.Date <= endDate)
+            .GroupBy(c => c.CommitDate.Date)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // If no commits in range, return empty
+        if (!commitsInRange.Any())
+        {
+            _logger.LogInformation("No commits found in the requested date range for repository ID: {RepositoryId}", repositoryId);
+            return Enumerable.Empty<DailyLineCountDto>();
+        }
+
+        // Calculate cumulative line counts for each day
+        var allCommits = commitLineCounts.OrderBy(c => c.CommitDate).ToList();
+        
+        for (int i = 0; i < days; i++)
+        {
+            var currentDate = startDate.AddDays(i);
+            
+            // Get all commits up to this date
+            var commitsUpToDate = allCommits.Where(c => c.CommitDate.Date <= currentDate).ToList();
+            
+            if (commitsUpToDate.Any())
+            {
+                // Get the latest commit for this date to represent the state at end of day
+                var latestCommit = commitsUpToDate.LastOrDefault();
+                var commitsOnThisDay = commitsInRange.ContainsKey(currentDate) ? commitsInRange[currentDate] : new List<CommitLineCount>();
+                
+                var dailyDto = new DailyLineCountDto
+                {
+                    Date = currentDate,
+                    TotalLines = latestCommit?.TotalLines ?? 0,
+                    LinesAdded = commitsOnThisDay.Sum(c => c.LinesAdded),
+                    LinesRemoved = commitsOnThisDay.Sum(c => c.LinesRemoved),
+                    NetLines = commitsOnThisDay.Sum(c => c.LinesAdded - c.LinesRemoved),
+                    CommitCount = commitsOnThisDay.Count,
+                    LinesByFileType = latestCommit?.LinesByFileType ?? new Dictionary<string, int>()
+                };
+                
+                dailyStats.Add(dailyDto);
+            }
+            else
+            {
+                // No commits up to this date, so zero values
+                dailyStats.Add(new DailyLineCountDto 
+                { 
+                    Date = currentDate, 
+                    TotalLines = 0,
+                    LinesAdded = 0,
+                    LinesRemoved = 0,
+                    NetLines = 0,
+                    CommitCount = 0,
+                    LinesByFileType = new Dictionary<string, int>()
+                });
+            }
+        }
+
+        _logger.LogInformation("Returning {Count} daily line count records for repository ID: {RepositoryId}", dailyStats.Count, repositoryId);
+        return dailyStats.OrderBy(d => d.Date).ToList();
+    }
+
+    public async Task<IEnumerable<RepositoryLineCountHistoryDto>> GetAllRepositoriesLineCountHistoryAsync(int days)
+    {
+        _logger.LogInformation("Getting line count history for all repositories for the past {Days} days.", days);
+        
+        var repositories = await GetAllRepositoriesAsync();
+        var allRepositoriesHistory = new List<RepositoryLineCountHistoryDto>();
+
+        foreach (var repository in repositories)
+        {
+            try
+            {
+                var lineHistory = await GetLineCountHistoryAsync(repository.Id, days);
+                var repositoryHistory = new RepositoryLineCountHistoryDto
+                {
+                    RepositoryId = repository.Id,
+                    RepositoryName = repository.Name,
+                    Owner = repository.Owner,
+                    DailyLineCounts = lineHistory
+                };
+                allRepositoriesHistory.Add(repositoryHistory);
+                _logger.LogDebug("Retrieved {Count} daily records for repository {RepositoryName}", lineHistory.Count(), repository.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving line count history for repository {RepositoryName} (ID: {RepositoryId})", repository.Name, repository.Id);
+                // Continue with other repositories even if one fails
+            }
+        }
+
+        _logger.LogInformation("Returning line count history for {Count} repositories.", allRepositoriesHistory.Count);
+        return allRepositoriesHistory;
     }
 }
