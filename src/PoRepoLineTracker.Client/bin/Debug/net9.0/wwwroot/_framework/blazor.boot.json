@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "PoRepoLineTracker.Client",
   "resources": {
-    "hash": "sha256-rgovbWrnqFv72eClTHWRvOSyOSF//6kns61BvQsQbRY=",
+    "hash": "sha256-r3MZFIEhi1UlW6F51CftisRuR32XdtNK00oE+DhlPsA=",
     "fingerprinting": {
       "Microsoft.AspNetCore.Authorization.bvu82j4ad3.wasm": "Microsoft.AspNetCore.Authorization.wasm",
       "Microsoft.AspNetCore.Components.ptfrz3fits.wasm": "Microsoft.AspNetCore.Components.wasm",
@@ -202,8 +202,12 @@
       "icudt_CJK.tjcz0u77k5.dat": "icudt_CJK.dat",
       "icudt_EFIGS.tptq2av103.dat": "icudt_EFIGS.dat",
       "icudt_no_CJK.lfu7j35m59.dat": "icudt_no_CJK.dat",
-      "PoRepoLineTracker.Client.qitlfv0g6c.wasm": "PoRepoLineTracker.Client.wasm",
-      "PoRepoLineTracker.Client.wl6zmabw8z.pdb": "PoRepoLineTracker.Client.pdb"
+      "PoRepoLineTracker.Application.jijyl406bi.wasm": "PoRepoLineTracker.Application.wasm",
+      "PoRepoLineTracker.Domain.ufrpxjv6zs.wasm": "PoRepoLineTracker.Domain.wasm",
+      "PoRepoLineTracker.Domain.2cgr97e66w.pdb": "PoRepoLineTracker.Domain.pdb",
+      "PoRepoLineTracker.Application.uuh0mtzuqk.pdb": "PoRepoLineTracker.Application.pdb",
+      "PoRepoLineTracker.Client.mqf3a0ov35.wasm": "PoRepoLineTracker.Client.wasm",
+      "PoRepoLineTracker.Client.upbnadjeet.pdb": "PoRepoLineTracker.Client.pdb"
     },
     "jsModuleNative": {
       "dotnet.native.st0ovrfdhi.js": "sha256-MBW/zayfv+YU6mhH7y4b8NNU4D1EYd7nf9gYrFshnnY="
@@ -414,10 +418,14 @@
       "WindowsBase.pg3o6xzigg.wasm": "sha256-dz62CHynC+zqTkbMOf3vm7YAhiRA8/pIoAwuqHfBL5M=",
       "mscorlib.jl2pswegra.wasm": "sha256-mSoCIDTdCQKTipW8VmFCypW/4AopZauaYRa8LoZdHvY=",
       "netstandard.uriri6ambh.wasm": "sha256-yuH/cvPd6r8N9nfPWihyckFD7hPFP+VQtQQxEqi7HIQ=",
-      "PoRepoLineTracker.Client.qitlfv0g6c.wasm": "sha256-stMTqM64L69HwTo3mKnRqTuwy+bIZ3DgV9XQc8OA5ng="
+      "PoRepoLineTracker.Application.jijyl406bi.wasm": "sha256-tSN6766Ppnib8OH7rPebs18h1BakgYWCV3eeRHPvlG0=",
+      "PoRepoLineTracker.Domain.ufrpxjv6zs.wasm": "sha256-1kt6B752/wSWy9x3GLUEKCKpzIlY9JP9/W+aQU4UMog=",
+      "PoRepoLineTracker.Client.mqf3a0ov35.wasm": "sha256-bvycvVx6EmZJGCZFBpFSes2sQKBrFeTsvgNzm8Gxpfc="
     },
     "pdb": {
-      "PoRepoLineTracker.Client.wl6zmabw8z.pdb": "sha256-NPqItdfwBSdFbHWKITBIZioZtoE5hmI8cm06AB5WM8I="
+      "PoRepoLineTracker.Domain.2cgr97e66w.pdb": "sha256-ju8cCxmPZFzIEbaRkQkABF8HfuEBSJ4wDZcIv1mGB5Q=",
+      "PoRepoLineTracker.Application.uuh0mtzuqk.pdb": "sha256-ZnT9Cgzg0797TC+a9lNwdSTGWmju9DWFIvaRuKvHNmY=",
+      "PoRepoLineTracker.Client.upbnadjeet.pdb": "sha256-7hbNW82W6D7L6flQ9kxuhHGUACeKEf1Fvoj6OOXV1Xw="
     }
   },
   "cacheBootResources": true,

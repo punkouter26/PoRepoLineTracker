@@ -23,8 +23,6 @@ C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.Ap
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\PoRepoLineTracker.Api.exe
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\testhost.exe
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\xunit.runner.visualstudio.testadapter.dll
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\xunit.runner.reporters.netcoreapp10.dll
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\xunit.runner.utility.netcoreapp10.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\PoRepoLineTracker.ApiTests.deps.json
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\PoRepoLineTracker.ApiTests.runtimeconfig.json
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\PoRepoLineTracker.ApiTests.dll
@@ -89,6 +87,7 @@ C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.Ap
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Polly.Extensions.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Polly.Extensions.Http.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Polly.RateLimiting.dll
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Radzen.Blazor.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Serilog.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Serilog.AspNetCore.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Serilog.Extensions.Hosting.dll
@@ -202,4 +201,8 @@ C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.Ap
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\obj\Debug\net9.0\PoRepoLineTracker.ApiTests.pdb
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\obj\Debug\net9.0\PoRepoLineTracker.ApiTests.genruntimeconfig.cache
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\obj\Debug\net9.0\ref\PoRepoLineTracker.ApiTests.dll
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Radzen.Blazor.dll
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Microsoft.Extensions.Diagnostics.HealthChecks.dll
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Swashbuckle.AspNetCore.Swagger.dll
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerGen.dll
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerUI.dll

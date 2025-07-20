@@ -455,6 +455,30 @@
         "buildMultiTargeting": {
           "buildMultiTargeting/Radzen.Blazor.props": {}
         }
+      },
+      "PoRepoLineTracker.Application/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "9.0.7",
+          "PoRepoLineTracker.Domain": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/PoRepoLineTracker.Application.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/PoRepoLineTracker.Application.dll": {}
+        }
+      },
+      "PoRepoLineTracker.Domain/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "compile": {
+          "bin/placeholder/PoRepoLineTracker.Domain.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/PoRepoLineTracker.Domain.dll": {}
+        }
       }
     },
     "net9.0/browser-wasm": {
@@ -910,6 +934,30 @@
         },
         "buildMultiTargeting": {
           "buildMultiTargeting/Radzen.Blazor.props": {}
+        }
+      },
+      "PoRepoLineTracker.Application/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "9.0.7",
+          "PoRepoLineTracker.Domain": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/PoRepoLineTracker.Application.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/PoRepoLineTracker.Application.dll": {}
+        }
+      },
+      "PoRepoLineTracker.Domain/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "compile": {
+          "bin/placeholder/PoRepoLineTracker.Domain.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/PoRepoLineTracker.Domain.dll": {}
         }
       }
     }
@@ -1856,6 +1904,16 @@
         "staticwebassets/fonts/SourceSans3VF-Italic.ttf.woff2",
         "staticwebassets/fonts/SourceSans3VF-Upright.ttf.woff2"
       ]
+    },
+    "PoRepoLineTracker.Application/1.0.0": {
+      "type": "project",
+      "path": "../PoRepoLineTracker.Application/PoRepoLineTracker.Application.csproj",
+      "msbuildProject": "../PoRepoLineTracker.Application/PoRepoLineTracker.Application.csproj"
+    },
+    "PoRepoLineTracker.Domain/1.0.0": {
+      "type": "project",
+      "path": "../PoRepoLineTracker.Domain/PoRepoLineTracker.Domain.csproj",
+      "msbuildProject": "../PoRepoLineTracker.Domain/PoRepoLineTracker.Domain.csproj"
     }
   },
   "projectFileDependencyGroups": {
@@ -1864,6 +1922,8 @@
       "Microsoft.AspNetCore.Components.WebAssembly.DevServer >= 9.0.7",
       "Microsoft.NET.ILLink.Tasks >= 9.0.7",
       "Microsoft.NET.Sdk.WebAssembly.Pack >= 9.0.7",
+      "PoRepoLineTracker.Application >= 1.0.0",
+      "PoRepoLineTracker.Domain >= 1.0.0",
       "Radzen.Blazor >= 7.1.5"
     ]
   },
@@ -1899,7 +1959,14 @@
       "frameworks": {
         "net9.0": {
           "targetAlias": "net9.0",
-          "projectReferences": {}
+          "projectReferences": {
+            "C:\\Users\\punko\\Downloads\\PoGitCount\\PoRepoLineTracker\\src\\PoRepoLineTracker.Application\\PoRepoLineTracker.Application.csproj": {
+              "projectPath": "C:\\Users\\punko\\Downloads\\PoGitCount\\PoRepoLineTracker\\src\\PoRepoLineTracker.Application\\PoRepoLineTracker.Application.csproj"
+            },
+            "C:\\Users\\punko\\Downloads\\PoGitCount\\PoRepoLineTracker\\src\\PoRepoLineTracker.Domain\\PoRepoLineTracker.Domain.csproj": {
+              "projectPath": "C:\\Users\\punko\\Downloads\\PoGitCount\\PoRepoLineTracker\\src\\PoRepoLineTracker.Domain\\PoRepoLineTracker.Domain.csproj"
+            }
+          }
         }
       },
       "warningProperties": {

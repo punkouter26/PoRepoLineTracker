@@ -1,8 +1,3 @@
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.csproj.AssemblyReference.cache
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.AssemblyInfoInputs.cache
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.AssemblyInfo.cs
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.csproj.CoreCompileInputs.cache
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\bin\Debug\net9.0\PoRepoLineTracker.Infrastructure.deps.json
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\bin\Debug\net9.0\PoRepoLineTracker.Infrastructure.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\bin\Debug\net9.0\PoRepoLineTracker.Infrastructure.pdb
@@ -10,6 +5,11 @@ C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infr
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\bin\Debug\net9.0\PoRepoLineTracker.Domain.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\bin\Debug\net9.0\PoRepoLineTracker.Domain.pdb
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\bin\Debug\net9.0\PoRepoLineTracker.Application.pdb
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.csproj.AssemblyReference.cache
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.AssemblyInfoInputs.cache
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.AssemblyInfo.cs
+C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.csproj.CoreCompileInputs.cache
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLi.B5072420.Up2Date
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\PoRepoLineTracker.Infrastructure.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\src\PoRepoLineTracker.Infrastructure\obj\Debug\net9.0\refint\PoRepoLineTracker.Infrastructure.dll

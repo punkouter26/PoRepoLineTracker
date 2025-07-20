@@ -69,6 +69,10 @@
               "target": "Package",
               "version": "[9.0.7, )"
             },
+            "Microsoft.Extensions.Diagnostics.HealthChecks": {
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
             "Microsoft.Extensions.Http.Resilience": {
               "target": "Package",
               "version": "[9.7.0, )"
@@ -92,6 +96,10 @@
             "Serilog.Sinks.File": {
               "target": "Package",
               "version": "[7.0.0, )"
+            },
+            "Swashbuckle.AspNetCore": {
+              "target": "Package",
+              "version": "[9.0.3, )"
             }
           },
           "imports": [
@@ -221,7 +229,14 @@
         "frameworks": {
           "net9.0": {
             "targetAlias": "net9.0",
-            "projectReferences": {}
+            "projectReferences": {
+              "C:\\Users\\punko\\Downloads\\PoGitCount\\PoRepoLineTracker\\src\\PoRepoLineTracker.Application\\PoRepoLineTracker.Application.csproj": {
+                "projectPath": "C:\\Users\\punko\\Downloads\\PoGitCount\\PoRepoLineTracker\\src\\PoRepoLineTracker.Application\\PoRepoLineTracker.Application.csproj"
+              },
+              "C:\\Users\\punko\\Downloads\\PoGitCount\\PoRepoLineTracker\\src\\PoRepoLineTracker.Domain\\PoRepoLineTracker.Domain.csproj": {
+                "projectPath": "C:\\Users\\punko\\Downloads\\PoGitCount\\PoRepoLineTracker\\src\\PoRepoLineTracker.Domain\\PoRepoLineTracker.Domain.csproj"
+              }
+            }
           }
         },
         "warningProperties": {
@@ -424,6 +439,10 @@
               "version": "[9.0.7, )"
             },
             "Microsoft.Extensions.DependencyInjection": {
+              "target": "Package",
+              "version": "[9.0.7, )"
+            },
+            "Microsoft.Extensions.Diagnostics.HealthChecks": {
               "target": "Package",
               "version": "[9.0.7, )"
             },
