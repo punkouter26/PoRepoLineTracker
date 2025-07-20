@@ -1,0 +1,16 @@
+using PoRepoLineTracker.Domain.Models;
+
+namespace PoRepoLineTracker.Application.Interfaces;
+
+public interface IRepositoryDataService
+{
+    Task AddRepositoryAsync(GitHubRepository repository);
+    Task UpdateRepositoryAsync(GitHubRepository repository);
+    Task<GitHubRepository?> GetRepositoryByIdAsync(Guid id);
+    Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync();
+
+    Task AddCommitLineCountAsync(CommitLineCount commitLineCount);
+    Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(Guid repositoryId);
+    Task<bool> CommitExistsAsync(Guid repositoryId, string commitSha);
+    Task CheckConnectionAsync();
+}

@@ -1,0 +1,85 @@
+.page[b-asovix42sj] {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+main[b-asovix42sj] {
+    flex: 1;
+    padding: 20px; /* Add some padding around the main content */
+}
+
+.sidebar[b-asovix42sj] {
+    background-color: #2c3e50; /* Dark professional blue for sidebar */
+    color: #ecf0f1; /* Light text color */
+    padding-top: 20px;
+}
+
+.top-row[b-asovix42sj] {
+    background-color: #ffffff; /* White top bar */
+    border-bottom: 1px solid #e0e0e0; /* Lighter border */
+    justify-content: flex-end;
+    height: 3.5rem;
+    display: flex;
+    align-items: center;
+    padding: 0 1.5rem; /* Add padding */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); /* Subtle shadow */
+}
+
+    .top-row[b-asovix42sj]  a, .top-row[b-asovix42sj]  .btn-link {
+        white-space: nowrap;
+        margin-left: 1.5rem;
+        text-decoration: none;
+        color: #3498db; /* Match link color from app.css */
+    }
+
+    .top-row[b-asovix42sj]  a:hover, .top-row[b-asovix42sj]  .btn-link:hover {
+        text-decoration: underline;
+    }
+
+    .top-row[b-asovix42sj]  a:first-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+@media (max-width: 640.98px) {
+    .top-row[b-asovix42sj] {
+        justify-content: space-between;
+    }
+
+    .top-row[b-asovix42sj]  a, .top-row[b-asovix42sj]  .btn-link {
+        margin-left: 0;
+    }
+}
+
+@media (min-width: 641px) {
+    .page[b-asovix42sj] {
+        flex-direction: row;
+    }
+
+    .sidebar[b-asovix42sj] {
+        width: 250px;
+        height: 100vh;
+        position: sticky;
+        top: 0;
+        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05); /* Subtle shadow for sidebar */
+    }
+
+    .top-row[b-asovix42sj] {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    .top-row.auth[b-asovix42sj]  a:first-child {
+        flex: 1;
+        text-align: right;
+        width: 0;
+    }
+
+    article[b-asovix42sj] {
+        padding-left: 2rem !important;
+        padding-right: 1.5rem !important;
+        flex: 1; /* Allow article to take remaining space */
+    }
+}

@@ -1,0 +1,205 @@
+@page "/"
+@page "/repositories"
+@inject HttpClient Http
+@inject ILogger<Repositories> Logger
+
+<h3>GitHub Repositories</h3>
+
+<div class="mb-3">
+    <h4>Add New Repository</h4>
+    <div class="input-group mb-3">
+        <input type="text" class="form-control" @bind="newRepoCloneUrl" placeholder="GitHub Repository URL (e.g., https://github.com/octocat/Spoon-Knife)" />
+        <button class="btn btn-primary" @onclick="AddRepository">Add Repository</button>
+    </div>
+    @if (!string.IsNullOrEmpty(addRepoMessage))
+    {
+        <div class="alert alert-info">@addRepoMessage</div>
+    }
+</div>
+
+<h4>Existing Repositories</h4>
+@if (repositories == null)
+{
+    <p><em>Loading repositories...</em></p>
+}
+else if (!repositories.Any())
+{
+    <p>No repositories added yet. Add one above!</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Owner</th>
+                <th>Name</th>
+                <th>Last Analyzed</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var repo in repositories)
+            {
+                <tr>
+                    <td>@repo.Owner</td>
+                    <td>@repo.Name</td>
+                    <td>@repo.LastAnalyzedCommitDate.ToLocalTime().ToShortDateString()</td>
+                    <td>
+                        <button class="btn btn-info btn-sm" @onclick="() => AnalyzeRepository(repo.Id)">Analyze</button>
+                        <button class="btn btn-secondary btn-sm" @onclick="() => ShowLineCounts(repo.Id, repo.Name)">View Lines</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (selectedRepoLineCounts != null)
+{
+    <h4>Line Counts for @selectedRepoName</h4>
+    <p>Total Commits Analyzed: @selectedRepoLineCounts.Count</p>
+
+    @* Placeholder for Radzen Blazor Chart *@
+    <div class="card">
+        <div class="card-header">Code Growth Over Time</div>
+        <div class="card-body">
+            @if (selectedRepoLineCounts.Any())
+            {
+                <RadzenChart>
+                    <RadzenLineSeries Data="@selectedRepoLineCounts" CategoryProperty="CommitDate" ValueProperty="TotalLines" Title="Total Lines" Stroke="var(--rz-primary)" />
+                    <RadzenCategoryAxis FormatString="{0:d}" />
+                    <RadzenLegend Visible="true" />
+                </RadzenChart>
+            }
+            else
+            {
+                <p>No line count data available for this repository.</p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<GitHubRepository>? repositories;
+    private string newRepoCloneUrl = "";
+    private string addRepoMessage = "";
+
+    private List<CommitLineCount>? selectedRepoLineCounts;
+    private string selectedRepoName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRepositories();
+    }
+
+    private async Task LoadRepositories()
+    {
+        try
+        {
+            repositories = await Http.GetFromJsonAsync<List<GitHubRepository>>("/api/repositories");
+            Logger.LogInformation("Loaded {Count} repositories.", repositories?.Count ?? 0);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading repositories: {Message}", ex.Message);
+            addRepoMessage = $"Error loading repositories: {ex.Message}";
+        }
+    }
+
+    private async Task AddRepository()
+    {
+        addRepoMessage = "Adding repository...";
+        try
+        {
+            // Parse owner and repo name from the URL
+            var uri = new Uri(newRepoCloneUrl);
+            var pathSegments = uri.Segments.Where(s => s != "/").Select(s => s.Trim('/')).ToList();
+
+            if (pathSegments.Count < 2)
+            {
+                addRepoMessage = "Error: Invalid GitHub repository URL. Please provide a URL like https://github.com/owner/repo.";
+                return;
+            }
+
+            var owner = pathSegments[0];
+            var repoName = pathSegments[1].Replace(".git", ""); // Remove .git if present
+
+            var response = await Http.PostAsJsonAsync("/api/repositories", new { owner = owner, repoName = repoName, cloneUrl = newRepoCloneUrl });
+            response.EnsureSuccessStatusCode();
+            var addedRepo = await response.Content.ReadFromJsonAsync<GitHubRepository>();
+            addRepoMessage = $"Repository '{addedRepo?.Name}' added successfully!";
+            newRepoCloneUrl = "";
+            await LoadRepositories(); // Refresh the list
+        }
+        catch (HttpRequestException httpEx)
+        {
+            addRepoMessage = $"Error adding repository: {httpEx.StatusCode} - {httpEx.Message}";
+            Logger.LogError(httpEx, "HTTP Error adding repository: {StatusCode} - {Message}", httpEx.StatusCode, httpEx.Message);
+        }
+        catch (Exception ex)
+        {
+            addRepoMessage = $"Error adding repository: {ex.Message}";
+            Logger.LogError(ex, "Error adding repository: {Message}", ex.Message);
+        }
+    }
+
+    private async Task AnalyzeRepository(Guid repositoryId)
+    {
+        addRepoMessage = "Analyzing repository commits...";
+        try
+        {
+            var response = await Http.PostAsync($"/api/repositories/{repositoryId}/analyze", null);
+            response.EnsureSuccessStatusCode();
+            addRepoMessage = "Repository analysis initiated successfully. Please refresh the page after some time to see updated line counts.";
+            await LoadRepositories(); // Refresh to update LastAnalyzedCommitDate
+        }
+        catch (HttpRequestException httpEx)
+        {
+            addRepoMessage = $"Error analyzing repository: {httpEx.StatusCode} - {httpEx.Message}";
+            Logger.LogError(httpEx, "HTTP Error analyzing repository: {StatusCode} - {Message}", httpEx.StatusCode, httpEx.Message);
+        }
+        catch (Exception ex)
+        {
+            addRepoMessage = $"Error analyzing repository: {ex.Message}";
+            Logger.LogError(ex, "Error analyzing repository: {Message}", ex.Message);
+        }
+    }
+
+    private async Task ShowLineCounts(Guid repositoryId, string repoName)
+    {
+        selectedRepoName = repoName;
+        selectedRepoLineCounts = null; // Clear previous data
+        try
+        {
+            selectedRepoLineCounts = (await Http.GetFromJsonAsync<List<CommitLineCount>>($"/api/repositories/{repositoryId}/linecounts"))
+                                        ?.OrderBy(lc => lc.CommitDate)
+                                        .ToList();
+            Logger.LogInformation("Loaded {Count} line counts for repository {RepoName}.", selectedRepoLineCounts?.Count ?? 0, repoName);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading line counts for {RepoName}: {Message}", repoName, ex.Message);
+            addRepoMessage = $"Error loading line counts: {ex.Message}";
+        }
+    }
+
+    // Domain Models (copied here for simplicity, ideally would be in a shared DTO project)
+    public class GitHubRepository
+    {
+        public Guid Id { get; set; }
+        public string Owner { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string CloneUrl { get; set; } = string.Empty;
+        public DateTime LastAnalyzedCommitDate { get; set; }
+    }
+
+    public class CommitLineCount
+    {
+        public Guid Id { get; set; }
+        public Guid RepositoryId { get; set; }
+        public string CommitSha { get; set; } = string.Empty;
+        public DateTime CommitDate { get; set; }
+        public int TotalLines { get; set; }
+        public Dictionary<string, int> LinesByFileType { get; set; } = new();
+    }
+}
