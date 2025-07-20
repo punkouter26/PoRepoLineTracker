@@ -17,6 +17,8 @@ public class CommitLineCountEntity : ITableEntity
     public string CommitSha { get; set; } = string.Empty;
     public DateTime CommitDate { get; set; }
     public int TotalLines { get; set; }
+    public int LinesAdded { get; set; }
+    public int LinesRemoved { get; set; }
     public string LinesByFileTypeJson { get; set; } = string.Empty; // Stored as JSON string
 
     public CommitLineCount ToDomainModel()
@@ -28,6 +30,8 @@ public class CommitLineCountEntity : ITableEntity
             CommitSha = CommitSha,
             CommitDate = CommitDate,
             TotalLines = TotalLines,
+            LinesAdded = LinesAdded,
+            LinesRemoved = LinesRemoved,
             LinesByFileType = string.IsNullOrEmpty(LinesByFileTypeJson)
                 ? new Dictionary<string, int>()
                 : JsonSerializer.Deserialize<Dictionary<string, int>>(LinesByFileTypeJson) ?? new Dictionary<string, int>()
@@ -43,8 +47,12 @@ public class CommitLineCountEntity : ITableEntity
             Id = model.Id,
             RepositoryId = model.RepositoryId,
             CommitSha = model.CommitSha,
-            CommitDate = model.CommitDate,
+            CommitDate = model.CommitDate.Kind == DateTimeKind.Unspecified 
+                ? DateTime.SpecifyKind(model.CommitDate, DateTimeKind.Utc) 
+                : model.CommitDate.ToUniversalTime(),
             TotalLines = model.TotalLines,
+            LinesAdded = model.LinesAdded,
+            LinesRemoved = model.LinesRemoved,
             LinesByFileTypeJson = JsonSerializer.Serialize(model.LinesByFileType)
         };
     }

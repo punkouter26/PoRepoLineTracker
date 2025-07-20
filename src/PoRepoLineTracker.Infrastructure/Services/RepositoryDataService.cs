@@ -14,16 +14,15 @@ public class RepositoryDataService : IRepositoryDataService
     private readonly TableClient _commitLineCountTableClient;
     private readonly ILogger<RepositoryDataService> _logger;
 
-    private const string RepositoryTableName = "PoRepoLineTrackerRepositories";
-    private const string CommitLineCountTableName = "PoRepoLineTrackerCommitLineCounts";
-
     public RepositoryDataService(IConfiguration configuration, ILogger<RepositoryDataService> logger)
     {
         _logger = logger;
         var connectionString = configuration["AzureTableStorage:ConnectionString"] ?? "UseDevelopmentStorage=true";
+        var repositoryTableName = configuration["AzureTableStorage:RepositoryTableName"] ?? "PoRepoLineTrackerRepositories";
+        var commitLineCountTableName = configuration["AzureTableStorage:CommitLineCountTableName"] ?? "PoRepoLineTrackerCommitLineCounts";
 
-        _repositoryTableClient = new TableClient(connectionString, RepositoryTableName);
-        _commitLineCountTableClient = new TableClient(connectionString, CommitLineCountTableName);
+        _repositoryTableClient = new TableClient(connectionString, repositoryTableName);
+        _commitLineCountTableClient = new TableClient(connectionString, commitLineCountTableName);
 
         _repositoryTableClient.CreateIfNotExists();
         _commitLineCountTableClient.CreateIfNotExists();
@@ -41,7 +40,7 @@ public class RepositoryDataService : IRepositoryDataService
     {
         _logger.LogInformation("Updating repository {RepoName} in Table Storage.", repository.Name);
         // Retrieve the existing entity to get its ETag for optimistic concurrency
-        var existingEntity = await _repositoryTableClient.GetEntityAsync<GitHubRepositoryEntity>(repository.Id.ToString(), repository.Id.ToString());
+        var existingEntity = await _repositoryTableClient.GetEntityAsync<GitHubRepositoryEntity>(repository.Owner, repository.Name);
         var entityToUpdate = GitHubRepositoryEntity.FromDomainModel(repository);
         entityToUpdate.ETag = existingEntity.Value.ETag; // Assign the ETag from the retrieved entity
 
@@ -75,10 +74,11 @@ public class RepositoryDataService : IRepositoryDataService
 
     public async Task AddCommitLineCountAsync(CommitLineCount commitLineCount)
     {
-        _logger.LogInformation("Adding commit line count for commit {CommitSha} of repository {RepositoryId}.", commitLineCount.CommitSha, commitLineCount.RepositoryId);
+        _logger.LogInformation("Upserting commit line count for commit {CommitSha} of repository {RepositoryId}.", commitLineCount.CommitSha, commitLineCount.RepositoryId);
         var entity = CommitLineCountEntity.FromDomainModel(commitLineCount);
-        await _commitLineCountTableClient.AddEntityAsync(entity);
-        _logger.LogInformation("Commit line count for commit {CommitSha} added successfully.", commitLineCount.CommitSha);
+        // Use UpsertEntityAsync to add or replace the entity
+        await _commitLineCountTableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+        _logger.LogInformation("Commit line count for commit {CommitSha} upserted successfully.", commitLineCount.CommitSha);
     }
 
     public async Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(Guid repositoryId)
@@ -124,5 +124,47 @@ public class RepositoryDataService : IRepositoryDataService
             break;
         }
         _logger.LogInformation("Azure Table Storage connection successful.");
+    }
+
+    public async Task DeleteCommitLineCountsForRepositoryAsync(Guid repositoryId)
+    {
+        _logger.LogInformation("Deleting all commit line counts for repository {RepositoryId} from Table Storage.", repositoryId);
+        var entitiesToDelete = new List<CommitLineCountEntity>();
+        await foreach (var entity in _commitLineCountTableClient.QueryAsync<CommitLineCountEntity>(e => e.PartitionKey == repositoryId.ToString()))
+        {
+            entitiesToDelete.Add(entity);
+        }
+
+        if (entitiesToDelete.Any())
+        {
+            var deleteTasks = entitiesToDelete.Select(entity => _commitLineCountTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, entity.ETag));
+            await Task.WhenAll(deleteTasks);
+            _logger.LogInformation("Deleted {Count} commit line counts for repository {RepositoryId}.", entitiesToDelete.Count, repositoryId);
+        }
+        else
+        {
+            _logger.LogInformation("No commit line counts found to delete for repository {RepositoryId}.", repositoryId);
+        }
+    }
+
+    public async Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name)
+    {
+        _logger.LogInformation("Getting repository by Owner: {Owner} and Name: {Name} from Table Storage.", owner, name);
+        try
+        {
+            var entity = await _repositoryTableClient.GetEntityAsync<GitHubRepositoryEntity>(owner, name);
+            _logger.LogInformation("Found repository {RepoName} by Owner {Owner} and Name {Name}.", name, owner, name);
+            return entity.Value.ToDomainModel();
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            _logger.LogInformation("Repository with Owner {Owner} and Name {Name} not found.", owner, name);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting repository by Owner {Owner} and Name {Name}. Error: {ErrorMessage}", owner, name, ex.Message);
+            throw;
+        }
     }
 }

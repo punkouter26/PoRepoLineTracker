@@ -39,7 +39,9 @@ public class GitHubRepositoryEntity : ITableEntity
             Owner = model.Owner,
             Name = model.Name,
             CloneUrl = model.CloneUrl,
-            LastAnalyzedCommitDate = model.LastAnalyzedCommitDate
+            LastAnalyzedCommitDate = model.LastAnalyzedCommitDate.Kind == DateTimeKind.Unspecified 
+                ? DateTime.SpecifyKind(model.LastAnalyzedCommitDate, DateTimeKind.Utc) 
+                : model.LastAnalyzedCommitDate.ToUniversalTime()
         };
     }
 }

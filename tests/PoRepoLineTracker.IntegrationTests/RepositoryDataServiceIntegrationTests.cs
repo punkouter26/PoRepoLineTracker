@@ -7,16 +7,22 @@ using Azure.Data.Tables;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
+using PoRepoLineTracker.Application.Interfaces;
+using PoRepoLineTracker.Application.Services;
 
 namespace PoRepoLineTracker.IntegrationTests;
 
 public class RepositoryDataServiceIntegrationTests : IDisposable
 {
     private readonly RepositoryDataService _repositoryDataService;
+    private readonly IGitHubService _gitHubService;
+    private readonly IRepositoryService _repositoryService;
     private readonly TableServiceClient _tableServiceClient;
     private readonly ILogger<RepositoryDataService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly string _testLocalReposPath;
 
     private const string TestRepositoryTableName = "PoRepoLineTrackerRepositoriesTest";
     private const string TestCommitLineCountTableName = "PoRepoLineTrackerCommitLineCountsTest";
@@ -24,11 +30,14 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
 
     public RepositoryDataServiceIntegrationTests()
     {
-        // Setup configuration for Azurite
+        _testLocalReposPath = Path.Combine(Path.GetTempPath(), "PoRepoLineTrackerTests", Guid.NewGuid().ToString());
+
+        // Setup configuration for Azurite and GitHub local path
         var inMemorySettings = new Dictionary<string, string?> {
             {"AzureTableStorage:ConnectionString", AzuriteConnectionString},
             {"AzureTableStorage:RepositoryTableName", TestRepositoryTableName},
-            {"AzureTableStorage:CommitLineCountTableName", TestCommitLineCountTableName}
+            {"AzureTableStorage:CommitLineCountTableName", TestCommitLineCountTableName},
+            {"GitHub:LocalReposPath", _testLocalReposPath}
         };
 
         _configuration = new ConfigurationBuilder()
@@ -38,19 +47,32 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
         // Setup logger
         _logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<RepositoryDataService>();
 
-        // Initialize service
+        // Initialize services
         _repositoryDataService = new RepositoryDataService(_configuration, _logger);
+        _gitHubService = new GitHubService(new HttpClientFactoryStub().CreateClient("test"), _configuration, LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<GitHubService>());
+        _repositoryService = new RepositoryService(_gitHubService, _repositoryDataService, LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<RepositoryService>());
 
         // Initialize TableServiceClient for table management
         _tableServiceClient = new TableServiceClient(AzuriteConnectionString);
 
         // Ensure tables are clean before tests run
-        // Use async methods and wait for them to complete
-        _tableServiceClient.GetTableClient(TestRepositoryTableName).DeleteIfExistsAsync().Wait();
-        _tableServiceClient.GetTableClient(TestCommitLineCountTableName).DeleteIfExistsAsync().Wait();
+        var repoTableClient = _tableServiceClient.GetTableClient(TestRepositoryTableName);
+        var commitTableClient = _tableServiceClient.GetTableClient(TestCommitLineCountTableName);
 
-        _tableServiceClient.CreateTableIfNotExistsAsync(TestRepositoryTableName).Wait();
-        _tableServiceClient.CreateTableIfNotExistsAsync(TestCommitLineCountTableName).Wait();
+        // Attempt to delete tables. Ignore if they don't exist (404).
+        try { repoTableClient.DeleteAsync().Wait(); } catch (Azure.RequestFailedException ex) when (ex.Status == 404) { /* Table does not exist, ignore */ }
+        try { commitTableClient.DeleteAsync().Wait(); } catch (Azure.RequestFailedException ex) when (ex.Status == 404) { /* Table does not exist, ignore */ }
+
+        // Create tables. Ignore if they already exist (409 Conflict).
+        try { repoTableClient.CreateAsync().Wait(); } catch (Azure.RequestFailedException ex) when (ex.Status == 409) { /* Table already exists, ignore */ }
+        try { commitTableClient.CreateAsync().Wait(); } catch (Azure.RequestFailedException ex) when (ex.Status == 409) { /* Table already exists, ignore */ }
+
+        // Ensure test local repos directory is clean
+        if (Directory.Exists(_testLocalReposPath))
+        {
+            Directory.Delete(_testLocalReposPath, true);
+        }
+        Directory.CreateDirectory(_testLocalReposPath);
     }
 
     [Fact]
@@ -171,10 +193,59 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
         Assert.False(exists);
     }
 
+    [Fact]
+    public async Task AnalyzeRepositoryCommits_ShouldRetrieveAndStoreCommitsAndLineCounts()
+    {
+        // Arrange
+        var owner = "libgit2";
+        var repoName = "libgit2sharp";
+        var cloneUrl = $"https://github.com/{owner}/{repoName}";
+
+        // Act - Add the repository
+        var addedRepo = await _repositoryService.AddRepositoryAsync(owner, repoName, cloneUrl);
+
+        // Act - Analyze commits
+        await _repositoryService.AnalyzeRepositoryCommitsAsync(addedRepo.Id);
+
+        // Assert - Retrieve and verify commit line counts
+        var retrievedCommits = (await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(addedRepo.Id)).ToList();
+
+        Assert.NotNull(retrievedCommits);
+        Assert.True(retrievedCommits.Any(), "Should have retrieved at least one commit.");
+        Assert.True(retrievedCommits.Sum(c => c.TotalLines) > 0, "Total lines of code should be greater than 0.");
+    }
+
     public void Dispose()
     {
         // Clean up test tables after each test run
-        _tableServiceClient.GetTableClient(TestRepositoryTableName).DeleteIfExistsAsync().Wait();
-        _tableServiceClient.GetTableClient(TestCommitLineCountTableName).DeleteIfExistsAsync().Wait();
+        var repoTableClient = _tableServiceClient.GetTableClient(TestRepositoryTableName);
+        var commitTableClient = _tableServiceClient.GetTableClient(TestCommitLineCountTableName);
+
+        try { repoTableClient.DeleteAsync().Wait(); } catch (Azure.RequestFailedException ex) when (ex.Status == 404) { /* Table does not exist, ignore */ }
+        try { commitTableClient.DeleteAsync().Wait(); } catch (Azure.RequestFailedException ex) when (ex.Status == 404) { /* Table does not exist, ignore */ }
+
+        // Clean up local Git repositories
+        if (Directory.Exists(_testLocalReposPath))
+        {
+            try
+            {
+                Directory.Delete(_testLocalReposPath, true);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete test local repos directory: {Message}", ex.Message);
+                // Sometimes files might be locked, especially on Windows.
+                // A retry mechanism or manual cleanup might be needed if this becomes a frequent issue.
+            }
+        }
+    }
+
+    // Helper class for HttpClientFactory stub
+    public class HttpClientFactoryStub : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name)
+        {
+            return new HttpClient(); // Return a default HttpClient
+        }
     }
 }

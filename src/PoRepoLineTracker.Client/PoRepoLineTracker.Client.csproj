@@ -12,4 +12,9 @@
     <PackageReference Include="Radzen.Blazor" Version="7.1.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\PoRepoLineTracker.Domain\PoRepoLineTracker.Domain.csproj" />
+    <ProjectReference Include="..\PoRepoLineTracker.Application\PoRepoLineTracker.Application.csproj" />
+  </ItemGroup>
+
 </Project>
