@@ -69,10 +69,6 @@
               "target": "Package",
               "version": "[9.0.7, )"
             },
-            "Microsoft.Extensions.Diagnostics.HealthChecks": {
-              "target": "Package",
-              "version": "[9.0.7, )"
-            },
             "Microsoft.Extensions.Http.Resilience": {
               "target": "Package",
               "version": "[9.7.0, )"
@@ -96,10 +92,6 @@
             "Serilog.Sinks.File": {
               "target": "Package",
               "version": "[7.0.0, )"
-            },
-            "Swashbuckle.AspNetCore": {
-              "target": "Package",
-              "version": "[9.0.3, )"
             }
           },
           "imports": [

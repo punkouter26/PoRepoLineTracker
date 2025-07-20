@@ -12,9 +12,35 @@
 <div class="mb-3">
     <h4>Add New Repository</h4>
     <div class="input-group mb-3">
-        <input type="text" class="form-control" @bind="pageState.NewRepoCloneUrl" placeholder="GitHub Repository URL (e.g., https://github.com/octocat/Spoon-Knife)" />
-        <button class="btn btn-primary" @onclick="AddRepository">Add Repository</button>
+        <input type="text" class="form-control" @bind="pageState.NewRepoCloneUrl" placeholder="GitHub Repository URL (e.g., https://github.com/octocat/Spoon-Knife)" disabled="@pageState.IsAddingRepository" />
+        <button class="btn btn-primary" @onclick="AddRepository" disabled="@pageState.IsAddingRepository">
+            @if (pageState.IsAddingRepository)
+            {
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            }
+            Add Repository
+        </button>
     </div>
+    
+    @if (pageState.IsAddingRepository)
+    {
+        <div class="mb-3">
+            <div class="progress" style="height: 25px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" 
+                     style="width: @(pageState.ProgressPercentage)%" 
+                     aria-valuenow="@pageState.ProgressPercentage" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100">
+                    @(pageState.ProgressPercentage)%
+                </div>
+            </div>
+            <div class="text-center mt-2">
+                <small class="text-muted">@pageState.ProgressMessage</small>
+            </div>
+        </div>
+    }
+    
     @if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
     {
         <div class="alert alert-info">@pageState.AddRepoMessage</div>
@@ -33,20 +59,9 @@ else if (!pageState.Repositories.Any())
 else
 {
     <div class="mb-3">
-        <button class="btn btn-success" @onclick="AnalyzeAllRepositories" disabled="@pageState.IsAnalyzing">
-            @if (pageState.IsAnalyzing)
-            {
-                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                <text>Analyzing @pageState.CurrentAnalyzingRepo...</text>
-            }
-            else
-            {
-                <text>Analyze All Repositories</text>
-            }
-        </button>
         @if (pageState.Repositories?.Any() == true)
         {
-            <span class="ms-3 text-muted">(@pageState.Repositories.Count repositories found)</span>
+            <span class="text-muted">(@pageState.Repositories.Count repositories found - automatically analyzed when added)</span>
         }
     </div>
     
@@ -63,26 +78,12 @@ else
         <tbody>
             @foreach (var repo in pageState.Repositories)
             {
-                <tr class="@(pageState.AnalysisResults.ContainsKey(repo.Id) ? "table-success" : "")">
+                <tr>
                     <td>@repo.Owner</td>
                     <td>@repo.Name</td>
                     <td>@(repo.LastAnalyzedCommitDate == DateTime.MinValue ? "Never" : repo.LastAnalyzedCommitDate.ToString("MM/dd/yyyy HH:mm"))</td>
                     <td>
-                        @if (pageState.CurrentlyAnalyzing.Contains(repo.Id))
-                        {
-                            <span class="badge bg-primary">
-                                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                                Analyzing...
-                            </span>
-                        }
-                        else if (pageState.AnalysisResults.ContainsKey(repo.Id))
-                        {
-                            <span class="badge bg-success">✓ @pageState.AnalysisResults[repo.Id] commits</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-secondary">Ready</span>
-                        }
+                        <span class="badge bg-success">✓ Analyzed</span>
                     </td>
                     <td>
                         <button class="btn btn-sm btn-info" @onclick="() => ShowLineCountChart(repo.Id)">
@@ -101,11 +102,22 @@ else
                                 <div class="card-body">
                                     @if (isLoadingChartData)
                                     {
-                                        <p><em>Loading chart data...</em></p>
+                                        <div class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading chart data...</span>
+                                            </div>
+                                            <p class="mt-2 mb-0"><em>Loading chart data...</em></p>
+                                        </div>
                                     }
                                     else if (!string.IsNullOrEmpty(chartErrorMessage))
                                     {
-                                        <div class="alert alert-warning">@chartErrorMessage</div>
+                                        <div class="alert alert-warning">
+                                            <h6 class="alert-heading">Chart Data Unavailable</h6>
+                                            <p class="mb-2">@chartErrorMessage</p>
+                                            <button class="btn btn-sm btn-outline-warning" @onclick="() => FetchLineCountHistory(repo.Id)">
+                                                <i class="fas fa-redo"></i> Retry
+                                            </button>
+                                        </div>
                                     }
                                     else if (lineCountHistory != null && lineCountHistory.Any())
                                     {
@@ -123,7 +135,11 @@ else
                                     }
                                     else
                                     {
-                                        <p class="text-muted">No line count history available.</p>
+                                        <div class="text-center py-4 text-muted">
+                                            <i class="fas fa-chart-line fa-2x mb-2"></i>
+                                            <p class="mb-0">No line count history available for the selected period.</p>
+                                            <small>Try analyzing the repository first or check back later.</small>
+                                        </div>
                                     }
                                 </div>
                             </div>
@@ -133,116 +149,6 @@ else
             }
         </tbody>
     </table>
-}
-
-@if (pageState.DetailedResults?.Any() == true)
-{
-    <h4>Analysis Results</h4>
-    <p>Total Repositories Analyzed: @pageState.DetailedResults.Count | Total Commits: @pageState.DetailedResults.Sum(r => r.Commits.Count)</p>
-    
-    @foreach (var repoResult in pageState.DetailedResults.OrderByDescending(r => r.Commits.Count))
-    {
-        <div class="card mb-3">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    @repoResult.RepositoryName
-                    <span class="badge bg-primary ms-2">@repoResult.Commits.Count commits</span>
-                    <span class="badge bg-info ms-1">@repoResult.Commits.Sum(c => c.TotalLines) total lines</span>
-                </h5>
-            </div>
-            <div class="card-body">
-                @if (repoResult.Commits.Any())
-                {
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Recent Commits (Latest 5)</h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Lines</th>
-                                            <th>SHA</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var commit in repoResult.Commits.OrderByDescending(c => c.CommitDate).Take(5))
-                                        {
-                                            <tr>
-                                                <td>@commit.CommitDate.ToString("MM/dd HH:mm")</td>
-                                                <td>@commit.TotalLines</td>
-                                                <td><code>@commit.CommitSha.Substring(0, 8)</code></td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Code Growth Trend</h6>
-                            <div class="d-flex flex-column">
-                                <small class="text-muted">Latest Commit: @repoResult.Commits.OrderByDescending(c => c.CommitDate).First().CommitDate.ToString("MM/dd/yyyy")</small>
-                                <small class="text-muted">Current Lines: @repoResult.Commits.OrderByDescending(c => c.CommitDate).First().TotalLines</small>
-                                <small class="text-muted">File Types: @string.Join(", ", repoResult.Commits.SelectMany(c => c.LinesByFileType.Keys).Distinct())</small>
-                            </div>
-                            @if (repoResult.Commits.Count > 5)
-                            {
-                                <button class="btn btn-sm btn-outline-primary mt-2" @onclick="() => ToggleShowAllCommits(repoResult.RepositoryId)">
-                                    @if (showAllCommitsFor.Contains(repoResult.RepositoryId))
-                                    {
-                                        <text>Show Less</text>
-                                    }
-                                    else
-                                    {
-                                        <text>Show All @repoResult.Commits.Count Commits</text>
-                                    }
-                                </button>
-                            }
-                        </div>
-                    </div>
-                    
-                    @if (showAllCommitsFor.Contains(repoResult.RepositoryId) && repoResult.Commits.Count > 5)
-                    {
-                        <div class="mt-3">
-                            <h6>All Commits</h6>
-                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                                <table class="table table-sm">
-                                    <thead class="sticky-top bg-light">
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Total Lines</th>
-                                            <th>Commit SHA</th>
-                                            <th>File Types</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var commit in repoResult.Commits.OrderByDescending(c => c.CommitDate))
-                                        {
-                                            <tr>
-                                                <td>@commit.CommitDate.ToString("MM/dd HH:mm")</td>
-                                                <td>@commit.TotalLines</td>
-                                                <td><code>@commit.CommitSha.Substring(0, 8)</code></td>
-                                                <td>
-                                                    @foreach (var fileType in commit.LinesByFileType.Where(ft => ft.Value > 0).Take(3))
-                                                    {
-                                                        <small class="badge bg-light text-dark me-1">@fileType.Key: @fileType.Value</small>
-                                                    }
-                                                </td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    }
-                }
-                else
-                {
-                    <p class="text-muted">No commits analyzed yet.</p>
-                }
-            </div>
-        </div>
-    }
 }
 
 @code {
@@ -327,11 +233,19 @@ else
 
     private async Task AddRepository()
     {
-        pageState.AddRepoMessage = "Adding repository...";
+        if (pageState.IsAddingRepository) return; // Prevent multiple concurrent operations
+        
+        pageState.IsAddingRepository = true;
         pageState.ClearMessages();
+        StateHasChanged();
         
         try
         {
+            // Step 1: Validate URL (10%)
+            pageState.SetProgress("Validating repository URL...", 10);
+            StateHasChanged();
+            await Task.Delay(500); // Brief delay to show progress
+            
             // Parse owner and repo name from the URL
             var uri = new Uri(pageState.NewRepoCloneUrl);
             var pathSegments = uri.Segments.Where(s => s != "/").Select(s => s.Trim('/')).ToList();
@@ -345,6 +259,11 @@ else
             var owner = pathSegments[0];
             var repoName = pathSegments[1].Replace(".git", ""); // Remove .git if present
 
+            // Step 2: Prepare repository data (25%)
+            pageState.SetProgress("Preparing repository data...", 25);
+            StateHasChanged();
+            await Task.Delay(300);
+
             var newRepository = new GitHubRepository
             {
                 Owner = owner,
@@ -352,114 +271,63 @@ else
                 CloneUrl = pageState.NewRepoCloneUrl
             };
 
+            // Step 3: Adding to database (50%)
+            pageState.SetProgress("Adding repository to database...", 50);
+            StateHasChanged();
+
             var response = await Http.PostAsJsonAsync("/api/repositories", newRepository);
             
             if (response.IsSuccessStatusCode)
             {
+                // Step 4: Repository added successfully (75%)
+                pageState.SetProgress("Repository added! Initializing analysis...", 75);
+                StateHasChanged();
+                await Task.Delay(500);
+
                 var addedRepo = await response.Content.ReadFromJsonAsync<GitHubRepository>();
-                pageState.AddRepoMessage = $"Repository '{addedRepo?.Name}' added successfully!";
+                
+                // Step 5: Complete (100%)
+                pageState.SetProgress("Complete! Repository is now being analyzed.", 100);
+                StateHasChanged();
+                await Task.Delay(1000);
+
+                pageState.AddRepoMessage = $"Repository '{addedRepo?.Name}' added successfully! Analysis will begin automatically.";
                 pageState.NewRepoCloneUrl = "";
                 await LoadRepositories(); // Refresh the list
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
+                pageState.SetProgress("Repository already exists", 100);
+                StateHasChanged();
+                await Task.Delay(500);
+
                 var errorResponse = await response.Content.ReadFromJsonAsync<ErrorResponse>();
                 pageState.AddRepoMessage = errorResponse?.error ?? $"Repository '{owner}/{repoName}' is already in your list.";
             }
             else
             {
+                pageState.SetProgress("Error occurred", 100);
+                StateHasChanged();
+                await Task.Delay(500);
+
                 var errorContent = await response.Content.ReadAsStringAsync();
                 pageState.AddRepoMessage = $"Error adding repository: {response.StatusCode} - {errorContent}";
             }
         }
         catch (Exception ex)
         {
+            pageState.SetProgress("Error occurred", 100);
+            StateHasChanged();
+            await Task.Delay(500);
+
             pageState.AddRepoMessage = $"Error adding repository: {ex.Message}";
             Logger.LogError(ex, "Error adding repository: {Message}", ex.Message);
         }
-    }
-
-    private async Task AnalyzeAllRepositories()
-    {
-        if (pageState.Repositories == null || !pageState.Repositories.Any())
-        {
-            pageState.AddRepoMessage = "No repositories to analyze. Please add some repositories first.";
-            return;
-        }
-
-        pageState.IsAnalyzing = true;
-        pageState.DetailedResults = new List<RepositoryAnalysisResult>();
-        pageState.AnalysisResults.Clear();
-        pageState.CurrentlyAnalyzing.Clear();
-        pageState.AddRepoMessage = "Starting analysis of all repositories...";
-        StateHasChanged();
-
-        try
-        {
-            foreach (var repo in pageState.Repositories)
-            {
-                pageState.CurrentAnalyzingRepo = $"{repo.Owner}/{repo.Name}";
-                pageState.CurrentlyAnalyzing.Add(repo.Id);
-                StateHasChanged();
-
-                try
-                {
-                    // Step 1: Analyze commits
-                    pageState.AddRepoMessage = $"Analyzing commits for {pageState.CurrentAnalyzingRepo}...";
-                    var analyzeResponse = await Http.PostAsync($"/api/repositories/{repo.Id}/analyze", null);
-                    
-                    if (!analyzeResponse.IsSuccessStatusCode)
-                    {
-                        Logger.LogWarning("Failed to analyze repository {RepoName}: {StatusCode}", pageState.CurrentAnalyzingRepo, analyzeResponse.StatusCode);
-                        continue;
-                    }
-
-                    // Step 2: Get line counts
-                    pageState.AddRepoMessage = $"Retrieving line counts for {pageState.CurrentAnalyzingRepo}...";
-                    var lineCounts = await Http.GetFromJsonAsync<List<CommitLineCount>>($"/api/repositories/{repo.Id}/linecounts");
-                    
-                    if (lineCounts != null)
-                    {
-                        var sortedCommits = lineCounts.OrderByDescending(lc => lc.CommitDate).ToList();
-                        
-                        pageState.DetailedResults.Add(new RepositoryAnalysisResult
-                        {
-                            RepositoryId = repo.Id,
-                            RepositoryName = $"{repo.Owner}/{repo.Name}",
-                            Commits = sortedCommits
-                        });
-
-                        pageState.AnalysisResults[repo.Id] = sortedCommits.Count;
-                        Logger.LogInformation("Analyzed {CommitCount} commits for {RepoName}", sortedCommits.Count, pageState.CurrentAnalyzingRepo);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogError(ex, "Error analyzing repository {RepoName}: {Message}", pageState.CurrentAnalyzingRepo, ex.Message);
-                }
-                finally
-                {
-                    pageState.CurrentlyAnalyzing.Remove(repo.Id);
-                    StateHasChanged();
-                }
-            }
-
-            // Refresh repository list to get updated LastAnalyzedCommitDate
-            await LoadRepositories();
-            
-            var totalCommits = pageState.DetailedResults.Sum(r => r.Commits.Count);
-            pageState.AddRepoMessage = $"Analysis complete! Processed {pageState.DetailedResults.Count} repositories with {totalCommits} total commits.";
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error during bulk analysis: {Message}", ex.Message);
-            pageState.AddRepoMessage = $"Error during analysis: {ex.Message}";
-        }
         finally
         {
-            pageState.IsAnalyzing = false;
-            pageState.CurrentAnalyzingRepo = "";
-            pageState.CurrentlyAnalyzing.Clear();
+            pageState.IsAddingRepository = false;
+            pageState.ProgressMessage = string.Empty;
+            pageState.ProgressPercentage = 0;
             StateHasChanged();
         }
     }

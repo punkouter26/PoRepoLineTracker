@@ -203,6 +203,3 @@ C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.Ap
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\obj\Debug\net9.0\ref\PoRepoLineTracker.ApiTests.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Microsoft.Extensions.Diagnostics.HealthChecks.dll
 C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Swashbuckle.AspNetCore.Swagger.dll
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerGen.dll
-C:\Users\punko\Downloads\PoGitCount\PoRepoLineTracker\tests\PoRepoLineTracker.ApiTests\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerUI.dll

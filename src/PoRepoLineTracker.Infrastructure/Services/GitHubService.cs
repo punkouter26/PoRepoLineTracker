@@ -293,7 +293,7 @@ public class GitHubService : IGitHubService
                     commitStatsList.Add(new CommitStatsDto
                     {
                         Sha = commit.Sha,
-                        CommitDate = commit.Author.When,
+                        CommitDate = commit.Author.When.DateTime,
                         LinesAdded = linesAdded,
                         LinesRemoved = linesRemoved
                     });

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PoRepoLineTracker.Domain")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b4e4f428bc89d73abc05e103d6ca72d56cfb2060")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+36d41560df02570f160e40a4bb8cfbb60e2ed59a")]
 [assembly: System.Reflection.AssemblyProductAttribute("PoRepoLineTracker.Domain")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PoRepoLineTracker.Domain")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
