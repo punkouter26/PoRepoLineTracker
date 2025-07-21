@@ -14,5 +14,6 @@ public interface IRepositoryDataService
     Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(Guid repositoryId);
     Task<bool> CommitExistsAsync(Guid repositoryId, string commitSha);
     Task DeleteCommitLineCountsForRepositoryAsync(Guid repositoryId); // Added for temporary endpoint
+    Task DeleteRepositoryAsync(Guid repositoryId);
     Task CheckConnectionAsync();
 }

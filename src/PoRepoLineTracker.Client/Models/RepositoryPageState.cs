@@ -9,9 +9,12 @@ public class RepositoryPageState
     public string ErrorMessage { get; set; } = string.Empty;
     public bool IsLoadingRepositories { get; set; } = false;
     public bool IsAddingRepository { get; set; } = false;
+    public bool IsLoadingGitHubRepos { get; set; } = false;
     public string ProgressMessage { get; set; } = string.Empty;
     public int ProgressPercentage { get; set; } = 0;
     public List<GitHubRepository> Repositories { get; set; } = new();
+    public List<GitHubUserRepositoryDto> GitHubUserRepositories { get; set; } = new();
+    public GitHubUserRepositoryDto? SelectedGitHubRepository { get; set; }
     public HashSet<Guid> ShowAllCommitsFor { get; set; } = new();
 
     public void ClearMessages()

@@ -23,11 +23,6 @@ try
     // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
     builder.Services.AddOpenApi();
 
-    // Register application services
-    builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IGitHubService, PoRepoLineTracker.Infrastructure.Services.GitHubService>();
-    builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryDataService, PoRepoLineTracker.Infrastructure.Services.RepositoryDataService>();
-    builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryService, PoRepoLineTracker.Application.Services.RepositoryService>();
-
     // Configure HttpClient with Polly Circuit Breaker
     var circuitBreakerOptions = new CircuitBreakerStrategyOptions<HttpResponseMessage> // Specify TResult
     {
@@ -42,17 +37,36 @@ try
         }
     };
 
-    builder.Services.AddHttpClient("GitHubClient", client =>
+    builder.Services.AddHttpClient("GitHubClient", (serviceProvider, client) =>
     {
+        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+        var gitHubPat = configuration["GitHub:PAT"];
+        
         client.BaseAddress = new Uri("https://api.github.com/");
         client.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3+json");
         client.DefaultRequestHeaders.Add("User-Agent", "PoRepoLineTracker");
-        // GitHub PAT will be added here via configuration later
+        
+        if (!string.IsNullOrEmpty(gitHubPat))
+        {
+            client.DefaultRequestHeaders.Add("Authorization", $"token {gitHubPat}");
+        }
     })
     .AddResilienceHandler("CircuitBreaker", builder =>
     {
         builder.AddCircuitBreaker(circuitBreakerOptions);
     });
+
+    // Register application services with proper HttpClient injection
+    builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IGitHubService>(serviceProvider =>
+    {
+        var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+        var httpClient = httpClientFactory.CreateClient("GitHubClient");
+        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+        var logger = serviceProvider.GetRequiredService<ILogger<PoRepoLineTracker.Infrastructure.Services.GitHubService>>();
+        return new PoRepoLineTracker.Infrastructure.Services.GitHubService(httpClient, configuration, logger);
+    });
+    builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryDataService, PoRepoLineTracker.Infrastructure.Services.RepositoryDataService>();
+    builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryService, PoRepoLineTracker.Application.Services.RepositoryService>();
 
     var app = builder.Build();
 
@@ -149,6 +163,47 @@ try
         }
     })
     .WithName("GetFileExtensionPercentages");
+
+    app.MapDelete("/api/repositories/{repositoryId}", async (Guid repositoryId, IRepositoryService repoService) =>
+    {
+        try
+        {
+            await repoService.DeleteRepositoryAsync(repositoryId);
+            Log.Information("Repository {RepositoryId} deleted successfully via API.", repositoryId);
+            return Results.NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.Warning("Repository {RepositoryId} not found for deletion.", repositoryId);
+            return Results.NotFound($"Repository with ID {repositoryId} not found.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error deleting repository {RepositoryId}", repositoryId);
+            return Results.Problem($"Error deleting repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+        }
+    })
+    .WithName("DeleteRepository");
+
+    app.MapGet("/api/github/user-repositories", async (IGitHubService githubService) =>
+    {
+        try
+        {
+            var userRepositories = await githubService.GetUserRepositoriesAsync();
+            return Results.Ok(userRepositories);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.Warning("GitHub PAT not configured: {ErrorMessage}", ex.Message);
+            return Results.BadRequest($"GitHub configuration error: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error fetching user repositories from GitHub API");
+            return Results.Problem($"Error fetching user repositories: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+        }
+    })
+    .WithName("GetUserRepositories");
 
     // Health Check Endpoints
     app.MapGet("/api/health/azure-table-storage", async (IRepositoryDataService repoDataService) =>

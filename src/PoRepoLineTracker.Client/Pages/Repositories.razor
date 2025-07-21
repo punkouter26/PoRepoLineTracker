@@ -12,8 +12,14 @@
 <div class="mb-3">
     <h4>Add New Repository</h4>
     <div class="input-group mb-3">
-        <input type="text" class="form-control" @bind="pageState.NewRepoCloneUrl" placeholder="GitHub Repository URL (e.g., https://github.com/octocat/Spoon-Knife)" disabled="@pageState.IsAddingRepository" />
-        <button class="btn btn-primary" @onclick="AddRepository" disabled="@pageState.IsAddingRepository">
+        <RadzenDropDown @bind-Value="pageState.SelectedGitHubRepository"
+                        Data="@pageState.GitHubUserRepositories"
+                        TextProperty="Name"
+                        Placeholder="Select a repository from your GitHub account..."
+                        Style="min-width: 300px;"
+                        Disabled="@(pageState.IsAddingRepository || pageState.IsLoadingGitHubRepos)"
+                        class="form-control" />
+        <button class="btn btn-primary" @onclick="AddRepository" disabled="@(pageState.IsAddingRepository || pageState.SelectedGitHubRepository == null)">
             @if (pageState.IsAddingRepository)
             {
                 <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -21,6 +27,18 @@
             Add Repository
         </button>
     </div>
+    
+    @if (pageState.IsLoadingGitHubRepos)
+    {
+        <div class="mb-3">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading GitHub repositories...</span>
+                </div>
+                <p class="mt-2"><em>Loading your GitHub repositories...</em></p>
+            </div>
+        </div>
+    }
     
     @if (pageState.IsAddingRepository)
     {
@@ -86,8 +104,11 @@ else
                         <span class="badge bg-success">✓ Analyzed</span>
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-info" @onclick="() => ShowLineCountChart(repo.Id)">
+                        <button class="btn btn-sm btn-info me-2" @onclick="() => ShowLineCountChart(repo.Id)">
                             @(selectedRepositoryId == repo.Id ? "Hide Chart" : "Show Chart")
+                        </button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteRepository(repo.Id)" title="Delete Repository">
+                            <i class="fas fa-trash"></i>
                         </button>
                     </td>
                 </tr>
@@ -96,7 +117,7 @@ else
                     <tr>
                         <td colspan="5">
                             <div class="row">
-                                <div class="col-lg-6 col-md-12 mb-4"> @* Chart Column *@
+                                <div class="col-lg-8 col-md-12 mb-4"> @* Chart Column - 80% width *@
                                     <div class="card mt-2 mb-2">
                                         <div class="card-header">
                                             <h5 class="mb-0">Line Count History for @repo.Name (Last 30 Days)</h5>
@@ -147,7 +168,7 @@ else
                                     </div>
                                 </div>
 
-                                <div class="col-lg-6 col-md-12 mb-4"> @* File Extension Percentages Column *@
+                                <div class="col-lg-4 col-md-12 mb-4"> @* File Extension Percentages Column - 20% width *@
                                     <div class="card mt-2 mb-2">
                                         <div class="card-header">
                                             <h5 class="mb-0">
@@ -196,6 +217,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadRepositories();
+        await LoadGitHubRepositories();
     }
 
     private async Task ShowLineCountChart(Guid repositoryId)
@@ -289,9 +311,33 @@ else
         }
     }
 
+    private async Task LoadGitHubRepositories()
+    {
+        pageState.IsLoadingGitHubRepos = true;
+        StateHasChanged();
+        
+        try
+        {
+            var gitHubRepos = await Http.GetFromJsonAsync<List<GitHubUserRepositoryDto>>("/api/github/user-repositories");
+            // Sort repositories alphabetically by name
+            pageState.GitHubUserRepositories = gitHubRepos?.OrderBy(r => r.Name).ToList() ?? new List<GitHubUserRepositoryDto>();
+            Logger.LogInformation("Loaded {Count} GitHub user repositories.", pageState.GitHubUserRepositories.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading GitHub repositories: {Message}", ex.Message);
+            pageState.ErrorMessage = $"Error loading GitHub repositories: {ex.Message}";
+        }
+        finally
+        {
+            pageState.IsLoadingGitHubRepos = false;
+            StateHasChanged();
+        }
+    }
+
     private async Task AddRepository()
     {
-        if (pageState.IsAddingRepository) return;
+        if (pageState.IsAddingRepository || pageState.SelectedGitHubRepository == null) return;
         
         pageState.IsAddingRepository = true;
         pageState.ClearMessages();
@@ -299,34 +345,31 @@ else
         
         try
         {
-            // Step 1: Validate URL (10%)
-            pageState.SetProgress("Validating repository URL...", 10);
+            // Step 1: Validate selected repository (10%)
+            pageState.SetProgress("Validating selected repository...", 10);
             StateHasChanged();
-            await Task.Delay(500);
+            await Task.Delay(300);
             
-            // Parse owner and repo name from the URL
-            var uri = new Uri(pageState.NewRepoCloneUrl);
-            var pathSegments = uri.Segments.Where(s => s != "/").Select(s => s.Trim('/')).ToList();
-
-            if (pathSegments.Count < 2)
-            {
-                pageState.AddRepoMessage = "Error: Invalid GitHub repository URL. Please provide a URL like https://github.com/owner/repo.";
-                return;
-            }
-
-            var owner = pathSegments[0];
-            var repoName = pathSegments[1].Replace(".git", "");
+            var selectedRepo = pageState.SelectedGitHubRepository;
 
             // Step 2: Prepare repository data (25%)
             pageState.SetProgress("Preparing repository data...", 25);
             StateHasChanged();
             await Task.Delay(300);
 
+            // Parse owner and repo name from the full name (e.g., "owner/repo")
+            var fullNameParts = selectedRepo.FullName.Split('/');
+            if (fullNameParts.Length != 2)
+            {
+                pageState.AddRepoMessage = "Error: Invalid repository format in GitHub data.";
+                return;
+            }
+
             var newRepository = new GitHubRepository
             {
-                Owner = owner,
-                Name = repoName,
-                CloneUrl = pageState.NewRepoCloneUrl
+                Owner = fullNameParts[0],
+                Name = fullNameParts[1],
+                CloneUrl = selectedRepo.CloneUrl
             };
 
             // Step 3: Adding to database (50%)
@@ -350,7 +393,7 @@ else
                 await Task.Delay(1000);
 
                 pageState.AddRepoMessage = $"Repository '{addedRepo?.Name}' added successfully! Analysis will begin automatically.";
-                pageState.NewRepoCloneUrl = "";
+                pageState.SelectedGitHubRepository = null; // Clear selection
                 await LoadRepositories();
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
@@ -360,7 +403,7 @@ else
                 await Task.Delay(500);
 
                 var errorResponse = await response.Content.ReadFromJsonAsync<ErrorResponse>();
-                pageState.AddRepoMessage = errorResponse?.error ?? $"Repository '{owner}/{repoName}' is already in your list.";
+                pageState.AddRepoMessage = errorResponse?.error ?? $"Repository '{selectedRepo.Name}' is already in your list.";
             }
             else
             {
@@ -399,6 +442,50 @@ else
         else
         {
             pageState.ShowAllCommitsFor.Add(repositoryId);
+        }
+    }
+
+    private async Task DeleteRepository(Guid repositoryId)
+    {
+        try
+        {
+            Logger.LogInformation("Deleting repository {RepositoryId}", repositoryId);
+
+            var response = await Http.DeleteAsync($"/api/repositories/{repositoryId}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                // Remove the repository from the local list
+                var repoToRemove = pageState.Repositories.FirstOrDefault(r => r.Id == repositoryId);
+                if (repoToRemove != null)
+                {
+                    pageState.Repositories.Remove(repoToRemove);
+                    pageState.AddRepoMessage = $"Repository '{repoToRemove.Owner}/{repoToRemove.Name}' deleted successfully!";
+                }
+                
+                // Hide chart if it was being displayed
+                if (selectedRepositoryId == repositoryId)
+                {
+                    selectedRepositoryId = null;
+                }
+
+                Logger.LogInformation("Repository {RepositoryId} deleted successfully", repositoryId);
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                pageState.AddRepoMessage = $"Error deleting repository: {response.StatusCode} - {errorContent}";
+                Logger.LogError("Failed to delete repository {RepositoryId}. Status: {StatusCode}, Content: {ErrorContent}", repositoryId, response.StatusCode, errorContent);
+            }
+        }
+        catch (Exception ex)
+        {
+            pageState.AddRepoMessage = $"Error deleting repository: {ex.Message}";
+            Logger.LogError(ex, "Error deleting repository {RepositoryId}: {Message}", repositoryId, ex.Message);
+        }
+        finally
+        {
+            StateHasChanged();
         }
     }
 }

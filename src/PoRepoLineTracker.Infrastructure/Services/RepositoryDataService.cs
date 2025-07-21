@@ -147,6 +147,30 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
+    public async Task DeleteRepositoryAsync(Guid repositoryId)
+    {
+        _logger.LogInformation("Deleting repository {RepositoryId} and all associated data from Table Storage.", repositoryId);
+        
+        // First, delete all commit line counts for this repository
+        await DeleteCommitLineCountsForRepositoryAsync(repositoryId);
+        
+        // Then, find and delete the repository entity
+        try
+        {
+            await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(r => r.Id == repositoryId))
+            {
+                await _repositoryTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, entity.ETag);
+                _logger.LogInformation("Repository entity deleted successfully for repository {RepositoryId}.", repositoryId);
+                break; // Should only be one match
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting repository {RepositoryId}. Error: {ErrorMessage}", repositoryId, ex.Message);
+            throw;
+        }
+    }
+
     public async Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name)
     {
         _logger.LogInformation("Getting repository by Owner: {Owner} and Name: {Name} from Table Storage.", owner, name);

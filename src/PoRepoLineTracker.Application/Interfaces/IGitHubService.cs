@@ -12,4 +12,5 @@ public interface IGitHubService
     Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(string localPath, DateTime? sinceDate = null);
     Task<long> GetTotalLinesOfCodeAsync(string localPath, IEnumerable<string> fileExtensionsToCount);
     Task CheckConnectionAsync();
+    Task<IEnumerable<GitHubUserRepository>> GetUserRepositoriesAsync();
 }

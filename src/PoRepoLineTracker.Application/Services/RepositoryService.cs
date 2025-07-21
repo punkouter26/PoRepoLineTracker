@@ -2,6 +2,7 @@ using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
 using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.Application.Models;
+using System.IO;
 
 namespace PoRepoLineTracker.Application.Services;
 
@@ -347,6 +348,66 @@ public class RepositoryService : IRepositoryService
     {
         _logger.LogInformation("Retrieving configured file extensions for line counting.");
         return Task.FromResult(_fileExtensionsToCount);
+    }
+
+    public async Task DeleteRepositoryAsync(Guid repositoryId)
+    {
+        _logger.LogInformation("Starting deletion process for repository {RepositoryId}.", repositoryId);
+        
+        try
+        {
+            // Get repository details for local path deletion
+            var repository = await _repositoryDataService.GetRepositoryByIdAsync(repositoryId);
+            if (repository == null)
+            {
+                _logger.LogWarning("Repository {RepositoryId} not found in database. Cannot proceed with deletion.", repositoryId);
+                throw new InvalidOperationException($"Repository with ID {repositoryId} not found.");
+            }
+
+            // Construct local path the same way it's done in AnalyzeRepositoryCommitsAsync
+            var localRepoPath = Path.Combine(repository.Owner, repository.Name);
+            
+            // Try to delete the local repository using GitHubService's directory deletion approach
+            try
+            {
+                // Since we don't have direct access to _localReposPath, we'll ask GitHubService 
+                // to attempt a pull operation which will give us the full path, then delete it
+                var fullLocalPath = await _gitHubService.PullRepositoryAsync(localRepoPath);
+                
+                if (Directory.Exists(fullLocalPath))
+                {
+                    _logger.LogInformation("Deleting local repository files at path: {LocalPath}", fullLocalPath);
+                    Directory.Delete(fullLocalPath, recursive: true);
+                    _logger.LogInformation("Local repository files deleted successfully.");
+                }
+                else
+                {
+                    _logger.LogInformation("No local repository files found at path: {LocalPath}", fullLocalPath);
+                }
+            }
+            catch (DirectoryNotFoundException)
+            {
+                _logger.LogInformation("Local repository directory not found for {Owner}/{Name}, nothing to delete locally.", repository.Owner, repository.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete local repository files for {Owner}/{Name}, but continuing with database deletion.", repository.Owner, repository.Name);
+            }
+
+            // Delete from database (this will delete both repository and all associated commit data)
+            await _repositoryDataService.DeleteRepositoryAsync(repositoryId);
+            
+            _logger.LogInformation("Repository {RepositoryId} and all associated data deleted successfully.", repositoryId);
+        }
+        catch (InvalidOperationException)
+        {
+            throw; // Re-throw validation exceptions as-is
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting repository {RepositoryId}. Error: {ErrorMessage}", repositoryId, ex.Message);
+            throw;
+        }
     }
 
     public async Task<IEnumerable<FileExtensionPercentageDto>> GetFileExtensionPercentagesAsync(Guid repositoryId)
