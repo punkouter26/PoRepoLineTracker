@@ -14,4 +14,5 @@ public interface IRepositoryService
     Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(Guid repositoryId, int days);
     Task<IEnumerable<RepositoryLineCountHistoryDto>> GetAllRepositoriesLineCountHistoryAsync(int days);
     Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync();
+    Task<IEnumerable<FileExtensionPercentageDto>> GetFileExtensionPercentagesAsync(Guid repositoryId);
 }

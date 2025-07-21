@@ -348,4 +348,48 @@ public class RepositoryService : IRepositoryService
         _logger.LogInformation("Retrieving configured file extensions for line counting.");
         return Task.FromResult(_fileExtensionsToCount);
     }
+
+    public async Task<IEnumerable<FileExtensionPercentageDto>> GetFileExtensionPercentagesAsync(Guid repositoryId)
+    {
+        _logger.LogInformation("Calculating file extension percentages for repository ID: {RepositoryId}", repositoryId);
+
+        var commitLineCounts = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(repositoryId);
+
+        if (!commitLineCounts.Any())
+        {
+            _logger.LogInformation("No commit data found for repository ID: {RepositoryId}. Cannot calculate file extension percentages.", repositoryId);
+            return Enumerable.Empty<FileExtensionPercentageDto>();
+        }
+
+        // Get the latest commit's line counts by file type to represent the current state
+        var latestCommit = commitLineCounts.OrderByDescending(c => c.CommitDate).FirstOrDefault();
+
+        if (latestCommit == null || latestCommit.LinesByFileType == null || !latestCommit.LinesByFileType.Any())
+        {
+            _logger.LogInformation("Latest commit for repository ID: {RepositoryId} has no file type line counts. Cannot calculate percentages.", repositoryId);
+            return Enumerable.Empty<FileExtensionPercentageDto>();
+        }
+
+        var totalLinesInLatestCommit = latestCommit.LinesByFileType.Sum(kv => kv.Value);
+
+        if (totalLinesInLatestCommit == 0)
+        {
+            _logger.LogInformation("Total lines in latest commit for repository ID: {RepositoryId} is zero. Cannot calculate percentages.", repositoryId);
+            return Enumerable.Empty<FileExtensionPercentageDto>();
+        }
+
+        var percentages = latestCommit.LinesByFileType
+            .Select(kv => new FileExtensionPercentageDto
+            {
+                FileExtension = kv.Key,
+                LineCount = kv.Value,
+                Percentage = (double)kv.Value / totalLinesInLatestCommit * 100
+            })
+            .OrderByDescending(p => p.Percentage)
+            .Take(3) // Get top 3
+            .ToList();
+
+        _logger.LogInformation("Returning top {Count} file extension percentages for repository ID: {RepositoryId}", percentages.Count, repositoryId);
+        return percentages;
+    }
 }

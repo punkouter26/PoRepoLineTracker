@@ -1,0 +1,167 @@
+sequenceDiagram
+    participant User as 👤 User
+    participant Browser as 🌐 Browser
+    participant BlazorClient as 📱 Blazor Client
+    participant WebAPI as 🔌 Web API
+    participant RepoService as 🛠️ Repository Service
+    participant DataService as 💾 Repository Data Service
+    participant GitHubService as 🔄 GitHub Service
+    participant AzureStorage as ☁️ Azure Table Storage
+    participant GitHub as 📂 GitHub API
+    participant GitRepo as 📁 Local Git Repository
+
+    Note over User, GitRepo: Repository Analysis Flow - Complete Lifecycle
+
+    %% Step 1: User initiates repository addition
+    User->>Browser: Enter GitHub clone URL
+    Browser->>BlazorClient: Submit repository form
+    BlazorClient->>BlazorClient: Validate URL format
+    BlazorClient->>BlazorClient: Update progress (0% - "Validating...")
+    
+    %% Step 2: API call to add repository
+    BlazorClient->>WebAPI: POST /api/repositories
+    Note over BlazorClient, WebAPI: { "owner": "octocat", "name": "Hello-World", "cloneUrl": "https://github.com/octocat/Hello-World.git" }
+    
+    %% Step 3: Repository service processes the request
+    WebAPI->>RepoService: AddRepositoryAsync(owner, name, cloneUrl)
+    RepoService->>DataService: GetRepositoryByOwnerAndNameAsync(owner, name)
+    DataService->>AzureStorage: Query repository table
+    AzureStorage-->>DataService: Repository not found
+    DataService-->>RepoService: null (repository doesn't exist)
+    
+    %% Step 4: Create new repository entity
+    RepoService->>RepoService: Create new GitHubRepository entity
+    Note over RepoService: Id = NewGuid(), LastAnalyzedCommitDate = MinValue
+    RepoService->>DataService: AddRepositoryAsync(newRepository)
+    DataService->>AzureStorage: Insert repository record
+    AzureStorage-->>DataService: Success
+    DataService-->>RepoService: Repository added
+    
+    %% Step 5: Return created repository to client
+    RepoService-->>WebAPI: Return GitHubRepository
+    WebAPI-->>BlazorClient: HTTP 201 Created + Repository JSON
+    BlazorClient->>BlazorClient: Update progress (25% - "Repository added!")
+    
+    %% Step 6: Automatic analysis begins
+    Note over RepoService, GitRepo: Automatic Analysis Phase
+    RepoService->>RepoService: AnalyzeRepositoryCommitsAsync(repositoryId)
+    RepoService->>DataService: GetRepositoryByIdAsync(repositoryId)
+    DataService-->>RepoService: Return repository details
+    
+    %% Step 7: Clone repository locally
+    RepoService->>GitHubService: CloneRepositoryAsync(cloneUrl, localPath)
+    GitHubService->>GitHubService: Check if repository exists locally
+    alt Repository not exists locally
+        GitHubService->>GitHub: Clone repository
+        GitHub-->>GitRepo: Download repository files
+        GitRepo-->>GitHubService: Repository cloned successfully
+    else Repository exists
+        GitHubService->>GitHubService: Repository already exists, skip clone
+    end
+    GitHubService-->>RepoService: Return local repository path
+    
+    %% Step 8: Get commit statistics
+    RepoService->>GitHubService: GetCommitStatsAsync(localPath)
+    GitHubService->>GitRepo: Analyze git history
+    GitRepo-->>GitHubService: Return commit list with stats
+    Note over GitHubService, GitRepo: For each commit: SHA, date, lines added/removed
+    GitHubService-->>RepoService: Return CommitStatsDto[]
+    
+    %% Step 9: Process each commit
+    loop For each commit in chronological order
+        RepoService->>DataService: CommitExistsAsync(repositoryId, commitSha)
+        DataService->>AzureStorage: Query commit table
+        AzureStorage-->>DataService: Commit not found
+        DataService-->>RepoService: false (new commit)
+        
+        %% Step 10: Analyze commit line counts
+        RepoService->>GitHubService: CountLinesInCommitAsync(localPath, commitSha, fileExtensions)
+        GitHubService->>GitRepo: Checkout commit
+        GitRepo-->>GitHubService: Commit checked out
+        GitHubService->>GitRepo: Traverse file tree
+        
+        loop For each file in commit tree
+            alt File extension matches (.cs, .js, .ts, etc.)
+                GitHubService->>GitRepo: Read file content
+                GitRepo-->>GitHubService: File content
+                GitHubService->>GitHubService: Count lines in file
+            else File extension not tracked
+                GitHubService->>GitHubService: Skip file
+            end
+        end
+        
+        GitHubService-->>RepoService: Return line counts by file type
+        
+        %% Step 11: Create and save commit line count
+        RepoService->>RepoService: Create CommitLineCount entity
+        Note over RepoService: Aggregate: total lines, lines added/removed, breakdown by file type
+        RepoService->>DataService: AddCommitLineCountAsync(commitLineCount)
+        DataService->>AzureStorage: Insert commit line count record
+        AzureStorage-->>DataService: Success
+        DataService-->>RepoService: Commit data saved
+    end
+    
+    %% Step 12: Update repository analysis date
+    RepoService->>RepoService: Update LastAnalyzedCommitDate
+    RepoService->>DataService: UpdateRepositoryAsync(repository)
+    DataService->>AzureStorage: Update repository record
+    AzureStorage-->>DataService: Success
+    DataService-->>RepoService: Repository updated
+    
+    %% Step 13: Analysis complete
+    RepoService-->>WebAPI: Analysis completed
+    WebAPI->>WebAPI: Log analysis completion
+    
+    %% Step 14: User views results
+    BlazorClient->>BlazorClient: Update progress (100% - "Analysis complete!")
+    BlazorClient->>BlazorClient: Refresh repository list
+    BlazorClient->>WebAPI: GET /api/repositories
+    WebAPI->>RepoService: GetAllRepositoriesAsync()
+    RepoService->>DataService: GetAllRepositoriesAsync()
+    DataService->>AzureStorage: Query all repositories
+    AzureStorage-->>DataService: Return repository list
+    DataService-->>RepoService: Return repositories
+    RepoService-->>WebAPI: Return repositories
+    WebAPI-->>BlazorClient: Updated repository list
+    BlazorClient-->>Browser: Display repositories with "Analyzed" status
+    Browser-->>User: Show updated repository list
+    
+    %% Step 15: User requests line count history (optional)
+    User->>Browser: Click "View Chart" for repository
+    Browser->>BlazorClient: Request line count chart
+    BlazorClient->>WebAPI: GET /api/repositories/{id}/linehistory/30
+    WebAPI->>RepoService: GetLineCountHistoryAsync(repositoryId, 30)
+    RepoService->>DataService: GetCommitLineCountsByRepositoryIdAsync(repositoryId)
+    DataService->>AzureStorage: Query commit line counts
+    AzureStorage-->>DataService: Return commit data
+    DataService-->>RepoService: Return commit line counts
+    RepoService->>RepoService: Aggregate daily statistics
+    Note over RepoService: Group commits by date, calculate daily totals
+    RepoService-->>WebAPI: Return DailyLineCountDto[]
+    WebAPI-->>BlazorClient: Line count history data
+    BlazorClient->>BlazorClient: Render interactive chart
+    BlazorClient-->>Browser: Display line count evolution chart
+    Browser-->>User: Interactive line count visualization
+
+    %% Error Handling Examples
+    Note over User, GitRepo: Error Handling Scenarios
+
+    alt Repository clone fails
+        GitHubService->>GitHub: Attempt repository clone
+        GitHub-->>GitHubService: 404 Not Found / 403 Forbidden
+        GitHubService-->>RepoService: Throw exception
+        RepoService-->>WebAPI: Propagate error
+        WebAPI-->>BlazorClient: HTTP 500 with error message
+        BlazorClient-->>Browser: Display error to user
+        Browser-->>User: "Failed to clone repository: Repository not found"
+    end
+
+    alt Azure Storage unavailable
+        DataService->>AzureStorage: Attempt data operation
+        AzureStorage-->>DataService: Connection timeout
+        DataService-->>RepoService: Throw exception
+        RepoService-->>WebAPI: Propagate error
+        WebAPI-->>BlazorClient: HTTP 500 with error message
+        BlazorClient-->>Browser: Display error to user
+        Browser-->>User: "Storage service unavailable. Please try again later."
+    end

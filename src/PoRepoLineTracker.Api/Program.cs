@@ -135,6 +135,21 @@ try
     })
     .WithName("GetConfiguredFileExtensions");
 
+    app.MapGet("/api/repositories/{repositoryId}/file-extension-percentages", async (Guid repositoryId, IRepositoryService repoService) =>
+    {
+        try
+        {
+            var percentages = await repoService.GetFileExtensionPercentagesAsync(repositoryId);
+            return Results.Ok(percentages);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving file extension percentages for repository {RepositoryId}", repositoryId);
+            return Results.Problem($"Error retrieving file extension percentages: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+        }
+    })
+    .WithName("GetFileExtensionPercentages");
+
     // Health Check Endpoints
     app.MapGet("/api/health/azure-table-storage", async (IRepositoryDataService repoDataService) =>
     {

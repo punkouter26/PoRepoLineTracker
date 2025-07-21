@@ -95,52 +95,85 @@ else
                 {
                     <tr>
                         <td colspan="5">
-                            <div class="card mt-2 mb-2">
-                                <div class="card-header">
-                                    <h5 class="mb-0">Line Count History for @repo.Name (Last 30 Days)</h5>
+                            <div class="row">
+                                <div class="col-lg-6 col-md-12 mb-4"> @* Chart Column *@
+                                    <div class="card mt-2 mb-2">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Line Count History for @repo.Name (Last 30 Days)</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            @if (isLoadingChartData)
+                                            {
+                                                <div class="text-center py-4">
+                                                    <div class="spinner-border text-primary" role="status">
+                                                        <span class="visually-hidden">Loading chart data...</span>
+                                                    </div>
+                                                    <p class="mt-2 mb-0"><em>Loading chart data...</em></p>
+                                                </div>
+                                            }
+                                            else if (!string.IsNullOrEmpty(chartErrorMessage))
+                                            {
+                                                <div class="alert alert-warning">
+                                                    <h6 class="alert-heading">Chart Data Unavailable</h6>
+                                                    <p class="mb-2">@chartErrorMessage</p>
+                                                    <button class="btn btn-sm btn-outline-warning" @onclick="() => FetchLineCountHistory(repo.Id)">
+                                                        <i class="fas fa-redo"></i> Retry
+                                                    </button>
+                                                </div>
+                                            }
+                                            else if (lineCountHistory != null && lineCountHistory.Any())
+                                            {
+                                                <RadzenChart>
+                                                    <RadzenLineSeries Data="@lineCountHistory" CategoryProperty="Date" ValueProperty="TotalLines" Title="Total Lines of Code">
+                                                        <RadzenSeriesDataLabels Visible="false" />
+                                                    </RadzenLineSeries>
+                                                    <RadzenCategoryAxis FormatString="{0:MM/dd}" />
+                                                    <RadzenValueAxis>
+                                                        <RadzenGridLines Visible="true" />
+                                                        <RadzenAxisTitle Text="Lines of Code" />
+                                                    </RadzenValueAxis>
+                                                    <RadzenLegend Visible="true" />
+                                                </RadzenChart>
+                                            }
+                                            else
+                                            {
+                                                <div class="text-center py-4 text-muted">
+                                                    <i class="fas fa-chart-line fa-2x mb-2"></i>
+                                                    <p class="mb-0">No line count history available for the selected period.</p>
+                                                    <small>Try analyzing the repository first or check back later.</small>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="card-body">
-                                    @if (isLoadingChartData)
-                                    {
-                                        <div class="text-center py-4">
-                                            <div class="spinner-border text-primary" role="status">
-                                                <span class="visually-hidden">Loading chart data...</span>
-                                            </div>
-                                            <p class="mt-2 mb-0"><em>Loading chart data...</em></p>
+
+                                <div class="col-lg-6 col-md-12 mb-4"> @* File Extension Percentages Column *@
+                                    <div class="card mt-2 mb-2">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-file-code me-2"></i>
+                                                Top File Extensions by Lines
+                                            </h5>
                                         </div>
-                                    }
-                                    else if (!string.IsNullOrEmpty(chartErrorMessage))
-                                    {
-                                        <div class="alert alert-warning">
-                                            <h6 class="alert-heading">Chart Data Unavailable</h6>
-                                            <p class="mb-2">@chartErrorMessage</p>
-                                            <button class="btn btn-sm btn-outline-warning" @onclick="() => FetchLineCountHistory(repo.Id)">
-                                                <i class="fas fa-redo"></i> Retry
-                                            </button>
+                                        <div class="card-body">
+                                            @if (fileExtensionPercentages != null && fileExtensionPercentages.Any())
+                                            {
+                                                <ul class="list-group list-group-flush">
+                                                    @foreach (var ext in fileExtensionPercentages)
+                                                    {
+                                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                            <code>@ext.FileExtension</code>
+                                                            <span class="badge bg-primary rounded-pill">@ext.Percentage.ToString("F2")%</span>
+                                                        </li>
+                                                    }
+                                                </ul>
+                                            }
+                                            else
+                                            {
+                                                <p class="text-muted">No file extension data available.</p>
+                                            }
                                         </div>
-                                    }
-                                    else if (lineCountHistory != null && lineCountHistory.Any())
-                                    {
-                                        <RadzenChart>
-                                            <RadzenLineSeries Data="@lineCountHistory" CategoryProperty="Date" ValueProperty="TotalLines" Title="Total Lines of Code">
-                                                <RadzenSeriesDataLabels Visible="false" />
-                                            </RadzenLineSeries>
-                                            <RadzenCategoryAxis FormatString="{0:MM/dd}" />
-                                            <RadzenValueAxis>
-                                                <RadzenGridLines Visible="true" />
-                                                <RadzenAxisTitle Text="Lines of Code" />
-                                            </RadzenValueAxis>
-                                            <RadzenLegend Visible="true" />
-                                        </RadzenChart>
-                                    }
-                                    else
-                                    {
-                                        <div class="text-center py-4 text-muted">
-                                            <i class="fas fa-chart-line fa-2x mb-2"></i>
-                                            <p class="mb-0">No line count history available for the selected period.</p>
-                                            <small>Try analyzing the repository first or check back later.</small>
-                                        </div>
-                                    }
+                                    </div>
                                 </div>
                             </div>
                         </td>
@@ -156,6 +189,7 @@ else
     private HashSet<Guid> showAllCommitsFor = new();
     private Guid? selectedRepositoryId;
     private List<DailyLineCountDto>? lineCountHistory;
+    private List<FileExtensionPercentageDto>? fileExtensionPercentages; // New property
     private bool isLoadingChartData = false;
     private string chartErrorMessage = string.Empty;
 
@@ -166,20 +200,24 @@ else
 
     private async Task ShowLineCountChart(Guid repositoryId)
     {
-        Logger.LogInformation("ShowLineCountChart called for repository ID: {RepositoryId}", repositoryId); // Add this line
+        Logger.LogInformation("ShowLineCountChart called for repository ID: {RepositoryId}", repositoryId);
         if (selectedRepositoryId == repositoryId)
         {
-            // If already selected, deselect to hide the chart
+            // If already selected, deselect to hide the chart and percentages
+            Logger.LogInformation("Deselecting repository ID: {RepositoryId}", repositoryId);
             selectedRepositoryId = null;
             lineCountHistory = null;
+            fileExtensionPercentages = null; // Clear percentages
             chartErrorMessage = string.Empty;
-            StateHasChanged(); // Add this
+            StateHasChanged();
         }
         else
         {
+            Logger.LogInformation("Selecting repository ID: {RepositoryId}", repositoryId);
             selectedRepositoryId = repositoryId;
             await FetchLineCountHistory(repositoryId);
-            StateHasChanged(); // Add this
+            await FetchFileExtensionPercentages(repositoryId); // Fetch percentages
+            StateHasChanged();
         }
     }
 
@@ -188,7 +226,7 @@ else
         isLoadingChartData = true;
         chartErrorMessage = string.Empty;
         lineCountHistory = null;
-        StateHasChanged(); // Add this to show loading state immediately
+        StateHasChanged();
 
         try
         {
@@ -206,6 +244,26 @@ else
         finally
         {
             isLoadingChartData = false;
+        }
+    }
+
+    // New method to fetch file extension percentages
+    private async Task FetchFileExtensionPercentages(Guid repositoryId)
+    {
+        Logger.LogInformation("Fetching file extension percentages for repository ID: {RepositoryId}", repositoryId);
+        try
+        {
+            fileExtensionPercentages = await Http.GetFromJsonAsync<List<FileExtensionPercentageDto>>($"/api/repositories/{repositoryId}/file-extension-percentages");
+            if (fileExtensionPercentages == null || !fileExtensionPercentages.Any())
+            {
+                Logger.LogInformation("No file extension data found for repository ID: {RepositoryId}", repositoryId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error fetching file extension percentages for repository {RepositoryId}: {Message}", repositoryId, ex.Message);
+            // Decide if this error should block the chart or just show empty percentages
+            // For now, it will just result in an empty list being displayed
         }
     }
 
@@ -233,7 +291,7 @@ else
 
     private async Task AddRepository()
     {
-        if (pageState.IsAddingRepository) return; // Prevent multiple concurrent operations
+        if (pageState.IsAddingRepository) return;
         
         pageState.IsAddingRepository = true;
         pageState.ClearMessages();
@@ -244,7 +302,7 @@ else
             // Step 1: Validate URL (10%)
             pageState.SetProgress("Validating repository URL...", 10);
             StateHasChanged();
-            await Task.Delay(500); // Brief delay to show progress
+            await Task.Delay(500);
             
             // Parse owner and repo name from the URL
             var uri = new Uri(pageState.NewRepoCloneUrl);
@@ -257,7 +315,7 @@ else
             }
 
             var owner = pathSegments[0];
-            var repoName = pathSegments[1].Replace(".git", ""); // Remove .git if present
+            var repoName = pathSegments[1].Replace(".git", "");
 
             // Step 2: Prepare repository data (25%)
             pageState.SetProgress("Preparing repository data...", 25);
@@ -293,7 +351,7 @@ else
 
                 pageState.AddRepoMessage = $"Repository '{addedRepo?.Name}' added successfully! Analysis will begin automatically.";
                 pageState.NewRepoCloneUrl = "";
-                await LoadRepositories(); // Refresh the list
+                await LoadRepositories();
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
