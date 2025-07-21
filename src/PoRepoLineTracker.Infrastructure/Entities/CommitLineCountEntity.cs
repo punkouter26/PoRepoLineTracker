@@ -47,8 +47,8 @@ public class CommitLineCountEntity : ITableEntity
             Id = model.Id,
             RepositoryId = model.RepositoryId,
             CommitSha = model.CommitSha,
-            CommitDate = model.CommitDate.Kind == DateTimeKind.Unspecified 
-                ? DateTime.SpecifyKind(model.CommitDate, DateTimeKind.Utc) 
+            CommitDate = model.CommitDate.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(model.CommitDate, DateTimeKind.Utc)
                 : model.CommitDate.ToUniversalTime(),
             TotalLines = model.TotalLines,
             LinesAdded = model.LinesAdded,

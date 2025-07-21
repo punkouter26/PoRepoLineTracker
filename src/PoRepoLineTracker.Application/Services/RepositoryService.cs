@@ -59,7 +59,7 @@ public class RepositoryService : IRepositoryService
     public async Task<GitHubRepository> AddRepositoryAsync(string owner, string repoName, string cloneUrl)
     {
         _logger.LogInformation("Adding new repository: {Owner}/{RepoName}", owner, repoName);
-        
+
         // Check if repository already exists
         // This check is now primarily for preventing duplicate additions from other parts of the app
         // The API endpoint will handle checking existence before calling AddRepositoryAsync
@@ -81,7 +81,7 @@ public class RepositoryService : IRepositoryService
 
         await _repositoryDataService.AddRepositoryAsync(newRepo);
         _logger.LogInformation("Repository {Owner}/{RepoName} added successfully.", owner, repoName);
-        
+
         // Automatically analyze the repository after adding it
         _logger.LogInformation("Starting automatic analysis for newly added repository {Owner}/{RepoName}", owner, repoName);
         try
@@ -93,7 +93,7 @@ public class RepositoryService : IRepositoryService
         {
             _logger.LogError(ex, "Failed to automatically analyze repository {Owner}/{RepoName}: {ErrorMessage}", owner, repoName, ex.Message);
         }
-        
+
         return newRepo;
     }
 
@@ -236,7 +236,7 @@ public class RepositoryService : IRepositoryService
 
         // Get all commit line counts for this repository
         var commitLineCounts = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(repositoryId);
-        
+
         if (!commitLineCounts.Any())
         {
             _logger.LogInformation("No commit data found for repository ID: {RepositoryId}", repositoryId);
@@ -263,20 +263,20 @@ public class RepositoryService : IRepositoryService
 
         // Calculate cumulative line counts for each day
         var allCommits = commitLineCounts.OrderBy(c => c.CommitDate).ToList();
-        
+
         for (int i = 0; i < days; i++)
         {
             var currentDate = startDate.AddDays(i);
-            
+
             // Get all commits up to this date
             var commitsUpToDate = allCommits.Where(c => c.CommitDate.Date <= currentDate).ToList();
-            
+
             if (commitsUpToDate.Any())
             {
                 // Get the latest commit for this date to represent the state at end of day
                 var latestCommit = commitsUpToDate.LastOrDefault();
                 var commitsOnThisDay = commitsInRange.ContainsKey(currentDate) ? commitsInRange[currentDate] : new List<CommitLineCount>();
-                
+
                 var dailyDto = new DailyLineCountDto
                 {
                     Date = currentDate,
@@ -287,15 +287,15 @@ public class RepositoryService : IRepositoryService
                     CommitCount = commitsOnThisDay.Count,
                     LinesByFileType = latestCommit?.LinesByFileType ?? new Dictionary<string, int>()
                 };
-                
+
                 dailyStats.Add(dailyDto);
             }
             else
             {
                 // No commits up to this date, so zero values
-                dailyStats.Add(new DailyLineCountDto 
-                { 
-                    Date = currentDate, 
+                dailyStats.Add(new DailyLineCountDto
+                {
+                    Date = currentDate,
                     TotalLines = 0,
                     LinesAdded = 0,
                     LinesRemoved = 0,
@@ -313,7 +313,7 @@ public class RepositoryService : IRepositoryService
     public async Task<IEnumerable<RepositoryLineCountHistoryDto>> GetAllRepositoriesLineCountHistoryAsync(int days)
     {
         _logger.LogInformation("Getting line count history for all repositories for the past {Days} days.", days);
-        
+
         var repositories = await GetAllRepositoriesAsync();
         var allRepositoriesHistory = new List<RepositoryLineCountHistoryDto>();
 
@@ -341,5 +341,11 @@ public class RepositoryService : IRepositoryService
 
         _logger.LogInformation("Returning line count history for {Count} repositories.", allRepositoriesHistory.Count);
         return allRepositoriesHistory;
+    }
+
+    public Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync()
+    {
+        _logger.LogInformation("Retrieving configured file extensions for line counting.");
+        return Task.FromResult(_fileExtensionsToCount);
     }
 }

@@ -160,32 +160,32 @@ public class GitHubService : IGitHubService
 
         var lineCounts = new Dictionary<string, int>();
 
-            using (var repo = new Repository(fullLocalPath))
+        using (var repo = new Repository(fullLocalPath))
+        {
+            var commit = repo.Lookup<Commit>(commitSha);
+            if (commit == null)
             {
-                var commit = repo.Lookup<Commit>(commitSha);
-                if (commit == null)
-                {
-                    _logger.LogWarning("Commit {CommitSha} not found in repository at {LocalPath}", commitSha, fullLocalPath);
-                    return lineCounts;
-                }
-
-                // Checkout the specific commit to count lines
-                Commands.Checkout(repo, commit);
-
-                if (commit.Tree != null)
-                {
-                    // Use a recursive function to traverse the tree
-                    await ProcessTreeEntry(commit.Tree, fileExtensionsToCount, lineCounts);
-                }
-                else
-                {
-                    _logger.LogWarning("Commit {CommitSha} has a null tree. Skipping line counting.", commitSha);
-                }
-
-                _logger.LogInformation("Finished counting lines for commit {CommitSha}. Total lines by type: {LineCounts}", commitSha, lineCounts);
+                _logger.LogWarning("Commit {CommitSha} not found in repository at {LocalPath}", commitSha, fullLocalPath);
+                return lineCounts;
             }
-            return lineCounts;
+
+            // Checkout the specific commit to count lines
+            Commands.Checkout(repo, commit);
+
+            if (commit.Tree != null)
+            {
+                // Use a recursive function to traverse the tree
+                await ProcessTreeEntry(commit.Tree, fileExtensionsToCount, lineCounts);
+            }
+            else
+            {
+                _logger.LogWarning("Commit {CommitSha} has a null tree. Skipping line counting.", commitSha);
+            }
+
+            _logger.LogInformation("Finished counting lines for commit {CommitSha}. Total lines by type: {LineCounts}", commitSha, lineCounts);
         }
+        return lineCounts;
+    }
 
     private async Task ProcessTreeEntry(Tree tree, IEnumerable<string> fileExtensionsToCount, Dictionary<string, int> lineCounts)
     {

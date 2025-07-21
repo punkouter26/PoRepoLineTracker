@@ -120,6 +120,21 @@ try
     })
     .WithName("GetAllRepositoriesLineHistory");
 
+    app.MapGet("/api/settings/file-extensions", async (IRepositoryService repoService) =>
+    {
+        try
+        {
+            var extensions = await repoService.GetConfiguredFileExtensionsAsync();
+            return Results.Ok(extensions);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error retrieving configured file extensions.");
+            return Results.Problem($"Error retrieving configured file extensions: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+        }
+    })
+    .WithName("GetConfiguredFileExtensions");
+
     // Health Check Endpoints
     app.MapGet("/api/health/azure-table-storage", async (IRepositoryDataService repoDataService) =>
     {

@@ -1,0 +1,40 @@
+@page "/settings/extensions-counted"
+@inject HttpClient Http
+
+<h3>Extensions Counted</h3>
+
+@if (extensions == null)
+{
+    <p><em>Loading extensions...</em></p>
+}
+else if (errorMessage != null)
+{
+    <p class="text-danger">Error: @errorMessage</p>
+}
+else
+{
+    <p>The following file extensions are included in line count calculations:</p>
+    <ul>
+        @foreach (var extension in extensions)
+        {
+            <li>@extension</li>
+        }
+    </ul>
+}
+
+@code {
+    private List<string>? extensions;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            extensions = await Http.GetFromJsonAsync<List<string>>("/api/settings/file-extensions");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+}
