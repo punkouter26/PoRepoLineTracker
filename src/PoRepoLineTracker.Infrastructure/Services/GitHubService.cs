@@ -19,7 +19,20 @@ public class GitHubService : IGitHubService
     {
         _httpClient = httpClient;
         _logger = logger;
-        _localReposPath = configuration["GitHub:LocalReposPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
+        // Determine the base path for local repositories.
+        // In Azure App Service, use a path within the ephemeral storage.
+        // Locally, use the configured path or a default "LocalRepos" directory.
+        var homePath = Environment.GetEnvironmentVariable("HOME");
+        if (!string.IsNullOrEmpty(homePath))
+        {
+            // Running in Azure App Service
+            _localReposPath = Path.Combine(homePath, "site", "wwwroot", "temp_repos");
+        }
+        else
+        {
+            // Running locally
+            _localReposPath = configuration["GitHub:LocalReposPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
+        }
         _gitHubPat = configuration["GitHub:PAT"];
 
         if (!Directory.Exists(_localReposPath))
