@@ -38,7 +38,7 @@ else
 {
     <div class="mb-3 d-flex justify-content-between align-items-center">
         <span class="text-muted">(@(pageState.Repositories!.Count) repositories found - automatically analyzed when added)</span>
-        <button class="btn btn-danger btn-sm" @onclick="ShowRemoveAllConfirmation" disabled="@isRemovingAll">
+        <button class="btn btn-danger btn-sm" @onclick="RemoveAllRepositories" disabled="@isRemovingAll">
             @if (isRemovingAll)
             {
                 <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -222,56 +222,6 @@ else
     </table>
 }
 
-@* Remove All Confirmation Dialog *@
-@if (showRemoveAllConfirmation)
-{
-    <div class="modal-backdrop show"></div>
-    <div class="modal show d-block" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        Confirm Remove ALL Repositories
-                    </h5>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-warning">
-                        <strong>⚠️ WARNING: This action cannot be undone!</strong>
-                    </div>
-                    <p class="mb-3">You are about to permanently remove:</p>
-                    <ul class="mb-3">
-                        <li><strong>All @(pageState.Repositories?.Count ?? 0) repositories</strong> from the database</li>
-                        <li><strong>All commit history and line count data</strong> for these repositories</li>
-                        <li><strong>All local repository files</strong> from the file system</li>
-                    </ul>
-                    <p class="text-danger"><strong>This will completely reset your application data!</strong></p>
-                    <div class="mb-3">
-                        <label class="form-label">To confirm, type <strong>DELETE ALL</strong> below:</label>
-                        <input @bind="confirmationText" @bind:event="oninput" class="form-control" placeholder="Type DELETE ALL to confirm" />
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="HideRemoveAllConfirmation" disabled="@isRemovingAll">
-                        Cancel
-                    </button>
-                    <button type="button" class="btn btn-danger" @onclick="RemoveAllRepositories" 
-                            disabled="@(isRemovingAll || confirmationText != "DELETE ALL")">
-                        @if (isRemovingAll)
-                        {
-                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                            <span>Removing...</span>
-                        }
-                        else
-                        {
-                            <span>Remove ALL Repositories</span>
-                        }
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
 
 @code {
     private RepositoryPageState pageState = new();
@@ -282,8 +232,6 @@ else
     private bool isLoadingChartData = false;
     private string chartErrorMessage = string.Empty;
     private bool isRemovingAll = false;
-    private bool showRemoveAllConfirmation = false;
-    private string confirmationText = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -437,17 +385,6 @@ else
         }
     }
     
-    private void ShowRemoveAllConfirmation()
-    {
-        showRemoveAllConfirmation = true;
-        confirmationText = string.Empty;
-    }
-    
-    private void HideRemoveAllConfirmation()
-    {
-        showRemoveAllConfirmation = false;
-        confirmationText = string.Empty;
-    }
     
     private async Task RemoveAllRepositories()
     {
@@ -468,10 +405,6 @@ else
                 lineCountHistory = null;
                 fileExtensionPercentages = null;
                 chartErrorMessage = string.Empty;
-                
-                // Hide confirmation dialog
-                showRemoveAllConfirmation = false;
-                confirmationText = string.Empty;
                 
                 pageState.AddRepoMessage = "All repositories and data have been successfully removed!";
                 Logger.LogInformation("All repositories removed successfully.");
