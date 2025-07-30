@@ -14,7 +14,8 @@ public class RepositoryPageState
     public int ProgressPercentage { get; set; } = 0;
     public List<GitHubRepository> Repositories { get; set; } = new();
     public List<GitHubUserRepositoryDto> GitHubUserRepositories { get; set; } = new();
-    public GitHubUserRepositoryDto? SelectedGitHubRepository { get; set; }
+    public HashSet<GitHubUserRepositoryDto> SelectedRepositories { get; set; } = new();
+    public bool ShowRepositorySelector { get; set; } = false;
     public HashSet<Guid> ShowAllCommitsFor { get; set; } = new();
 
     public void ClearMessages()
@@ -23,6 +24,12 @@ public class RepositoryPageState
         ErrorMessage = string.Empty;
         ProgressMessage = string.Empty;
         ProgressPercentage = 0;
+    }
+
+    public void ClearSelection()
+    {
+        SelectedRepositories.Clear();
+        ShowRepositorySelector = false;
     }
 
     public void SetProgress(string message, int percentage)

@@ -5,10 +5,12 @@ namespace PoRepoLineTracker.Client.Models;
 /// </summary>
 public class GitHubUserRepositoryDto
 {
+    public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string Owner { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string CloneUrl { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public bool IsPrivate { get; set; }
+    public bool Private { get; set; }
     public string Language { get; set; } = string.Empty;
 }

@@ -11,22 +11,35 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Application.Services;
+using PoRepoLineTracker.Application.Models;
+using MediatR;
+using Moq;
+using PoRepoLineTracker.Application.Services.LineCounters;
+using PoRepoLineTracker.Application.Features.Repositories.Commands;
+using PoRepoLineTracker.Infrastructure.Interfaces; // Add this using directive
+using PoRepoLineTracker.Application.Models; // Add this using directive for GitHubRepoStatsDto
+using Microsoft.Extensions.DependencyInjection; // Add this using directive for ServiceCollection and GetRequiredService
 
 namespace PoRepoLineTracker.IntegrationTests;
 
 public class RepositoryDataServiceIntegrationTests : IDisposable
 {
-    private readonly RepositoryDataService _repositoryDataService;
+    private readonly IRepositoryDataService _repositoryDataService;
     private readonly IGitHubService _gitHubService;
     private readonly IRepositoryService _repositoryService;
     private readonly TableServiceClient _tableServiceClient;
     private readonly ILogger<RepositoryDataService> _logger;
     private readonly IConfiguration _configuration;
     private readonly string _testLocalReposPath;
+    private readonly Mock<IMediator> _mockMediator;
+    private readonly Mock<IGitClient> _mockGitClient; // Add Mock for IGitClient
+    private readonly Mock<IGitHubService> _mockGitHubService; // Add Mock for IGitHubService
 
     private const string TestRepositoryTableName = "PoRepoLineTrackerRepositoriesTest";
     private const string TestCommitLineCountTableName = "PoRepoLineTrackerCommitLineCountsTest";
     private const string AzuriteConnectionString = "UseDevelopmentStorage=true";
+
+    private readonly IServiceProvider _serviceProvider;
 
     public RepositoryDataServiceIntegrationTests()
     {
@@ -44,13 +57,49 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
             .AddInMemoryCollection(inMemorySettings)
             .Build();
 
-        // Setup logger
-        _logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<RepositoryDataService>();
+        // Initialize ILineCounter implementations
+        var lineCounters = new List<ILineCounter>
+        {
+            new DefaultLineCounter(),
+            new CSharpLineCounter()
+        };
 
-        // Initialize services
-        _repositoryDataService = new RepositoryDataService(_configuration, _logger);
-        _gitHubService = new GitHubService(new HttpClientFactoryStub().CreateClient("test"), _configuration, LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<GitHubService>());
-        _repositoryService = new RepositoryService(_gitHubService, _repositoryDataService, LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<RepositoryService>());
+        // Initialize mocks
+        _mockGitClient = new Mock<IGitClient>();
+        _mockGitHubService = new Mock<IGitHubService>();
+        _mockMediator = new Mock<IMediator>();
+
+        // Set up a ServiceCollection for dependency injection
+        var services = new ServiceCollection();
+
+        // Register logging services first - this is required for MediatR
+        services.AddLogging(builder => builder.AddConsole());
+
+        // Register configuration
+        services.AddSingleton(_configuration);
+
+        services.AddScoped<IRepositoryDataService, RepositoryDataService>();
+        services.AddScoped<IGitClient>(provider => _mockGitClient.Object); // Use mocked GitClient
+        services.AddScoped<IGitHubService>(provider => _mockGitHubService.Object); // Use mocked GitHubService
+        services.AddScoped<IRepositoryService, RepositoryService>();
+
+        // Register real MediatR instead of mocked one
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(PoRepoLineTracker.Application.Features.Repositories.Commands.AddRepositoryCommand).Assembly));
+
+        // Register line counters for the handlers
+        services.AddScoped<ILineCounter, DefaultLineCounter>();
+        services.AddScoped<ILineCounter, CSharpLineCounter>();
+
+        _serviceProvider = services.BuildServiceProvider();
+
+        // Resolve services from the service provider
+        _repositoryDataService = _serviceProvider.GetRequiredService<IRepositoryDataService>();
+        _gitHubService = _serviceProvider.GetRequiredService<IGitHubService>(); // This will be the mocked one
+        _repositoryService = _serviceProvider.GetRequiredService<IRepositoryService>(); // This will use the mocked Mediator and DataService
+
+        // Get logger from DI
+        var loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
+        _logger = loggerFactory.CreateLogger<RepositoryDataService>();
 
         // Initialize TableServiceClient for table management
         _tableServiceClient = new TableServiceClient(AzuriteConnectionString);
@@ -201,18 +250,50 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
         var repoName = "libgit2sharp";
         var cloneUrl = $"https://github.com/{owner}/{repoName}";
 
-        // Act - Add the repository
+        // Mock GitClient to return a dummy commit
+        _mockGitClient.Setup(g => g.Clone(It.IsAny<string>(), It.IsAny<string>()))
+                      .Returns((string url, string path) => path); // Simulate successful clone and return local path
+        _mockGitClient.Setup(g => g.GetCommits(It.IsAny<string>(), It.IsAny<DateTime?>()))
+                      .Returns(new List<(string Sha, DateTimeOffset CommitDate)>
+                      {
+                          ("dummySha1", DateTimeOffset.UtcNow)
+                      });
+
+        // Mock GitHubService methods that RepositoryService will call
+        _mockGitHubService.Setup(g => g.CloneRepositoryAsync(It.IsAny<string>(), It.IsAny<string>()))
+                          .ReturnsAsync((string url, string path) => path); // Simulate successful clone
+        _mockGitHubService.Setup(g => g.GetCommitStatsAsync(It.IsAny<string>(), It.IsAny<DateTime?>()))
+                          .ReturnsAsync(new List<CommitStatsDto>
+                          {
+                              new CommitStatsDto 
+                              { 
+                                  Sha = "dummySha1", 
+                                  CommitDate = DateTime.UtcNow, 
+                                  LinesAdded = 50, 
+                                  LinesRemoved = 10 
+                              }
+                          });
+        _mockGitHubService.Setup(g => g.CountLinesInCommitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<string>>()))
+                          .ReturnsAsync(new Dictionary<string, int> { { ".cs", 100 } }); // Simulate line counting
+
+        // Act - Add the repository and get the actual repository ID
         var addedRepo = await _repositoryService.AddRepositoryAsync(owner, repoName, cloneUrl);
+        var repoId = addedRepo.Id;
 
         // Act - Analyze commits
-        await _repositoryService.AnalyzeRepositoryCommitsAsync(addedRepo.Id);
+        await _repositoryService.AnalyzeRepositoryCommitsAsync(repoId);
 
         // Assert - Retrieve and verify commit line counts
-        var retrievedCommits = (await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(addedRepo.Id)).ToList();
+        var retrievedCommits = (await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(repoId)).ToList();
 
         Assert.NotNull(retrievedCommits);
         Assert.True(retrievedCommits.Any(), "Should have retrieved at least one commit.");
-        Assert.True(retrievedCommits.Sum(c => c.TotalLines) > 0, "Total lines of code should be greater than 0.");
+        Assert.Single(retrievedCommits); // Expecting exactly one dummy commit
+        var retrievedCommit = retrievedCommits.First();
+        Assert.Equal("dummySha1", retrievedCommit.CommitSha);
+        Assert.True(retrievedCommit.TotalLines > 0, "Total lines of code should be greater than 0.");
+        Assert.Equal(50, retrievedCommit.LinesAdded); // Check that lines added is properly set
+        Assert.Equal(10, retrievedCommit.LinesRemoved); // Check that lines removed is properly set
     }
 
     public void Dispose()
@@ -240,12 +321,4 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
         }
     }
 
-    // Helper class for HttpClientFactory stub
-    public class HttpClientFactoryStub : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name)
-        {
-            return new HttpClient(); // Return a default HttpClient
-        }
-    }
 }

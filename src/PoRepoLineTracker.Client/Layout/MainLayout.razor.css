@@ -1,103 +1,171 @@
-/* High-Tech Retro Orange & Black Theme - Main Layout */
+/* Modern Responsive Layout CSS */
 
-.page {
-    position: relative;
-    display: flex;
-    flex-direction: column;
+.rz-layout {
+    display: grid;
+    grid-template-areas: 
+        "header header"
+        "sidebar main"
+        "footer footer";
+    grid-template-columns: 250px 1fr;
+    grid-template-rows: auto 1fr auto;
     min-height: 100vh;
-    background: linear-gradient(180deg, #000000, #0d0d0d, #000000);
-    color: #e0e0e0;
+    background-color: var(--bg-primary);
 }
 
-main {
-    flex: 1;
-    padding: 2rem;
-    background: linear-gradient(135deg, #0d0d0d, #1a1a1a);
-    border: 1px solid rgba(255, 102, 0, 0.1);
-    margin: 1rem;
-    border-radius: 8px;
-    box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.6),
-        inset 0 0 20px rgba(255, 102, 0, 0.03);
-    position: relative;
-    overflow: hidden;
-}
-
-main::before {
-    content: '';
-    position: absolute;
+.rz-header {
+    grid-area: header;
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid var(--border-light);
+    padding: var(--space-md) 0;
+    box-shadow: var(--shadow-sm);
+    position: sticky;
     top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, #ff6600, transparent);
-    opacity: 0.4;
+    z-index: 100;
 }
 
-.sidebar {
-    background: linear-gradient(180deg, #0a0a0a, #1a1a1a, #0a0a0a);
-    color: #e0e0e0;
-    padding-top: 2rem;
-    border-right: 2px solid rgba(255, 102, 0, 0.3);
-    box-shadow: 
-        2px 0 20px rgba(255, 102, 0, 0.2),
-        inset 0 0 30px rgba(0, 0, 0, 0.8);
-    position: relative;
+.rz-sidebar {
+    grid-area: sidebar;
+    background-color: var(--bg-secondary);
+    border-right: 1px solid var(--border-light);
+    overflow-y: auto;
+    transition: transform 0.3s ease;
 }
 
-.sidebar::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 2px;
-    background: linear-gradient(180deg, #ff6600, #ff8533, #ff6600);
-    box-shadow: 0 0 10px rgba(255, 102, 0, 0.6);
-    animation: pulse 3s ease-in-out infinite;
+.rz-body {
+    display: contents;
 }
 
-@keyframes pulse {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
+.rz-content-container {
+    grid-area: main;
+    padding: var(--space-xl) 0;
+    overflow-y: auto;
+    background-color: var(--bg-primary);
 }
 
-.top-row {
-    background: linear-gradient(135deg, #000000, #1a1a1a);
-    border-bottom: 2px solid #ff6600;
-    justify-content: flex-end;
-    height: 4rem;
-    display: flex;
-    align-items: center;
-    padding: 0 2rem;
-    box-shadow: 
-        0 2px 20px rgba(255, 102, 0, 0.3),
-        inset 0 -1px 0 rgba(255, 102, 0, 0.2);
-    position: relative;
+.rz-footer {
+    grid-area: footer;
+    background-color: var(--bg-secondary);
+    border-top: 1px solid var(--border-light);
+    padding: var(--space-md) 0;
+    margin-top: auto;
 }
 
-.top-row::after {
-    content: '';
-    position: absolute;
-    bottom: -2px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #ff6600, #ff8533, #ff6600, transparent);
-    box-shadow: 0 0 10px rgba(255, 102, 0, 0.5);
-}
-
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        white-space: nowrap;
-        margin-left: 2rem;
-        text-decoration: none;
-        color: #ff8533;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        text-shadow: 0 0 5px rgba(255, 133, 51, 0.3);
-        transition: all 0.3s ease;
+/* Mobile responsive layout */
+@media (max-width: 1024px) {
+    .rz-layout {
+        grid-template-areas: 
+            "header"
+            "main"
+            "footer";
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
     }
+
+    .rz-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 280px;
+        height: 100vh;
+        z-index: 200;
+        transform: translateX(-100%);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .rz-sidebar.show {
+        transform: translateX(0);
+    }
+
+    .mobile-sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 150;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .mobile-sidebar-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .rz-content-container {
+        padding: var(--space-md) 0;
+    }
+}
+
+/* Large screen optimizations */
+@media (min-width: 1280px) {
+    .rz-layout {
+        grid-template-columns: 280px 1fr;
+    }
+    
+    .rz-content-container {
+        padding: var(--space-2xl) 0;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .rz-layout {
+        background-color: var(--bg-dark);
+    }
+    
+    .rz-header {
+        background-color: var(--bg-dark);
+        border-bottom-color: var(--border-dark);
+    }
+    
+    .rz-sidebar {
+        background-color: var(--bg-dark-secondary);
+        border-right-color: var(--border-dark);
+    }
+    
+    .rz-content-container {
+        background-color: var(--bg-dark);
+    }
+    
+    .rz-footer {
+        background-color: var(--bg-dark-secondary);
+        border-top-color: var(--border-dark);
+    }
+}
+
+/* Focus management for accessibility */
+.rz-sidebar:focus-within {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+}
+
+/* Smooth scrolling */
+.rz-sidebar,
+.rz-content-container {
+    scroll-behavior: smooth;
+}
+
+/* Print styles */
+@media print {
+    .rz-header,
+    .rz-sidebar,
+    .rz-footer {
+        display: none;
+    }
+    
+    .rz-layout {
+        grid-template-areas: "main";
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+    }
+    
+    .rz-content-container {
+        padding: 0;
+    }
+}
 
     .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
         color: #ff6600;

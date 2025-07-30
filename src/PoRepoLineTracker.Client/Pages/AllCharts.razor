@@ -125,8 +125,8 @@
                                                 <p class="card-text">
                                                     <small class="text-muted">Latest Data: @latestData.Date.ToString("MMM dd, yyyy")</small><br>
                                                     <strong>@latestData.TotalLines.ToString("N0")</strong> lines of code<br>
-                                                    <span class="badge bg-success">+@latestData.LinesAdded</span>
-                                                    <span class="badge bg-danger">-@latestData.LinesRemoved</span>
+                                                    <span class="badge bg-success">+@latestData.TotalLinesAdded</span>
+                                                    <span class="badge bg-danger">-@latestData.TotalLinesDeleted</span>
                                                     <span class="badge bg-info">@latestData.CommitCount commits</span>
                                                 </p>
                                             }

@@ -12,7 +12,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Azure.Data.Tables" Version="12.11.0" />
+    <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.3">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -26,6 +29,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PoRepoLineTracker.Api\PoRepoLineTracker.Api.csproj" />
+    <ProjectReference Include="..\..\src\PoRepoLineTracker.Application\PoRepoLineTracker.Application.csproj" />
+    <ProjectReference Include="..\..\src\PoRepoLineTracker.Domain\PoRepoLineTracker.Domain.csproj" />
   </ItemGroup>
 
 </Project>

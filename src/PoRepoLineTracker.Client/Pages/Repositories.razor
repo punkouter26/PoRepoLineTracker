@@ -9,61 +9,21 @@
 
 <h3>GitHub Repositories</h3>
 
-<div class="mb-3">
-    <h4>Add New Repository</h4>
-    <div class="input-group mb-3">
-        <RadzenDropDown @bind-Value="pageState.SelectedGitHubRepository"
-                        Data="@pageState.GitHubUserRepositories"
-                        TextProperty="Name"
-                        Placeholder="Select a repository from your GitHub account..."
-                        Style="min-width: 300px;"
-                        Disabled="@(pageState.IsAddingRepository || pageState.IsLoadingGitHubRepos)"
-                        class="form-control" />
-        <button class="btn btn-primary" @onclick="AddRepository" disabled="@(pageState.IsAddingRepository || pageState.SelectedGitHubRepository == null)">
-            @if (pageState.IsAddingRepository)
-            {
-                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-            }
-            Add Repository
-        </button>
+@* Success/Error Messages *@
+@if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
+{
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        @pageState.AddRepoMessage
+        <button type="button" class="btn-close" @onclick="() => pageState.AddRepoMessage = string.Empty"></button>
     </div>
-    
-    @if (pageState.IsLoadingGitHubRepos)
-    {
-        <div class="mb-3">
-            <div class="text-center">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading GitHub repositories...</span>
-                </div>
-                <p class="mt-2"><em>Loading your GitHub repositories...</em></p>
-            </div>
-        </div>
-    }
-    
-    @if (pageState.IsAddingRepository)
-    {
-        <div class="mb-3">
-            <div class="progress" style="height: 25px;">
-                <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                     role="progressbar" 
-                     style="width: @(pageState.ProgressPercentage)%" 
-                     aria-valuenow="@pageState.ProgressPercentage" 
-                     aria-valuemin="0" 
-                     aria-valuemax="100">
-                    @(pageState.ProgressPercentage)%
-                </div>
-            </div>
-            <div class="text-center mt-2">
-                <small class="text-muted">@pageState.ProgressMessage</small>
-            </div>
-        </div>
-    }
-    
-    @if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
-    {
-        <div class="alert alert-info">@pageState.AddRepoMessage</div>
-    }
-</div>
+}
+@if (!string.IsNullOrEmpty(pageState.ErrorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @pageState.ErrorMessage
+        <button type="button" class="btn-close" @onclick="() => pageState.ErrorMessage = string.Empty"></button>
+    </div>
+}
 
 <h4>Existing Repositories</h4>
 @if (pageState.IsLoadingRepositories)
@@ -72,16 +32,26 @@
 }
 else if (!pageState.Repositories.Any())
 {
-    <p>No repositories added yet. Add one above!</p>
+    <p>No repositories added yet. <a href="/add-repository">Add one here!</a></p>
 }
 else
 {
-    <div class="mb-3">
-        @if (pageState.Repositories?.Any() == true)
-        {
-            <span class="text-muted">(@pageState.Repositories.Count repositories found - automatically analyzed when added)</span>
-        }
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <span class="text-muted">(@(pageState.Repositories!.Count) repositories found - automatically analyzed when added)</span>
+        <button class="btn btn-danger btn-sm" @onclick="ShowRemoveAllConfirmation" disabled="@isRemovingAll">
+            @if (isRemovingAll)
+            {
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                <span>Removing...</span>
+            }
+            else
+            {
+                <i class="fas fa-trash-alt me-2"></i>
+                <span>Remove ALL</span>
+            }
+        </button>
     </div>
+}
     
     <table class="table">
         <thead>
@@ -94,7 +64,7 @@ else
             </tr>
         </thead>
         <tbody>
-            @foreach (var repo in pageState.Repositories)
+            @foreach (var repo in pageState.Repositories ?? new List<GitHubRepository>())
             {
                 <tr>
                     <td>@repo.Owner</td>
@@ -120,7 +90,7 @@ else
                                 <div class="col-lg-8 col-md-12 mb-4"> @* Chart Column - 80% width *@
                                     <div class="card mt-2 mb-2">
                                         <div class="card-header">
-                                            <h5 class="mb-0">Line Count History for @repo.Name (Last 30 Days)</h5>
+                                            <h5 class="mb-0">Line Count History for @repo.Name (Last 365 Days)</h5>
                                         </div>
                                         <div class="card-body">
                                             @if (isLoadingChartData)
@@ -150,7 +120,7 @@ else
                                                     </RadzenLineSeries>
                                                     <RadzenCategoryAxis FormatString="{0:MM/dd}" />
                                                     <RadzenValueAxis>
-                                                        <RadzenGridLines Visible="true" />
+                                                        <RadzenGridLines Visible="true" Stroke="var(--border-color)" />
                                                         <RadzenAxisTitle Text="Lines of Code" />
                                                     </RadzenValueAxis>
                                                     <RadzenLegend Visible="true" />
@@ -196,6 +166,53 @@ else
                                         </div>
                                     </div>
                                 </div>
+                                
+                                <!-- Data Table below chart -->
+                                <div class="col-12">
+                                    <div class="card mt-2">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Line Count Details</h5>
+                                        </div>
+                                        <div class="card-body p-0">
+                                            <div class="table-responsive">
+                                                <table class="table table-striped table-hover mb-0">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>Date</th>
+                                                            <th>Lines of Code</th>
+                                                            <th>Difference from Previous</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @if (lineCountHistory != null && lineCountHistory.Any())
+                                                        {
+                                                            @for (int i = 0; i < lineCountHistory.Count; i++)
+                                                            {
+                                                                var item = lineCountHistory[i];
+                                                                var previousItem = i > 0 ? lineCountHistory[i - 1] : null;
+                                                                var difference = previousItem != null ? item.TotalLines - previousItem.TotalLines : 0;
+                                                                var differenceClass = difference > 0 ? "text-success" : difference < 0 ? "text-danger" : "";
+                                                                var differenceSign = difference > 0 ? "+" : "";
+                                                                
+                                                                <tr>
+                                                                    <td>@item.Date.ToString("MM/dd/yyyy HH:mm")</td>
+                                                                    <td>@item.TotalLines.ToString("N0")</td>
+                                                                    <td class="@differenceClass">@differenceSign@difference.ToString("N0")</td>
+                                                                </tr>
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <tr>
+                                                                <td colspan="3" class="text-center text-muted">No data available</td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -203,6 +220,57 @@ else
             }
         </tbody>
     </table>
+}
+
+@* Remove All Confirmation Dialog *@
+@if (showRemoveAllConfirmation)
+{
+    <div class="modal-backdrop show"></div>
+    <div class="modal show d-block" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Confirm Remove ALL Repositories
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <strong>⚠️ WARNING: This action cannot be undone!</strong>
+                    </div>
+                    <p class="mb-3">You are about to permanently remove:</p>
+                    <ul class="mb-3">
+                        <li><strong>All @(pageState.Repositories?.Count ?? 0) repositories</strong> from the database</li>
+                        <li><strong>All commit history and line count data</strong> for these repositories</li>
+                        <li><strong>All local repository files</strong> from the file system</li>
+                    </ul>
+                    <p class="text-danger"><strong>This will completely reset your application data!</strong></p>
+                    <div class="mb-3">
+                        <label class="form-label">To confirm, type <strong>DELETE ALL</strong> below:</label>
+                        <input @bind="confirmationText" @bind:event="oninput" class="form-control" placeholder="Type DELETE ALL to confirm" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="HideRemoveAllConfirmation" disabled="@isRemovingAll">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="RemoveAllRepositories" 
+                            disabled="@(isRemovingAll || confirmationText != "DELETE ALL")">
+                        @if (isRemovingAll)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>Removing...</span>
+                        }
+                        else
+                        {
+                            <span>Remove ALL Repositories</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
@@ -213,11 +281,13 @@ else
     private List<FileExtensionPercentageDto>? fileExtensionPercentages; // New property
     private bool isLoadingChartData = false;
     private string chartErrorMessage = string.Empty;
+    private bool isRemovingAll = false;
+    private bool showRemoveAllConfirmation = false;
+    private string confirmationText = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadRepositories();
-        await LoadGitHubRepositories();
     }
 
     private async Task ShowLineCountChart(Guid repositoryId)
@@ -252,10 +322,10 @@ else
 
         try
         {
-            lineCountHistory = await Http.GetFromJsonAsync<List<DailyLineCountDto>>($"/api/repositories/{repositoryId}/linehistory/30");
+            lineCountHistory = await Http.GetFromJsonAsync<List<DailyLineCountDto>>($"/api/repositories/{repositoryId}/linehistory/365");
             if (lineCountHistory == null || !lineCountHistory.Any())
             {
-                chartErrorMessage = "No line count history available for the last 30 days.";
+                chartErrorMessage = "No line count history available for the last 365 days.";
             }
         }
         catch (Exception ex)
@@ -311,137 +381,15 @@ else
         }
     }
 
-    private async Task LoadGitHubRepositories()
-    {
-        pageState.IsLoadingGitHubRepos = true;
-        StateHasChanged();
-        
-        try
-        {
-            var gitHubRepos = await Http.GetFromJsonAsync<List<GitHubUserRepositoryDto>>("/api/github/user-repositories");
-            // Sort repositories alphabetically by name
-            pageState.GitHubUserRepositories = gitHubRepos?.OrderBy(r => r.Name).ToList() ?? new List<GitHubUserRepositoryDto>();
-            Logger.LogInformation("Loaded {Count} GitHub user repositories.", pageState.GitHubUserRepositories.Count);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading GitHub repositories: {Message}", ex.Message);
-            pageState.ErrorMessage = $"Error loading GitHub repositories: {ex.Message}";
-        }
-        finally
-        {
-            pageState.IsLoadingGitHubRepos = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task AddRepository()
-    {
-        if (pageState.IsAddingRepository || pageState.SelectedGitHubRepository == null) return;
-        
-        pageState.IsAddingRepository = true;
-        pageState.ClearMessages();
-        StateHasChanged();
-        
-        try
-        {
-            // Step 1: Validate selected repository (10%)
-            pageState.SetProgress("Validating selected repository...", 10);
-            StateHasChanged();
-            await Task.Delay(300);
-            
-            var selectedRepo = pageState.SelectedGitHubRepository;
-
-            // Step 2: Prepare repository data (25%)
-            pageState.SetProgress("Preparing repository data...", 25);
-            StateHasChanged();
-            await Task.Delay(300);
-
-            // Parse owner and repo name from the full name (e.g., "owner/repo")
-            var fullNameParts = selectedRepo.FullName.Split('/');
-            if (fullNameParts.Length != 2)
-            {
-                pageState.AddRepoMessage = "Error: Invalid repository format in GitHub data.";
-                return;
-            }
-
-            var newRepository = new GitHubRepository
-            {
-                Owner = fullNameParts[0],
-                Name = fullNameParts[1],
-                CloneUrl = selectedRepo.CloneUrl
-            };
-
-            // Step 3: Adding to database (50%)
-            pageState.SetProgress("Adding repository to database...", 50);
-            StateHasChanged();
-
-            var response = await Http.PostAsJsonAsync("/api/repositories", newRepository);
-            
-            if (response.IsSuccessStatusCode)
-            {
-                // Step 4: Repository added successfully (75%)
-                pageState.SetProgress("Repository added! Initializing analysis...", 75);
-                StateHasChanged();
-                await Task.Delay(500);
-
-                var addedRepo = await response.Content.ReadFromJsonAsync<GitHubRepository>();
-                
-                // Step 5: Complete (100%)
-                pageState.SetProgress("Complete! Repository is now being analyzed.", 100);
-                StateHasChanged();
-                await Task.Delay(1000);
-
-                pageState.AddRepoMessage = $"Repository '{addedRepo?.Name}' added successfully! Analysis will begin automatically.";
-                pageState.SelectedGitHubRepository = null; // Clear selection
-                await LoadRepositories();
-            }
-            else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
-            {
-                pageState.SetProgress("Repository already exists", 100);
-                StateHasChanged();
-                await Task.Delay(500);
-
-                var errorResponse = await response.Content.ReadFromJsonAsync<ErrorResponse>();
-                pageState.AddRepoMessage = errorResponse?.error ?? $"Repository '{selectedRepo.Name}' is already in your list.";
-            }
-            else
-            {
-                pageState.SetProgress("Error occurred", 100);
-                StateHasChanged();
-                await Task.Delay(500);
-
-                var errorContent = await response.Content.ReadAsStringAsync();
-                pageState.AddRepoMessage = $"Error adding repository: {response.StatusCode} - {errorContent}";
-            }
-        }
-        catch (Exception ex)
-        {
-            pageState.SetProgress("Error occurred", 100);
-            StateHasChanged();
-            await Task.Delay(500);
-
-            pageState.AddRepoMessage = $"Error adding repository: {ex.Message}";
-            Logger.LogError(ex, "Error adding repository: {Message}", ex.Message);
-        }
-        finally
-        {
-            pageState.IsAddingRepository = false;
-            pageState.ProgressMessage = string.Empty;
-            pageState.ProgressPercentage = 0;
-            StateHasChanged();
-        }
-    }
-
     private void ToggleShowAllCommits(Guid repositoryId)
     {
-        if (pageState.ShowAllCommitsFor.Contains(repositoryId))
+        if (showAllCommitsFor.Contains(repositoryId))
         {
-            pageState.ShowAllCommitsFor.Remove(repositoryId);
+            showAllCommitsFor.Remove(repositoryId);
         }
         else
         {
-            pageState.ShowAllCommitsFor.Add(repositoryId);
+            showAllCommitsFor.Add(repositoryId);
         }
     }
 
@@ -485,6 +433,64 @@ else
         }
         finally
         {
+            StateHasChanged();
+        }
+    }
+    
+    private void ShowRemoveAllConfirmation()
+    {
+        showRemoveAllConfirmation = true;
+        confirmationText = string.Empty;
+    }
+    
+    private void HideRemoveAllConfirmation()
+    {
+        showRemoveAllConfirmation = false;
+        confirmationText = string.Empty;
+    }
+    
+    private async Task RemoveAllRepositories()
+    {
+        try
+        {
+            isRemovingAll = true;
+            Logger.LogInformation("Starting removal of all repositories via API endpoint.");
+            
+            var response = await Http.DeleteAsync("/api/repositories/all");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                // Clear the local repositories list
+                pageState.Repositories.Clear();
+                
+                // Hide any open charts
+                selectedRepositoryId = null;
+                lineCountHistory = null;
+                fileExtensionPercentages = null;
+                chartErrorMessage = string.Empty;
+                
+                // Hide confirmation dialog
+                showRemoveAllConfirmation = false;
+                confirmationText = string.Empty;
+                
+                pageState.AddRepoMessage = "All repositories and data have been successfully removed!";
+                Logger.LogInformation("All repositories removed successfully.");
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                pageState.AddRepoMessage = $"Error removing all repositories: {response.StatusCode} - {errorContent}";
+                Logger.LogError("Failed to remove all repositories. Status: {StatusCode}, Content: {ErrorContent}", response.StatusCode, errorContent);
+            }
+        }
+        catch (Exception ex)
+        {
+            pageState.AddRepoMessage = $"Error removing all repositories: {ex.Message}";
+            Logger.LogError(ex, "Error removing all repositories: {Message}", ex.Message);
+        }
+        finally
+        {
+            isRemovingAll = false;
             StateHasChanged();
         }
     }

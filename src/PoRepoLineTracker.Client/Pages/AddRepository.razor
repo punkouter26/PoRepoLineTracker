@@ -1,0 +1,334 @@
+@page "/add-repository"
+@inject HttpClient Http
+@inject ILogger<AddRepository> Logger
+@using PoRepoLineTracker.Client.Models
+@using PoRepoLineTracker.Domain.Models
+@using PoRepoLineTracker.Application.Models
+@using Radzen.Blazor
+
+<h3>Add New Repository</h3>
+
+<div class="mb-3">
+    @if (pageState.ShowRepositorySelector)
+    {
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Select Repositories from Your GitHub Account</h5>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="HideRepositorySelection">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                @if (pageState.IsLoadingGitHubRepos)
+                {
+                    <div class="text-center p-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading GitHub repositories...</span>
+                        </div>
+                        <p class="mt-2"><em>Loading your GitHub repositories...</em></p>
+                    </div>
+                }
+                else if (pageState.GitHubUserRepositories.Any())
+                {
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted">Found @pageState.GitHubUserRepositories.Count repositories</span>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary me-2" @onclick="SelectAllRepositories">
+                                    Select All
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearAllSelections">
+                                    Clear All
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div style="max-height: 400px; overflow-y: auto;" class="border rounded p-2 repository-list-container">
+                            @foreach (var repo in pageState.GitHubUserRepositories)
+                            {
+                                <div class="form-check d-flex align-items-center p-2 repository-item @(pageState.SelectedRepositories.Contains(repo) ? "bg-light" : "")">
+                                    <input class="form-check-input repository-checkbox" 
+                                           type="checkbox" 
+                                           id="repo-@repo.Id" 
+                                           checked="@pageState.SelectedRepositories.Contains(repo)"
+                                           @onchange="@(e => ToggleRepositorySelection(repo, (bool)e.Value!))" />
+                                    <label class="form-check-label repository-label" for="repo-@repo.Id">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong>@repo.Owner/@repo.Name</strong>
+                                                @if (!string.IsNullOrEmpty(repo.Description))
+                                                {
+                                                    <br><small class="text-muted">@repo.Description</small>
+                                                }
+                                            </div>
+                                            <div class="text-end">
+                                                <span class="badge bg-secondary">@repo.Language</span>
+                                                @if (repo.Private)
+                                                {
+                                                    <span class="badge bg-warning">Private</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                        
+                        <div class="mt-3 d-flex justify-content-between align-items-center">
+                            <span class="text-muted">@pageState.SelectedRepositories.Count selected</span>
+                            <button class="btn btn-success" 
+                                    @onclick="AddSelectedRepositories" 
+                                    disabled="@(pageState.IsAddingRepository || !pageState.SelectedRepositories.Any())">
+                                @if (pageState.IsAddingRepository)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                }
+                                Add Selected (@pageState.SelectedRepositories.Count)
+                            </button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center p-4">
+                        <p class="text-muted">No repositories found in your GitHub account.</p>
+                        <small class="text-muted">Make sure your GitHub Personal Access Token is properly configured.</small>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    
+    @* Single repository mode removed as requested *@
+    
+    @if (pageState.IsLoadingGitHubRepos)
+    {
+        <div class="mb-3">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading GitHub repositories...</span>
+                </div>
+                <p class="mt-2"><em>Loading your GitHub repositories...</em></p>
+            </div>
+        </div>
+    }
+    
+    @if (pageState.IsAddingRepository)
+    {
+        <div class="mb-3">
+            <div class="progress" style="height: 25px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" 
+                     style="width: @(pageState.ProgressPercentage)%" 
+                     aria-valuenow="@pageState.ProgressPercentage" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100">
+                    @(pageState.ProgressPercentage)%
+                </div>
+            </div>
+            <div class="text-center mt-2">
+                <small class="text-muted">@pageState.ProgressMessage</small>
+            </div>
+        </div>
+    }
+    
+    @if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
+    {
+        <div class="alert alert-info">@pageState.AddRepoMessage</div>
+    }
+</div>
+
+@code {
+    private RepositoryPageState pageState = new();
+    @inject HttpClient Http
+    @inject ILogger<AddRepository> Logger
+
+    protected override async Task OnInitializedAsync()
+    {
+        pageState.ShowRepositorySelector = true;
+        await LoadGitHubRepositories();
+    }
+
+    private async Task LoadGitHubRepositories()
+    {
+        pageState.IsLoadingGitHubRepos = true;
+        StateHasChanged();
+        
+        try
+        {
+            var gitHubRepos = await Http.GetFromJsonAsync<List<GitHubUserRepositoryDto>>("/api/github/user-repositories");
+            // Sort repositories alphabetically by name
+            pageState.GitHubUserRepositories = gitHubRepos?.OrderBy(r => r.Name).ToList() ?? new List<GitHubUserRepositoryDto>();
+            Logger.LogInformation("Loaded {Count} GitHub user repositories.", pageState.GitHubUserRepositories.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading GitHub repositories: {Message}", ex.Message);
+            pageState.ErrorMessage = $"Error loading GitHub repositories: {ex.Message}";
+        }
+        finally
+        {
+            pageState.IsLoadingGitHubRepos = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleRepositorySelection(GitHubUserRepositoryDto repository, bool isSelected)
+    {
+        if (isSelected)
+        {
+            if (!pageState.SelectedRepositories.Contains(repository))
+            {
+                pageState.SelectedRepositories.Add(repository);
+            }
+        }
+        else
+        {
+            pageState.SelectedRepositories.Remove(repository);
+        }
+        StateHasChanged();
+    }
+
+    private void SelectAllRepositories()
+    {
+        pageState.SelectedRepositories.Clear();
+        foreach (var repo in pageState.GitHubUserRepositories)
+        {
+            pageState.SelectedRepositories.Add(repo);
+        }
+        StateHasChanged();
+    }
+
+    private void ClearAllSelections()
+    {
+        pageState.SelectedRepositories.Clear();
+        StateHasChanged();
+    }
+
+    private async Task AddSelectedRepositories()
+    {
+        if (pageState.IsAddingRepository || !pageState.SelectedRepositories.Any()) return;
+        
+        pageState.IsAddingRepository = true;
+        pageState.ClearMessages();
+        StateHasChanged();
+        
+        try
+        {
+            // Step 1: Prepare repository data (25%)
+            pageState.SetProgress($"Preparing {pageState.SelectedRepositories.Count} repositories...", 25);
+            StateHasChanged();
+            await Task.Delay(300);
+
+            var repositoriesToAdd = pageState.SelectedRepositories.Select(repo =>
+            {
+                var fullNameParts = repo.FullName.Split('/');
+                return new BulkRepositoryDto
+                {
+                    Owner = fullNameParts[0],
+                    RepoName = fullNameParts[1],
+                    CloneUrl = repo.CloneUrl
+                };
+            }).ToList();
+
+            Logger.LogInformation("About to add {Count} repositories: {Repositories}", 
+                repositoriesToAdd.Count, 
+                string.Join(", ", repositoriesToAdd.Select(r => $"{r.Owner}/{r.RepoName}")));
+
+            // Step 2: Adding to database (50%)
+            pageState.SetProgress("Adding repositories to database...", 50);
+            StateHasChanged();
+
+            var response = await Http.PostAsJsonAsync("/api/repositories/bulk", repositoriesToAdd);
+            
+            Logger.LogInformation("Bulk repository add response: Status={StatusCode}", response.StatusCode);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                // Step 3: Repositories added successfully (75%)
+                pageState.SetProgress("Repositories added! Initializing analysis...", 75);
+                StateHasChanged();
+                await Task.Delay(500);
+
+                var addedRepos = await response.Content.ReadFromJsonAsync<List<GitHubRepository>>();
+                
+                // Step 4: Complete (100%)
+                pageState.SetProgress("Complete! Repositories are now being analyzed.", 100);
+                StateHasChanged();
+                await Task.Delay(1000);
+
+                pageState.AddRepoMessage = $"{addedRepos?.Count ?? pageState.SelectedRepositories.Count} repositories added successfully! Analysis will begin automatically.";
+                pageState.SelectedRepositories.Clear(); // Clear selections
+            }
+            else
+            {
+                pageState.SetProgress("Error occurred", 100);
+                StateHasChanged();
+                await Task.Delay(500);
+
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Logger.LogError("Bulk repository add failed: Status={StatusCode}, Content={ErrorContent}", response.StatusCode, errorContent);
+                pageState.AddRepoMessage = $"Error adding repositories: {response.StatusCode} - {errorContent}";
+            }
+        }
+        catch (Exception ex)
+        {
+            pageState.SetProgress("Error occurred", 100);
+            StateHasChanged();
+            await Task.Delay(500);
+
+            pageState.AddRepoMessage = $"Error adding repositories: {ex.Message}";
+            Logger.LogError(ex, "Error adding repositories: {Message}", ex.Message);
+        }
+        finally
+        {
+            pageState.IsAddingRepository = false;
+            pageState.ProgressMessage = string.Empty;
+            pageState.ProgressPercentage = 0;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ShowRepositorySelection()
+    {
+        Logger.LogInformation("ShowRepositorySelection called. Current ShowRepositorySelector: {ShowRepositorySelector}", pageState.ShowRepositorySelector);
+        pageState.ShowRepositorySelector = true;
+        Logger.LogInformation("ShowRepositorySelector set to true. New value: {ShowRepositorySelector}", pageState.ShowRepositorySelector);
+        await LoadGitHubRepositories();
+        Logger.LogInformation("LoadGitHubRepositories completed. Calling StateHasChanged.");
+        StateHasChanged();
+    }
+
+    private void HideRepositorySelection()
+    {
+        pageState.ShowRepositorySelector = false;
+        pageState.ClearSelection();
+        StateHasChanged();
+    }
+}
+
+<style>
+    /* Ensure checkboxes are properly positioned and not cut off */
+    .repository-list-container {
+        padding-left: 0.75rem;
+        padding-right: 0.5rem;
+    }
+    
+    .repository-item {
+        margin-left: 0 !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem;
+    }
+    
+    .repository-checkbox {
+        margin-left: 0 !important;
+        margin-right: 0.75rem !important;
+        flex-shrink: 0;
+    }
+    
+    .repository-label {
+        flex-grow: 1;
+        margin-bottom: 0 !important;
+        cursor: pointer;
+    }
+</style>

@@ -7,4 +7,5 @@ public class GitHubRepository
     public string Name { get; set; } = string.Empty;
     public string CloneUrl { get; set; } = string.Empty;
     public DateTime LastAnalyzedCommitDate { get; set; }
+    public string LocalPath { get; set; } = string.Empty;
 }

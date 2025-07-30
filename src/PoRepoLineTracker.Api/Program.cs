@@ -6,246 +6,348 @@ using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
 using Microsoft.AspNetCore.Components.WebAssembly.Server;
 using Polly.CircuitBreaker; // Explicitly add this using directive
+using PoRepoLineTracker.Api.Middleware;
+using PoRepoLineTracker.Application.Services.LineCounters; // Add this using statement
+using MediatR; // Add this using statement
+using PoRepoLineTracker.Client.Models; // Add this using statement
+using System.Text.Json; // Add this for JSON serialization
+using Microsoft.AspNetCore.Mvc; // Add this for FromBody attribute
 
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()
-    .WriteTo.File("log.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7, shared: true)
-    .MinimumLevel.Debug()
-    .CreateLogger();
-
-try
+namespace PoRepoLineTracker.Api
 {
-    var builder = WebApplication.CreateBuilder(args);
-
-    builder.Host.UseSerilog(); // Use Serilog for logging
-
-    // Add services to the container.
-    // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-    builder.Services.AddOpenApi();
-
-    // Configure HttpClient with Polly Circuit Breaker
-    var circuitBreakerOptions = new CircuitBreakerStrategyOptions<HttpResponseMessage> // Specify TResult
+    public partial class Program
     {
-        FailureRatio = 0.5, // Break if 50% of requests fail
-        SamplingDuration = TimeSpan.FromSeconds(10), // Sample failures over 10 seconds
-        MinimumThroughput = 5, // Need at least 5 requests in sampling duration to break
-        BreakDuration = TimeSpan.FromSeconds(30), // Break for 30 seconds
-        ShouldHandle = args =>
+        public static void Main(string[] args)
         {
-            return new ValueTask<bool>(args.Outcome.Result?.StatusCode == HttpStatusCode.ServiceUnavailable ||
-                                       args.Outcome.Result?.StatusCode == HttpStatusCode.RequestTimeout);
-        }
-    };
+            Log.Logger = new LoggerConfiguration()
+                .WriteTo.Console()
+                .WriteTo.File("log.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7, shared: true)
+                .MinimumLevel.Debug()
+                .CreateLogger();
 
-    builder.Services.AddHttpClient("GitHubClient", (serviceProvider, client) =>
-    {
-        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-        var gitHubPat = configuration["GitHub:PAT"];
-        
-        client.BaseAddress = new Uri("https://api.github.com/");
-        client.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3+json");
-        client.DefaultRequestHeaders.Add("User-Agent", "PoRepoLineTracker");
-        
-        if (!string.IsNullOrEmpty(gitHubPat))
+            try
+            {
+                var app = CreateWebApplication(args);
+                app.Run();
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Application terminated unexpectedly");
+            }
+            finally
+            {
+                Log.CloseAndFlush();
+            }
+        }
+
+        public static WebApplication CreateWebApplication(string[] args)
         {
-            client.DefaultRequestHeaders.Add("Authorization", $"token {gitHubPat}");
+            var builder = WebApplication.CreateBuilder(args);
+
+            builder.Host.UseSerilog(); // Use Serilog for logging
+
+            // Add services to the container.
+            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+            builder.Services.AddOpenApi();
+
+            // Configure JSON options for case-insensitive property matching
+            builder.Services.ConfigureHttpJsonOptions(options =>
+            {
+                options.SerializerOptions.PropertyNameCaseInsensitive = true;
+            });
+
+            // Configure HttpClient with Polly Circuit Breaker
+            var circuitBreakerOptions = new CircuitBreakerStrategyOptions<HttpResponseMessage> // Specify TResult
+            {
+                FailureRatio = 0.5, // Break if 50% of requests fail
+                SamplingDuration = TimeSpan.FromSeconds(10), // Sample failures over 10 seconds
+                MinimumThroughput = 5, // Need at least 5 requests in sampling duration to break
+                BreakDuration = TimeSpan.FromSeconds(30), // Break for 30 seconds
+                ShouldHandle = args =>
+                {
+                    return new ValueTask<bool>(args.Outcome.Result?.StatusCode == HttpStatusCode.ServiceUnavailable ||
+                                               args.Outcome.Result?.StatusCode == HttpStatusCode.RequestTimeout);
+                }
+            };
+
+            builder.Services.AddHttpClient("GitHubClient", (serviceProvider, client) =>
+            {
+                var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+                var gitHubPat = configuration["GitHub:PAT"];
+
+                client.BaseAddress = new Uri("https://api.github.com/");
+                client.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3+json");
+                client.DefaultRequestHeaders.Add("User-Agent", "PoRepoLineTracker");
+
+                if (!string.IsNullOrEmpty(gitHubPat))
+                {
+                    client.DefaultRequestHeaders.Add("Authorization", $"token {gitHubPat}");
+                }
+            })
+            .AddResilienceHandler("CircuitBreaker", builder =>
+            {
+                builder.AddCircuitBreaker(circuitBreakerOptions);
+            });
+
+            // Register application services with proper HttpClient injection
+            builder.Services.AddScoped<PoRepoLineTracker.Infrastructure.Interfaces.IGitClient, PoRepoLineTracker.Infrastructure.Services.GitClient>(); // Register IGitClient
+
+            // Register ILineCounter implementations
+            builder.Services.AddScoped<ILineCounter, DefaultLineCounter>();
+            builder.Services.AddScoped<ILineCounter, CSharpLineCounter>();
+
+            builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IGitHubService>(serviceProvider =>
+            {
+                var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+                var httpClient = httpClientFactory.CreateClient("GitHubClient");
+                var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+                var logger = serviceProvider.GetRequiredService<ILogger<PoRepoLineTracker.Infrastructure.Services.GitHubService>>();
+                var gitClient = serviceProvider.GetRequiredService<PoRepoLineTracker.Infrastructure.Interfaces.IGitClient>(); // Get IGitClient
+                var lineCounters = serviceProvider.GetServices<ILineCounter>(); // Get all ILineCounter implementations
+                return new PoRepoLineTracker.Infrastructure.Services.GitHubService(httpClient, configuration, logger, lineCounters, gitClient); // Inject lineCounters and gitClient
+            });
+            builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryDataService, PoRepoLineTracker.Infrastructure.Services.RepositoryDataService>();
+            builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryService, PoRepoLineTracker.Application.Services.RepositoryService>(); // Re-enabled: RepositoryService now uses MediatR
+
+            // Add MediatR
+            builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(PoRepoLineTracker.Application.Features.Repositories.Commands.AddRepositoryCommand).Assembly));
+
+            var app = builder.Build();
+            app.UseMiddleware<ExceptionHandlingMiddleware>(); // Global exception handling
+
+            // Configure the HTTP request pipeline.
+            if (app.Environment.IsDevelopment())
+            {
+                app.MapOpenApi();
+            }
+
+            app.UseHttpsRedirection();
+
+            app.UseBlazorFrameworkFiles();
+            app.UseStaticFiles();
+            app.MapFallbackToFile("index.html");
+
+            // API Endpoints
+            app.MapPost("/api/repositories", async (GitHubRepository newRepo, IMediator mediator) =>
+            {
+                var repo = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddRepositoryCommand(newRepo.Owner, newRepo.Name, newRepo.CloneUrl));
+                return Results.Created($"/api/repositories/{repo.Id}", repo);
+            })
+            .WithName("AddRepository");
+
+            app.MapGet("/api/repositories", async (IMediator mediator) =>
+            {
+                var repositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetAllRepositoriesQuery());
+                return Results.Ok(repositories);
+            })
+            .WithName("GetAllRepositories");
+
+            app.MapGet("/api/repositories/{repositoryId}/linecounts", async (Guid repositoryId, IMediator mediator) =>
+            {
+                var lineCounts = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetLineCountsForRepositoryQuery(repositoryId));
+                return Results.Ok(lineCounts);
+            })
+            .WithName("GetRepositoryLineCounts");
+
+            app.MapGet("/api/repositories/{repositoryId}/linehistory/{days}", async (Guid repositoryId, int days, IMediator mediator) =>
+            {
+                try
+                {
+                    var lineHistory = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetLineCountHistoryQuery(repositoryId, days));
+                    return Results.Ok(lineHistory);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error retrieving line count history for repository {RepositoryId}", repositoryId);
+                    return Results.Problem($"Error retrieving line count history: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("GetRepositoryLineHistory");
+
+            app.MapGet("/api/repositories/allcharts/{days}", async (int days, IMediator mediator) =>
+            {
+                try
+                {
+                    var allChartsData = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetAllRepositoriesLineCountHistoryQuery(days));
+                    return Results.Ok(allChartsData);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error retrieving line count history for all repositories");
+                    return Results.Problem($"Error retrieving all repositories line count history: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("GetAllRepositoriesLineHistory");
+
+            app.MapGet("/api/settings/file-extensions", async (IMediator mediator) =>
+            {
+                try
+                {
+                    var extensions = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetConfiguredFileExtensionsQuery());
+                    return Results.Ok(extensions);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error retrieving configured file extensions.");
+                    return Results.Problem($"Error retrieving configured file extensions: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("GetConfiguredFileExtensions");
+
+            app.MapGet("/api/repositories/{repositoryId}/file-extension-percentages", async (Guid repositoryId, IMediator mediator) =>
+            {
+                try
+                {
+                    var percentages = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetFileExtensionPercentagesQuery(repositoryId));
+                    return Results.Ok(percentages);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error retrieving file extension percentages for repository {RepositoryId}", repositoryId);
+                    return Results.Problem($"Error retrieving file extension percentages: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("GetFileExtensionPercentages");
+
+            app.MapDelete("/api/repositories/{repositoryId}", async (Guid repositoryId, IMediator mediator) =>
+            {
+                try
+                {
+                    await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.DeleteRepositoryCommand(repositoryId));
+                    Log.Information("Repository {RepositoryId} deleted successfully via API.", repositoryId);
+                    return Results.NoContent();
+                }
+                catch (InvalidOperationException)
+                {
+                    Log.Warning("Repository {RepositoryId} not found for deletion.", repositoryId);
+                    return Results.NotFound($"Repository with ID {repositoryId} not found.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error deleting repository {RepositoryId}", repositoryId);
+                    return Results.Problem($"Error deleting repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("DeleteRepository");
+
+            app.MapDelete("/api/repositories/all", async (IMediator mediator) =>
+            {
+                try
+                {
+                    await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.RemoveAllRepositoriesCommand());
+                    Log.Information("All repositories removed successfully via API.");
+                    return Results.NoContent();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error removing all repositories");
+                    return Results.Problem($"Error removing all repositories: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("RemoveAllRepositories");
+
+            app.MapGet("/api/github/user-repositories", async (IGitHubService githubService) =>
+            {
+                try
+                {
+                    var userRepositories = await githubService.GetUserRepositoriesAsync();
+                    return Results.Ok(userRepositories);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Log.Warning("GitHub PAT not configured: {ErrorMessage}", ex.Message);
+                    return Results.BadRequest($"GitHub configuration error: {ex.Message}");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error fetching user repositories from GitHub API");
+                    return Results.Problem($"Error fetching user repositories: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("GetUserRepositories");
+
+            app.MapPost("/api/repositories/bulk", async ([FromBody] IEnumerable<PoRepoLineTracker.Application.Models.BulkRepositoryDto> repositories, IMediator mediator) =>
+            {
+                try
+                {
+                    Log.Information("Adding {Count} repositories via bulk endpoint.", repositories?.Count() ?? 0);
+                    
+                    var addedRepositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddMultipleRepositoriesCommand(repositories ?? Enumerable.Empty<PoRepoLineTracker.Application.Models.BulkRepositoryDto>()));
+                    return Results.Ok(addedRepositories);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error adding multiple repositories");
+                    return Results.Problem($"Error adding repositories: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("AddMultipleRepositories");
+
+            // Health Check Endpoints
+            app.MapGet("/api/health/azure-table-storage", async (IRepositoryDataService repoDataService) =>
+            {
+                try
+                {
+                    // Attempt a simple operation to check connectivity, e.g., try to list a non-existent table
+                    // This will throw an exception if connectivity fails
+                    await repoDataService.CheckConnectionAsync();
+                    return Results.Ok("Azure Table Storage: Connected");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Azure Table Storage health check failed.");
+                    return Results.Problem($"Azure Table Storage: Disconnected - {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("CheckAzureTableStorageHealth");
+
+            app.MapGet("/api/health/github-api", async (IGitHubService githubService) =>
+            {
+                try
+                {
+                    // Attempt a simple operation to check connectivity, e.g., get a public repository
+                    await githubService.CheckConnectionAsync();
+                    return Results.Ok("GitHub API: Connected");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "GitHub API health check failed.");
+                    return Results.Problem($"GitHub API: Disconnected - {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("CheckGitHubApiHealth");
+
+            app.MapPost("/api/repositories/{repositoryId}/analyze", async (Guid repositoryId, IMediator mediator) =>
+            {
+                try
+                {
+                    await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repositoryId));
+                    return Results.Accepted();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error analyzing repository {RepositoryId}", repositoryId);
+                    return Results.Problem($"Error analyzing repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("AnalyzeRepository");
+
+            app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, IMediator mediator) =>
+            {
+                try
+                {
+                    await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repositoryId, ForceReanalysis: true));
+                    return Results.Accepted();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error force re-analyzing repository {RepositoryId}", repositoryId);
+                    return Results.Problem($"Error force re-analyzing repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("ForceReanalyzeRepository");
+
+            return app;
         }
-    })
-    .AddResilienceHandler("CircuitBreaker", builder =>
-    {
-        builder.AddCircuitBreaker(circuitBreakerOptions);
-    });
-
-    // Register application services with proper HttpClient injection
-    builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IGitHubService>(serviceProvider =>
-    {
-        var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
-        var httpClient = httpClientFactory.CreateClient("GitHubClient");
-        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-        var logger = serviceProvider.GetRequiredService<ILogger<PoRepoLineTracker.Infrastructure.Services.GitHubService>>();
-        return new PoRepoLineTracker.Infrastructure.Services.GitHubService(httpClient, configuration, logger);
-    });
-    builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryDataService, PoRepoLineTracker.Infrastructure.Services.RepositoryDataService>();
-    builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryService, PoRepoLineTracker.Application.Services.RepositoryService>();
-
-    var app = builder.Build();
-
-    // Configure the HTTP request pipeline.
-    if (app.Environment.IsDevelopment())
-    {
-        app.MapOpenApi();
     }
-
-    app.UseHttpsRedirection();
-
-    app.UseBlazorFrameworkFiles();
-    app.UseStaticFiles();
-    app.MapFallbackToFile("index.html");
-
-    // API Endpoints
-    app.MapPost("/api/repositories", async (GitHubRepository newRepo, IRepositoryService repoService) =>
-    {
-        var repo = await repoService.AddRepositoryAsync(newRepo.Owner, newRepo.Name, newRepo.CloneUrl);
-        return Results.Created($"/api/repositories/{repo.Id}", repo);
-    })
-    .WithName("AddRepository");
-
-    app.MapGet("/api/repositories", async (IRepositoryService repoService) =>
-    {
-        var repositories = await repoService.GetAllRepositoriesAsync();
-        return Results.Ok(repositories);
-    })
-    .WithName("GetAllRepositories");
-
-    app.MapGet("/api/repositories/{repositoryId}/linecounts", async (Guid repositoryId, IRepositoryService repoService) =>
-    {
-        var lineCounts = await repoService.GetLineCountsForRepositoryAsync(repositoryId);
-        return Results.Ok(lineCounts);
-    })
-    .WithName("GetRepositoryLineCounts");
-
-    app.MapGet("/api/repositories/{repositoryId}/linehistory/{days}", async (Guid repositoryId, int days, IRepositoryService repoService) =>
-    {
-        try
-        {
-            var lineHistory = await repoService.GetLineCountHistoryAsync(repositoryId, days);
-            return Results.Ok(lineHistory);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error retrieving line count history for repository {RepositoryId}", repositoryId);
-            return Results.Problem($"Error retrieving line count history: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-        }
-    })
-    .WithName("GetRepositoryLineHistory");
-
-    app.MapGet("/api/repositories/allcharts/{days}", async (int days, IRepositoryService repoService) =>
-    {
-        try
-        {
-            var allChartsData = await repoService.GetAllRepositoriesLineCountHistoryAsync(days);
-            return Results.Ok(allChartsData);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error retrieving line count history for all repositories");
-            return Results.Problem($"Error retrieving all repositories line count history: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-        }
-    })
-    .WithName("GetAllRepositoriesLineHistory");
-
-    app.MapGet("/api/settings/file-extensions", async (IRepositoryService repoService) =>
-    {
-        try
-        {
-            var extensions = await repoService.GetConfiguredFileExtensionsAsync();
-            return Results.Ok(extensions);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error retrieving configured file extensions.");
-            return Results.Problem($"Error retrieving configured file extensions: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-        }
-    })
-    .WithName("GetConfiguredFileExtensions");
-
-    app.MapGet("/api/repositories/{repositoryId}/file-extension-percentages", async (Guid repositoryId, IRepositoryService repoService) =>
-    {
-        try
-        {
-            var percentages = await repoService.GetFileExtensionPercentagesAsync(repositoryId);
-            return Results.Ok(percentages);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error retrieving file extension percentages for repository {RepositoryId}", repositoryId);
-            return Results.Problem($"Error retrieving file extension percentages: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-        }
-    })
-    .WithName("GetFileExtensionPercentages");
-
-    app.MapDelete("/api/repositories/{repositoryId}", async (Guid repositoryId, IRepositoryService repoService) =>
-    {
-        try
-        {
-            await repoService.DeleteRepositoryAsync(repositoryId);
-            Log.Information("Repository {RepositoryId} deleted successfully via API.", repositoryId);
-            return Results.NoContent();
-        }
-        catch (InvalidOperationException ex)
-        {
-            Log.Warning("Repository {RepositoryId} not found for deletion.", repositoryId);
-            return Results.NotFound($"Repository with ID {repositoryId} not found.");
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error deleting repository {RepositoryId}", repositoryId);
-            return Results.Problem($"Error deleting repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-        }
-    })
-    .WithName("DeleteRepository");
-
-    app.MapGet("/api/github/user-repositories", async (IGitHubService githubService) =>
-    {
-        try
-        {
-            var userRepositories = await githubService.GetUserRepositoriesAsync();
-            return Results.Ok(userRepositories);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Log.Warning("GitHub PAT not configured: {ErrorMessage}", ex.Message);
-            return Results.BadRequest($"GitHub configuration error: {ex.Message}");
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error fetching user repositories from GitHub API");
-            return Results.Problem($"Error fetching user repositories: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-        }
-    })
-    .WithName("GetUserRepositories");
-
-    // Health Check Endpoints
-    app.MapGet("/api/health/azure-table-storage", async (IRepositoryDataService repoDataService) =>
-    {
-        try
-        {
-            // Attempt a simple operation to check connectivity, e.g., try to list a non-existent table
-            // This will throw an exception if connectivity fails
-            await repoDataService.CheckConnectionAsync();
-            return Results.Ok("Azure Table Storage: Connected");
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Azure Table Storage health check failed.");
-            return Results.Problem($"Azure Table Storage: Disconnected - {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-        }
-    })
-    .WithName("CheckAzureTableStorageHealth");
-
-    app.MapGet("/api/health/github-api", async (IGitHubService githubService) =>
-    {
-        try
-        {
-            // Attempt a simple operation to check connectivity, e.g., get a public repository
-            await githubService.CheckConnectionAsync();
-            return Results.Ok("GitHub API: Connected");
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "GitHub API health check failed.");
-            return Results.Problem($"GitHub API: Disconnected - {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-        }
-    })
-    .WithName("CheckGitHubApiHealth");
-
-    app.Run();
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "Application terminated unexpectedly");
-}
-finally
-{
-    Log.CloseAndFlush();
 }

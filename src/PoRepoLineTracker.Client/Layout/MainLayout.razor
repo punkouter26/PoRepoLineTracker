@@ -1,26 +1,71 @@
 ﻿@inherits LayoutComponentBase
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+@using PoRepoLineTracker.Client.Layout
 
-    <main>
-        <div class="app-banner bg-primary text-white py-3 mb-4">
-            <div class="container-fluid">
-                <h1 class="mb-0">
-                    <i class="fas fa-chart-line me-2"></i>
-                    PoRepoLineTracker
-                </h1>
-                <p class="mb-0 mt-1">Repository Line Count Analysis and Tracking</p>
+<div class="rz-layout">
+    <div class="rz-header">
+        <div class="container">
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center" style="gap: 1rem;">
+                    <i class="material-icons" style="font-size: 2rem; color: var(--primary-color);">analytics</i>
+                    <div>
+                        <h4 class="mb-0" style="font-weight: 600; color: var(--text-primary);">PoRepoLineTracker</h4>
+                        <span style="font-size: var(--text-sm); color: var(--text-secondary);">Repository Line Count Analysis and Tracking</span>
+                    </div>
+                </div>
+                
+                <!-- Mobile menu button -->
+                <button class="btn btn-outline-primary d-lg-none" type="button" @onclick="ToggleMobileMenu" aria-label="Toggle navigation">
+                    <i class="material-icons">@(isMobileMenuOpen ? "close" : "menu")</i>
+                </button>
+                
+                <!-- Desktop navigation -->
+                <div class="d-none d-lg-flex align-items-center">
+                    <a href="https://learn.microsoft.com/aspnet/core/" target="_blank" 
+                       class="btn btn-outline-secondary">
+                        <i class="material-icons me-2">info</i> About
+                    </a>
+                </div>
             </div>
         </div>
+    </div>
+    
+    <div class="rz-body">
+        <!-- Mobile sidebar overlay -->
+        <div class="mobile-sidebar-overlay @(isMobileMenuOpen ? "show" : "")" @onclick="CloseMobileMenu"></div>
         
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        <!-- Sidebar -->
+        <div class="rz-sidebar @(isMobileMenuOpen ? "show" : "")">
+            <NavMenu />
         </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
+        
+        <!-- Main content -->
+        <div class="rz-content-container">
+            <div class="container">
+                @Body
+            </div>
+        </div>
+    </div>
+    
+    <div class="rz-footer">
+        <div class="container">
+            <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap: 1rem; font-size: var(--text-xs); color: var(--text-muted);">
+                <span>© 2025 PoRepoLineTracker - Built with Blazor & Radzen</span>
+                <span>Professional Theme</span>
+            </div>
+        </div>
+    </div>
 </div>
+
+@code {
+    private bool isMobileMenuOpen = false;
+
+    private void ToggleMobileMenu()
+    {
+        isMobileMenuOpen = !isMobileMenuOpen;
+    }
+
+    private void CloseMobileMenu()
+    {
+        isMobileMenuOpen = false;
+    }
+}

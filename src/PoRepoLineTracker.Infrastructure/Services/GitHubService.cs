@@ -5,6 +5,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using PoRepoLineTracker.Application.Models;
+using System.Collections.Generic;
+using System.Linq;
+using System.IO; // Added for Stream
+using PoRepoLineTracker.Infrastructure.Interfaces; // Added for IGitClient
 
 namespace PoRepoLineTracker.Infrastructure.Services;
 
@@ -14,11 +18,15 @@ public class GitHubService : IGitHubService
     private readonly ILogger<GitHubService> _logger;
     private readonly string _localReposPath;
     private readonly string? _gitHubPat;
+    private readonly Dictionary<string, ILineCounter> _lineCounterMap; // New field for line counter map
+    private readonly IGitClient _gitClient; // Added for DIP
 
-    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger)
+    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, IGitClient gitClient)
     {
         _httpClient = httpClient;
         _logger = logger;
+        _gitClient = gitClient; // Initialize IGitClient
+
         // Determine the base path for local repositories.
         // In Azure App Service, use a path within the ephemeral storage.
         // Locally, use the configured path or a default "LocalRepos" directory.
@@ -33,15 +41,14 @@ public class GitHubService : IGitHubService
             // Running locally
             _localReposPath = configuration["GitHub:LocalReposPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
         }
-        _gitHubPat = configuration["GitHub:PAT"];
+        _gitHubPat = configuration["GitHub:PAT"]; // Still needed for cloning credentials
 
         if (!Directory.Exists(_localReposPath))
         {
             Directory.CreateDirectory(_localReposPath);
         }
 
-        // HttpClient is now pre-configured with PAT in Program.cs via named client
-        // _gitHubPat is still needed for git operations (cloning)
+        _lineCounterMap = lineCounters.ToDictionary(lc => lc.FileExtension, lc => lc); // Initialize map
     }
 
     public async Task<string> CloneRepositoryAsync(string repoUrl, string localPath)
@@ -66,14 +73,7 @@ public class GitHubService : IGitHubService
                     Directory.CreateDirectory(parentDir);
                 }
 
-                var cloneOptions = new CloneOptions();
-                if (!string.IsNullOrEmpty(_gitHubPat))
-                {
-                    cloneOptions.FetchOptions.CredentialsProvider = (url, user, cred) =>
-                        new UsernamePasswordCredentials { Username = _gitHubPat, Password = "" };
-                }
-
-                Repository.Clone(repoUrl, fullLocalPath, cloneOptions);
+                _gitClient.Clone(repoUrl, fullLocalPath); // Use IGitClient
                 _logger.LogInformation("Successfully cloned repository {RepoUrl} to {LocalPath}", repoUrl, fullLocalPath);
                 return fullLocalPath;
             }
@@ -98,39 +98,10 @@ public class GitHubService : IGitHubService
                 throw new DirectoryNotFoundException($"Local repository not found or invalid at {fullLocalPath}");
             }
 
-            using (var repo = new Repository(fullLocalPath))
-            {
-                // Fetch all remote branches
-                Commands.Fetch(repo, repo.Network.Remotes["origin"].Name, new string[0], new FetchOptions
-                {
-                    CredentialsProvider = (url, user, cred) =>
-                        new UsernamePasswordCredentials { Username = _gitHubPat, Password = "" }
-                }, null);
+            _gitClient.Pull(fullLocalPath); // Use IGitClient
 
-                // Determine the default branch (main or master)
-                var remoteHead = repo.Branches.FirstOrDefault(b => b.IsRemote && (b.FriendlyName == "origin/main" || b.FriendlyName == "origin/master"));
-                if (remoteHead == null)
-                {
-                    _logger.LogError("Could not find remote 'main' or 'master' branch for repository at {LocalPath}", fullLocalPath);
-                    throw new InvalidOperationException("Could not find remote 'main' or 'master' branch.");
-                }
-
-                // Checkout the local tracking branch or create it if it doesn't exist
-                var localBranch = repo.Branches[remoteHead.FriendlyName.Replace("origin/", "")];
-                if (localBranch == null)
-                {
-                    localBranch = repo.CreateBranch(remoteHead.FriendlyName.Replace("origin/", ""), remoteHead.Tip);
-                    repo.Branches.Update(localBranch, b => b.TrackedBranch = remoteHead.CanonicalName);
-                }
-
-                Commands.Checkout(repo, localBranch);
-
-                // Reset the local branch to the fetched remote branch's tip
-                repo.Reset(ResetMode.Hard, remoteHead.Tip);
-
-                _logger.LogInformation("Successfully fetched and reset repository at {LocalPath} to {Branch}", fullLocalPath, remoteHead.FriendlyName);
-                return fullLocalPath;
-            }
+            _logger.LogInformation("Successfully pulled repository at {LocalPath}", fullLocalPath);
+            return fullLocalPath;
         });
     }
 
@@ -147,14 +118,10 @@ public class GitHubService : IGitHubService
                 return Enumerable.Empty<(string Sha, DateTimeOffset CommitDate)>();
             }
 
-            using (var repo = new Repository(fullLocalPath))
-            {
-                var commits = repo.Commits.QueryBy(new CommitFilter { SortBy = CommitSortStrategies.Time })
-                                          .Select(c => (c.Sha, c.Author.When))
-                                          .ToList();
-                _logger.LogInformation("Found {CommitCount} new commits for repository at {LocalPath}", commits.Count, fullLocalPath);
-                return commits.AsEnumerable();
-            }
+            var commits = _gitClient.GetCommits(fullLocalPath, sinceDate) // Use IGitClient
+                                      .ToList();
+            _logger.LogInformation("Found {CommitCount} new commits for repository at {LocalPath}", commits.Count, fullLocalPath);
+            return commits.AsEnumerable();
         });
     }
 
@@ -171,7 +138,7 @@ public class GitHubService : IGitHubService
 
         var lineCounts = new Dictionary<string, int>();
 
-        using (var repo = new Repository(fullLocalPath))
+        using (var repo = _gitClient.OpenRepository(fullLocalPath)) // Use IGitClient
         {
             var commit = repo.Lookup<Commit>(commitSha);
             if (commit == null)
@@ -181,7 +148,7 @@ public class GitHubService : IGitHubService
             }
 
             // Checkout the specific commit to count lines
-            Commands.Checkout(repo, commit);
+            _gitClient.Checkout(repo, commit); // Use IGitClient
 
             if (commit.Tree != null)
             {
@@ -201,61 +168,61 @@ public class GitHubService : IGitHubService
     private async Task ProcessTreeEntry(Tree tree, IEnumerable<string> fileExtensionsToCount, Dictionary<string, int> lineCounts, string currentPath = "")
     {
         // Define ignore patterns for categories 1,2,3,4,5,6,8,10 only
-        
+
         // Category 1: Package Manager Files
         var packageManagerFiles = new[]
         {
             "packages.config", "package-lock.json", "yarn.lock", "paket.lock", "paket.dependencies"
         };
-        
-        // Category 2: Build Output & Compiled Files  
+
+        // Category 2: Build Output & Compiled Files
         var buildOutputExtensions = new[]
         {
             ".dll", ".exe", ".pdb", ".obj", ".cache", ".lib", ".exp", ".ilk", ".idb", ".nupkg"
         };
-        
+
         // Category 3: Auto-Generated Code Files
         var autoGeneratedExtensions = new[]
         {
             ".designer.cs", ".g.cs", ".g.i.cs", ".designer.vb", ".g.vb"
         };
-        
+
         var autoGeneratedFilePatterns = new[]
         {
             "reference.cs", "temporarygeneratedfile"
         };
-        
+
         // Category 4: Database Migration Files (in Migrations/ folder)
         var migrationFolderPattern = "migrations/";
-        
+
         // Category 5: Third-Party JavaScript Libraries
         var thirdPartyJsExtensions = new[]
         {
             ".min.js", ".min.css"
         };
-        
+
         var thirdPartyJsPatterns = new[]
         {
             "jquery", "bootstrap"
         };
-        
+
         // Category 6: IDE and Tool Configuration
         var ideConfigExtensions = new[]
         {
             ".user", ".suo", ".vspscc", ".vssscc"
         };
-        
+
         var ideConfigFiles = new[]
         {
             "launchsettings.json"
         };
-        
+
         // Category 8: Web Assets from Package Managers
         var webAssetExtensions = new[]
         {
             ".woff", ".woff2", ".ttf", ".eot", ".otf"
         };
-        
+
         // Category 10: Test Data and Mock Files
         var testDataExtensions = new[]
         {
@@ -266,10 +233,10 @@ public class GitHubService : IGitHubService
         {
             // Category 2: Build Output directories
             "bin/", "obj/", "debug/", "release/",
-            // Category 5: Third-party JS directories  
+            // Category 5: Third-party JS directories
             "node_modules/", "bower_components/", "jspm_packages/", "typings/",
             // Category 6: IDE directories
-            ".vs/", ".vscode/", ".idea/", 
+            ".vs/", ".vscode/", ".idea/",
             // Category 8: Web asset directories
             "wwwroot/lib/",
             // Always ignore .git
@@ -281,12 +248,12 @@ public class GitHubService : IGitHubService
         foreach (var entry in tree)
         {
             var entryPath = string.IsNullOrEmpty(currentPath) ? entry.Name : $"{currentPath}/{entry.Name}";
-            
+
             if (entry.TargetType == TreeEntryTargetType.Tree)
             {
                 // Check if this directory should be ignored
                 var normalizedPath = entryPath.Replace("\\", "/").ToLowerInvariant() + "/";
-                bool shouldIgnoreDirectory = directoryPatternsToIgnore.Any(pattern => 
+                bool shouldIgnoreDirectory = directoryPatternsToIgnore.Any(pattern =>
                     normalizedPath.EndsWith(pattern) || normalizedPath.Contains("/" + pattern) || normalizedPath.StartsWith(pattern));
 
                 if (shouldIgnoreDirectory)
@@ -306,28 +273,28 @@ public class GitHubService : IGitHubService
             {
                 var fileName = entry.Name.ToLowerInvariant();
                 var fileExtension = Path.GetExtension(fileName);
-                
+
                 // Category 1: Check package manager files by exact name
                 if (packageManagerFiles.Any(name => fileName.Equals(name.ToLowerInvariant())))
                 {
                     _logger.LogDebug("Ignoring package manager file: {FileName}", entry.Name);
                     continue;
                 }
-                
+
                 // Category 2: Check build output extensions
                 if (buildOutputExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
                     _logger.LogDebug("Ignoring build output file: {FileName}", entry.Name);
                     continue;
                 }
-                
+
                 // Category 3: Check auto-generated file extensions
                 if (autoGeneratedExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
                     _logger.LogDebug("Ignoring auto-generated file: {FileName}", entry.Name);
                     continue;
                 }
-                
+
                 // Category 3: Check auto-generated file patterns
                 if (autoGeneratedFilePatterns.Any(pattern => fileName.Contains(pattern.ToLowerInvariant())) ||
                     fileName.Contains("assemblyinfo"))
@@ -335,49 +302,49 @@ public class GitHubService : IGitHubService
                     _logger.LogDebug("Ignoring auto-generated file: {FileName}", entry.Name);
                     continue;
                 }
-                
+
                 // Category 4: Check database migration files
                 if (entryPath.ToLowerInvariant().Contains(migrationFolderPattern))
                 {
                     _logger.LogDebug("Ignoring migration file: {FileName}", entry.Name);
                     continue;
                 }
-                
+
                 // Category 5: Check third-party JS extensions
                 if (thirdPartyJsExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
                     _logger.LogDebug("Ignoring third-party JS file: {FileName}", entry.Name);
                     continue;
                 }
-                
+
                 // Category 5: Check third-party JS patterns
                 if (thirdPartyJsPatterns.Any(pattern => fileName.Contains(pattern.ToLowerInvariant())))
                 {
                     _logger.LogDebug("Ignoring third-party JS library file: {FileName}", entry.Name);
                     continue;
                 }
-                
+
                 // Category 6: Check IDE config extensions
                 if (ideConfigExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
                     _logger.LogDebug("Ignoring IDE config file: {FileName}", entry.Name);
                     continue;
                 }
-                
+
                 // Category 6: Check IDE config files by name
                 if (ideConfigFiles.Any(name => fileName.Equals(name.ToLowerInvariant())))
                 {
                     _logger.LogDebug("Ignoring IDE config file: {FileName}", entry.Name);
                     continue;
                 }
-                
+
                 // Category 8: Check web asset extensions
                 if (webAssetExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
                     _logger.LogDebug("Ignoring web asset file: {FileName}", entry.Name);
                     continue;
                 }
-                
+
                 // Category 10: Check test data extensions
                 if (testDataExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
@@ -392,25 +359,33 @@ public class GitHubService : IGitHubService
                     if (blob != null)
                     {
                         _logger.LogDebug("Processing file: {FileName}, Size: {FileSize} bytes", entry.Name, blob.Size);
-                        using (var contentStream = blob.GetContentStream())
-                        using (var reader = new StreamReader(contentStream))
+                        
+                        // Get the appropriate line counter
+                        if (!_lineCounterMap.TryGetValue(fileExtension, out var lineCounter))
                         {
-                            int lines = 0;
-                            string? line;
-                            while ((line = await reader.ReadLineAsync()) != null)
-                            {
-                                lines++;
-                            }
-                            _logger.LogDebug("Counted {Lines} lines for file {FileName}.", lines, entry.Name);
+                            _lineCounterMap.TryGetValue("*", out lineCounter); // Fallback to default
+                        }
 
-                            if (lineCounts.ContainsKey(fileExtension))
+                        if (lineCounter != null)
+                        {
+                            using (var contentStream = blob.GetContentStream())
                             {
-                                lineCounts[fileExtension] += lines;
+                                int lines = await lineCounter.CountLinesAsync(contentStream);
+                                _logger.LogDebug("Counted {Lines} lines for file {FileName} using {LineCounterType}.", lines, entry.Name, lineCounter.GetType().Name);
+
+                                if (lineCounts.ContainsKey(fileExtension))
+                                {
+                                    lineCounts[fileExtension] += lines;
+                                }
+                                else
+                                {
+                                    lineCounts[fileExtension] = lines;
+                                }
                             }
-                            else
-                            {
-                                lineCounts[fileExtension] = lines;
-                            }
+                        }
+                        else
+                        {
+                            _logger.LogWarning("No line counter found for file extension {FileExtension}.", fileExtension);
                         }
                     }
                     else
@@ -531,61 +506,61 @@ public class GitHubService : IGitHubService
     private async Task<long> CountLinesInTreeAsync(Tree tree, IEnumerable<string> fileExtensionsToCount, string currentPath = "")
     {
         // Define ignore patterns for categories 1,2,3,4,5,6,8,10 only (same as ProcessTreeEntry)
-        
+
         // Category 1: Package Manager Files
         var packageManagerFiles = new[]
         {
             "packages.config", "package-lock.json", "yarn.lock", "paket.lock", "paket.dependencies"
         };
-        
+
         // Category 2: Build Output & Compiled Files  
         var buildOutputExtensions = new[]
         {
             ".dll", ".exe", ".pdb", ".obj", ".cache", ".lib", ".exp", ".ilk", ".idb", ".nupkg"
         };
-        
+
         // Category 3: Auto-Generated Code Files
         var autoGeneratedExtensions = new[]
         {
             ".designer.cs", ".g.cs", ".g.i.cs", ".designer.vb", ".g.vb"
         };
-        
+
         var autoGeneratedFilePatterns = new[]
         {
             "reference.cs", "temporarygeneratedfile"
         };
-        
+
         // Category 4: Database Migration Files (in Migrations/ folder)
         var migrationFolderPattern = "migrations/";
-        
+
         // Category 5: Third-Party JavaScript Libraries
         var thirdPartyJsExtensions = new[]
         {
             ".min.js", ".min.css"
         };
-        
+
         var thirdPartyJsPatterns = new[]
         {
             "jquery", "bootstrap"
         };
-        
+
         // Category 6: IDE and Tool Configuration
         var ideConfigExtensions = new[]
         {
             ".user", ".suo", ".vspscc", ".vssscc"
         };
-        
+
         var ideConfigFiles = new[]
         {
             "launchsettings.json"
         };
-        
+
         // Category 8: Web Assets from Package Managers
         var webAssetExtensions = new[]
         {
             ".woff", ".woff2", ".ttf", ".eot", ".otf"
         };
-        
+
         // Category 10: Test Data and Mock Files
         var testDataExtensions = new[]
         {
@@ -617,7 +592,7 @@ public class GitHubService : IGitHubService
             {
                 // Check if this directory should be ignored
                 var normalizedPath = entryPath.Replace("\\", "/").ToLowerInvariant() + "/";
-                bool shouldIgnoreDirectory = directoryPatternsToIgnore.Any(pattern => 
+                bool shouldIgnoreDirectory = directoryPatternsToIgnore.Any(pattern =>
                     normalizedPath.EndsWith(pattern) || normalizedPath.Contains("/" + pattern) || normalizedPath.StartsWith(pattern));
 
                 if (!shouldIgnoreDirectory)
@@ -632,68 +607,68 @@ public class GitHubService : IGitHubService
             {
                 var fileName = entry.Name.ToLowerInvariant();
                 var fileExtension = Path.GetExtension(fileName);
-                
+
                 // Category 1: Check package manager files by exact name
                 if (packageManagerFiles.Any(name => fileName.Equals(name.ToLowerInvariant())))
                 {
                     continue; // Skip ignored files
                 }
-                
+
                 // Category 2: Check build output extensions
                 if (buildOutputExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
                     continue; // Skip ignored files
                 }
-                
+
                 // Category 3: Check auto-generated file extensions
                 if (autoGeneratedExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
                     continue; // Skip ignored files
                 }
-                
+
                 // Category 3: Check auto-generated file patterns
                 if (autoGeneratedFilePatterns.Any(pattern => fileName.Contains(pattern.ToLowerInvariant())) ||
                     fileName.Contains("assemblyinfo"))
                 {
                     continue; // Skip ignored files
                 }
-                
+
                 // Category 4: Check database migration files
                 if (entryPath.ToLowerInvariant().Contains(migrationFolderPattern))
                 {
                     continue; // Skip ignored files
                 }
-                
+
                 // Category 5: Check third-party JS extensions
                 if (thirdPartyJsExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
                     continue; // Skip ignored files
                 }
-                
+
                 // Category 5: Check third-party JS patterns
                 if (thirdPartyJsPatterns.Any(pattern => fileName.Contains(pattern.ToLowerInvariant())))
                 {
                     continue; // Skip ignored files
                 }
-                
+
                 // Category 6: Check IDE config extensions
                 if (ideConfigExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
                     continue; // Skip ignored files
                 }
-                
+
                 // Category 6: Check IDE config files by name
                 if (ideConfigFiles.Any(name => fileName.Equals(name.ToLowerInvariant())))
                 {
                     continue; // Skip ignored files
                 }
-                
+
                 // Category 8: Check web asset extensions
                 if (webAssetExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
                     continue; // Skip ignored files
                 }
-                
+
                 // Category 10: Check test data extensions
                 if (testDataExtensions.Any(ext => fileName.EndsWith(ext.ToLowerInvariant())))
                 {
@@ -732,7 +707,7 @@ public class GitHubService : IGitHubService
     public async Task<IEnumerable<GitHubUserRepository>> GetUserRepositoriesAsync()
     {
         _logger.LogInformation("Fetching user repositories from GitHub API.");
-        
+
         if (string.IsNullOrEmpty(_gitHubPat))
         {
             _logger.LogError("GitHub PAT is not configured. Cannot fetch user repositories.");
@@ -744,10 +719,10 @@ public class GitHubService : IGitHubService
             // GitHub API endpoint to get authenticated user's repositories
             var response = await _httpClient.GetAsync("https://api.github.com/user/repos?type=owner&sort=name&direction=asc&per_page=100");
             response.EnsureSuccessStatusCode();
-            
+
             var jsonContent = await response.Content.ReadAsStringAsync();
             var repoData = System.Text.Json.JsonSerializer.Deserialize<List<GitHubApiRepository>>(jsonContent);
-            
+
             var userRepositories = repoData?.Select(repo => new GitHubUserRepository
             {
                 Name = repo.name ?? string.Empty,
@@ -757,7 +732,7 @@ public class GitHubService : IGitHubService
                 IsPrivate = repo.@private,
                 Language = repo.language ?? string.Empty
             }) ?? Enumerable.Empty<GitHubUserRepository>();
-            
+
             _logger.LogInformation("Successfully fetched {RepositoryCount} user repositories from GitHub API.", userRepositories.Count());
             return userRepositories;
         }
