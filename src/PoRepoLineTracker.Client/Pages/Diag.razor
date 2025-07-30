@@ -1,0 +1,185 @@
+@page "/diag"
+
+@using PoRepoLineTracker.Client.Models
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Diagnostics</PageTitle>
+
+<div class="container mt-4">
+    <h2>System Diagnostics</h2>
+    <p>Current time: @DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</p>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <h4>Overall System Health</h4>
+            <div class="card">
+                <div class="card-body">
+                    @if (overallHealthStatus == "Checking...")
+                    {
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2">Checking system health...</span>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-items-center">
+                            <div class="@(overallHealthStatus == "Healthy" ? "text-success" : "text-danger")">
+                                <i class="@(overallHealthStatus == "Healthy" ? "fas fa-check-circle" : "fas fa-times-circle")"></i>
+                                @overallHealthStatus
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <h4>Azure Table Storage</h4>
+            <div class="card">
+                <div class="card-body">
+                    @if (azureStorageStatus == "Checking...")
+                    {
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2">Checking connection...</span>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-items-center">
+                            <div class="@(azureStorageStatus.Contains("Healthy") ? "text-success" : "text-danger")">
+                                <i class="@(azureStorageStatus.Contains("Healthy") ? "fas fa-check-circle" : "fas fa-times-circle")"></i>
+                                @azureStorageStatus
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <h4>GitHub API</h4>
+            <div class="card">
+                <div class="card-body">
+                    @if (githubApiStatus == "Checking...")
+                    {
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2">Checking connection...</span>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-items-center">
+                            <div class="@(githubApiStatus.Contains("Healthy") ? "text-success" : "text-danger")">
+                                <i class="@(githubApiStatus.Contains("Healthy") ? "fas fa-check-circle" : "fas fa-times-circle")"></i>
+                                @githubApiStatus
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    @if (healthChecks != null && healthChecks.Length > 0)
+    {
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <h4>Detailed Health Checks</h4>
+                <div class="card">
+                    <div class="card-body">
+                        <ul class="list-group">
+                            @foreach (var check in healthChecks)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    @check.Name
+                                    <span class="badge @(check.Status.Contains("Healthy") ? "bg-success" : "bg-danger") rounded-pill">
+                                        @check.Status
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    
+    <div class="mt-4">
+        <h4>System Information</h4>
+        <div class="card">
+            <div class="card-body">
+                <p><strong>Environment:</strong> @environment</p>
+                <p><strong>Version:</strong> @version</p>
+                <p><strong>Last Updated:</strong> @lastUpdated.ToString("yyyy-MM-dd HH:mm:ss UTC")</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string overallHealthStatus = "Checking...";
+    private string azureStorageStatus = "Checking...";
+    private string githubApiStatus = "Checking...";
+    private string environment = "Development";
+    private string version = "1.0.0";
+    private DateTime lastUpdated = DateTime.UtcNow;
+    private HealthCheck[] healthChecks = Array.Empty<HealthCheck>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckOverallHealth();
+    }
+
+    private async Task CheckOverallHealth()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<HealthResponse>("/healthz");
+            if (response != null)
+            {
+                overallHealthStatus = response.Status;
+                lastUpdated = response.Timestamp;
+                healthChecks = response.Checks;
+
+                // Update individual statuses
+                var azureCheck = response.Checks.FirstOrDefault(c => c.Name == "Azure Table Storage");
+                var githubCheck = response.Checks.FirstOrDefault(c => c.Name == "GitHub API");
+                
+                azureStorageStatus = azureCheck?.Status ?? "Unknown";
+                githubApiStatus = githubCheck?.Status ?? "Unknown";
+            }
+            else
+            {
+                overallHealthStatus = "Unknown";
+                azureStorageStatus = "Unknown";
+                githubApiStatus = "Unknown";
+            }
+        }
+        catch (Exception ex)
+        {
+            overallHealthStatus = $"Error: {ex.Message}";
+            azureStorageStatus = $"Error: {ex.Message}";
+            githubApiStatus = $"Error: {ex.Message}";
+        }
+    }
+
+    public class HealthResponse
+    {
+        public string Status { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
+        public HealthCheck[] Checks { get; set; } = Array.Empty<HealthCheck>();
+    }
+
+    public class HealthCheck
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+    }
+}

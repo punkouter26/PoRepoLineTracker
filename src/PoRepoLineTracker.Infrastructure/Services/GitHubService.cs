@@ -359,7 +359,7 @@ public class GitHubService : IGitHubService
                     if (blob != null)
                     {
                         _logger.LogDebug("Processing file: {FileName}, Size: {FileSize} bytes", entry.Name, blob.Size);
-                        
+
                         // Get the appropriate line counter
                         if (!_lineCounterMap.TryGetValue(fileExtension, out var lineCounter))
                         {

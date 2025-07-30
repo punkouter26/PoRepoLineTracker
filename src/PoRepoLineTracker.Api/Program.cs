@@ -12,6 +12,10 @@ using MediatR; // Add this using statement
 using PoRepoLineTracker.Client.Models; // Add this using statement
 using System.Text.Json; // Add this for JSON serialization
 using Microsoft.AspNetCore.Mvc; // Add this for FromBody attribute
+using Microsoft.AspNetCore.OpenApi; // Add this for WithOpenApi
+using Microsoft.OpenApi.Models; // Add this for Swagger
+using Swashbuckle.AspNetCore.Annotations; // Add this for EnableAnnotations
+using System.Collections.Generic; // Add this for List<object>
 
 namespace PoRepoLineTracker.Api
 {
@@ -48,7 +52,17 @@ namespace PoRepoLineTracker.Api
 
             // Add services to the container.
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-            builder.Services.AddOpenApi();
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new()
+                {
+                    Title = "PoRepoLineTracker API",
+                    Version = "v1",
+                    Description = "API for tracking repository line counts and code statistics"
+                });
+                c.EnableAnnotations();
+            });
 
             // Configure JSON options for case-insensitive property matching
             builder.Services.ConfigureHttpJsonOptions(options =>
@@ -118,6 +132,12 @@ namespace PoRepoLineTracker.Api
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
+                app.UseSwagger();
+                app.UseSwaggerUI(c =>
+                {
+                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "PoRepoLineTracker API v1");
+                    c.RoutePrefix = "swagger";
+                });
                 app.MapOpenApi();
             }
 
@@ -271,7 +291,7 @@ namespace PoRepoLineTracker.Api
                 try
                 {
                     Log.Information("Adding {Count} repositories via bulk endpoint.", repositories?.Count() ?? 0);
-                    
+
                     var addedRepositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddMultipleRepositoriesCommand(repositories ?? Enumerable.Empty<PoRepoLineTracker.Application.Models.BulkRepositoryDto>()));
                     return Results.Ok(addedRepositories);
                 }
@@ -346,6 +366,46 @@ namespace PoRepoLineTracker.Api
                 }
             })
             .WithName("ForceReanalyzeRepository");
+
+            // Health Check Endpoint for Diag.razor page
+            app.MapGet("/healthz", async (IRepositoryDataService repoDataService, IGitHubService githubService) =>
+            {
+                var checks = new List<object>();
+                var isHealthy = true;
+
+                try
+                {
+                    await repoDataService.CheckConnectionAsync();
+                    checks.Add(new { Name = "Azure Table Storage", Status = "Healthy" });
+                }
+                catch (Exception ex)
+                {
+                    checks.Add(new { Name = "Azure Table Storage", Status = $"Unhealthy: {ex.Message}" });
+                    isHealthy = false;
+                }
+
+                try
+                {
+                    await githubService.CheckConnectionAsync();
+                    checks.Add(new { Name = "GitHub API", Status = "Healthy" });
+                }
+                catch (Exception ex)
+                {
+                    checks.Add(new { Name = "GitHub API", Status = $"Unhealthy: {ex.Message}" });
+                    isHealthy = false;
+                }
+
+                var healthStatus = new
+                {
+                    Status = isHealthy ? "Healthy" : "Unhealthy",
+                    Timestamp = DateTime.UtcNow,
+                    Checks = checks.ToArray()
+                };
+
+                return Results.Json(healthStatus);
+            })
+            .WithName("HealthCheck")
+            .WithOpenApi();
 
             return app;
         }

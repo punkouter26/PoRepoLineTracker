@@ -265,12 +265,12 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
         _mockGitHubService.Setup(g => g.GetCommitStatsAsync(It.IsAny<string>(), It.IsAny<DateTime?>()))
                           .ReturnsAsync(new List<CommitStatsDto>
                           {
-                              new CommitStatsDto 
-                              { 
-                                  Sha = "dummySha1", 
-                                  CommitDate = DateTime.UtcNow, 
-                                  LinesAdded = 50, 
-                                  LinesRemoved = 10 
+                              new CommitStatsDto
+                              {
+                                  Sha = "dummySha1",
+                                  CommitDate = DateTime.UtcNow,
+                                  LinesAdded = 50,
+                                  LinesRemoved = 10
                               }
                           });
         _mockGitHubService.Setup(g => g.CountLinesInCommitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<string>>()))

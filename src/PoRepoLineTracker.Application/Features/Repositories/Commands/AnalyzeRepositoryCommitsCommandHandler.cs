@@ -23,9 +23,9 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
 
         public async Task<Unit> Handle(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Analyzing commits for repository ID: {RepositoryId} (ForceReanalysis: {ForceReanalysis})", 
+            _logger.LogInformation("Analyzing commits for repository ID: {RepositoryId} (ForceReanalysis: {ForceReanalysis})",
                 request.RepositoryId, request.ForceReanalysis);
-            
+
             // Get the repository to analyze
             var repository = await _repositoryDataService.GetRepositoryByIdAsync(request.RepositoryId);
             if (repository == null)
@@ -77,7 +77,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                             // Get the existing commit to check if it needs re-analysis
                             var existingCommits = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(request.RepositoryId);
                             existingCommit = existingCommits.FirstOrDefault(c => c.CommitSha == commitStat.Sha);
-                            
+
                             // Re-process if both LinesAdded and LinesRemoved are zero (indicates old analysis)
                             if (existingCommit != null && existingCommit.LinesAdded == 0 && existingCommit.LinesRemoved == 0)
                             {
@@ -124,7 +124,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                         };
 
                         await _repositoryDataService.AddCommitLineCountAsync(commitLineCount);
-                        _logger.LogDebug("Processed commit {CommitSha} with {TotalLines} lines (Added: {LinesAdded}, Removed: {LinesRemoved})", 
+                        _logger.LogDebug("Processed commit {CommitSha} with {TotalLines} lines (Added: {LinesAdded}, Removed: {LinesRemoved})",
                             commitStat.Sha, totalLines, commitStat.LinesAdded, commitStat.LinesRemoved);
                     }
                     catch (Exception ex)
@@ -141,7 +141,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                 _logger.LogError(ex, "Error analyzing repository {RepositoryId}", request.RepositoryId);
                 throw; // Re-throw to let the API handle the error
             }
-            
+
             return Unit.Value;
         }
     }

@@ -24,7 +24,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
     public async Task<IEnumerable<GitHubRepository>> Handle(AddMultipleRepositoriesCommand request, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Adding {Count} repositories to the system.", request.Repositories.Count());
-        
+
         var addedRepositories = new List<GitHubRepository>();
 
         foreach (var repo in request.Repositories)
@@ -53,21 +53,21 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                 await _repositoryDataService.AddRepositoryAsync(newRepo);
                 addedRepositories.Add(newRepo);
 
-                _logger.LogInformation("Successfully added repository {Owner}/{Name} with ID {Id}. Dispatching AnalyzeRepositoryCommitsCommand.", 
+                _logger.LogInformation("Successfully added repository {Owner}/{Name} with ID {Id}. Dispatching AnalyzeRepositoryCommitsCommand.",
                     newRepo.Owner, newRepo.Name, newRepo.Id);
-                
+
                 // Dispatch command to analyze the newly added repository
                 await _mediator.Send(new AnalyzeRepositoryCommitsCommand(newRepo.Id), cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to add repository {Owner}/{Name}: {Message}", 
+                _logger.LogError(ex, "Failed to add repository {Owner}/{Name}: {Message}",
                     repo.Owner, repo.RepoName, ex.Message);
                 // Continue with other repositories even if one fails
             }
         }
 
-        _logger.LogInformation("Successfully added {Count} out of {Total} repositories.", 
+        _logger.LogInformation("Successfully added {Count} out of {Total} repositories.",
             addedRepositories.Count, request.Repositories.Count());
 
         return addedRepositories;

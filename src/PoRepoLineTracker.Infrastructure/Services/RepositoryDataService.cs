@@ -248,7 +248,7 @@ public class RepositoryDataService : IRepositoryDataService
     public async Task AnalyzeRepositoryCommitsAsync(Guid repositoryId)
     {
         _logger.LogInformation("Starting analysis for repository ID: {RepositoryId}", repositoryId);
-        
+
         // Get the repository from storage
         var repository = await GetRepositoryByIdAsync(repositoryId);
         if (repository == null)
@@ -266,10 +266,10 @@ public class RepositoryDataService : IRepositoryDataService
     public async Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(Guid repositoryId, int days)
     {
         _logger.LogInformation("Getting line count history for repository {RepositoryId} for the last {Days} days from Table Storage.", repositoryId, days);
-        
+
         // Get all commit line counts for the repository
         var commitLineCounts = await GetCommitLineCountsByRepositoryIdAsync(repositoryId);
-        
+
         // Filter commits within the specified date range
         var cutoffDate = DateTime.UtcNow.AddDays(-days);
         var filteredCommits = commitLineCounts
@@ -335,9 +335,9 @@ public class RepositoryDataService : IRepositoryDataService
     private async Task RemoveAllCommitLineCountsAsync()
     {
         _logger.LogInformation("Removing all commit line counts from Table Storage.");
-        
+
         var entitiesToDelete = new List<CommitLineCountEntity>();
-        
+
         try
         {
             // Query all entities from the commit line count table
@@ -355,7 +355,7 @@ public class RepositoryDataService : IRepositoryDataService
         if (entitiesToDelete.Any())
         {
             _logger.LogInformation("Found {Count} commit line count entities to delete.", entitiesToDelete.Count);
-            
+
             // Delete entities in parallel batches for better performance
             const int batchSize = 100;
             var batches = entitiesToDelete
@@ -365,9 +365,9 @@ public class RepositoryDataService : IRepositoryDataService
 
             foreach (var batch in batches)
             {
-                var deleteTasks = batch.Select(entity => 
+                var deleteTasks = batch.Select(entity =>
                     _commitLineCountTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, entity.ETag));
-                
+
                 await Task.WhenAll(deleteTasks);
                 _logger.LogDebug("Deleted batch of {Count} commit line count entities.", batch.Count);
             }
@@ -387,9 +387,9 @@ public class RepositoryDataService : IRepositoryDataService
     private async Task RemoveAllRepositoryEntitiesAsync()
     {
         _logger.LogInformation("Removing all repository entities from Table Storage.");
-        
+
         var entitiesToDelete = new List<GitHubRepositoryEntity>();
-        
+
         try
         {
             // Query all entities from the repository table
@@ -407,7 +407,7 @@ public class RepositoryDataService : IRepositoryDataService
         if (entitiesToDelete.Any())
         {
             _logger.LogInformation("Found {Count} repository entities to delete.", entitiesToDelete.Count);
-            
+
             // Delete entities in parallel batches for better performance
             const int batchSize = 100;
             var batches = entitiesToDelete
@@ -417,9 +417,9 @@ public class RepositoryDataService : IRepositoryDataService
 
             foreach (var batch in batches)
             {
-                var deleteTasks = batch.Select(entity => 
+                var deleteTasks = batch.Select(entity =>
                     _repositoryTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, entity.ETag));
-                
+
                 await Task.WhenAll(deleteTasks);
                 _logger.LogDebug("Deleted batch of {Count} repository entities.", batch.Count);
             }

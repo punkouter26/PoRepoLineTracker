@@ -60,7 +60,7 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
     private async Task RemoveAllLocalRepositoriesAsync()
     {
         var localReposPath = _configuration["GitHub:LocalReposPath"];
-        
+
         if (string.IsNullOrEmpty(localReposPath))
         {
             _logger.LogWarning("GitHub:LocalReposPath not configured. Skipping local repository cleanup.");
@@ -86,7 +86,7 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
             catch (IOException ex)
             {
                 _logger.LogWarning(ex, "Some files may be locked. Attempting individual file cleanup for: {Path}", localReposPath);
-                
+
                 // Attempt to delete individual files if directory deletion fails
                 ForceDeleteDirectory(localReposPath);
             }

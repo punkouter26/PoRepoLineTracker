@@ -231,13 +231,13 @@ public class RemoveAllRepositoriesIntegrationTests : IDisposable
     {
         // Arrange
         var mediator = _serviceProvider.GetRequiredService<IMediator>();
-        
-        var testRepo = new GitHubRepository 
-        { 
-            Id = Guid.NewGuid(), 
-            Owner = "testowner", 
-            Name = "testrepo", 
-            CloneUrl = "https://github.com/testowner/testrepo.git" 
+
+        var testRepo = new GitHubRepository
+        {
+            Id = Guid.NewGuid(),
+            Owner = "testowner",
+            Name = "testrepo",
+            CloneUrl = "https://github.com/testowner/testrepo.git"
         };
 
         await _repositoryDataService.AddRepositoryAsync(testRepo);
@@ -288,12 +288,12 @@ public class RemoveAllRepositoriesIntegrationTests : IDisposable
         var testRepos = new List<GitHubRepository>();
         for (int i = 0; i < 25; i++) // Create 25 repositories
         {
-            var repo = new GitHubRepository 
-            { 
-                Id = Guid.NewGuid(), 
-                Owner = $"owner{i}", 
-                Name = $"repo{i}", 
-                CloneUrl = $"https://github.com/owner{i}/repo{i}.git" 
+            var repo = new GitHubRepository
+            {
+                Id = Guid.NewGuid(),
+                Owner = $"owner{i}",
+                Name = $"repo{i}",
+                CloneUrl = $"https://github.com/owner{i}/repo{i}.git"
             };
             testRepos.Add(repo);
             await _repositoryDataService.AddRepositoryAsync(repo);

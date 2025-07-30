@@ -22,7 +22,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Queries
         {
             // Get commit line counts for the repository
             var commitLineCounts = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(request.RepositoryId);
-            
+
             if (!commitLineCounts.Any())
             {
                 return Enumerable.Empty<FileExtensionPercentageDto>();
@@ -38,7 +38,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Queries
                 {
                     var extension = kvp.Key;
                     var lineCount = kvp.Value;
-                    
+
                     if (extensionLineCounts.ContainsKey(extension))
                     {
                         extensionLineCounts[extension] += lineCount;
