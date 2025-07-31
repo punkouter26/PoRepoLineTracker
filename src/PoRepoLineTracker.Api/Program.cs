@@ -48,6 +48,12 @@ namespace PoRepoLineTracker.Api
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            // Add local development configuration
+            if (builder.Environment.IsDevelopment())
+            {
+                builder.Configuration.AddJsonFile("appsettings.Development.local.json", optional: true, reloadOnChange: true);
+            }
+
             builder.Host.UseSerilog(); // Use Serilog for logging
 
             // Add services to the container.

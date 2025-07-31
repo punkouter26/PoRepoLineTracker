@@ -109,6 +109,24 @@ dotnet user-secrets set "GitHub:LocalReposPath" "C:\YourCustomPath\LocalRepos"
 dotnet user-secrets set "AzureTableStorage:ConnectionString" "UseDevelopmentStorage=true"
 ```
 
+#### 4. Alternative: Local Configuration File (Development)
+If you prefer file-based configuration instead of user secrets:
+```powershell
+# Navigate to the API project
+cd src\PoRepoLineTracker.Api
+
+# Create a local settings file (this file is gitignored)
+# Create appsettings.Development.local.json with your secrets:
+```
+```json
+{
+  "GitHub": {
+    "PAT": "your_github_personal_access_token_here"
+  }
+}
+```
+**Note**: Never commit files containing actual secrets to version control. The `appsettings.Development.local.json` file is automatically ignored by git.
+
 #### 5. Restore Dependencies
 ```powershell
 # Return to solution root
