@@ -103,14 +103,21 @@ namespace PoRepoLineTracker.Api
                 builder.AddCircuitBreaker(circuitBreakerOptions);
             });
 
-            // Register application services with proper HttpClient injection
+// Register application services with proper HttpClient injection
             builder.Services.AddScoped<PoRepoLineTracker.Infrastructure.Interfaces.IGitClient, PoRepoLineTracker.Infrastructure.Services.GitClient>(); // Register IGitClient
 
             // Register ILineCounter implementations
             builder.Services.AddScoped<ILineCounter, DefaultLineCounter>();
             builder.Services.AddScoped<ILineCounter, CSharpLineCounter>();
 
-            builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IGitHubService>(serviceProvider =>
+            // Register file filtering services
+            builder.Services.AddScoped<PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter, PoRepoLineTracker.Infrastructure.FileFilters.FileIgnoreFilter>();
+
+// Register failed operation service
+            builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IFailedOperationService, PoRepoLineTracker.Infrastructure.Services.FailedOperationService>();
+            builder.Services.AddHostedService<PoRepoLineTracker.Infrastructure.Services.FailedOperationBackgroundService>();
+
+builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IGitHubService>(serviceProvider =>
             {
                 var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
                 var httpClient = httpClientFactory.CreateClient("GitHubClient");
@@ -118,7 +125,8 @@ namespace PoRepoLineTracker.Api
                 var logger = serviceProvider.GetRequiredService<ILogger<PoRepoLineTracker.Infrastructure.Services.GitHubService>>();
                 var gitClient = serviceProvider.GetRequiredService<PoRepoLineTracker.Infrastructure.Interfaces.IGitClient>(); // Get IGitClient
                 var lineCounters = serviceProvider.GetServices<ILineCounter>(); // Get all ILineCounter implementations
-                return new PoRepoLineTracker.Infrastructure.Services.GitHubService(httpClient, configuration, logger, lineCounters, gitClient); // Inject lineCounters and gitClient
+                var fileIgnoreFilter = serviceProvider.GetRequiredService<PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter>(); // Get file ignore filter
+                return new PoRepoLineTracker.Infrastructure.Services.GitHubService(httpClient, configuration, logger, lineCounters, gitClient, fileIgnoreFilter); // Inject all dependencies
             });
             builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryDataService, PoRepoLineTracker.Infrastructure.Services.RepositoryDataService>();
             builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryService, PoRepoLineTracker.Application.Services.RepositoryService>(); // Re-enabled: RepositoryService now uses MediatR
@@ -352,7 +360,7 @@ namespace PoRepoLineTracker.Api
             })
             .WithName("AnalyzeRepository");
 
-            app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, IMediator mediator) =>
+app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, IMediator mediator) =>
             {
                 try
                 {
@@ -366,6 +374,39 @@ namespace PoRepoLineTracker.Api
                 }
             })
             .WithName("ForceReanalyzeRepository");
+
+            // Failed Operations Endpoints
+            app.MapGet("/api/failed-operations/{repositoryId}", async (Guid repositoryId, IFailedOperationService failedOperationService) =>
+            {
+                try
+                {
+                    var failedOperations = await failedOperationService.GetFailedOperationsByRepositoryIdAsync(repositoryId);
+                    return Results.Ok(failedOperations);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error retrieving failed operations for repository {RepositoryId}", repositoryId);
+                    return Results.Problem($"Error retrieving failed operations: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("GetFailedOperationsByRepository")
+            .RequireAuthorization(); // Require authorization for failed operations endpoints
+
+            app.MapDelete("/api/failed-operations/{failedOperationId}", async (Guid failedOperationId, IFailedOperationService failedOperationService) =>
+            {
+                try
+                {
+                    await failedOperationService.DeleteFailedOperationAsync(failedOperationId);
+                    return Results.NoContent();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error deleting failed operation {FailedOperationId}", failedOperationId);
+                    return Results.Problem($"Error deleting failed operation: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("DeleteFailedOperation")
+            .RequireAuthorization(); // Require authorization for failed operations endpoints
 
             // Health Check Endpoint for Diag.razor page
             app.MapGet("/healthz", async (IRepositoryDataService repoDataService, IGitHubService githubService) =>

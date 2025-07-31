@@ -22,6 +22,7 @@ using Microsoft.Extensions.DependencyInjection; // Add this using directive for 
 
 namespace PoRepoLineTracker.IntegrationTests;
 
+[Collection("IntegrationTests")]
 public class RepositoryDataServiceIntegrationTests : IDisposable
 {
     private readonly IRepositoryDataService _repositoryDataService;
@@ -41,7 +42,7 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
 
     private readonly IServiceProvider _serviceProvider;
 
-    public RepositoryDataServiceIntegrationTests()
+public RepositoryDataServiceIntegrationTests()
     {
         _testLocalReposPath = Path.Combine(Path.GetTempPath(), "PoRepoLineTrackerTests", Guid.NewGuid().ToString());
 
@@ -86,9 +87,12 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
         // Register real MediatR instead of mocked one
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(PoRepoLineTracker.Application.Features.Repositories.Commands.AddRepositoryCommand).Assembly));
 
-        // Register line counters for the handlers
+// Register line counters for the handlers
         services.AddScoped<ILineCounter, DefaultLineCounter>();
         services.AddScoped<ILineCounter, CSharpLineCounter>();
+
+        // Register failed operation service
+        services.AddScoped<IFailedOperationService, FailedOperationService>();
 
         _serviceProvider = services.BuildServiceProvider();
 
@@ -104,17 +108,17 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
         // Initialize TableServiceClient for table management
         _tableServiceClient = new TableServiceClient(AzuriteConnectionString);
 
-        // Ensure tables are clean before tests run
+        // Ensure tables are clean before tests run with proper async handling
         var repoTableClient = _tableServiceClient.GetTableClient(TestRepositoryTableName);
         var commitTableClient = _tableServiceClient.GetTableClient(TestCommitLineCountTableName);
 
-        // Attempt to delete tables. Ignore if they don't exist (404).
-        try { repoTableClient.DeleteAsync().Wait(); } catch (Azure.RequestFailedException ex) when (ex.Status == 404) { /* Table does not exist, ignore */ }
-        try { commitTableClient.DeleteAsync().Wait(); } catch (Azure.RequestFailedException ex) when (ex.Status == 404) { /* Table does not exist, ignore */ }
+        // Delete existing tables if they exist
+        DeleteTableIfExistsAsync(repoTableClient).Wait();
+        DeleteTableIfExistsAsync(commitTableClient).Wait();
 
-        // Create tables. Ignore if they already exist (409 Conflict).
-        try { repoTableClient.CreateAsync().Wait(); } catch (Azure.RequestFailedException ex) when (ex.Status == 409) { /* Table already exists, ignore */ }
-        try { commitTableClient.CreateAsync().Wait(); } catch (Azure.RequestFailedException ex) when (ex.Status == 409) { /* Table already exists, ignore */ }
+        // Create tables
+        repoTableClient.CreateIfNotExists();
+        commitTableClient.CreateIfNotExists();
 
         // Ensure test local repos directory is clean
         if (Directory.Exists(_testLocalReposPath))
@@ -122,6 +126,18 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
             Directory.Delete(_testLocalReposPath, true);
         }
         Directory.CreateDirectory(_testLocalReposPath);
+    }
+
+    private async Task DeleteTableIfExistsAsync(TableClient tableClient)
+    {
+        try
+        {
+            await tableClient.DeleteAsync();
+        }
+        catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+        {
+            // Table does not exist, ignore
+        }
     }
 
     [Fact]

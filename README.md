@@ -45,6 +45,17 @@ This project includes comprehensive documentation through various diagrams locat
 
 All diagrams are available in both Mermaid source format (`.mmd`) and rendered SVG format for easy viewing.
 
+### Diagram Maintenance
+
+Diagrams are automatically maintained using Mermaid syntax. To update all diagrams:
+
+```powershell
+# Run the diagram update script
+.\update-diagrams.ps1
+```
+
+This script requires Node.js and will automatically install the Mermaid CLI if needed.
+
 ## 🚀 Getting Started
 
 ### Prerequisites

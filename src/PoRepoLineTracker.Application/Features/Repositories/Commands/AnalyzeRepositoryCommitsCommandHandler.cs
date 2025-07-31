@@ -8,16 +8,22 @@ using System.Linq;
 
 namespace PoRepoLineTracker.Application.Features.Repositories.Commands
 {
-    public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRepositoryCommitsCommand, Unit>
+public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRepositoryCommitsCommand, Unit>
     {
         private readonly IGitHubService _gitHubService;
         private readonly IRepositoryDataService _repositoryDataService;
+        private readonly IFailedOperationService _failedOperationService;
         private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
 
-        public AnalyzeRepositoryCommitsCommandHandler(IGitHubService gitHubService, IRepositoryDataService repositoryDataService, ILogger<AnalyzeRepositoryCommitsCommandHandler> logger)
+        public AnalyzeRepositoryCommitsCommandHandler(
+            IGitHubService gitHubService, 
+            IRepositoryDataService repositoryDataService,
+            IFailedOperationService failedOperationService,
+            ILogger<AnalyzeRepositoryCommitsCommandHandler> logger)
         {
             _gitHubService = gitHubService;
             _repositoryDataService = repositoryDataService;
+            _failedOperationService = failedOperationService;
             _logger = logger;
         }
 
@@ -105,7 +111,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                         continue;
                     }
 
-                    try
+try
                     {
                         // Count lines in this commit by file type
                         var lineCounts = await _gitHubService.CountLinesInCommitAsync(localPath, commitStat.Sha, fileExtensionsToCount);
@@ -130,6 +136,39 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Error processing commit {CommitSha} for repository {RepositoryId}", commitStat.Sha, request.RepositoryId);
+                        
+                        // Record failed operation for retry or analysis
+                        var failedOperation = new FailedOperation
+                        {
+                            Id = Guid.NewGuid(),
+                            RepositoryId = request.RepositoryId,
+                            OperationType = "CommitProcessing",
+                            EntityId = commitStat.Sha,
+                            ErrorMessage = ex.Message,
+                            StackTrace = ex.StackTrace ?? string.Empty,
+                            FailedAt = DateTime.UtcNow,
+                            RetryCount = 0,
+                            ContextData = new Dictionary<string, object>
+                            {
+                                { "LocalPath", localPath },
+                                { "CommitDate", commitStat.CommitDate },
+                                { "LinesAdded", commitStat.LinesAdded },
+                                { "LinesRemoved", commitStat.LinesRemoved }
+                            }
+                        };
+
+                        try
+                        {
+                            await _failedOperationService.RecordFailedOperationAsync(failedOperation);
+                            _logger.LogInformation("Failed commit {CommitSha} recorded in dead letter queue for repository {RepositoryId}", 
+                                commitStat.Sha, request.RepositoryId);
+                        }
+                        catch (Exception recordEx)
+                        {
+                            _logger.LogError(recordEx, "Error recording failed operation for commit {CommitSha} in repository {RepositoryId}", 
+                                commitStat.Sha, request.RepositoryId);
+                        }
+
                         // Continue with other commits even if one fails
                     }
                 }

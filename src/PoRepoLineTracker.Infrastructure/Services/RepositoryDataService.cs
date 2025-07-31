@@ -16,6 +16,8 @@ public class RepositoryDataService : IRepositoryDataService
     private readonly TableClient _commitLineCountTableClient;
     private readonly ILogger<RepositoryDataService> _logger;
 
+private bool _tablesInitialized = false;
+
     public RepositoryDataService(IConfiguration configuration, ILogger<RepositoryDataService> logger)
     {
         _logger = logger;
@@ -25,21 +27,38 @@ public class RepositoryDataService : IRepositoryDataService
 
         _repositoryTableClient = new TableClient(connectionString, repositoryTableName);
         _commitLineCountTableClient = new TableClient(connectionString, commitLineCountTableName);
-
-        _repositoryTableClient.CreateIfNotExists();
-        _commitLineCountTableClient.CreateIfNotExists();
     }
 
-    public async Task AddRepositoryAsync(GitHubRepository repository)
+    private async Task EnsureTablesExistAsync()
     {
+        if (!_tablesInitialized)
+        {
+            try
+            {
+                await _repositoryTableClient.CreateIfNotExistsAsync();
+                await _commitLineCountTableClient.CreateIfNotExistsAsync();
+                _tablesInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error ensuring tables exist: {ErrorMessage}", ex.Message);
+                throw;
+            }
+        }
+    }
+
+public async Task AddRepositoryAsync(GitHubRepository repository)
+    {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Adding repository {RepoName} to Table Storage.", repository.Name);
         var entity = GitHubRepositoryEntity.FromDomainModel(repository);
         await _repositoryTableClient.AddEntityAsync(entity);
         _logger.LogInformation("Repository {RepoName} added successfully.", repository.Name);
     }
 
-    public async Task UpdateRepositoryAsync(GitHubRepository repository)
+public async Task UpdateRepositoryAsync(GitHubRepository repository)
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Updating repository {RepoName} in Table Storage.", repository.Name);
         // Retrieve the existing entity to get its ETag for optimistic concurrency
         var existingEntity = await _repositoryTableClient.GetEntityAsync<GitHubRepositoryEntity>(repository.Owner, repository.Name);
@@ -50,8 +69,9 @@ public class RepositoryDataService : IRepositoryDataService
         _logger.LogInformation("Repository {RepoName} updated successfully.", repository.Name);
     }
 
-    public async Task<GitHubRepository?> GetRepositoryByIdAsync(Guid id)
+public async Task<GitHubRepository?> GetRepositoryByIdAsync(Guid id)
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Getting repository by Id: {RepositoryId} from Table Storage.", id);
         await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(e => e.Id == id))
         {
@@ -74,8 +94,9 @@ public class RepositoryDataService : IRepositoryDataService
         return repositories;
     }
 
-    public async Task AddCommitLineCountAsync(CommitLineCount commitLineCount)
+public async Task AddCommitLineCountAsync(CommitLineCount commitLineCount)
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Upserting commit line count for commit {CommitSha} of repository {RepositoryId}.", commitLineCount.CommitSha, commitLineCount.RepositoryId);
         var entity = CommitLineCountEntity.FromDomainModel(commitLineCount);
         // Use UpsertEntityAsync to add or replace the entity
@@ -83,8 +104,9 @@ public class RepositoryDataService : IRepositoryDataService
         _logger.LogInformation("Commit line count for commit {CommitSha} upserted successfully.", commitLineCount.CommitSha);
     }
 
-    public async Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(Guid repositoryId)
+public async Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(Guid repositoryId)
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Getting commit line counts for repository {RepositoryId} from Table Storage.", repositoryId);
         var commitLineCounts = new List<CommitLineCount>();
         await foreach (var entity in _commitLineCountTableClient.QueryAsync<CommitLineCountEntity>(e => e.PartitionKey == repositoryId.ToString()))
@@ -95,8 +117,9 @@ public class RepositoryDataService : IRepositoryDataService
         return commitLineCounts;
     }
 
-    public async Task<bool> CommitExistsAsync(Guid repositoryId, string commitSha)
+public async Task<bool> CommitExistsAsync(Guid repositoryId, string commitSha)
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Checking if commit {CommitSha} exists for repository {RepositoryId}.", commitSha, repositoryId);
         try
         {
@@ -116,8 +139,9 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
-    public async Task CheckConnectionAsync()
+public async Task CheckConnectionAsync()
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Checking Azure Table Storage connection.");
         // Attempt a simple query to check connectivity
         await foreach (var _ in _repositoryTableClient.QueryAsync<TableEntity>(maxPerPage: 1))
@@ -128,8 +152,9 @@ public class RepositoryDataService : IRepositoryDataService
         _logger.LogInformation("Azure Table Storage connection successful.");
     }
 
-    public async Task DeleteCommitLineCountsForRepositoryAsync(Guid repositoryId)
+public async Task DeleteCommitLineCountsForRepositoryAsync(Guid repositoryId)
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Deleting all commit line counts for repository {RepositoryId} from Table Storage.", repositoryId);
         var entitiesToDelete = new List<CommitLineCountEntity>();
         await foreach (var entity in _commitLineCountTableClient.QueryAsync<CommitLineCountEntity>(e => e.PartitionKey == repositoryId.ToString()))
@@ -149,8 +174,9 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
-    public async Task DeleteRepositoryAsync(Guid repositoryId)
+public async Task DeleteRepositoryAsync(Guid repositoryId)
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Deleting repository {RepositoryId} and all associated data from Table Storage.", repositoryId);
 
         // First, delete all commit line counts for this repository
@@ -173,8 +199,9 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
-    public async Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name)
+public async Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name)
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Getting repository by Owner: {Owner} and Name: {Name} from Table Storage.", owner, name);
         try
         {

@@ -1,0 +1,153 @@
+@page "/failed-operations"
+@inject HttpClient Http
+@inject ILogger<FailedOperations> Logger
+
+<h3>Failed Operations</h3>
+
+<div class="mb-3">
+    <div class="row">
+        <div class="col-md-6">
+            <div class="input-group">
+                <input type="text" class="form-control" placeholder="Repository ID (GUID)" @bind="repositoryId" />
+                <button class="btn btn-primary" @onclick="LoadFailedOperations" disabled="@(isLoading || string.IsNullOrEmpty(repositoryId))">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    }
+                    Load Failed Operations
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (failedOperations.Any())
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Operation Type</th>
+                    <th>Entity ID</th>
+                    <th>Error Message</th>
+                    <th>Failed At</th>
+                    <th>Retry Count</th>
+                    <th>Last Retry</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var operation in failedOperations)
+                {
+                    <tr>
+                        <td>@operation.OperationType</td>
+                        <td>@operation.EntityId</td>
+                        <td>
+                            <small class="text-muted">@operation.ErrorMessage</small>
+                        </td>
+                        <td>@operation.FailedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>@operation.RetryCount</td>
+                        <td>
+                            @if (operation.LastRetryAttempt.HasValue)
+                            {
+                                @operation.LastRetryAttempt.Value.ToString("yyyy-MM-dd HH:mm")
+                            }
+                            else
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" @onclick="@(e => DeleteFailedOperation(operation.Id))" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    @if (!string.IsNullOrEmpty(operation.StackTrace))
+                    {
+                        <tr>
+                            <td colspan="7">
+                                <small class="text-muted">
+                                    <strong>Stack Trace:</strong><br/>
+                                    <pre style="white-space: pre-wrap; font-size: 0.8em;">@operation.StackTrace</pre>
+                                </small>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else if (!string.IsNullOrEmpty(repositoryId) && !isLoading)
+{
+    <div class="alert alert-info">No failed operations found for this repository.</div>
+}
+
+@code {
+    private string repositoryId = string.Empty;
+    private List<FailedOperationDto> failedOperations = new();
+    private bool isLoading = false;
+    private string errorMessage = string.Empty;
+
+    private async Task LoadFailedOperations()
+    {
+        if (string.IsNullOrEmpty(repositoryId)) return;
+
+        isLoading = true;
+        errorMessage = string.Empty;
+        failedOperations.Clear();
+        StateHasChanged();
+
+        try
+        {
+            var operations = await Http.GetFromJsonAsync<List<FailedOperationDto>>($"/api/failed-operations/{repositoryId}");
+            failedOperations = operations?.OrderByDescending(o => o.FailedAt).ToList() ?? new List<FailedOperationDto>();
+            Logger.LogInformation("Loaded {Count} failed operations for repository {RepositoryId}", failedOperations.Count, repositoryId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading failed operations: {ex.Message}";
+            Logger.LogError(ex, "Error loading failed operations for repository {RepositoryId}", repositoryId);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteFailedOperation(Guid operationId)
+    {
+        try
+        {
+            await Http.DeleteAsync($"/api/failed-operations/{operationId}");
+            failedOperations.RemoveAll(o => o.Id == operationId);
+            StateHasChanged();
+            Logger.LogInformation("Deleted failed operation {OperationId}", operationId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error deleting failed operation: {ex.Message}";
+            Logger.LogError(ex, "Error deleting failed operation {OperationId}", operationId);
+        }
+    }
+
+    public class FailedOperationDto
+    {
+        public Guid Id { get; set; }
+        public Guid RepositoryId { get; set; }
+        public string OperationType { get; set; } = string.Empty;
+        public string EntityId { get; set; } = string.Empty;
+        public string ErrorMessage { get; set; } = string.Empty;
+        public string StackTrace { get; set; } = string.Empty;
+        public DateTime FailedAt { get; set; }
+        public int RetryCount { get; set; }
+        public DateTime? LastRetryAttempt { get; set; }
+    }
+}
