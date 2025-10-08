@@ -1,110 +1,67 @@
 graph TB
-    %% External Systems
-    GitHub[("GitHub API<br/>External System")]
-    AzureStorage[("Azure Table Storage<br/>External System")]
-    Browser[("Web Browser<br/>External System")]
-
-    %% Solution Boundary
-    subgraph Solution ["PoRepoLineTracker Solution"]
-        
-        %% Presentation Layer
-        subgraph ClientLayer ["Presentation Layer"]
-            BlazorClient["PoRepoLineTracker.Client<br/>Blazor WebAssembly<br/>Component"]
-        end
-        
-        %% API Layer
-        subgraph APILayer ["API Layer"]
-            WebAPI["PoRepoLineTracker.Api<br/>ASP.NET Core Web API<br/>Component"]
-        end
-        
-        %% Application Layer
-        subgraph ApplicationLayer ["Application Layer"]
-            AppServices["Application Services<br/>RepositoryService<br/>Component"]
-            AppInterfaces["Application Interfaces<br/>IGitHubService, IRepositoryDataService<br/>Component"]
-            AppModels["Application Models<br/>DTOs & View Models<br/>Component"]
-        end
-        
-        %% Domain Layer
-        subgraph DomainLayer ["Domain Layer"]
-            DomainModels["Domain Models<br/>GitHubRepository, CommitLineCount<br/>Component"]
-        end
-        
-        %% Infrastructure Layer
-        subgraph InfrastructureLayer ["Infrastructure Layer"]
-            GitHubService["GitHubService<br/>Git Operations & Analysis<br/>Component"]
-            DataService["RepositoryDataService<br/>Azure Table Storage<br/>Component"]
-            Entities["Infrastructure Entities<br/>Table Entity Mappings<br/>Component"]
-        end
-        
-        %% Test Projects
-        subgraph TestLayer ["Test Layer"]
-            UnitTests["PoRepoLineTracker.UnitTests<br/>Unit Tests<br/>Component"]
-            IntegrationTests["PoRepoLineTracker.IntegrationTests<br/>Integration Tests<br/>Component"]
-            ApiTests["PoRepoLineTracker.ApiTests<br/>API Tests<br/>Component"]
-            SystemTests["PoRepoLineTracker.SystemTests<br/>System Tests<br/>Component"]
-        end
+    subgraph "Presentation Layer"
+        Client[PoRepoLineTracker.Client<br/>Blazor WebAssembly]
+        Api[PoRepoLineTracker.Api<br/>ASP.NET Core API]
     end
+
+    subgraph "Application Layer"
+        App[PoRepoLineTracker.Application<br/>Business Logic & MediatR]
+    end
+
+    subgraph "Domain Layer"
+        Domain[PoRepoLineTracker.Domain<br/>Core Entities]
+    end
+
+    subgraph "Infrastructure Layer"
+        Infra[PoRepoLineTracker.Infrastructure<br/>Data Access & External Services]
+    end
+
+    subgraph "External Dependencies"
+        AzureTable[(Azure Table Storage<br/>Repositories, Commits, Failed Ops)]
+        GitHub[GitHub API<br/>Repository Cloning]
+        AppInsights[Application Insights<br/>Telemetry & Logging]
+    end
+
+    subgraph "Test Projects"
+        UnitTests[PoRepoLineTracker.UnitTests]
+        IntegrationTests[PoRepoLineTracker.IntegrationTests]
+        ApiTests[PoRepoLineTracker.ApiTests]
+        SystemTests[PoRepoLineTracker.SystemTests]
+    end
+
+    %% Project Dependencies
+    Api --> Client
+    Api --> App
+    Api --> Infra
+    App --> Domain
+    Infra --> Domain
+    Infra --> App
 
     %% External Dependencies
-    Browser --> BlazorClient
-    BlazorClient --> WebAPI
-    WebAPI --> AppServices
-    
-    %% Application Layer Dependencies
-    AppServices --> AppInterfaces
-    AppServices --> DomainModels
-    AppServices --> AppModels
-    
-    %% Infrastructure Implementations
-    GitHubService -.-> AppInterfaces
-    DataService -.-> AppInterfaces
-    
-    %% Infrastructure Dependencies
-    GitHubService --> GitHub
-    DataService --> AzureStorage
-    DataService --> Entities
-    Entities --> DomainModels
-    
-    %% Domain Dependencies
-    AppInterfaces --> DomainModels
-    GitHubService --> DomainModels
-    
+    Api --> AppInsights
+    Infra --> AzureTable
+    Infra --> GitHub
+
     %% Test Dependencies
-    UnitTests -.-> AppServices
-    UnitTests -.-> GitHubService
-    IntegrationTests -.-> DataService
-    IntegrationTests -.-> GitHubService
-    ApiTests -.-> WebAPI
-    SystemTests -.-> Solution
-    
-    %% Infrastructure External Dependencies
-    subgraph ExternalLibraries ["External Libraries"]
-        LibGit2["LibGit2Sharp<br/>Git Operations"]
-        Serilog["Serilog<br/>Logging"]
-        Polly["Polly<br/>Resilience"]
-        AzureTables["Azure.Data.Tables<br/>Storage SDK"]
-    end
-    
-    GitHubService --> LibGit2
-    WebAPI --> Serilog
-    WebAPI --> Polly
-    DataService --> AzureTables
+    UnitTests -.-> App
+    UnitTests -.-> Domain
+    IntegrationTests -.-> Infra
+    IntegrationTests -.-> AzureTable
+    ApiTests -.-> Api
+    SystemTests -.-> Api
+    SystemTests -.-> Client
 
     %% Styling
-    classDef external fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef presentation fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef api fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
-    classDef application fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef domain fill:#ffebee,stroke:#c62828,stroke-width:2px
-    classDef infrastructure fill:#f1f8e9,stroke:#33691e,stroke-width:2px
-    classDef test fill:#fafafa,stroke:#424242,stroke-width:2px
-    classDef library fill:#f5f5f5,stroke:#757575,stroke-width:1px
+    classDef presentation fill:#6750A4,stroke:#21005D,stroke-width:2px,color:#fff
+    classDef application fill:#7D5260,stroke:#3E2723,stroke-width:2px,color:#fff
+    classDef domain fill:#006C4C,stroke:#00382A,stroke-width:2px,color:#fff
+    classDef infrastructure fill:#00687A,stroke:#003544,stroke-width:2px,color:#fff
+    classDef external fill:#D4A373,stroke:#8B6F47,stroke-width:2px,color:#000
+    classDef tests fill:#B3B3B3,stroke:#666666,stroke-width:1px,color:#000,stroke-dasharray: 5 5
 
-    class GitHub,AzureStorage,Browser external
-    class BlazorClient presentation
-    class WebAPI api
-    class AppServices,AppInterfaces,AppModels application
-    class DomainModels domain
-    class GitHubService,DataService,Entities infrastructure
-    class UnitTests,IntegrationTests,ApiTests,SystemTests test
-    class LibGit2,Serilog,Polly,AzureTables library
+    class Client,Api presentation
+    class App application
+    class Domain domain
+    class Infra infrastructure
+    class AzureTable,GitHub,AppInsights external
+    class UnitTests,IntegrationTests,ApiTests,SystemTests tests

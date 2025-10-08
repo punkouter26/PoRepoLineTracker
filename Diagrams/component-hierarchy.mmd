@@ -1,0 +1,118 @@
+graph TD
+    %% Root Application
+    App[App.razor - Root Component]
+
+    %% Main Layout
+    App --> MainLayout[MainLayout.razor - Primary Layout Container]
+
+    %% Layout Children
+    MainLayout --> NavMenu[NavMenu.razor - Sidebar Navigation]
+    MainLayout --> Router[Router - Page Routing]
+
+    %% Pages
+    Router --> Repositories[Repositories.razor - Repository Management Page]
+    Router --> AllCharts[AllCharts.razor - Analytics Dashboard]
+    Router --> Diag[Diag.razor - Diagnostics Page]
+    Router --> AddRepository[AddRepository.razor - Add Repository Dialog Page]
+    Router --> FailedOperations[FailedOperations.razor - Failed Operations Management]
+    Router --> ExtensionsCounted[ExtensionsCounted.razor - File Extensions Display]
+
+    %% Repositories Page Components
+    Repositories --> RadzenDataGrid1[RadzenDataGrid - Repository List Grid]
+    Repositories --> RadzenButton1[Add Repository Button]
+    Repositories --> RadzenButton2[Delete All Button]
+    Repositories --> RadzenDialog1[RadzenDialog - Add Repository Modal]
+
+    RadzenDialog1 --> AddRepositoryContent[Add Repository Form]
+    AddRepositoryContent --> RadzenTabs1[RadzenTabs - Manual/GitHub User]
+    RadzenTabs1 --> ManualTab[Manual Entry Tab]
+    RadzenTabs1 --> GitHubUserTab[GitHub User Tab]
+
+    ManualTab --> RadzenTextBox1[Clone URL Input]
+    ManualTab --> RadzenTextBox2[Owner Display]
+    ManualTab --> RadzenTextBox3[Repo Name Display]
+
+    GitHubUserTab --> RadzenTextBox4[GitHub Username Input]
+    GitHubUserTab --> RadzenButton3[Fetch Repos Button]
+    GitHubUserTab --> RadzenDropDown1[Repository Selector]
+
+    RadzenDataGrid1 --> RepositoryRow[Repository Row]
+    RepositoryRow --> RadzenButton4[Delete Button]
+    RepositoryRow --> CommitCount[Commit Count Display]
+    RepositoryRow --> LastAnalyzed[Last Analyzed Date]
+
+    %% AllCharts Page Components
+    AllCharts --> RadzenDropDown2[Time Range Selector - 7/14/30/60/90 days]
+    AllCharts --> TotalLinesChart[RadzenChart - Total Lines Over Time]
+    AllCharts --> LinesByRepoChart[RadzenChart - Lines by Repository]
+    AllCharts --> FileExtensionChart[RadzenChart - File Extension Distribution]
+
+    TotalLinesChart --> ChartSeries1[LineSeries - Aggregate Line Data]
+    LinesByRepoChart --> ChartSeries2[LineSeries - Per-Repository Data]
+    FileExtensionChart --> ChartSeries3[DonutSeries - Percentage Breakdown]
+
+    %% Diag Page Components
+    Diag --> HealthStatus[Overall Health Status]
+    Diag --> AzureHealth[Azure Storage Health]
+    Diag --> GitHubHealth[GitHub API Health]
+    Diag --> SystemInfo[System Information]
+    Diag --> DetailedChecks[Detailed Health Checks]
+
+    HealthStatus --> StatusIndicator[Status Badge - Healthy/Unhealthy]
+    AzureHealth --> AzureIndicator[Connection Status]
+    GitHubHealth --> GitHubIndicator[API Status]
+    SystemInfo --> EnvironmentDisplay[Environment Info]
+    SystemInfo --> VersionDisplay[Version Info]
+
+    %% FailedOperations Page Components
+    FailedOperations --> RadzenDataGrid2[Failed Operations Grid]
+    FailedOperations --> RadzenButton5[Retry Selected Button]
+    FailedOperations --> RadzenButton6[Delete Selected Button]
+
+    RadzenDataGrid2 --> FailedOpRow[Failed Operation Row]
+    FailedOpRow --> ErrorMessage[Error Details]
+    FailedOpRow --> RetryCount[Retry Attempts]
+    FailedOpRow --> Timestamp[Failure Timestamp]
+
+    %% ExtensionsCounted Page Components
+    ExtensionsCounted --> RadzenDataList[File Extension List]
+    RadzenDataList --> ExtensionItem[Extension Item - .cs, .js, .ts, etc.]
+
+    %% Shared Services (injected into components)
+    HttpClient[HttpClient - API Communication]
+    DialogService[DialogService - Modal Management]
+    NotificationService[NotificationService - Toast Messages]
+    ClientLogger[ClientLogger - Logging Service]
+
+    Repositories -.->|Injects| HttpClient
+    Repositories -.->|Injects| DialogService
+    Repositories -.->|Injects| NotificationService
+    Repositories -.->|Injects| ClientLogger
+
+    AllCharts -.->|Injects| HttpClient
+    AllCharts -.->|Injects| ClientLogger
+
+    Diag -.->|Injects| HttpClient
+    Diag -.->|Injects| ClientLogger
+
+    FailedOperations -.->|Injects| HttpClient
+    FailedOperations -.->|Injects| NotificationService
+
+    AddRepository -.->|Injects| HttpClient
+    AddRepository -.->|Injects| DialogService
+
+    %% Styling
+    classDef root fill:#6750A4,stroke:#21005D,stroke-width:3px,color:#fff
+    classDef layout fill:#7D5260,stroke:#3E2723,stroke-width:2px,color:#fff
+    classDef page fill:#006C4C,stroke:#00382A,stroke-width:2px,color:#fff
+    classDef component fill:#00687A,stroke:#003544,stroke-width:2px,color:#fff
+    classDef radzenComponent fill:#D4A373,stroke:#8B6F47,stroke-width:2px,color:#000
+    classDef service fill:#B3B3B3,stroke:#666666,stroke-width:2px,color:#000
+    classDef dataDisplay fill:#E8DEF8,stroke:#6750A4,stroke-width:1px,color:#000
+
+    class App root
+    class MainLayout,NavMenu,Router layout
+    class Repositories,AllCharts,Diag,AddRepository,FailedOperations,ExtensionsCounted page
+    class RadzenDataGrid1,RadzenDataGrid2,RadzenButton1,RadzenButton2,RadzenButton3,RadzenButton4,RadzenButton5,RadzenButton6,RadzenDialog1,RadzenTabs1,RadzenTextBox1,RadzenTextBox2,RadzenTextBox3,RadzenTextBox4,RadzenDropDown1,RadzenDropDown2,TotalLinesChart,LinesByRepoChart,FileExtensionChart,RadzenDataList radzenComponent
+    class HttpClient,DialogService,NotificationService,ClientLogger service
+    class RepositoryRow,CommitCount,LastAnalyzed,ChartSeries1,ChartSeries2,ChartSeries3,HealthStatus,AzureHealth,GitHubHealth,SystemInfo,StatusIndicator,AzureIndicator,GitHubIndicator,EnvironmentDisplay,VersionDisplay,FailedOpRow,ErrorMessage,RetryCount,Timestamp,ExtensionItem,AddRepositoryContent,ManualTab,GitHubUserTab,DetailedChecks dataDisplay

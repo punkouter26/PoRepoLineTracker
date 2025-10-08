@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet run:*)",
+      "Bash(dotnet build)",
+      "Bash(dotnet test:*)",
+      "Bash(start http://localhost:5000)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(node:*)",
+      "Bash(if not exist .claude mkdir .claude)",
+      "Bash(dotnet list package:*)",
+      "Bash(dotnet add:*)",
+      "Bash(dotnet format:*)",
+      "Bash(dir:*)",
+      "Bash(if not exist infra mkdir infra)",
+      "Bash(npx @mermaid-js/mermaid-cli:*)",
+      "Bash(tasklist)",
+      "Bash(curl:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
