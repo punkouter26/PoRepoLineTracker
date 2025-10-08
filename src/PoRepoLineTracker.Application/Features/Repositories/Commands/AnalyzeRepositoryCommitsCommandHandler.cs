@@ -8,7 +8,7 @@ using System.Linq;
 
 namespace PoRepoLineTracker.Application.Features.Repositories.Commands
 {
-public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRepositoryCommitsCommand, Unit>
+    public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRepositoryCommitsCommand, Unit>
     {
         private readonly IGitHubService _gitHubService;
         private readonly IRepositoryDataService _repositoryDataService;
@@ -16,7 +16,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
 
         public AnalyzeRepositoryCommitsCommandHandler(
-            IGitHubService gitHubService, 
+            IGitHubService gitHubService,
             IRepositoryDataService repositoryDataService,
             IFailedOperationService failedOperationService,
             ILogger<AnalyzeRepositoryCommitsCommandHandler> logger)
@@ -111,7 +111,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                         continue;
                     }
 
-try
+                    try
                     {
                         // Count lines in this commit by file type
                         var lineCounts = await _gitHubService.CountLinesInCommitAsync(localPath, commitStat.Sha, fileExtensionsToCount);
@@ -136,7 +136,7 @@ try
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Error processing commit {CommitSha} for repository {RepositoryId}", commitStat.Sha, request.RepositoryId);
-                        
+
                         // Record failed operation for retry or analysis
                         var failedOperation = new FailedOperation
                         {
@@ -160,12 +160,12 @@ try
                         try
                         {
                             await _failedOperationService.RecordFailedOperationAsync(failedOperation);
-                            _logger.LogInformation("Failed commit {CommitSha} recorded in dead letter queue for repository {RepositoryId}", 
+                            _logger.LogInformation("Failed commit {CommitSha} recorded in dead letter queue for repository {RepositoryId}",
                                 commitStat.Sha, request.RepositoryId);
                         }
                         catch (Exception recordEx)
                         {
-                            _logger.LogError(recordEx, "Error recording failed operation for commit {CommitSha} in repository {RepositoryId}", 
+                            _logger.LogError(recordEx, "Error recording failed operation for commit {CommitSha} in repository {RepositoryId}",
                                 commitStat.Sha, request.RepositoryId);
                         }
 

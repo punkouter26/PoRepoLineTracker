@@ -1,6 +1,8 @@
 # PoRepoLineTracker
 
-A powerful .NET application for tracking and analyzing lines of code across GitHub repositories over time. Built with Clean Architecture principles, this application provides comprehensive insights into repository evolution through automated commit analysis and interactive data visualization.
+**Automated GitHub repository analysis with code metrics and historical trend visualization.**
+
+PoRepoLineTracker is a .NET 9.0 web application that tracks lines of code evolution across GitHub repositories. Built with Clean Architecture and featuring a modern Blazor WebAssembly UI, it provides real-time insights into code growth, language distribution, and commit-level analysis.
 
 ## 🎯 Project Description
 
@@ -24,13 +26,14 @@ This project follows **Clean Architecture** principles with clear separation of 
 - **PoRepoLineTracker.Infrastructure**: External dependencies (Azure Table Storage, Git operations)
 
 ### Key Technologies
-- **.NET 8.0**: Latest stable framework
-- **Blazor WebAssembly**: Modern web UI framework
+- **.NET 9.0**: Latest framework with C# 13
+- **Blazor WebAssembly**: Modern web UI with Radzen components
 - **Azure Table Storage**: Scalable data persistence via Azurite (local) or Azure (production)
 - **LibGit2Sharp**: Git repository operations
-- **Serilog**: Structured logging
+- **Serilog + Application Insights**: Structured logging and telemetry
+- **MediatR**: CQRS pattern implementation
 - **Polly**: Circuit breaker pattern for resilience
-- **xUnit**: Testing framework
+- **xUnit**: Comprehensive test coverage
 
 ## 📊 Architecture & Diagrams
 
@@ -59,8 +62,8 @@ This script requires Node.js and will automatically install the Mermaid CLI if n
 ## 🚀 Getting Started
 
 ### Prerequisites
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Azurite](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite) (for local development)
+- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [Node.js](https://nodejs.org/) (for Azurite)
 - [Git](https://git-scm.com/downloads)
 - Visual Studio 2022 or VS Code (recommended)
 
@@ -147,7 +150,13 @@ dotnet build
 dotnet run --project src\PoRepoLineTracker.Api
 
 # The application will be available at:
-# https://localhost:7000 (or http://localhost:5000)
+# https://localhost:5001 (HTTPS) or http://localhost:5000 (HTTP)
+```
+
+**Quick Start (One Command)**:
+```powershell
+# Start Azurite in background, then run the app
+azurite --silent --location c:\azurite --debug c:\azurite\debug.log & dotnet run --project src/PoRepoLineTracker.Api
 ```
 
 #### 8. Verify Setup

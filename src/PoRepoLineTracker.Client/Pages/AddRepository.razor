@@ -8,13 +8,29 @@
 
 <h3>Add New Repository</h3>
 
+@if (!string.IsNullOrEmpty(pageState.ErrorMessage) && !pageState.ShowRepositorySelector)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i>@pageState.ErrorMessage
+        <button type="button" class="btn-close" @onclick="() => pageState.ErrorMessage = string.Empty"></button>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i>@pageState.AddRepoMessage
+        <button type="button" class="btn-close" @onclick="() => pageState.AddRepoMessage = string.Empty"></button>
+    </div>
+}
+
 <div class="mb-3">
     @if (pageState.ShowRepositorySelector)
     {
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Select Repositories from Your GitHub Account</h5>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="HideRepositorySelection">
+                <button class="btn btn-sm btn-outline-light" @onclick="HideRepositorySelection">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -31,7 +47,7 @@
                 else if (pageState.GitHubUserRepositories.Any())
                 {
                     <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                             <span class="text-muted">Found @pageState.GitHubUserRepositories.Count repositories</span>
                             <div>
                                 <button class="btn btn-sm btn-outline-primary me-2" @onclick="SelectAllRepositories">
@@ -43,29 +59,32 @@
                             </div>
                         </div>
                         
-                        <div style="max-height: 400px; overflow-y: auto;" class="border rounded p-2 repository-list-container">
+                        <div class="repository-list-container border rounded">
                             @foreach (var repo in pageState.GitHubUserRepositories)
                             {
-                                <div class="form-check d-flex align-items-center p-2 repository-item @(pageState.SelectedRepositories.Contains(repo) ? "bg-light" : "")">
+                                <div class="repository-item @(pageState.SelectedRepositories.Contains(repo) ? "selected" : "")">
                                     <input class="form-check-input repository-checkbox" 
                                            type="checkbox" 
                                            id="repo-@repo.Id" 
                                            checked="@pageState.SelectedRepositories.Contains(repo)"
                                            @onchange="@(e => ToggleRepositorySelection(repo, (bool)e.Value!))" />
-                                    <label class="form-check-label repository-label" for="repo-@repo.Id">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
+                                    <label class="repository-label" for="repo-@repo.Id">
+                                        <div class="repo-main-info">
+                                            <div class="repo-name-desc">
                                                 <strong>@repo.Owner/@repo.Name</strong>
                                                 @if (!string.IsNullOrEmpty(repo.Description))
                                                 {
-                                                    <br><small class="text-muted">@repo.Description</small>
+                                                    <br><small class="text-muted repo-description">@repo.Description</small>
                                                 }
                                             </div>
-                                            <div class="text-end">
-                                                <span class="badge bg-secondary">@repo.Language</span>
+                                            <div class="repo-badges">
+                                                @if (!string.IsNullOrEmpty(repo.Language))
+                                                {
+                                                    <span class="badge bg-secondary">@repo.Language</span>
+                                                }
                                                 @if (repo.Private)
                                                 {
-                                                    <span class="badge bg-warning">Private</span>
+                                                    <span class="badge bg-warning text-dark">Private</span>
                                                 }
                                             </div>
                                         </div>
@@ -74,7 +93,7 @@
                             }
                         </div>
                         
-                        <div class="mt-3 d-flex justify-content-between align-items-center">
+                        <div class="mt-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <span class="text-muted">@pageState.SelectedRepositories.Count selected</span>
                             <button class="btn btn-success" 
                                     @onclick="AddSelectedRepositories" 
@@ -90,9 +109,23 @@
                 }
                 else
                 {
-                    <div class="text-center p-4">
-                        <p class="text-muted">No repositories found in your GitHub account.</p>
-                        <small class="text-muted">Make sure your GitHub Personal Access Token is properly configured.</small>
+                    <div class="alert alert-warning" role="alert">
+                        <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>No Repositories Found</h6>
+                        @if (!string.IsNullOrEmpty(pageState.ErrorMessage))
+                        {
+                            <p class="mb-2">@pageState.ErrorMessage</p>
+                        }
+                        else
+                        {
+                            <p class="mb-2">No repositories were found in your GitHub account.</p>
+                        }
+                        <hr>
+                        <p class="mb-0 small">
+                            <strong>Please ensure:</strong><br>
+                            • Your GitHub Personal Access Token is properly configured in Settings<br>
+                            • The token has the required permissions (repo scope)<br>
+                            • You have at least one repository in your GitHub account
+                        </p>
                     </div>
                 }
             </div>
@@ -100,18 +133,6 @@
     }
     
     @* Single repository mode removed as requested *@
-    
-    @if (pageState.IsLoadingGitHubRepos)
-    {
-        <div class="mb-3">
-            <div class="text-center">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading GitHub repositories...</span>
-                </div>
-                <p class="mt-2"><em>Loading your GitHub repositories...</em></p>
-            </div>
-        </div>
-    }
     
     @if (pageState.IsAddingRepository)
     {
@@ -131,11 +152,6 @@
             </div>
         </div>
     }
-    
-    @if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
-    {
-        <div class="alert alert-info">@pageState.AddRepoMessage</div>
-    }
 </div>
 
 @code {
@@ -152,19 +168,33 @@
     private async Task LoadGitHubRepositories()
     {
         pageState.IsLoadingGitHubRepos = true;
+        pageState.ErrorMessage = string.Empty;
         StateHasChanged();
         
         try
         {
-            var gitHubRepos = await Http.GetFromJsonAsync<List<GitHubUserRepositoryDto>>("/api/github/user-repositories");
-            // Sort repositories alphabetically by name
-            pageState.GitHubUserRepositories = gitHubRepos?.OrderBy(r => r.Name).ToList() ?? new List<GitHubUserRepositoryDto>();
-            Logger.LogInformation("Loaded {Count} GitHub user repositories.", pageState.GitHubUserRepositories.Count);
+            var response = await Http.GetAsync("/api/github/user-repositories");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var gitHubRepos = await response.Content.ReadFromJsonAsync<List<GitHubUserRepositoryDto>>();
+                // Sort repositories alphabetically by name
+                pageState.GitHubUserRepositories = gitHubRepos?.OrderBy(r => r.Name).ToList() ?? new List<GitHubUserRepositoryDto>();
+                Logger.LogInformation("Loaded {Count} GitHub user repositories.", pageState.GitHubUserRepositories.Count);
+            }
+            else
+            {
+                var errorMessage = await response.Content.ReadAsStringAsync();
+                Logger.LogWarning("Failed to load GitHub repositories: {StatusCode} - {ErrorMessage}", response.StatusCode, errorMessage);
+                pageState.ErrorMessage = $"Unable to load repositories: {errorMessage}";
+                pageState.GitHubUserRepositories = new List<GitHubUserRepositoryDto>();
+            }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading GitHub repositories: {Message}", ex.Message);
             pageState.ErrorMessage = $"Error loading GitHub repositories: {ex.Message}";
+            pageState.GitHubUserRepositories = new List<GitHubUserRepositoryDto>();
         }
         finally
         {
@@ -308,27 +338,129 @@
 }
 
 <style>
-    /* Ensure checkboxes are properly positioned and not cut off */
+    /* Repository List Container - Fixed height with scroll */
     .repository-list-container {
-        padding-left: 0.75rem;
-        padding-right: 0.5rem;
+        max-height: 500px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        background-color: var(--bg-secondary, #f8f9fa);
     }
     
+    /* Individual Repository Item */
     .repository-item {
-        margin-left: 0 !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem;
+        display: flex;
+        align-items: flex-start;
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--border-light, #dee2e6);
+        transition: background-color 0.2s ease;
+        gap: 0.75rem;
     }
     
+    .repository-item:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+    
+    .repository-item.selected {
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+    
+    .repository-item:last-child {
+        border-bottom: none;
+    }
+    
+    /* Checkbox styling */
     .repository-checkbox {
-        margin-left: 0 !important;
-        margin-right: 0.75rem !important;
         flex-shrink: 0;
+        margin-top: 0.25rem;
+        cursor: pointer;
+        width: 1.2rem;
+        height: 1.2rem;
     }
     
+    /* Label takes up remaining space */
     .repository-label {
         flex-grow: 1;
-        margin-bottom: 0 !important;
+        margin-bottom: 0;
         cursor: pointer;
+        width: 100%;
+        overflow: hidden;
+    }
+    
+    /* Main info container */
+    .repo-main-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        width: 100%;
+    }
+    
+    /* Name and description */
+    .repo-name-desc {
+        flex: 1;
+        min-width: 0; /* Allow text truncation */
+        overflow: hidden;
+    }
+    
+    .repo-name-desc strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .repo-description {
+        display: block;
+        margin-top: 0.25rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        white-space: normal;
+    }
+    
+    /* Badges container */
+    .repo-badges {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        align-items: flex-end;
+    }
+    
+    /* Responsive adjustments */
+    @@media (max-width: 768px) {
+        .repo-main-info {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .repo-badges {
+            flex-direction: row;
+            align-items: flex-start;
+        }
+        
+        .repository-list-container {
+            max-height: 400px;
+        }
+    }
+    
+    /* Smooth scrollbar styling */
+    .repository-list-container::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .repository-list-container::-webkit-scrollbar-track {
+        background: var(--bg-tertiary, #f1f3f5);
+    }
+    
+    .repository-list-container::-webkit-scrollbar-thumb {
+        background: var(--border-medium, #cbd5e1);
+        border-radius: 4px;
+    }
+    
+    .repository-list-container::-webkit-scrollbar-thumb:hover {
+        background: var(--border-dark, #94a3b8);
     }
 </style>

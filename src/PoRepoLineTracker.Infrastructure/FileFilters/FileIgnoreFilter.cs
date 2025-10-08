@@ -192,10 +192,10 @@ public class FileIgnoreFilter : IFileIgnoreFilter
     public bool ShouldIgnoreDirectory(string directoryPath)
     {
         var normalizedPath = directoryPath.Replace("\\", "/").ToLowerInvariant() + "/";
-        
+
         bool shouldIgnore = _directoryPatternsToIgnore.Any(pattern =>
-            normalizedPath.EndsWith(pattern) || 
-            normalizedPath.Contains("/" + pattern) || 
+            normalizedPath.EndsWith(pattern) ||
+            normalizedPath.Contains("/" + pattern) ||
             normalizedPath.StartsWith(pattern));
 
         if (shouldIgnore)

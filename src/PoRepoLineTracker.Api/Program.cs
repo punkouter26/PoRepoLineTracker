@@ -23,10 +23,9 @@ namespace PoRepoLineTracker.Api
     {
         public static void Main(string[] args)
         {
+            // Initial logger before configuration is loaded
             Log.Logger = new LoggerConfiguration()
                 .WriteTo.Console()
-                .WriteTo.File("log.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7, shared: true)
-                .MinimumLevel.Debug()
                 .CreateLogger();
 
             try
@@ -54,7 +53,39 @@ namespace PoRepoLineTracker.Api
                 builder.Configuration.AddJsonFile("appsettings.Development.local.json", optional: true, reloadOnChange: true);
             }
 
-            builder.Host.UseSerilog(); // Use Serilog for logging
+            // Configure Serilog with Application Insights
+            builder.Host.UseSerilog((context, services, configuration) =>
+            {
+                configuration
+                    .ReadFrom.Configuration(context.Configuration)
+                    .ReadFrom.Services(services)
+                    .Enrich.FromLogContext()
+                    .Enrich.WithProperty("Application", "PoRepoLineTracker")
+                    .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
+                    .WriteTo.Console(
+                        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
+                    .MinimumLevel.Information();
+
+                // Add file sink only in Development
+                if (context.HostingEnvironment.IsDevelopment())
+                {
+                    configuration.WriteTo.File(
+                        "log.txt",
+                        rollingInterval: RollingInterval.Day,
+                        retainedFileCountLimit: 7,
+                        shared: true,
+                        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
+                }
+
+                // Add Application Insights sink if connection string is available
+                var appInsightsConnectionString = context.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+                if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+                {
+                    configuration.WriteTo.ApplicationInsights(
+                        appInsightsConnectionString,
+                        TelemetryConverter.Traces);
+                }
+            });
 
             // Add services to the container.
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -109,7 +140,7 @@ namespace PoRepoLineTracker.Api
                 builder.AddCircuitBreaker(circuitBreakerOptions);
             });
 
-// Register application services with proper HttpClient injection
+            // Register application services with proper HttpClient injection
             builder.Services.AddScoped<PoRepoLineTracker.Infrastructure.Interfaces.IGitClient, PoRepoLineTracker.Infrastructure.Services.GitClient>(); // Register IGitClient
 
             // Register ILineCounter implementations
@@ -119,26 +150,32 @@ namespace PoRepoLineTracker.Api
             // Register file filtering services
             builder.Services.AddScoped<PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter, PoRepoLineTracker.Infrastructure.FileFilters.FileIgnoreFilter>();
 
-// Register failed operation service
+            // Register failed operation service
             builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IFailedOperationService, PoRepoLineTracker.Infrastructure.Services.FailedOperationService>();
             builder.Services.AddHostedService<PoRepoLineTracker.Infrastructure.Services.FailedOperationBackgroundService>();
 
-builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IGitHubService>(serviceProvider =>
-            {
-                var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
-                var httpClient = httpClientFactory.CreateClient("GitHubClient");
-                var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-                var logger = serviceProvider.GetRequiredService<ILogger<PoRepoLineTracker.Infrastructure.Services.GitHubService>>();
-                var gitClient = serviceProvider.GetRequiredService<PoRepoLineTracker.Infrastructure.Interfaces.IGitClient>(); // Get IGitClient
-                var lineCounters = serviceProvider.GetServices<ILineCounter>(); // Get all ILineCounter implementations
-                var fileIgnoreFilter = serviceProvider.GetRequiredService<PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter>(); // Get file ignore filter
-                return new PoRepoLineTracker.Infrastructure.Services.GitHubService(httpClient, configuration, logger, lineCounters, gitClient, fileIgnoreFilter); // Inject all dependencies
-            });
+            builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IGitHubService>(serviceProvider =>
+                        {
+                            var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+                            var httpClient = httpClientFactory.CreateClient("GitHubClient");
+                            var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+                            var logger = serviceProvider.GetRequiredService<ILogger<PoRepoLineTracker.Infrastructure.Services.GitHubService>>();
+                            var gitClient = serviceProvider.GetRequiredService<PoRepoLineTracker.Infrastructure.Interfaces.IGitClient>(); // Get IGitClient
+                            var lineCounters = serviceProvider.GetServices<ILineCounter>(); // Get all ILineCounter implementations
+                            var fileIgnoreFilter = serviceProvider.GetRequiredService<PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter>(); // Get file ignore filter
+                            return new PoRepoLineTracker.Infrastructure.Services.GitHubService(httpClient, configuration, logger, lineCounters, gitClient, fileIgnoreFilter); // Inject all dependencies
+                        });
             builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryDataService, PoRepoLineTracker.Infrastructure.Services.RepositoryDataService>();
             builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryService, PoRepoLineTracker.Application.Services.RepositoryService>(); // Re-enabled: RepositoryService now uses MediatR
 
             // Add MediatR
             builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(PoRepoLineTracker.Application.Features.Repositories.Commands.AddRepositoryCommand).Assembly));
+
+            // Add Application Insights telemetry
+            builder.Services.AddApplicationInsightsTelemetry(options =>
+            {
+                options.ConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+            });
 
             var app = builder.Build();
             app.UseMiddleware<ExceptionHandlingMiddleware>(); // Global exception handling
@@ -366,20 +403,20 @@ builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IGitHubServi
             })
             .WithName("AnalyzeRepository");
 
-app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, IMediator mediator) =>
-            {
-                try
-                {
-                    await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repositoryId, ForceReanalysis: true));
-                    return Results.Accepted();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Error force re-analyzing repository {RepositoryId}", repositoryId);
-                    return Results.Problem($"Error force re-analyzing repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-                }
-            })
-            .WithName("ForceReanalyzeRepository");
+            app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, IMediator mediator) =>
+                        {
+                            try
+                            {
+                                await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repositoryId, ForceReanalysis: true));
+                                return Results.Accepted();
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Error(ex, "Error force re-analyzing repository {RepositoryId}", repositoryId);
+                                return Results.Problem($"Error force re-analyzing repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                            }
+                        })
+                        .WithName("ForceReanalyzeRepository");
 
             // Failed Operations Endpoints
             app.MapGet("/api/failed-operations/{repositoryId}", async (Guid repositoryId, IFailedOperationService failedOperationService) =>
@@ -454,7 +491,53 @@ app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repository
             .WithName("HealthCheck")
             .WithOpenApi();
 
+            // Client Logging Endpoint (Development only for security)
+            if (app.Environment.IsDevelopment())
+            {
+                app.MapPost("/api/log/client", ([FromBody] ClientLogEntry logEntry, ILogger<Program> logger) =>
+                {
+                    // Log client-side events to server-side logging infrastructure
+                    var logMessage = $"[CLIENT] {logEntry.Message}";
+
+                    switch (logEntry.Level.ToUpperInvariant())
+                    {
+                        case "ERROR":
+                        case "FATAL":
+                            logger.LogError(logEntry.Exception, logMessage, logEntry.Properties);
+                            break;
+                        case "WARNING":
+                        case "WARN":
+                            logger.LogWarning(logMessage, logEntry.Properties);
+                            break;
+                        case "INFO":
+                        case "INFORMATION":
+                            logger.LogInformation(logMessage, logEntry.Properties);
+                            break;
+                        case "DEBUG":
+                            logger.LogDebug(logMessage, logEntry.Properties);
+                            break;
+                        default:
+                            logger.LogInformation(logMessage, logEntry.Properties);
+                            break;
+                    }
+
+                    return Results.Ok(new { Status = "Logged" });
+                })
+                .WithName("LogClientEvent")
+                .WithOpenApi()
+                .WithSummary("Accepts client-side log entries (Development only)")
+                .WithDescription("Ingests client-side logs and forwards them to server-side logging infrastructure including Application Insights");
+            }
+
             return app;
         }
+
+        // Client log entry model
+        public record ClientLogEntry(
+            string Level,
+            string Message,
+            string? Exception = null,
+            Dictionary<string, object>? Properties = null
+        );
     }
 }

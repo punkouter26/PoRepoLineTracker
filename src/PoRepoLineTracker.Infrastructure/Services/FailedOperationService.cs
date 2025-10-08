@@ -48,7 +48,7 @@ public class FailedOperationService : IFailedOperationService
     public async Task RecordFailedOperationAsync(FailedOperation failedOperation)
     {
         await EnsureTablesExistAsync();
-        _logger.LogInformation("Recording failed operation for repository {RepositoryId}, operation {OperationType}, entity {EntityId}", 
+        _logger.LogInformation("Recording failed operation for repository {RepositoryId}, operation {OperationType}, entity {EntityId}",
             failedOperation.RepositoryId, failedOperation.OperationType, failedOperation.EntityId);
 
         try
@@ -59,7 +59,7 @@ public class FailedOperationService : IFailedOperationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error recording failed operation for repository {RepositoryId}: {ErrorMessage}", 
+            _logger.LogError(ex, "Error recording failed operation for repository {RepositoryId}: {ErrorMessage}",
                 failedOperation.RepositoryId, ex.Message);
             throw;
         }
@@ -111,7 +111,7 @@ public class FailedOperationService : IFailedOperationService
         }
     }
 
-public async Task UpdateFailedOperationAsync(FailedOperation failedOperation)
+    public async Task UpdateFailedOperationAsync(FailedOperation failedOperation)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Updating failed operation {FailedOperationId} in Table Storage.", failedOperation.Id);
@@ -162,9 +162,9 @@ public async Task UpdateFailedOperationAsync(FailedOperation failedOperation)
         try
         {
             var cutoffTime = DateTime.UtcNow.AddMinutes(-5); // Wait at least 5 minutes between retries
-            
+
             await foreach (var entity in _failedOperationTableClient.QueryAsync<FailedOperationEntity>(
-                e => e.RetryCount < maxRetryCount && 
+                e => e.RetryCount < maxRetryCount &&
                      (e.LastRetryAttempt == null || e.LastRetryAttempt < cutoffTime)))
             {
                 retryableOperations.Add(entity.ToDomainModel());
@@ -184,7 +184,7 @@ public async Task UpdateFailedOperationAsync(FailedOperation failedOperation)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Checking Azure Table Storage connection for failed operations.");
-        
+
         try
         {
             // Attempt a simple query to check connectivity

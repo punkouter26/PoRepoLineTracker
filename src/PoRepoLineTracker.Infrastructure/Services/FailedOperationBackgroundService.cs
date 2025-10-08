@@ -99,7 +99,7 @@ public class FailedOperationBackgroundService : BackgroundService
         IFailedOperationService failedOperationService,
         IRepositoryDataService repositoryDataService)
     {
-        _logger.LogInformation("Attempting to retry failed operation {FailedOperationId} (Retry #{RetryCount})", 
+        _logger.LogInformation("Attempting to retry failed operation {FailedOperationId} (Retry #{RetryCount})",
             failedOperation.Id, failedOperation.RetryCount + 1);
 
         try
@@ -116,7 +116,7 @@ public class FailedOperationBackgroundService : BackgroundService
                     await RetryCommitProcessingAsync(failedOperation, repositoryDataService);
                     break;
                 default:
-                    _logger.LogWarning("Unknown operation type {OperationType} for failed operation {FailedOperationId}", 
+                    _logger.LogWarning("Unknown operation type {OperationType} for failed operation {FailedOperationId}",
                         failedOperation.OperationType, failedOperation.Id);
                     return;
             }
@@ -127,7 +127,7 @@ public class FailedOperationBackgroundService : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Retry attempt #{RetryCount} failed for operation {FailedOperationId}", 
+            _logger.LogError(ex, "Retry attempt #{RetryCount} failed for operation {FailedOperationId}",
                 failedOperation.RetryCount, failedOperation.Id);
 
             // Update failed operation with new retry information
@@ -137,7 +137,7 @@ public class FailedOperationBackgroundService : BackgroundService
             // If max retries exceeded, log as permanently failed
             if (failedOperation.RetryCount >= 3)
             {
-                _logger.LogError("Failed operation {FailedOperationId} has exceeded maximum retry attempts and will remain in dead letter queue", 
+                _logger.LogError("Failed operation {FailedOperationId} has exceeded maximum retry attempts and will remain in dead letter queue",
                     failedOperation.Id);
             }
         }
@@ -145,19 +145,19 @@ public class FailedOperationBackgroundService : BackgroundService
 
     private async Task RetryCommitProcessingAsync(FailedOperation failedOperation, IRepositoryDataService repositoryDataService)
     {
-        _logger.LogInformation("Retrying commit processing for commit {CommitSha} in repository {RepositoryId}", 
+        _logger.LogInformation("Retrying commit processing for commit {CommitSha} in repository {RepositoryId}",
             failedOperation.EntityId, failedOperation.RepositoryId);
 
         // This is a simplified retry - in a real implementation, you'd need to re-execute the full commit processing logic
         // For now, we'll just log that a retry would occur
         _logger.LogWarning("Commit processing retry logic needs to be implemented for commit {CommitSha}", failedOperation.EntityId);
-        
+
         // In a real implementation, you would:
         // 1. Get the repository
         // 2. Get the file extensions to count
         // 3. Re-count lines for the commit
         // 4. Re-store the commit line count data
-        
+
         // For demonstration purposes, we'll throw an exception to show the retry mechanism works
         throw new NotImplementedException("Commit processing retry logic needs to be fully implemented");
     }

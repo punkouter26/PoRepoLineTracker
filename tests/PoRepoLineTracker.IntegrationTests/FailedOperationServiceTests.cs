@@ -87,7 +87,7 @@ public class FailedOperationServiceTests : IDisposable
         await _failedOperationService.RecordFailedOperationAsync(failedOperation);
         var retrievedOperation = await _failedOperationService.GetFailedOperationByIdAsync(failedOperation.Id);
 
-// Assert
+        // Assert
         Assert.NotNull(retrievedOperation);
         Assert.Equal(failedOperation.Id, retrievedOperation.Id);
         Assert.Equal(failedOperation.RepositoryId, retrievedOperation.RepositoryId);

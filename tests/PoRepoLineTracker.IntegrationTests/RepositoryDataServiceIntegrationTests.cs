@@ -42,7 +42,7 @@ public class RepositoryDataServiceIntegrationTests : IDisposable
 
     private readonly IServiceProvider _serviceProvider;
 
-public RepositoryDataServiceIntegrationTests()
+    public RepositoryDataServiceIntegrationTests()
     {
         _testLocalReposPath = Path.Combine(Path.GetTempPath(), "PoRepoLineTrackerTests", Guid.NewGuid().ToString());
 
@@ -87,7 +87,7 @@ public RepositoryDataServiceIntegrationTests()
         // Register real MediatR instead of mocked one
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(PoRepoLineTracker.Application.Features.Repositories.Commands.AddRepositoryCommand).Assembly));
 
-// Register line counters for the handlers
+        // Register line counters for the handlers
         services.AddScoped<ILineCounter, DefaultLineCounter>();
         services.AddScoped<ILineCounter, CSharpLineCounter>();
 

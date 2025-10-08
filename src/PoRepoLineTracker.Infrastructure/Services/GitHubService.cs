@@ -22,7 +22,7 @@ public class GitHubService : IGitHubService
     private readonly IGitClient _gitClient; // Added for DIP
     private readonly PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter _fileIgnoreFilter; // Added for file filtering
 
-public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, IGitClient gitClient, PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter fileIgnoreFilter)
+    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, IGitClient gitClient, PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter fileIgnoreFilter)
     {
         _httpClient = httpClient;
         _logger = logger;
@@ -167,7 +167,7 @@ public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogge
         return lineCounts;
     }
 
-private async Task ProcessTreeEntry(Tree tree, IEnumerable<string> fileExtensionsToCount, Dictionary<string, int> lineCounts, string currentPath = "")
+    private async Task ProcessTreeEntry(Tree tree, IEnumerable<string> fileExtensionsToCount, Dictionary<string, int> lineCounts, string currentPath = "")
     {
         foreach (var entry in tree)
         {
@@ -350,7 +350,7 @@ private async Task ProcessTreeEntry(Tree tree, IEnumerable<string> fileExtension
         return totalLines;
     }
 
-private async Task<long> CountLinesInTreeAsync(Tree tree, IEnumerable<string> fileExtensionsToCount, string currentPath = "")
+    private async Task<long> CountLinesInTreeAsync(Tree tree, IEnumerable<string> fileExtensionsToCount, string currentPath = "")
     {
         long lines = 0;
         foreach (var entry in tree)
