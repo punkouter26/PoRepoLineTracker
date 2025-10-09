@@ -72,6 +72,9 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
   name: appServiceName
   location: 'eastus2'  // Must match shared plan location
   kind: 'app'
+  tags: {
+    'azd-service-name': 'api'
+  }
   properties: {
     serverFarmId: sharedAppServicePlanResourceId
     siteConfig: {
