@@ -1,11 +1,6 @@
 targetScope = 'subscription'
 
 @minLength(1)
-@maxLength(64)
-@description('Name of the environment')
-param environmentName string = 'dev'
-
-@minLength(1)
 @description('Primary location for all resources')
 param location string = 'eastus'
 
@@ -14,8 +9,11 @@ var resourceGroupName = 'PoRepoLineTracker'
 var storageAccountName = 'porepolinetracker'  // Storage account names must be lowercase, no special chars
 var appInsightsName = 'PoRepoLineTracker'
 var logAnalyticsName = 'PoRepoLineTracker'
-var appServicePlanName = 'PoRepoLineTracker'
 var appServiceName = 'PoRepoLineTracker'
+
+// Reference to shared resource group for App Service Plan
+var sharedResourceGroupName = 'PoShared'
+var sharedAppServicePlanName = 'PoShared'
 
 // Create resource group
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -32,8 +30,8 @@ module resources 'resources.bicep' = {
     storageAccountName: storageAccountName
     appInsightsName: appInsightsName
     logAnalyticsName: logAnalyticsName
-    appServicePlanName: appServicePlanName
     appServiceName: appServiceName
+    sharedAppServicePlanResourceId: '/subscriptions/${subscription().subscriptionId}/resourceGroups/${sharedResourceGroupName}/providers/Microsoft.Web/serverfarms/${sharedAppServicePlanName}'
   }
 }
 

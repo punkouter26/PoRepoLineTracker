@@ -2,8 +2,8 @@ param location string
 param storageAccountName string
 param appInsightsName string
 param logAnalyticsName string
-param appServicePlanName string
 param appServiceName string
+param sharedAppServicePlanResourceId string
 
 // Log Analytics Workspace (required for Application Insights)
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
@@ -67,29 +67,13 @@ resource failedOperationsTable 'Microsoft.Storage/storageAccounts/tableServices/
   name: 'PoRepoLineTrackerFailedOperations'
 }
 
-// App Service Plan (Free tier)
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
-  name: appServicePlanName
-  location: location
-  sku: {
-    name: 'F1'  // Free tier
-    tier: 'Free'
-    size: 'F1'
-    capacity: 1
-  }
-  kind: 'app'
-  properties: {
-    reserved: false  // Windows for F1 tier
-  }
-}
-
 // App Service
 resource appService 'Microsoft.Web/sites@2022-09-01' = {
   name: appServiceName
-  location: location
+  location: 'eastus2'  // Must match shared plan location
   kind: 'app'
   properties: {
-    serverFarmId: appServicePlan.id
+    serverFarmId: sharedAppServicePlanResourceId
     siteConfig: {
       netFrameworkVersion: 'v8.0'
       use32BitWorkerProcess: true  // Required for F1 tier
