@@ -251,7 +251,6 @@ public class RepositoryDataService : IRepositoryDataService
             ".swift",   // Swift files
             ".kt",      // Kotlin files
             ".scala",   // Scala files
-            ".txt",     // Text files
             ".yml",     // YAML files
             ".yaml",    // YAML files
             ".config",  // Config files

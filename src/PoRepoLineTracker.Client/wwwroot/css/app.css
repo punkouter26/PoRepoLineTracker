@@ -987,3 +987,119 @@ code {
     from { opacity: 0; transform: translateX(-30px); }
     to { opacity: 1; transform: translateX(0); }
 }
+
+/* Radzen Chart Visibility Fix */
+.rz-chart {
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+    min-height: 400px;
+    width: 100% !important;
+    padding: 20px 10px 40px 10px !important; /* Extra padding at bottom for X-axis labels */
+}
+
+.rz-chart svg {
+    background-color: white !important;
+    overflow: visible !important; /* Allow labels to show outside SVG bounds */
+}
+
+.rz-chart canvas {
+    background-color: white !important;
+}
+
+.rz-chart text {
+    fill: var(--text-primary) !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+    font-size: 12px !important;
+}
+
+/* Ensure category (X-axis) labels are visible */
+.rz-chart .rz-category-axis text,
+.rz-chart g[class*="category"] text {
+    fill: var(--text-primary) !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+}
+
+/* Ensure value (Y-axis) labels are visible */
+.rz-chart .rz-value-axis text,
+.rz-chart g[class*="value"] text {
+    fill: var(--text-primary) !important;
+    font-size: 11px !important;
+}
+
+/* Grid lines */
+.rz-chart line,
+.rz-chart path.rz-grid-line {
+    stroke: var(--border-light) !important;
+    stroke-opacity: 0.5;
+}
+
+/* Line series - make it VERY visible */
+.rz-chart path.rz-series-line,
+.rz-chart path[class*="series"] {
+    stroke: #2563eb !important; /* Bright blue */
+    stroke-width: 3px !important;
+    fill: none !important;
+    opacity: 1 !important;
+}
+
+.rz-chart polyline {
+    stroke: #2563eb !important; /* Bright blue */
+    stroke-width: 3px !important;
+    fill: none !important;
+    opacity: 1 !important;
+}
+
+/* Data point markers - make them visible */
+.rz-chart circle.rz-series-marker,
+.rz-chart circle[class*="marker"] {
+    fill: #2563eb !important; /* Bright blue */
+    stroke: white !important;
+    stroke-width: 2px !important;
+    opacity: 1 !important;
+    r: 4 !important; /* Radius */
+}
+
+/* Axis titles */
+.rz-chart .rz-axis-title {
+    fill: var(--text-primary) !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+}
+
+/* Legend */
+.rz-chart .rz-legend {
+    fill: var(--text-primary) !important;
+    font-size: 12px !important;
+}
+
+/* Ensure chart area has white background */
+.card-body:has(.rz-chart) {
+    background-color: white !important;
+    padding: 15px !important;
+}
+
+/* Dark mode overrides for charts */
+@media (prefers-color-scheme: dark) {
+    .rz-chart {
+        background-color: var(--bg-dark) !important;
+    }
+    
+    .rz-chart svg,
+    .rz-chart canvas {
+        background-color: var(--bg-dark-secondary) !important;
+    }
+    
+    .rz-chart text {
+        fill: var(--text-inverse) !important;
+    }
+    
+    .rz-chart line,
+    .rz-chart path.rz-grid-line {
+        stroke: var(--border-medium) !important;
+    }
+    
+    .card-body:has(.rz-chart) {
+        background-color: var(--bg-dark) !important;
+    }
+}

@@ -87,10 +87,11 @@ else
                     <tr>
                         <td colspan="5">
                             <div class="row">
-                                <div class="col-lg-8 col-md-12 mb-4"> @* Chart Column - 80% width *@
+                                <!-- Line Count History Chart -->
+                                <div class="col-lg-8 col-md-12 mb-4">
                                     <div class="card mt-2 mb-2">
                                         <div class="card-header">
-                                            <h5 class="mb-0">Line Count History for @repo.Name (Last 365 Days)</h5>
+                                            <h5 class="mb-0">📈 Line Count History for @repo.Name (Last 365 Days)</h5>
                                         </div>
                                         <div class="card-body">
                                             @if (isLoadingChartData)
@@ -114,14 +115,21 @@ else
                                             }
                                             else if (lineCountHistory != null && lineCountHistory.Any())
                                             {
-                                                <RadzenChart>
-                                                    <RadzenLineSeries Data="@lineCountHistory" CategoryProperty="Date" ValueProperty="TotalLines" Title="Total Lines of Code">
-                                                        <RadzenSeriesDataLabels Visible="false" />
+                                                <RadzenChart Style="height: 400px; width: 100%;">
+                                                    <RadzenLineSeries 
+                                                        Data="@lineCountHistory" 
+                                                        CategoryProperty="Date" 
+                                                        ValueProperty="TotalLines" 
+                                                        Title="Total Lines of Code"
+                                                        Stroke="#2563eb"
+                                                        StrokeWidth="4">
+                                                        <RadzenMarkers MarkerType="MarkerType.Circle" />
                                                     </RadzenLineSeries>
-                                                    <RadzenCategoryAxis FormatString="{0:MM/dd}" />
-                                                    <RadzenValueAxis>
-                                                        <RadzenGridLines Visible="true" Stroke="var(--border-color)" />
-                                                        <RadzenAxisTitle Text="Lines of Code" />
+                                                    <RadzenCategoryAxis>
+                                                        <RadzenGridLines Visible="true" />
+                                                    </RadzenCategoryAxis>
+                                                    <RadzenValueAxis Min="0" Max="50000">
+                                                        <RadzenGridLines Visible="true" />
                                                     </RadzenValueAxis>
                                                     <RadzenLegend Visible="true" />
                                                 </RadzenChart>
@@ -138,7 +146,8 @@ else
                                     </div>
                                 </div>
 
-                                <div class="col-lg-4 col-md-12 mb-4"> @* File Extension Percentages Column - 20% width *@
+                                <!-- File Extension Percentages Column -->
+                                <div class="col-lg-4 col-md-12 mb-4">
                                     <div class="card mt-2 mb-2">
                                         <div class="card-header">
                                             <h5 class="mb-0">
@@ -228,7 +237,7 @@ else
     private HashSet<Guid> showAllCommitsFor = new();
     private Guid? selectedRepositoryId;
     private List<DailyLineCountDto>? lineCountHistory;
-    private List<FileExtensionPercentageDto>? fileExtensionPercentages; // New property
+    private List<FileExtensionPercentageDto>? fileExtensionPercentages;
     private bool isLoadingChartData = false;
     private string chartErrorMessage = string.Empty;
     private bool isRemovingAll = false;
@@ -270,10 +279,18 @@ else
 
         try
         {
+            Logger.LogInformation("Fetching line count history for repository {RepositoryId}", repositoryId);
             lineCountHistory = await Http.GetFromJsonAsync<List<DailyLineCountDto>>($"/api/repositories/{repositoryId}/linehistory/365");
+            
             if (lineCountHistory == null || !lineCountHistory.Any())
             {
+                Logger.LogWarning("No line count history returned for repository {RepositoryId}", repositoryId);
                 chartErrorMessage = "No line count history available for the last 365 days.";
+            }
+            else
+            {
+                Logger.LogInformation("Loaded {Count} data points for repository {RepositoryId}. First: {First} lines, Last: {Last} lines", 
+                    lineCountHistory.Count, repositoryId, lineCountHistory.First().TotalLines, lineCountHistory.Last().TotalLines);
             }
         }
         catch (Exception ex)
