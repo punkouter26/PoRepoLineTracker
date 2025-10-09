@@ -245,6 +245,17 @@
         
         try
         {
+            Logger.LogInformation("=== START AddSelectedRepositories ===");
+            Logger.LogInformation("Number of selected repositories: {Count}", pageState.SelectedRepositories.Count);
+            
+            // Log each selected repository
+            for (int i = 0; i < pageState.SelectedRepositories.Count; i++)
+            {
+                var repo = pageState.SelectedRepositories[i];
+                Logger.LogInformation("Selected Repo [{Index}]: FullName='{FullName}', CloneUrl='{CloneUrl}'", 
+                    i, repo.FullName, repo.CloneUrl);
+            }
+            
             // Step 1: Prepare repository data (25%)
             pageState.SetProgress($"Preparing {pageState.SelectedRepositories.Count} repositories...", 25);
             StateHasChanged();
@@ -253,6 +264,9 @@
             var repositoriesToAdd = pageState.SelectedRepositories.Select(repo =>
             {
                 var fullNameParts = repo.FullName.Split('/');
+                Logger.LogInformation("Splitting FullName '{FullName}' into Owner='{Owner}' and RepoName='{RepoName}'",
+                    repo.FullName, fullNameParts[0], fullNameParts[1]);
+                    
                 return new BulkRepositoryDto
                 {
                     Owner = fullNameParts[0],
@@ -261,14 +275,21 @@
                 };
             }).ToList();
 
-            Logger.LogInformation("About to add {Count} repositories: {Repositories}", 
-                repositoriesToAdd.Count, 
-                string.Join(", ", repositoriesToAdd.Select(r => $"{r.Owner}/{r.RepoName}")));
+            Logger.LogInformation("Prepared {Count} repositories for API call", repositoriesToAdd.Count);
+            
+            // Log detailed info about what we're sending
+            for (int i = 0; i < repositoriesToAdd.Count; i++)
+            {
+                var repo = repositoriesToAdd[i];
+                Logger.LogInformation("Sending Repo [{Index}]: Owner='{Owner}', RepoName='{RepoName}', CloneUrl='{CloneUrl}'",
+                    i, repo.Owner, repo.RepoName, repo.CloneUrl);
+            }
 
             // Step 2: Adding to database (50%)
             pageState.SetProgress("Adding repositories to database...", 50);
             StateHasChanged();
 
+            Logger.LogInformation("Making POST request to /api/repositories/bulk with {Count} repositories", repositoriesToAdd.Count);
             var response = await Http.PostAsJsonAsync("/api/repositories/bulk", repositoriesToAdd);
             
             Logger.LogInformation("Bulk repository add response: Status={StatusCode}", response.StatusCode);
@@ -280,7 +301,24 @@
                 StateHasChanged();
                 await Task.Delay(500);
 
+                Logger.LogInformation("Reading response content as JSON...");
                 var addedRepos = await response.Content.ReadFromJsonAsync<List<GitHubRepository>>();
+                
+                Logger.LogInformation("API returned {Count} repositories", addedRepos?.Count ?? 0);
+                
+                if (addedRepos != null && addedRepos.Any())
+                {
+                    for (int i = 0; i < addedRepos.Count; i++)
+                    {
+                        var repo = addedRepos[i];
+                        Logger.LogInformation("Returned Repo [{Index}]: {Owner}/{Name} (ID: {Id})",
+                            i, repo.Owner, repo.Name, repo.Id);
+                    }
+                }
+                else
+                {
+                    Logger.LogWarning("API returned ZERO repositories! This is the problem!");
+                }
                 
                 // Step 4: Complete (100%)
                 pageState.SetProgress("Complete! Repositories are now being analyzed.", 100);

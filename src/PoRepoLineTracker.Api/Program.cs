@@ -341,14 +341,32 @@ namespace PoRepoLineTracker.Api
             {
                 try
                 {
-                    Log.Information("Adding {Count} repositories via bulk endpoint.", repositories?.Count() ?? 0);
+                    Log.Information("=== BULK REPOSITORY ADD ENDPOINT CALLED ===");
+                    Log.Information("Request body received: {IsNull}", repositories == null ? "NULL" : "NOT NULL");
+                    
+                    var repoList = repositories?.ToList() ?? new List<PoRepoLineTracker.Application.Models.BulkRepositoryDto>();
+                    Log.Information("Number of repositories in request: {Count}", repoList.Count);
+                    
+                    // Log each repository in detail
+                    for (int i = 0; i < repoList.Count; i++)
+                    {
+                        var repo = repoList[i];
+                        Log.Information("API Request Repo [{Index}]: Owner='{Owner}', RepoName='{RepoName}', CloneUrl='{CloneUrl}'",
+                            i, repo?.Owner ?? "NULL", repo?.RepoName ?? "NULL", repo?.CloneUrl ?? "NULL");
+                    }
 
+                    Log.Information("Sending AddMultipleRepositoriesCommand to MediatR with {Count} repositories", repoList.Count);
                     var addedRepositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddMultipleRepositoriesCommand(repositories ?? Enumerable.Empty<PoRepoLineTracker.Application.Models.BulkRepositoryDto>()));
+                    
+                    var addedList = addedRepositories.ToList();
+                    Log.Information("MediatR returned {Count} repositories", addedList.Count);
+                    Log.Information("Repositories returned: {Repos}", string.Join(", ", addedList.Select(r => $"{r.Owner}/{r.Name}")));
+                    
                     return Results.Ok(addedRepositories);
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "Error adding multiple repositories");
+                    Log.Error(ex, "EXCEPTION in bulk repository endpoint: {Message}. Stack: {StackTrace}", ex.Message, ex.StackTrace);
                     return Results.Problem($"Error adding repositories: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
                 }
             })
