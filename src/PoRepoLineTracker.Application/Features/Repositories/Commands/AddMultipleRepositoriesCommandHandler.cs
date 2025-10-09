@@ -36,7 +36,9 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
         }
 
         var addedRepositories = new List<GitHubRepository>();
+        var repositoriesToAnalyze = new List<Guid>(); // Track repos that need analysis
 
+        // PHASE 1: Add repositories to database
         foreach (var repo in request.Repositories)
         {
             try
@@ -85,14 +87,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                 _logger.LogInformation("Successfully saved repository {Owner}/{Name}. Adding to result list.", 
                     newRepo.Owner, newRepo.Name);
                 addedRepositories.Add(newRepo);
-
-                _logger.LogInformation("Dispatching AnalyzeRepositoryCommitsCommand for repository {Owner}/{Name} (ID: {Id})",
-                    newRepo.Owner, newRepo.Name, newRepo.Id);
-
-                // Dispatch command to analyze the newly added repository
-                await _mediator.Send(new AnalyzeRepositoryCommitsCommand(newRepo.Id), cancellationToken);
-                
-                _logger.LogInformation("Analysis command dispatched for repository {Owner}/{Name}", newRepo.Owner, newRepo.Name);
+                repositoriesToAnalyze.Add(newRepo.Id); // Queue for analysis
             }
             catch (Exception ex)
             {
@@ -100,6 +95,40 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                     repo.Owner ?? "NULL", repo.RepoName ?? "NULL", ex.Message, ex.StackTrace);
                 // Continue with other repositories even if one fails
             }
+        }
+
+        _logger.LogInformation("Phase 1 complete: Added {Count} repositories to database", addedRepositories.Count);
+
+        // PHASE 2: Dispatch analysis commands (fire-and-forget to avoid blocking return)
+        if (repositoriesToAnalyze.Any())
+        {
+            _logger.LogInformation("Phase 2: Dispatching analysis for {Count} repositories", repositoriesToAnalyze.Count);
+            
+            // Run analysis in background without awaiting (fire-and-forget pattern)
+            _ = Task.Run(async () =>
+            {
+                foreach (var repoId in repositoriesToAnalyze)
+                {
+                    try
+                    {
+                        var repo = addedRepositories.FirstOrDefault(r => r.Id == repoId);
+                        _logger.LogInformation("Dispatching AnalyzeRepositoryCommitsCommand for repository ID: {Id} ({Owner}/{Name})",
+                            repoId, repo?.Owner ?? "Unknown", repo?.Name ?? "Unknown");
+
+                        await _mediator.Send(new AnalyzeRepositoryCommitsCommand(repoId), cancellationToken);
+                        
+                        _logger.LogInformation("Analysis command completed for repository ID: {Id}", repoId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "EXCEPTION during analysis of repository ID: {Id}. Message: {Message}",
+                            repoId, ex.Message);
+                        // Continue with other analyses even if one fails
+                    }
+                }
+            }, cancellationToken);
+            
+            _logger.LogInformation("Analysis dispatched in background for {Count} repositories", repositoriesToAnalyze.Count);
         }
 
         _logger.LogInformation("=== COMPLETED AddMultipleRepositoriesCommandHandler ===");
