@@ -115,7 +115,7 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
         }
         {
           name: 'GitHub__PAT'
-          value: ''  // Will be set via CLI after deployment
+          value: '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'
         }
       ]
     }
