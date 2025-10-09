@@ -249,9 +249,10 @@
             Logger.LogInformation("Number of selected repositories: {Count}", pageState.SelectedRepositories.Count);
             
             // Log each selected repository
-            for (int i = 0; i < pageState.SelectedRepositories.Count; i++)
+            var selectedList = pageState.SelectedRepositories.ToList();
+            for (int i = 0; i < selectedList.Count; i++)
             {
-                var repo = pageState.SelectedRepositories[i];
+                var repo = selectedList[i];
                 Logger.LogInformation("Selected Repo [{Index}]: FullName='{FullName}', CloneUrl='{CloneUrl}'", 
                     i, repo.FullName, repo.CloneUrl);
             }
