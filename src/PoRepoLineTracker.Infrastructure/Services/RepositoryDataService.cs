@@ -51,8 +51,19 @@ public class RepositoryDataService : IRepositoryDataService
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Adding repository {RepoName} to Table Storage.", repository.Name);
-        var entity = GitHubRepositoryEntity.FromDomainModel(repository);
-        await _repositoryTableClient.AddEntityAsync(entity);
+        try
+        {
+            var entity = GitHubRepositoryEntity.FromDomainModel(repository);
+            _logger.LogInformation("About to call AddEntityAsync for {RepoName}", repository.Name);
+            await _repositoryTableClient.AddEntityAsync(entity);
+            _logger.LogInformation("AddEntityAsync completed for {RepoName}", repository.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "FATAL ERROR in AddEntityAsync for {RepoName}: {Message}. Type: {ExceptionType}. Stack: {StackTrace}", 
+                repository.Name, ex.Message, ex.GetType().FullName, ex.StackTrace);
+            throw; // Re-throw to propagate to caller
+        }
         _logger.LogInformation("Repository {RepoName} added successfully.", repository.Name);
     }
 

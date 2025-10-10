@@ -77,7 +77,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                     Owner = repo.Owner,
                     Name = repo.RepoName,
                     CloneUrl = repo.CloneUrl,
-                    LastAnalyzedCommitDate = DateTime.MinValue // Default value
+                    LastAnalyzedCommitDate = null // Null until first analysis completes
                 };
 
                 _logger.LogInformation("Saving repository {Owner}/{Name} to database with ID {Id}", 

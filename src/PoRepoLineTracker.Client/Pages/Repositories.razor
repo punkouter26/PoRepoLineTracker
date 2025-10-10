@@ -69,7 +69,7 @@ else
                 <tr>
                     <td>@repo.Owner</td>
                     <td>@repo.Name</td>
-                    <td>@(repo.LastAnalyzedCommitDate == DateTime.MinValue ? "Never" : repo.LastAnalyzedCommitDate.ToString("MM/dd/yyyy HH:mm"))</td>
+                    <td>@(repo.LastAnalyzedCommitDate.HasValue ? repo.LastAnalyzedCommitDate.Value.ToString("MM/dd/yyyy HH:mm") : "Never")</td>
                     <td>
                         <span class="badge bg-success">✓ Analyzed</span>
                     </td>

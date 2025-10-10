@@ -1,0 +1,110 @@
+<step title="BackgroundTrace" date="2025-10-09T18:54:37.141" instance="92ca53" url="/api/zipdeploy" method="POST" >
+  <step title="Updating shutdown sentinel last write time" date="2025-10-09T18:54:37.156" SemaphoreCount="7" /><!-- duration: 0ms -->
+  <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; acquired" date="2025-10-09T18:54:37.156" /><!-- duration: 0ms -->
+  <step title="Creating temporary deployment" date="2025-10-09T18:54:37.156" /><!-- duration: 47ms -->
+  <step title="Performing fetch based deployment" date="2025-10-09T18:54:37.203" >
+    <step title="Fetching changes." date="2025-10-09T18:54:37.250" /><!-- duration: 16ms -->
+    <step title="Starting LocalZipHandler" date="2025-10-09T18:54:37.281" /><!-- duration: 0ms -->
+    <step title="Cleaning up temp folders from previous zip deployments and extracting pushed zip file C:\local\Temp\zipdeploy\0nlbrlfz.zip (89.93 MB) to C:\local\Temp\zipdeploy\extracted" date="2025-10-09T18:54:37.328" /><!-- duration: 0ms -->
+    <step title="Cleaning up temp folders from previous zip deployments and extracting pushed zip file C:\local\Temp\zipdeploy\0nlbrlfz.zip (89.93 MB) to C:\local\Temp\zipdeploy\extracted" date="2025-10-09T18:54:37.328" >
+      <step title="Renaming extractTargetDirectory(C:\local\Temp\zipdeploy\extracted) to tempDirectory(C:\local\Temp\zipdeploy\fsfuqm5w.id1)" date="2025-10-09T18:54:37.328" /><!-- duration: 16ms -->
+      <step title="Extracting 1614 entries to C:\local\Temp\zipdeploy\extracted directory" date="2025-10-09T18:54:37.375" >
+        <step title="Extracting to C:\local\Temp\zipdeploy\extracted\Azure.Core.dll ..." date="2025-10-09T18:54:37.375" /><!-- duration: 16ms -->
+        <step title="Extracting to C:\local\Temp\zipdeploy\extracted\Azure.Data.Tables.dll ..." date="2025-10-09T18:54:37.406" /><!-- duration: 0ms -->
+        <step title="Extracting to C:\local\Temp\zipdeploy\extracted\BlazorDebugProxy\BrowserDebugHost.dll ..." date="2025-10-09T18:54:37.422" /><!-- duration: 16ms -->
+        <step title="Extracting to C:\local\Temp\zipdeploy\extracted\BlazorDebugProxy\BrowserDebugHost.runtimeconfig.json ..." date="2025-10-09T18:54:37.438" /><!-- duration: 16ms -->
+        <step title="Extracting to C:\local\Temp\zipdeploy\extracted\BlazorDebugProxy\BrowserDebugProxy.dll ..." date="2025-10-09T18:54:37.453" /><!-- duration: 0ms -->
+        <step title="Omitting extracting file traces ..." date="2025-10-09T18:54:37.469" /><!-- duration: 0ms -->
+        <step title="Extracting to C:\local\Temp\zipdeploy\extracted\wwwroot\wwwroot\wwwroot\lib\bootstrap\dist\js\bootstrap.min.js.map.br ..." date="2025-10-09T18:54:40.453" /><!-- duration: 16ms -->
+        <step title="Extracting to C:\local\Temp\zipdeploy\extracted\wwwroot\wwwroot\wwwroot\lib\bootstrap\dist\js\bootstrap.min.js.map.gz ..." date="2025-10-09T18:54:40.469" /><!-- duration: 0ms -->
+        <step title="Extracting to C:\local\Temp\zipdeploy\extracted\wwwroot\wwwroot\wwwroot\sample-data\weather.json ..." date="2025-10-09T18:54:40.469" /><!-- duration: 16ms -->
+        <step title="Extracting to C:\local\Temp\zipdeploy\extracted\wwwroot\wwwroot\wwwroot\sample-data\weather.json.br ..." date="2025-10-09T18:54:40.484" /><!-- duration: 0ms -->
+        <step title="Extracting to C:\local\Temp\zipdeploy\extracted\wwwroot\wwwroot\wwwroot\sample-data\weather.json.gz ..." date="2025-10-09T18:54:40.484" /><!-- duration: 16ms -->
+      </step><!-- duration: 3125ms -->
+    </step><!-- duration: 3172ms -->
+    <step title="Before sending BuildRequestReceived status to /api/updatedeploystatus" date="2025-10-09T18:54:40.516" /><!-- duration: 0ms -->
+    <step title="DeploymentManager.Deploy(id:88debbec6f514d7ab8951548735fba44)" date="2025-10-09T18:54:40.516" >
+      <step title="Collecting changeset information" date="2025-10-09T18:54:40.531" /><!-- duration: 31ms -->
+      <step title="Updating submodules" date="2025-10-09T18:54:40.563" >
+        <step title="Updating submodules." date="2025-10-09T18:54:40.609" /><!-- duration: 0ms -->
+      </step><!-- duration: 47ms -->
+      <step title="Preparing deployment for commit id &apos;88debbec6f&apos;." date="2025-10-09T18:54:40.656" /><!-- duration: 0ms -->
+      <step title="Determining deployment builder" date="2025-10-09T18:54:40.688" >
+        <step title="Builder is BasicBuilder" date="2025-10-09T18:54:40.688" /><!-- duration: 0ms -->
+      </step><!-- duration: 0ms -->
+      <step title="Copying SSH keys" date="2025-10-09T18:54:40.703" /><!-- duration: 31ms -->
+      <step title="Building" date="2025-10-09T18:54:40.734" >
+        <step title="Generating deployment script." date="2025-10-09T18:54:40.766" /><!-- duration: 0ms -->
+        <step title="Generating deployment script" date="2025-10-09T18:54:40.766" >
+          <step title="Using cached version of the deployment script for command: -y --no-dot-deployment -r &quot;C:\local\Temp\zipdeploy\extracted&quot; -o &quot;C:\home\site\deployments\tools&quot; --basic --sitePath &quot;C:\local\Temp\zipdeploy\extracted&quot;" date="2025-10-09T18:54:40.813" /><!-- duration: 0ms -->
+          <step title="Using cached version of deployment script (command: &apos;azure -y --no-dot-deployment -r &quot;C:\local\Temp\zipdeploy\extracted&quot; -o &quot;C:\home\site\deployments\tools&quot; --basic --sitePath &quot;C:\local\Temp\zipdeploy\extracted&quot;&apos;)." date="2025-10-09T18:54:40.828" /><!-- duration: 16ms -->
+        </step><!-- duration: 78ms -->
+        <step title="Running deployment command..." date="2025-10-09T18:54:40.875" /><!-- duration: 0ms -->
+        <step title="Command: &quot;C:\home\site\deployments\tools\deploy.cmd&quot;" date="2025-10-09T18:54:40.891" /><!-- duration: 0ms -->
+        <step title="Executing external process" date="2025-10-09T18:54:40.906" type="process" path="starter.cmd" arguments="&quot;C:\home\site\deployments\tools\deploy.cmd&quot;" >
+          <step title="Handling Basic Web Site deployment." date="2025-10-09T18:54:41.063" /><!-- duration: 0ms -->
+          <step title="Creating app_offline.htm" date="2025-10-09T18:54:41.484" /><!-- duration: 0ms -->
+          <step title="KuduSync.NET from: &apos;C:\local\Temp\zipdeploy\extracted&apos; to: &apos;C:\home\site\wwwroot&apos;" date="2025-10-09T18:54:41.484" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;appsettings.Development.json&apos;" date="2025-10-09T18:54:41.500" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;appsettings.json&apos;" date="2025-10-09T18:54:41.500" /><!-- duration: 16ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Api&apos;" date="2025-10-09T18:54:41.516" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Api.deps.json&apos;" date="2025-10-09T18:54:41.516" /><!-- duration: 16ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Api.dll&apos;" date="2025-10-09T18:54:41.531" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Api.pdb&apos;" date="2025-10-09T18:54:41.531" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Api.runtimeconfig.json&apos;" date="2025-10-09T18:54:41.547" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Api.staticwebassets.endpoints.json&apos;" date="2025-10-09T18:54:41.547" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Application.dll&apos;" date="2025-10-09T18:54:41.563" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Application.pdb&apos;" date="2025-10-09T18:54:41.563" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Client.dll&apos;" date="2025-10-09T18:54:41.578" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Client.pdb&apos;" date="2025-10-09T18:54:41.578" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Domain.dll&apos;" date="2025-10-09T18:54:41.594" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Domain.pdb&apos;" date="2025-10-09T18:54:41.594" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Infrastructure.dll&apos;" date="2025-10-09T18:54:41.609" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;PoRepoLineTracker.Infrastructure.pdb&apos;" date="2025-10-09T18:54:41.609" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\favicon.png&apos;" date="2025-10-09T18:54:41.625" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\icon-192.png&apos;" date="2025-10-09T18:54:41.625" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\index.html&apos;" date="2025-10-09T18:54:41.641" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\index.html.br&apos;" date="2025-10-09T18:54:41.641" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\index.html.gz&apos;" date="2025-10-09T18:54:41.656" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\PoRepoLineTracker.Client.staticwebassets.endpoints.json&apos;" date="2025-10-09T18:54:41.656" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\PoRepoLineTracker.Client.staticwebassets.endpoints.json.br&apos;" date="2025-10-09T18:54:41.656" /><!-- duration: 16ms -->
+          <step title="Copying file: &apos;wwwroot\PoRepoLineTracker.Client.staticwebassets.endpoints.json.gz&apos;" date="2025-10-09T18:54:41.672" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\PoRepoLineTracker.Client.styles.css&apos;" date="2025-10-09T18:54:41.672" /><!-- duration: 16ms -->
+          <step title="Copying file: &apos;wwwroot\PoRepoLineTracker.Client.styles.css.br&apos;" date="2025-10-09T18:54:41.688" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\PoRepoLineTracker.Client.styles.css.gz&apos;" date="2025-10-09T18:54:41.688" /><!-- duration: 31ms -->
+          <step title="Copying file: &apos;wwwroot\css\app.css&apos;" date="2025-10-09T18:54:41.719" /><!-- duration: 31ms -->
+          <step title="Copying file: &apos;wwwroot\css\app.css.br&apos;" date="2025-10-09T18:54:41.750" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\css\app.css.gz&apos;" date="2025-10-09T18:54:41.766" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.css&apos;" date="2025-10-09T18:54:41.766" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.css.br&apos;" date="2025-10-09T18:54:41.781" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.css.gz&apos;" date="2025-10-09T18:54:41.781" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.css.map&apos;" date="2025-10-09T18:54:41.797" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.css.map.br&apos;" date="2025-10-09T18:54:41.797" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.css.map.gz&apos;" date="2025-10-09T18:54:41.813" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.min.css&apos;" date="2025-10-09T18:54:41.813" /><!-- duration: 16ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.min.css.br&apos;" date="2025-10-09T18:54:41.828" /><!-- duration: 16ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.min.css.gz&apos;" date="2025-10-09T18:54:41.844" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.min.css.map&apos;" date="2025-10-09T18:54:41.844" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.min.css.map.br&apos;" date="2025-10-09T18:54:41.859" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.min.css.map.gz&apos;" date="2025-10-09T18:54:41.859" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.rtl.css&apos;" date="2025-10-09T18:54:41.875" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.rtl.css.br&apos;" date="2025-10-09T18:54:41.875" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.rtl.css.gz&apos;" date="2025-10-09T18:54:41.891" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.rtl.css.map&apos;" date="2025-10-09T18:54:41.891" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.rtl.css.map.br&apos;" date="2025-10-09T18:54:41.906" /><!-- duration: 0ms -->
+          <step title="Copying file: &apos;wwwroot\lib\bootstrap\dist\css\bootstrap-grid.rtl.css.map.gz&apos;" date="2025-10-09T18:54:41.906" /><!-- duration: 0ms -->
+          <step title="Omitting next output lines..." date="2025-10-09T18:54:41.922" /><!-- duration: 0ms -->
+          <step title="Finished successfully." date="2025-10-09T18:54:50.676" /><!-- duration: 0ms -->
+        </step><!-- duration: 9786ms -->
+        <step title="Running post deployment command(s)..." date="2025-10-09T18:54:50.724" /><!-- duration: 0ms -->
+        <step title="Triggering recycle (preview mode disabled)." date="2025-10-09T18:54:50.771" /><!-- duration: 0ms -->
+        <step title="Ignoring FS watcher based recycle request as this is a classic Windows app." date="2025-10-09T18:54:50.771" /><!-- duration: 0ms -->
+        <step title="Deployment successful. DEPLOYMENTINFO: deploymentPath = ZipDeploy. Extract zip. , deployer = ZipDeploy, os = windows, sku = Free, siteName = PoRepoLineTracker, siteHostName = porepolinetracker.azurewebsites.net, deploymentStatus = Success" date="2025-10-09T18:54:50.817" /><!-- duration: 0ms -->
+      </step><!-- duration: 10177ms -->
+    </step><!-- duration: 10395ms -->
+    <step title="Cleaning up temp files" date="2025-10-09T18:54:50.927" /><!-- duration: 0ms -->
+    <step title="Skip function trigger and logicapp sync because function is not enabled." date="2025-10-09T18:54:50.943" /><!-- duration: 0ms -->
+  </step><!-- duration: 13771ms -->
+  <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; released" date="2025-10-09T18:54:50.974" /><!-- duration: 16ms -->
+  <step title="Deleting shutdown sentinel file" date="2025-10-09T18:54:50.989" SemaphoreCount="8" /><!-- duration: 0ms -->
+</step><!-- duration: 13864ms -->
