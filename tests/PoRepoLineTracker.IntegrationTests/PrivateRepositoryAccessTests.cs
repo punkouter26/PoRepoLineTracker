@@ -142,10 +142,10 @@ public class PrivateRepositoryAccessTests : IAsyncLifetime
         // Assert
         commits.Should().NotBeNull();
         commits.Should().NotBeEmpty("the private repository should have commits");
-        
+
         var commitList = commits.ToList();
         commitList.Should().HaveCountGreaterThan(0);
-        
+
         // Verify commit structure
         var firstCommit = commitList.First();
         firstCommit.Sha.Should().NotBeNullOrEmpty("each commit should have a SHA");
@@ -166,18 +166,18 @@ public class PrivateRepositoryAccessTests : IAsyncLifetime
         // Assert
         commitStats.Should().NotBeNull();
         commitStats.Should().NotBeEmpty("the repository should have commit statistics");
-        
+
         var statsList = commitStats.ToList();
-        
+
         // Verify commit stats structure
         var firstStat = statsList.First();
         firstStat.Sha.Should().NotBeNullOrEmpty();
         firstStat.CommitDate.Should().BeBefore(DateTime.UtcNow);
-        
+
         // Verify line count data exists
-        firstStat.Should().Match<CommitStatsDto>(s => 
-            s.TotalLines >= 0 && 
-            s.LinesAdded >= 0 && 
+        firstStat.Should().Match<CommitStatsDto>(s =>
+            s.TotalLines >= 0 &&
+            s.LinesAdded >= 0 &&
             s.LinesRemoved >= 0,
             "commit stats should contain valid line count data");
     }
@@ -202,13 +202,13 @@ public class PrivateRepositoryAccessTests : IAsyncLifetime
         // Assert
         lineCounts.Should().NotBeNull();
         lineCounts.Should().NotBeEmpty("the commit should contain trackable files");
-        
+
         // Verify that line counts are positive
-        lineCounts.Values.Should().AllSatisfy(count => 
+        lineCounts.Values.Should().AllSatisfy(count =>
             count.Should().BeGreaterThan(0, "each file type should have a positive line count"));
-        
+
         // Verify that file extensions match expected patterns
-        lineCounts.Keys.Should().AllSatisfy(ext => 
+        lineCounts.Keys.Should().AllSatisfy(ext =>
             fileExtensions.Should().Contain(ext, $"file extension {ext} should be in the tracked extensions"));
     }
 
@@ -234,7 +234,7 @@ public class PrivateRepositoryAccessTests : IAsyncLifetime
 
         // Verify commits are still accessible
         var afterPullCommits = await _gitHubService.GetCommitsAsync(localPath);
-        afterPullCommits.Count().Should().BeGreaterThanOrEqualTo(initialCommitCount, 
+        afterPullCommits.Count().Should().BeGreaterThanOrEqualTo(initialCommitCount,
             "commit count should remain the same or increase after pull");
     }
 
@@ -261,10 +261,10 @@ public class PrivateRepositoryAccessTests : IAsyncLifetime
         {
             var lineCounts = await _gitHubService.CountLinesInCommitAsync(localPath, stat.Sha, fileExtensions);
             lineCounts.Should().NotBeNull();
-            
+
             var totalLines = lineCounts.Values.Sum();
             totalLines.Should().BeGreaterThan(0, $"commit {stat.Sha} should have some lines of code");
-            
+
             processedCommits++;
         }
 

@@ -56,6 +56,7 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
     /// <summary>
     /// Strategy Pattern: Implements file system cleanup strategy.
     /// Removes the entire local repositories directory tree.
+    /// Uses garbage collection and retries to handle locked Git repository files.
     /// </summary>
     private async Task RemoveAllLocalRepositoriesAsync()
     {
@@ -77,18 +78,44 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
 
         await Task.Run(() =>
         {
-            try
-            {
-                // Force delete the entire directory tree
-                Directory.Delete(localReposPath, recursive: true);
-                _logger.LogInformation("Local repositories directory removed successfully: {Path}", localReposPath);
-            }
-            catch (IOException ex)
-            {
-                _logger.LogWarning(ex, "Some files may be locked. Attempting individual file cleanup for: {Path}", localReposPath);
+            // Force garbage collection to release any open file handles
+            // This is particularly important for LibGit2Sharp Repository objects
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
 
-                // Attempt to delete individual files if directory deletion fails
-                ForceDeleteDirectory(localReposPath);
+            // Retry logic to handle file locks
+            const int maxRetries = 3;
+            const int delayBetweenRetriesMs = 500;
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    _logger.LogInformation("Attempting to delete local repositories directory (attempt {Attempt}/{MaxRetries})", attempt, maxRetries);
+
+                    // Force delete the entire directory tree
+                    Directory.Delete(localReposPath, recursive: true);
+                    _logger.LogInformation("Local repositories directory removed successfully: {Path}", localReposPath);
+                    return; // Success - exit
+                }
+                catch (IOException ex) when (attempt < maxRetries)
+                {
+                    _logger.LogWarning(ex, "Attempt {Attempt} failed. Some files may be locked. Retrying in {DelayMs}ms...", attempt, delayBetweenRetriesMs);
+                    Thread.Sleep(delayBetweenRetriesMs);
+
+                    // Force another GC cycle between retries
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                }
+                catch (IOException ex) when (attempt == maxRetries)
+                {
+                    _logger.LogWarning(ex, "All retry attempts exhausted. Attempting individual file cleanup for: {Path}", localReposPath);
+
+                    // Attempt to delete individual files if directory deletion fails
+                    ForceDeleteDirectory(localReposPath);
+                    return;
+                }
             }
         });
     }
@@ -96,6 +123,7 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
     /// <summary>
     /// Strategy Pattern: Implements aggressive file deletion strategy for locked files.
     /// Uses recursive approach to handle file system locks and read-only attributes.
+    /// Includes retry logic and garbage collection to release file handles.
     /// </summary>
     private void ForceDeleteDirectory(string directoryPath)
     {
@@ -104,13 +132,33 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
             if (!Directory.Exists(directoryPath))
                 return;
 
+            _logger.LogInformation("Force deleting directory: {Path}", directoryPath);
+
+            // Force GC again before individual file deletion
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
             // Remove read-only attributes and delete files
             foreach (var file in Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories))
             {
                 try
                 {
                     File.SetAttributes(file, FileAttributes.Normal);
-                    File.Delete(file);
+                    
+                    // Retry file deletion
+                    for (int retry = 0; retry < 3; retry++)
+                    {
+                        try
+                        {
+                            File.Delete(file);
+                            break; // Success
+                        }
+                        catch (IOException) when (retry < 2)
+                        {
+                            Thread.Sleep(100);
+                            GC.Collect();
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -119,7 +167,10 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
             }
 
             // Delete directories bottom-up
-            foreach (var directory in Directory.GetDirectories(directoryPath, "*", SearchOption.AllDirectories))
+            var directories = Directory.GetDirectories(directoryPath, "*", SearchOption.AllDirectories)
+                .OrderByDescending(d => d.Length); // Delete deepest first
+
+            foreach (var directory in directories)
             {
                 try
                 {
@@ -132,7 +183,15 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
             }
 
             // Finally delete the root directory
-            Directory.Delete(directoryPath, false);
+            try
+            {
+                Directory.Delete(directoryPath, false);
+                _logger.LogInformation("Successfully force-deleted directory: {Path}", directoryPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete root directory: {DirectoryPath}", directoryPath);
+            }
         }
         catch (Exception ex)
         {

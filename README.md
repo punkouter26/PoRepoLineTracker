@@ -1,5 +1,8 @@
 # PoRepoLineTracker
 
+[![CI/CD Pipeline](https://github.com/YOUR-USERNAME/PoRepoLineTracker/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/YOUR-USERNAME/PoRepoLineTracker/actions/workflows/ci-cd.yml)
+[![PR Validation](https://github.com/YOUR-USERNAME/PoRepoLineTracker/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/YOUR-USERNAME/PoRepoLineTracker/actions/workflows/pr-validation.yml)
+
 **Automated GitHub repository analysis with code metrics and historical trend visualization.**
 
 PoRepoLineTracker is a .NET 9.0 web application that tracks lines of code evolution across GitHub repositories. Built with Clean Architecture and featuring a modern Blazor WebAssembly UI, it provides real-time insights into code growth, language distribution, and commit-level analysis.
@@ -60,6 +63,64 @@ Diagrams are automatically maintained using Mermaid syntax. To update all diagra
 This script requires Node.js and will automatically install the Mermaid CLI if needed.
 
 ## 🚀 Getting Started
+
+## 🔄 CI/CD Pipeline
+
+This project uses **GitHub Actions** for automated continuous integration and deployment. The pipeline includes:
+
+- ✅ **Automated Build** - Compiles solution on every push/PR
+- ✅ **Code Quality** - Enforces consistent formatting with `dotnet format`
+- ✅ **Automated Tests** - Runs unit and integration tests with coverage reporting
+- ✅ **Azure Deployment** - Deploys to Azure App Service on `main` branch
+- ✅ **PR Validation** - Fast feedback for pull requests
+
+### Quick Setup
+
+1. **Configure GitHub Secrets** - See [docs/SETUP_GITHUB_SECRETS.md](./docs/SETUP_GITHUB_SECRETS.md) for step-by-step guide
+2. **Push to Main** - Triggers full CI/CD pipeline with deployment
+3. **Create PR** - Triggers validation (build + tests) without deployment
+
+### Documentation
+
+- [CI/CD Pipeline Guide](./docs/CICD.md) - Comprehensive workflow documentation
+- [GitHub Secrets Setup](./docs/SETUP_GITHUB_SECRETS.md) - Azure credentials configuration
+- [Telemetry Guide](./docs/TELEMETRY.md) - OpenTelemetry observability
+
+## � Documentation
+
+Comprehensive documentation is available to help you understand, use, and contribute to PoRepoLineTracker:
+
+### For Users
+- **[README](./README.md)** (this file) - Project overview and quick start guide
+- **[Product Requirements](./PRD.md)** - Detailed product specifications and requirements
+
+### For Developers
+- **[Architecture Guide](./docs/ARCHITECTURE.md)** - System design, patterns, and technical decisions
+- **[API Documentation](./docs/API.md)** - Complete API reference with examples
+- **[Developer Onboarding](./docs/DEVELOPER_ONBOARDING.md)** - Step-by-step guide for new developers
+- **[Contributing Guidelines](./CONTRIBUTING.md)** - How to contribute to the project
+- **[Development Standards](./agents.md)** - Coding standards and best practices
+
+### For DevOps
+- **[CI/CD Pipeline](./docs/CICD.md)** - GitHub Actions workflows and deployment
+- **[GitHub Secrets Setup](./docs/SETUP_GITHUB_SECRETS.md)** - Azure credentials configuration
+- **[Telemetry Guide](./docs/TELEMETRY.md)** - OpenTelemetry monitoring and observability
+
+### For Testers
+- **[Test Documentation](./tests/README.md)** - Testing strategy and test execution
+- **[E2E Test Guide](./tests/PoRepoLineTracker.E2ETests/README.md)** - Playwright browser testing
+
+### Quick Links
+| Document | Description | Audience |
+|----------|-------------|----------|
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System architecture and design patterns | Developers |
+| [API.md](./docs/API.md) | API endpoints and examples | Developers, Integrators |
+| [DEVELOPER_ONBOARDING.md](./docs/DEVELOPER_ONBOARDING.md) | New developer setup guide | New Team Members |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | Contribution guidelines | Contributors |
+| [CICD.md](./docs/CICD.md) | CI/CD pipeline documentation | DevOps |
+| [TELEMETRY.md](./docs/TELEMETRY.md) | Observability and monitoring | SRE, Developers |
+
+## �🚀 Getting Started
 
 ### Prerequisites
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)

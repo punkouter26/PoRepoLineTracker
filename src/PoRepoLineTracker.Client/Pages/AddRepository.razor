@@ -1,6 +1,7 @@
 @page "/add-repository"
 @inject HttpClient Http
 @inject ILogger<AddRepository> Logger
+@inject NavigationManager Navigation
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Domain.Models
 @using PoRepoLineTracker.Application.Models
@@ -328,6 +329,11 @@
 
                 pageState.AddRepoMessage = $"{addedRepos?.Count ?? pageState.SelectedRepositories.Count} repositories added successfully! Analysis will begin automatically.";
                 pageState.SelectedRepositories.Clear(); // Clear selections
+                
+                // Navigate back to home page (repositories page)
+                Logger.LogInformation("Navigating to repositories page...");
+                await Task.Delay(1500); // Brief delay to show success message
+                Navigation.NavigateTo("/repositories");
             }
             else
             {

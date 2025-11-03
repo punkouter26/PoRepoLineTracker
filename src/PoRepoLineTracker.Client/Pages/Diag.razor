@@ -94,17 +94,33 @@
                 <h4>Detailed Health Checks</h4>
                 <div class="card">
                     <div class="card-body">
-                        <ul class="list-group">
-                            @foreach (var check in healthChecks)
-                            {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    @check.Name
-                                    <span class="badge @(check.Status.Contains("Healthy") ? "bg-success" : "bg-danger") rounded-pill">
-                                        @check.Status
-                                    </span>
-                                </li>
-                            }
-                        </ul>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Component</th>
+                                        <th>Status</th>
+                                        <th>Description</th>
+                                        <th>Duration (ms)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var check in healthChecks)
+                                    {
+                                        <tr>
+                                            <td>@check.Name</td>
+                                            <td>
+                                                <span class="badge @(check.Status == "Healthy" ? "bg-success" : check.Status == "Degraded" ? "bg-warning" : "bg-danger") rounded-pill">
+                                                    @check.Status
+                                                </span>
+                                            </td>
+                                            <td>@(check.Description ?? "N/A")</td>
+                                            <td>@check.Duration.ToString("F2")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -141,19 +157,27 @@
     {
         try
         {
-            var response = await Http.GetFromJsonAsync<HealthResponse>("/healthz");
+            var response = await Http.GetFromJsonAsync<HealthResponse>("/api/health");
             if (response != null)
             {
                 overallHealthStatus = response.Status;
-                lastUpdated = response.Timestamp;
-                healthChecks = response.Checks;
+                lastUpdated = DateTime.UtcNow;
+                
+                // Convert response checks to HealthCheck array
+                healthChecks = response.Checks.Select(c => new HealthCheck 
+                { 
+                    Name = c.Name, 
+                    Status = c.Status,
+                    Description = c.Description,
+                    Duration = c.Duration
+                }).ToArray();
 
                 // Update individual statuses
-                var azureCheck = response.Checks.FirstOrDefault(c => c.Name == "Azure Table Storage");
-                var githubCheck = response.Checks.FirstOrDefault(c => c.Name == "GitHub API");
+                var azureCheck = healthChecks.FirstOrDefault(c => c.Name.Contains("azure", StringComparison.OrdinalIgnoreCase));
+                var githubCheck = healthChecks.FirstOrDefault(c => c.Name.Contains("github", StringComparison.OrdinalIgnoreCase));
                 
                 azureStorageStatus = azureCheck?.Status ?? "Unknown";
-                githubApiStatus = githubCheck?.Status ?? "Unknown";
+                githubApiStatus = githubCheck?.Status ?? "Not Configured";
             }
             else
             {
@@ -173,13 +197,23 @@
     public class HealthResponse
     {
         public string Status { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; }
-        public HealthCheck[] Checks { get; set; } = Array.Empty<HealthCheck>();
+        public List<HealthCheckEntry> Checks { get; set; } = new();
+        public double TotalDuration { get; set; }
+    }
+
+    public class HealthCheckEntry
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public double Duration { get; set; }
     }
 
     public class HealthCheck
     {
         public string Name { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public double Duration { get; set; }
     }
 }

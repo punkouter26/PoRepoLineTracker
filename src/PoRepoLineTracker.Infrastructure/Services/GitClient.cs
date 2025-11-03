@@ -16,7 +16,7 @@ namespace PoRepoLineTracker.Infrastructure.Services
         public string Clone(string repoUrl, string localPath)
         {
             var cloneOptions = new CloneOptions();
-            
+
             // Configure credentials using GitHub PAT for private repositories
             if (!string.IsNullOrEmpty(_githubPAT))
             {
@@ -27,7 +27,7 @@ namespace PoRepoLineTracker.Infrastructure.Services
                         Password = string.Empty // Password is empty when using PAT
                     };
             }
-            
+
             return Repository.Clone(repoUrl, localPath, cloneOptions);
         }
 
@@ -39,7 +39,7 @@ namespace PoRepoLineTracker.Infrastructure.Services
                 {
                     FetchOptions = new FetchOptions()
                 };
-                
+
                 // Configure credentials using GitHub PAT for private repositories
                 if (!string.IsNullOrEmpty(_githubPAT))
                 {

@@ -16,6 +16,10 @@ using Microsoft.AspNetCore.OpenApi; // Add this for WithOpenApi
 using Microsoft.OpenApi.Models; // Add this for Swagger
 using Swashbuckle.AspNetCore.Annotations; // Add this for EnableAnnotations
 using System.Collections.Generic; // Add this for List<object>
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
+using PoRepoLineTracker.Api.Telemetry;
 
 namespace PoRepoLineTracker.Api
 {
@@ -177,6 +181,74 @@ namespace PoRepoLineTracker.Api
                 options.ConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
             });
 
+            // Add OpenTelemetry for distributed tracing and custom metrics
+            builder.Services.AddOpenTelemetry()
+                .ConfigureResource(resource => resource
+                    .AddService(
+                        serviceName: AppTelemetry.SourceName,
+                        serviceVersion: AppTelemetry.Version))
+                .WithTracing(tracing =>
+                {
+                    tracing
+                        .AddSource(AppTelemetry.SourceName) // Add custom ActivitySource from API layer
+                        .AddSource(PoRepoLineTracker.Application.Telemetry.AppTelemetry.SourceName) // Add Application layer traces
+                        .AddAspNetCoreInstrumentation(options =>
+                        {
+                            // Enrich traces with additional HTTP request details
+                            options.RecordException = true;
+                            options.Filter = context => 
+                            {
+                                // Skip health check endpoint from traces
+                                return !context.Request.Path.StartsWithSegments("/api/health");
+                            };
+                        })
+                        .AddHttpClientInstrumentation(); // Track outgoing HTTP calls (e.g., to GitHub API)
+
+                    // Export traces to console in development
+                    if (builder.Environment.IsDevelopment())
+                    {
+                        tracing.AddConsoleExporter();
+                    }
+
+                    // Export traces to OTLP (Application Insights) in production
+                    var otlpEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
+                    if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+                    {
+                        tracing.AddOtlpExporter(options =>
+                        {
+                            options.Endpoint = new Uri(otlpEndpoint);
+                        });
+                    }
+                })
+                .WithMetrics(metrics =>
+                {
+                    metrics
+                        .AddMeter(AppTelemetry.SourceName) // Add custom Meter from API layer
+                        .AddMeter(PoRepoLineTracker.Application.Telemetry.AppTelemetry.SourceName) // Add Application layer metrics
+                        .AddAspNetCoreInstrumentation() // Add ASP.NET Core metrics
+                        .AddHttpClientInstrumentation(); // Add HttpClient metrics
+
+                    // Export metrics to console in development
+                    if (builder.Environment.IsDevelopment())
+                    {
+                        metrics.AddConsoleExporter();
+                    }
+
+                    // Export metrics to OTLP (Application Insights) in production
+                    var otlpEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
+                    if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+                    {
+                        metrics.AddOtlpExporter(options =>
+                        {
+                            options.Endpoint = new Uri(otlpEndpoint);
+                        });
+                    }
+                });
+
+            // Add Health Checks
+            builder.Services.AddHealthChecks()
+                .AddCheck<PoRepoLineTracker.Api.HealthChecks.AzureTableStorageHealthCheck>("azure_table_storage");
+
             var app = builder.Build();
             app.UseMiddleware<ExceptionHandlingMiddleware>(); // Global exception handling
 
@@ -197,6 +269,30 @@ namespace PoRepoLineTracker.Api
             app.UseBlazorFrameworkFiles();
             app.UseStaticFiles();
             app.MapFallbackToFile("index.html");
+
+            // Health Check Endpoint
+            app.MapHealthChecks("/api/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+            {
+                ResponseWriter = async (context, report) =>
+                {
+                    context.Response.ContentType = "application/json";
+                    var result = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        status = report.Status.ToString(),
+                        checks = report.Entries.Select(e => new
+                        {
+                            name = e.Key,
+                            status = e.Value.Status.ToString(),
+                            description = e.Value.Description,
+                            duration = e.Value.Duration.TotalMilliseconds
+                        }),
+                        totalDuration = report.TotalDuration.TotalMilliseconds
+                    });
+                    await context.Response.WriteAsync(result);
+                }
+            })
+            .WithName("HealthCheck")
+            .WithOpenApi();
 
             // API Endpoints
             app.MapPost("/api/repositories", async (GitHubRepository newRepo, IMediator mediator) =>
@@ -343,10 +439,10 @@ namespace PoRepoLineTracker.Api
                 {
                     Log.Information("=== BULK REPOSITORY ADD ENDPOINT CALLED ===");
                     Log.Information("Request body received: {IsNull}", repositories == null ? "NULL" : "NOT NULL");
-                    
+
                     var repoList = repositories?.ToList() ?? new List<PoRepoLineTracker.Application.Models.BulkRepositoryDto>();
                     Log.Information("Number of repositories in request: {Count}", repoList.Count);
-                    
+
                     // Log each repository in detail
                     for (int i = 0; i < repoList.Count; i++)
                     {
@@ -357,11 +453,11 @@ namespace PoRepoLineTracker.Api
 
                     Log.Information("Sending AddMultipleRepositoriesCommand to MediatR with {Count} repositories", repoList.Count);
                     var addedRepositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddMultipleRepositoriesCommand(repositories ?? Enumerable.Empty<PoRepoLineTracker.Application.Models.BulkRepositoryDto>()));
-                    
+
                     var addedList = addedRepositories.ToList();
                     Log.Information("MediatR returned {Count} repositories", addedList.Count);
                     Log.Information("Repositories returned: {Repos}", string.Join(", ", addedList.Select(r => $"{r.Owner}/{r.Name}")));
-                    
+
                     return Results.Ok(addedRepositories);
                 }
                 catch (Exception ex)
@@ -506,7 +602,7 @@ namespace PoRepoLineTracker.Api
 
                 return Results.Json(healthStatus);
             })
-            .WithName("HealthCheck")
+            .WithName("HealthCheckSimple")
             .WithOpenApi();
 
             // Client Logging Endpoint (Development only for security)

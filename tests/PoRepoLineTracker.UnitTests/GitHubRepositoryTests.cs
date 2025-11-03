@@ -1,6 +1,6 @@
-using Xunit;
+using FluentAssertions;
 using PoRepoLineTracker.Domain.Models;
-using System;
+using Xunit;
 
 namespace PoRepoLineTracker.UnitTests;
 
@@ -27,10 +27,11 @@ public class GitHubRepositoryTests
         };
 
         // Assert
-        Assert.Equal(id, repo.Id);
-        Assert.Equal(owner, repo.Owner);
-        Assert.Equal(name, repo.Name);
-        Assert.Equal(cloneUrl, repo.CloneUrl);
-        Assert.Equal(lastAnalyzedCommitDate, repo.LastAnalyzedCommitDate);
+        repo.Id.Should().Be(id);
+        repo.Owner.Should().Be(owner);
+        repo.Name.Should().Be(name);
+        repo.CloneUrl.Should().Be(cloneUrl);
+        repo.LastAnalyzedCommitDate.Should().Be(lastAnalyzedCommitDate);
     }
 }
+

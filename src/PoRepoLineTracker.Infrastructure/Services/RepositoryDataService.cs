@@ -60,7 +60,7 @@ public class RepositoryDataService : IRepositoryDataService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "FATAL ERROR in AddEntityAsync for {RepoName}: {Message}. Type: {ExceptionType}. Stack: {StackTrace}", 
+            _logger.LogError(ex, "FATAL ERROR in AddEntityAsync for {RepoName}: {Message}. Type: {ExceptionType}. Stack: {StackTrace}",
                 repository.Name, ex.Message, ex.GetType().FullName, ex.StackTrace);
             throw; // Re-throw to propagate to caller
         }

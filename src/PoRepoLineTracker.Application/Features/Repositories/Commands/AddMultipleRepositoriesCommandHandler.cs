@@ -25,13 +25,13 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
     {
         _logger.LogInformation("=== START AddMultipleRepositoriesCommandHandler ===");
         _logger.LogInformation("Received request to add {Count} repositories", request.Repositories.Count());
-        
+
         // Log each repository in the request
         var repoList = request.Repositories.ToList();
         for (int i = 0; i < repoList.Count; i++)
         {
             var repo = repoList[i];
-            _logger.LogInformation("Repository [{Index}]: Owner='{Owner}', Name='{RepoName}', CloneUrl='{CloneUrl}'", 
+            _logger.LogInformation("Repository [{Index}]: Owner='{Owner}', Name='{RepoName}', CloneUrl='{CloneUrl}'",
                 i, repo.Owner ?? "NULL", repo.RepoName ?? "NULL", repo.CloneUrl ?? "NULL");
         }
 
@@ -44,26 +44,26 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
             try
             {
                 _logger.LogInformation("Processing repository: {Owner}/{Name}", repo.Owner, repo.RepoName);
-                
+
                 // Validate repository data
                 if (string.IsNullOrWhiteSpace(repo.Owner))
                 {
                     _logger.LogWarning("Skipping repository with empty Owner. RepoName={RepoName}", repo.RepoName ?? "NULL");
                     continue;
                 }
-                
+
                 if (string.IsNullOrWhiteSpace(repo.RepoName))
                 {
                     _logger.LogWarning("Skipping repository with empty RepoName. Owner={Owner}", repo.Owner ?? "NULL");
                     continue;
                 }
-                
+
                 // Check if repository already exists
                 _logger.LogInformation("Checking if repository {Owner}/{Name} already exists...", repo.Owner, repo.RepoName);
                 var existingRepo = await _repositoryDataService.GetRepositoryByOwnerAndNameAsync(repo.Owner, repo.RepoName);
                 if (existingRepo != null)
                 {
-                    _logger.LogInformation("Repository {Owner}/{Name} already exists with ID {Id}, adding to result list.", 
+                    _logger.LogInformation("Repository {Owner}/{Name} already exists with ID {Id}, adding to result list.",
                         repo.Owner, repo.RepoName, existingRepo.Id);
                     addedRepositories.Add(existingRepo);
                     continue;
@@ -80,11 +80,11 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                     LastAnalyzedCommitDate = null // Null until first analysis completes
                 };
 
-                _logger.LogInformation("Saving repository {Owner}/{Name} to database with ID {Id}", 
+                _logger.LogInformation("Saving repository {Owner}/{Name} to database with ID {Id}",
                     newRepo.Owner, newRepo.Name, newRepo.Id);
                 await _repositoryDataService.AddRepositoryAsync(newRepo);
-                
-                _logger.LogInformation("Successfully saved repository {Owner}/{Name}. Adding to result list.", 
+
+                _logger.LogInformation("Successfully saved repository {Owner}/{Name}. Adding to result list.",
                     newRepo.Owner, newRepo.Name);
                 addedRepositories.Add(newRepo);
                 repositoriesToAnalyze.Add(newRepo.Id); // Queue for analysis
@@ -103,7 +103,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
         if (repositoriesToAnalyze.Any())
         {
             _logger.LogInformation("Phase 2: Dispatching analysis for {Count} repositories", repositoriesToAnalyze.Count);
-            
+
             // Run analysis in background without awaiting (fire-and-forget pattern)
             _ = Task.Run(async () =>
             {
@@ -116,7 +116,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                             repoId, repo?.Owner ?? "Unknown", repo?.Name ?? "Unknown");
 
                         await _mediator.Send(new AnalyzeRepositoryCommitsCommand(repoId), cancellationToken);
-                        
+
                         _logger.LogInformation("Analysis command completed for repository ID: {Id}", repoId);
                     }
                     catch (Exception ex)
@@ -127,14 +127,14 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                     }
                 }
             }, cancellationToken);
-            
+
             _logger.LogInformation("Analysis dispatched in background for {Count} repositories", repositoriesToAnalyze.Count);
         }
 
         _logger.LogInformation("=== COMPLETED AddMultipleRepositoriesCommandHandler ===");
         _logger.LogInformation("Final result: Successfully added {Count} out of {Total} repositories.",
             addedRepositories.Count, request.Repositories.Count());
-        _logger.LogInformation("Repository IDs added: {Ids}", 
+        _logger.LogInformation("Repository IDs added: {Ids}",
             string.Join(", ", addedRepositories.Select(r => $"{r.Owner}/{r.Name} ({r.Id})")));
 
         return addedRepositories;

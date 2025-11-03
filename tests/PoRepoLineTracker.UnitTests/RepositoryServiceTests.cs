@@ -1,30 +1,28 @@
-using Xunit;
-using Moq;
+using FluentAssertions;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using PoRepoLineTracker.Application.Features.Repositories.Commands;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Application.Services;
 using PoRepoLineTracker.Domain.Models;
-using System;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using Microsoft.Extensions.Logging;
-using MediatR;
-using PoRepoLineTracker.Application.Features.Repositories.Commands;
+using Xunit;
 
 namespace PoRepoLineTracker.UnitTests;
 
 public class RepositoryServiceTests
 {
-    private readonly Mock<IMediator> _mockMediator;
-    private readonly Mock<IRepositoryDataService> _mockRepositoryDataService;
-    private readonly Mock<ILogger<RepositoryService>> _mockLogger;
+    private readonly IMediator _mockMediator;
+    private readonly IRepositoryDataService _mockRepositoryDataService;
+    private readonly ILogger<RepositoryService> _mockLogger;
     private readonly RepositoryService _repositoryService;
 
     public RepositoryServiceTests()
     {
-        _mockMediator = new Mock<IMediator>();
-        _mockRepositoryDataService = new Mock<IRepositoryDataService>();
-        _mockLogger = new Mock<ILogger<RepositoryService>>();
-        _repositoryService = new RepositoryService(_mockMediator.Object, _mockRepositoryDataService.Object, _mockLogger.Object);
+        _mockMediator = Substitute.For<IMediator>();
+        _mockRepositoryDataService = Substitute.For<IRepositoryDataService>();
+        _mockLogger = Substitute.For<ILogger<RepositoryService>>();
+        _repositoryService = new RepositoryService(_mockMediator, _mockRepositoryDataService, _mockLogger);
     }
 
     [Fact]
@@ -34,19 +32,31 @@ public class RepositoryServiceTests
         var owner = "testowner";
         var repoName = "testrepo";
         var cloneUrl = "https://github.com/testowner/testrepo.git";
+        var expectedRepo = new GitHubRepository 
+        { 
+            Owner = owner, 
+            Name = repoName, 
+            CloneUrl = cloneUrl 
+        };
 
-        _mockMediator.Setup(m => m.Send(It.IsAny<AddRepositoryCommand>(), It.IsAny<CancellationToken>()))
-                     .ReturnsAsync(new GitHubRepository { Owner = owner, Name = repoName, CloneUrl = cloneUrl });
+        _mockMediator.Send(Arg.Any<AddRepositoryCommand>(), Arg.Any<CancellationToken>())
+            .Returns(expectedRepo);
 
         // Act
         var result = await _repositoryService.AddRepositoryAsync(owner, repoName, cloneUrl);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal(owner, result.Owner);
-        Assert.Equal(repoName, result.Name);
-        Assert.Equal(cloneUrl, result.CloneUrl);
-        _mockMediator.Verify(m => m.Send(It.Is<AddRepositoryCommand>(cmd => cmd.Owner == owner && cmd.RepoName == repoName && cmd.CloneUrl == cloneUrl), It.IsAny<CancellationToken>()), Times.Once);
+        result.Should().NotBeNull();
+        result.Owner.Should().Be(owner);
+        result.Name.Should().Be(repoName);
+        result.CloneUrl.Should().Be(cloneUrl);
+        
+        await _mockMediator.Received(1).Send(
+            Arg.Is<AddRepositoryCommand>(cmd => 
+                cmd.Owner == owner && 
+                cmd.RepoName == repoName && 
+                cmd.CloneUrl == cloneUrl), 
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -54,7 +64,6 @@ public class RepositoryServiceTests
     {
         // Arrange
         var repoId = Guid.NewGuid();
-        var localPath = Path.Combine("LocalRepos", "testowner", "testrepo");
         var lastAnalyzedDate = DateTime.UtcNow.AddDays(-7);
         var repo = new GitHubRepository
         {
@@ -65,14 +74,13 @@ public class RepositoryServiceTests
             LastAnalyzedCommitDate = lastAnalyzedDate
         };
 
-        var commits = new List<(string Sha, DateTimeOffset CommitDate)> { ("sha1", DateTimeOffset.UtcNow.AddDays(-6)), ("sha2", DateTimeOffset.UtcNow.AddDays(-5)) };
-        var lineCounts = new Dictionary<string, int> { { ".cs", 100 } };
-
-
         // Act
         await _repositoryService.AnalyzeRepositoryCommitsAsync(repoId);
 
         // Assert
-        _mockMediator.Verify(m => m.Send(It.Is<AnalyzeRepositoryCommitsCommand>(cmd => cmd.RepositoryId == repoId), It.IsAny<CancellationToken>()), Times.Once);
+        await _mockMediator.Received(1).Send(
+            Arg.Is<AnalyzeRepositoryCommitsCommand>(cmd => cmd.RepositoryId == repoId), 
+            Arg.Any<CancellationToken>());
     }
 }
+
