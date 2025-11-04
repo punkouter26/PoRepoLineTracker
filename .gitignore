@@ -428,3 +428,8 @@ log*.txt
 
 # Local development settings with secrets
 appsettings.*.local.json
+
+# User Secrets backups (contains sensitive data)
+secrets-backup.json
+secrets-backup*.json
+*-secrets.json

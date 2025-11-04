@@ -1,0 +1,107 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║     HOW TO RESTORE SECRETS ON YOUR NEW COMPUTER                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+📋 BEFORE YOU START:
+   1. Clone the repo: git clone https://github.com/punkouter26/PoRepoLineTracker.git
+   2. Install .NET 9 SDK: https://dotnet.microsoft.com/download
+   3. Have your secrets-backup.json file ready
+
+═══════════════════════════════════════════════════════════════════
+
+🎯 EASIEST METHOD - USE THE RESTORE SCRIPT:
+
+   1. Open PowerShell
+   2. cd C:\Users\YourName\PoRepoLineTracker
+   3. Copy secrets-backup.json to the project folder
+   4. Run: .\scripts\restore-secrets.ps1
+   5. Done! ✅
+
+═══════════════════════════════════════════════════════════════════
+
+🔧 MANUAL METHOD (if script fails):
+
+   Step 1: Create secrets folder
+   ─────────────────────────────
+   $secretsDir = "$env:APPDATA\Microsoft\UserSecrets\a1b2c3d4-e5f6-7890-1234-567890abcdef"
+   New-Item -ItemType Directory -Path $secretsDir -Force
+
+   Step 2: Copy your backup
+   ─────────────────────────
+   Copy-Item "C:\path\to\secrets-backup.json" -Destination "$secretsDir\secrets.json"
+
+   Step 3: Verify
+   ─────────────────────────
+   dotnet user-secrets list --project src/PoRepoLineTracker.Api
+
+   ✅ You should see 7 secrets
+
+═══════════════════════════════════════════════════════════════════
+
+🔑 SET SECRETS MANUALLY (alternative):
+
+   cd C:\Users\YourName\PoRepoLineTracker
+
+   dotnet user-secrets set "GitHub:PAT" "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" --project src/PoRepoLineTracker.Api
+
+   dotnet user-secrets set "APPLICATIONINSIGHTS_CONNECTION_STRING" "InstrumentationKey=68eb72dd-74b6-4929-b5f8-41a188f94e22;IngestionEndpoint=https://uksouth-1.in.applicationinsights.azure.com/;LiveEndpoint=https://uksouth.livediagnostics.monitor.azure.com/;ApplicationId=86403c05-ca1d-45de-97a8-1fc1b3af7529" --project src/PoRepoLineTracker.Api
+
+   dotnet user-secrets set "AZURE_TENANT_ID" "5da66fe6-bd58-4517-8727-deebc8525dcb" --project src/PoRepoLineTracker.Api
+
+   dotnet user-secrets set "AZURE_LOCATION" "uksouth" --project src/PoRepoLineTracker.Api
+
+   (The following are optional)
+   dotnet user-secrets set "WEB_URI" "https://poredoimage.azurewebsites.net" --project src/PoRepoLineTracker.Api
+
+   dotnet user-secrets set "RESOURCE_GROUP_ID" "/subscriptions/f0504e26-451a-4249-8fb3-46270defdd5b/resourceGroups/PoRedoImage" --project src/PoRepoLineTracker.Api
+
+═══════════════════════════════════════════════════════════════════
+
+✅ TEST IT WORKS:
+
+   # View all secrets
+   dotnet user-secrets list --project src/PoRepoLineTracker.Api
+
+   # Run the app
+   dotnet run --project src/PoRepoLineTracker.Api
+
+   # If it starts without errors, you're good! 🎉
+
+═══════════════════════════════════════════════════════════════════
+
+📍 WHERE SECRETS ARE STORED:
+
+   Windows: C:\Users\{YourName}\AppData\Roaming\Microsoft\UserSecrets\a1b2c3d4-e5f6-7890-1234-567890abcdef\secrets.json
+   
+   Mac/Linux: ~/.microsoft/usersecrets/a1b2c3d4-e5f6-7890-1234-567890abcdef/secrets.json
+
+═══════════════════════════════════════════════════════════════════
+
+💡 IMPORTANT NOTES:
+
+   • The UserSecretsId is: a1b2c3d4-e5f6-7890-1234-567890abcdef
+   • This ID is the same on ALL computers (already in the .csproj file)
+   • Secrets are stored OUTSIDE the Git repository
+   • You only need GitHub:PAT and APPLICATIONINSIGHTS_CONNECTION_STRING 
+     for the app to run locally
+   • Azure settings are only needed if deploying to Azure
+
+═══════════════════════════════════════════════════════════════════
+
+🆘 TROUBLESHOOTING:
+
+   Problem: "dotnet user-secrets" command not found
+   Solution: Install .NET 9 SDK
+
+   Problem: Secrets not loading in app
+   Solution: Make sure you're in the project root folder when running commands
+
+   Problem: App still can't access GitHub
+   Solution: Verify GitHub:PAT is set correctly - this is the most important one!
+
+═══════════════════════════════════════════════════════════════════
+
+📝 SAVE THIS FILE:
+   Keep this file WITH your secrets-backup.json in your secure storage!
+
+═══════════════════════════════════════════════════════════════════
