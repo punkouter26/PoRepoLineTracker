@@ -361,6 +361,13 @@ namespace PoRepoLineTracker.Api
             })
             .WithName("GetConfiguredFileExtensions");
 
+            app.MapGet("/api/settings/chart/max-lines", (IConfiguration configuration) =>
+            {
+                var maxLines = configuration.GetValue<int>("ChartSettings:MaxLinesOfCode", 50000);
+                return Results.Ok(maxLines);
+            })
+            .WithName("GetChartMaxLines");
+
             app.MapGet("/api/repositories/{repositoryId}/file-extension-percentages", async (Guid repositoryId, IMediator mediator) =>
             {
                 try

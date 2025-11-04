@@ -128,7 +128,7 @@ else
                                                     <RadzenCategoryAxis>
                                                         <RadzenGridLines Visible="true" />
                                                     </RadzenCategoryAxis>
-                                                    <RadzenValueAxis Min="0" Max="50000">
+                                                    <RadzenValueAxis Min="0" Max="@chartMaxLines">
                                                         <RadzenGridLines Visible="true" />
                                                     </RadzenValueAxis>
                                                     <RadzenLegend Visible="true" />
@@ -241,10 +241,25 @@ else
     private bool isLoadingChartData = false;
     private string chartErrorMessage = string.Empty;
     private bool isRemovingAll = false;
+    private int chartMaxLines = 50000; // Default value
 
     protected override async Task OnInitializedAsync()
     {
         await LoadRepositories();
+        await LoadChartMaxLines();
+    }
+
+    private async Task LoadChartMaxLines()
+    {
+        try
+        {
+            chartMaxLines = await Http.GetFromJsonAsync<int>("/api/settings/chart/max-lines");
+            Logger.LogInformation("Loaded chart max lines setting: {MaxLines}", chartMaxLines);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Error loading chart max lines setting, using default: {MaxLines}", chartMaxLines);
+        }
     }
 
     private async Task ShowLineCountChart(Guid repositoryId)
