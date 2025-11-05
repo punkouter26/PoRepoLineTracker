@@ -271,13 +271,25 @@ public class GitHubService : IGitHubService
             {
                 var filter = new CommitFilter
                 {
-                    SortBy = CommitSortStrategies.Time
+                    SortBy = CommitSortStrategies.Time,
+                    IncludeReachableFrom = repo.Head
                 };
 
-                var commits = repo.Commits.QueryBy(filter)
-                                          .ToList();
+                IEnumerable<Commit> commits = repo.Commits.QueryBy(filter);
 
-                foreach (var commit in commits)
+                // Apply date filter if provided
+                if (sinceDate.HasValue)
+                {
+                    _logger.LogInformation("Filtering commits since {SinceDate} (UTC)", sinceDate.Value);
+                    // Convert sinceDate to UTC for comparison with commit dates
+                    var sinceDateUtc = sinceDate.Value.Kind == DateTimeKind.Utc ? sinceDate.Value : sinceDate.Value.ToUniversalTime();
+                    commits = commits.Where(c => c.Author.When.UtcDateTime >= sinceDateUtc);
+                }
+
+                var commitsList = commits.ToList();
+                _logger.LogInformation("Processing {CommitCount} commits after date filtering", commitsList.Count);
+
+                foreach (var commit in commitsList)
                 {
                     int linesAdded = 0;
                     int linesRemoved = 0;

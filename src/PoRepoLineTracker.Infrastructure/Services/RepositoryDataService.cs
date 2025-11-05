@@ -1,4 +1,4 @@
-using Azure;
+``using Azure;
 using Azure.Data.Tables;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -95,6 +95,7 @@ public class RepositoryDataService : IRepositoryDataService
 
     public async Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync()
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Getting all repositories from Table Storage.");
         var repositories = new List<GitHubRepository>();
         await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>())
@@ -234,48 +235,61 @@ public class RepositoryDataService : IRepositoryDataService
 
     public async Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync()
     {
-        // Return common file extensions that should be counted for line analysis
-        // These are based on the patterns found in GitHubService
+        // Return file extensions that should be counted for line analysis
+        // Focused on .NET development with support for common web technologies
         var fileExtensions = new[]
         {
+            // .NET Core/Framework Languages
             ".cs",      // C# files
+            ".vb",      // Visual Basic files
+            ".fs",      // F# files
+            ".fsx",     // F# script files
+            
+            // .NET Web UI
+            ".razor",   // Blazor components (CRITICAL for Blazor apps)
+            ".cshtml",  // Razor views (MVC/Pages)
+            ".vbhtml",  // VB Razor views
+            ".aspx",    // ASP.NET Web Forms pages
+            ".ascx",    // ASP.NET User Controls
+            ".master",  // ASP.NET Master pages
+            ".xaml",    // XAML (WPF/UWP/MAUI)
+            
+            // .NET Project & Configuration Files
+            ".csproj",  // C# project files
+            ".vbproj",  // VB project files
+            ".fsproj",  // F# project files
+            ".sln",     // Solution files
+            ".props",   // MSBuild property files
+            ".targets", // MSBuild target files
+            ".config",  // Configuration files
+            ".resx",    // Resource files
+            ".settings",// Settings files
+            
+            // Infrastructure as Code
+            ".bicep",   // Azure Bicep templates
+            
+            // Web Technologies (for full-stack .NET apps)
             ".js",      // JavaScript files
             ".ts",      // TypeScript files
             ".html",    // HTML files
             ".css",     // CSS files
-            ".json",    // JSON files
+            ".json",    // JSON configuration/data files
             ".xml",     // XML files
-            ".sql",     // SQL files
-            ".py",      // Python files
-            ".java",    // Java files
-            ".cpp",     // C++ files
-            ".c",       // C files
-            ".h",       // Header files
-            ".hpp",     // C++ header files
-            ".vb",      // Visual Basic files
-            ".fs",      // F# files
-            ".fsx",     // F# script files
-            ".php",     // PHP files
-            ".rb",      // Ruby files
-            ".go",      // Go files
-            ".rs",      // Rust files
-            ".swift",   // Swift files
-            ".kt",      // Kotlin files
-            ".scala",   // Scala files
-            ".yml",     // YAML files
-            ".yaml",    // YAML files
-            ".config",  // Config files
-            ".cshtml",  // Razor files
-            ".vbhtml",  // VB Razor files
-            ".aspx",    // ASP.NET files
-            ".ascx",    // ASP.NET User Controls
-            ".master",  // ASP.NET Master pages
-            ".xaml",    // XAML files
-            ".sh",      // Shell scripts
-            ".bat",     // Batch files
+            
+            // Database & Scripts
+            ".sql",     // SQL scripts
             ".ps1",     // PowerShell scripts
-            ".pl",      // Perl files
-            ".lua"      // Lua files
+            ".bat",     // Batch files
+            ".sh",      // Shell scripts
+            
+            // DevOps & Configuration
+            ".yml",     // YAML files (Docker, CI/CD)
+            ".yaml",    // YAML files (alternate extension)
+            ".dockerfile", // Docker files
+            ".http",    // HTTP request files
+            
+            // Documentation
+            ".md"       // Markdown documentation
         };
 
         _logger.LogInformation("Returning {Count} configured file extensions for line counting", fileExtensions.Length);

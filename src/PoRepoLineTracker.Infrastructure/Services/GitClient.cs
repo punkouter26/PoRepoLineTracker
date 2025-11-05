@@ -59,11 +59,17 @@ namespace PoRepoLineTracker.Infrastructure.Services
         {
             using (var repo = new Repository(localPath))
             {
-                IEnumerable<Commit> commits = repo.Commits.QueryBy(new CommitFilter { SortBy = CommitSortStrategies.Time });
+                IEnumerable<Commit> commits = repo.Commits.QueryBy(new CommitFilter 
+                { 
+                    SortBy = CommitSortStrategies.Time,
+                    IncludeReachableFrom = repo.Head
+                });
 
                 if (sinceDate.HasValue)
                 {
-                    commits = commits.Where(c => c.Author.When >= sinceDate.Value);
+                    // Convert sinceDate to UTC for consistent comparison
+                    var sinceDateUtc = sinceDate.Value.Kind == DateTimeKind.Utc ? sinceDate.Value : sinceDate.Value.ToUniversalTime();
+                    commits = commits.Where(c => c.Author.When.UtcDateTime >= sinceDateUtc);
                 }
 
                 return commits.Select(c => (c.Sha, c.Author.When)).ToList();

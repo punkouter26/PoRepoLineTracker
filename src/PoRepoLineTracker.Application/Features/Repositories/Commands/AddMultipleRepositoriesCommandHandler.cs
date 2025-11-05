@@ -99,36 +99,32 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
 
         _logger.LogInformation("Phase 1 complete: Added {Count} repositories to database", addedRepositories.Count);
 
-        // PHASE 2: Dispatch analysis commands (fire-and-forget to avoid blocking return)
+        // PHASE 2: Analyze repositories synchronously so they're ready when user returns to home page
         if (repositoriesToAnalyze.Any())
         {
-            _logger.LogInformation("Phase 2: Dispatching analysis for {Count} repositories", repositoriesToAnalyze.Count);
+            _logger.LogInformation("Phase 2: Analyzing {Count} repositories (synchronous)", repositoriesToAnalyze.Count);
 
-            // Run analysis in background without awaiting (fire-and-forget pattern)
-            _ = Task.Run(async () =>
+            foreach (var repoId in repositoriesToAnalyze)
             {
-                foreach (var repoId in repositoriesToAnalyze)
+                try
                 {
-                    try
-                    {
-                        var repo = addedRepositories.FirstOrDefault(r => r.Id == repoId);
-                        _logger.LogInformation("Dispatching AnalyzeRepositoryCommitsCommand for repository ID: {Id} ({Owner}/{Name})",
-                            repoId, repo?.Owner ?? "Unknown", repo?.Name ?? "Unknown");
+                    var repo = addedRepositories.FirstOrDefault(r => r.Id == repoId);
+                    _logger.LogInformation("Analyzing repository ID: {Id} ({Owner}/{Name})",
+                        repoId, repo?.Owner ?? "Unknown", repo?.Name ?? "Unknown");
 
-                        await _mediator.Send(new AnalyzeRepositoryCommitsCommand(repoId), cancellationToken);
+                    await _mediator.Send(new AnalyzeRepositoryCommitsCommand(repoId), cancellationToken);
 
-                        _logger.LogInformation("Analysis command completed for repository ID: {Id}", repoId);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "EXCEPTION during analysis of repository ID: {Id}. Message: {Message}",
-                            repoId, ex.Message);
-                        // Continue with other analyses even if one fails
-                    }
+                    _logger.LogInformation("✓ Analysis completed for repository ID: {Id}", repoId);
                 }
-            }, cancellationToken);
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "✗ EXCEPTION during analysis of repository ID: {Id}. Message: {Message}",
+                        repoId, ex.Message);
+                    // Continue with other analyses even if one fails
+                }
+            }
 
-            _logger.LogInformation("Analysis dispatched in background for {Count} repositories", repositoriesToAnalyze.Count);
+            _logger.LogInformation("All repository analyses completed");
         }
 
         _logger.LogInformation("=== COMPLETED AddMultipleRepositoriesCommandHandler ===");

@@ -65,8 +65,10 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                 // Get configured file extensions to count
                 var fileExtensionsToCount = await _repositoryDataService.GetConfiguredFileExtensionsAsync();
 
-                // Get commit stats from the last 365 days (or all commits if less than 365 days of history)
-                var commitStats = await _gitHubService.GetCommitStatsAsync(localPath, DateTime.Now.AddDays(-365));
+                // Get commit stats from all time (use a date far in the past to get all commits)
+                var sinceDate = DateTime.UtcNow.AddYears(-50); // Get all commits from the repository's entire history
+                _logger.LogInformation("Fetching all commit stats for repository {RepositoryId} (since {SinceDate})", request.RepositoryId, sinceDate);
+                var commitStats = await _gitHubService.GetCommitStatsAsync(localPath, sinceDate);
                 _logger.LogInformation("Found {CommitCount} commits to analyze for repository {RepositoryId}", commitStats.Count(), request.RepositoryId);
 
                 // Process each commit

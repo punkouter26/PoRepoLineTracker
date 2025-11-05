@@ -81,9 +81,10 @@ public class FileIgnoreFilter : IFileIgnoreFilter
         };
 
         // Category 10: Test Data and Mock Files
+        // Note: .resx and .settings are now counted as source code (they contain important .NET resource/config data)
         _testDataExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            ".resx", ".settings", ".resources"
+            ".resources"  // Compiled resource files (binary, not source)
         };
 
         // Directory patterns to ignore
