@@ -1,4 +1,4 @@
-``using Azure;
+using Azure;
 using Azure.Data.Tables;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
