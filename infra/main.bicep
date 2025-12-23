@@ -8,15 +8,23 @@ param location string = 'eastus'
 @description('GitHub Personal Access Token for repository access')
 param githubPAT string
 
+@secure()
+@description('GitHub OAuth Client ID for authentication')
+param githubClientId string
+
+@secure()
+@description('GitHub OAuth Client Secret for authentication')
+param githubClientSecret string
+
 // Naming convention: All resources use 'PoRepoLineTracker' prefix for consistency
 // Storage account names must be lowercase with no special characters due to Azure constraints
 var resourceGroupName = 'PoRepoLineTracker'
-var storageAccountName = 'porepolinetrackeraca'  // Unique name for ACA deployment
-var appInsightsName = 'PoRepoLineTrackerACA'
-var logAnalyticsName = 'PoRepoLineTrackerACA'
+var storageAccountName = 'porepolinetracker'  // Use existing storage account
+var appInsightsName = 'PoRepoLineTracker'  // Use existing App Insights
+var logAnalyticsName = 'PoRepoLineTracker'  // Use existing Log Analytics
 var containerAppName = 'porepolinetracker'  // Container App names must be lowercase
 var containerAppEnvName = 'porepolinetracker-env'
-var containerRegistryName = 'porepolinetrackeracr'
+var containerRegistryName = 'porepolinetracker25cr'
 
 // Create resource group for this application's resources
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -37,6 +45,8 @@ module resources 'resources.bicep' = {
     containerAppEnvName: containerAppEnvName
     containerRegistryName: containerRegistryName
     githubPAT: githubPAT
+    githubClientId: githubClientId
+    githubClientSecret: githubClientSecret
   }
 }
 

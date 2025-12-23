@@ -5,7 +5,10 @@ using './main.bicep'
 
 param location = 'eastus'
 
-// IMPORTANT: Replace this placeholder with actual GitHub PAT at deployment time
+// IMPORTANT: Replace these placeholders with actual values at deployment time
 // Never commit real tokens to source control
-// Deploy with: az deployment sub create --location eastus --template-file main.bicep --parameters @main.bicepparam --parameters githubPAT='your-actual-token'
+// Deploy with: azd up (will prompt for secrets)
+// Or: az deployment sub create --location eastus --template-file main.bicep --parameters @main.bicepparam --parameters githubPAT='your-token' --parameters githubClientId='your-client-id' --parameters githubClientSecret='your-client-secret'
 param githubPAT = 'REPLACE_WITH_ACTUAL_TOKEN'
+param githubClientId = 'REPLACE_WITH_ACTUAL_CLIENT_ID'
+param githubClientSecret = 'REPLACE_WITH_ACTUAL_CLIENT_SECRET'

@@ -23,70 +23,27 @@ param containerRegistryName string
 @description('GitHub Personal Access Token for repository access')
 param githubPAT string
 
-// Log Analytics Workspace (required for Application Insights)
-// This provides centralized log storage and querying capabilities
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+@secure()
+@description('GitHub OAuth Client ID for authentication')
+param githubClientId string
+
+@secure()
+@description('GitHub OAuth Client Secret for authentication')
+param githubClientSecret string
+
+// Reference existing Log Analytics Workspace
+resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = {
   name: logAnalyticsName
-  location: location
-  properties: {
-    sku: {
-      name: 'PerGB2018'  // Pay-as-you-go tier (most cost-effective for small workloads)
-    }
-    retentionInDays: 30  // Minimum retention period (can be increased for compliance needs)
-  }
 }
 
-// Application Insights for application telemetry and monitoring
-// Workspace-based mode provides better integration with Log Analytics
-resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+// Reference existing Application Insights
+resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: appInsightsName
-  location: location
-  kind: 'web'
-  properties: {
-    Application_Type: 'web'
-    WorkspaceResourceId: logAnalytics.id  // Links to Log Analytics for log storage
-    IngestionMode: 'LogAnalytics'  // Modern ingestion mode for better query capabilities
-  }
 }
 
 // Reference existing Storage Account for Azure Table Storage
-// Storage Account for Azure Table Storage
-// Used to persist repository and commit line count data
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
   name: storageAccountName
-  location: location
-  sku: {
-    name: 'Standard_LRS'
-  }
-  kind: 'StorageV2'
-  properties: {
-    minimumTlsVersion: 'TLS1_2'
-    allowBlobPublicAccess: false
-    supportsHttpsTrafficOnly: true
-    accessTier: 'Hot'
-  }
-}
-
-// Table Service (part of Storage Account)
-resource tableService 'Microsoft.Storage/storageAccounts/tableServices@2023-01-01' = {
-  parent: storageAccount
-  name: 'default'
-}
-
-// Application-specific tables
-resource repositoriesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-01-01' = {
-  parent: tableService
-  name: 'PoRepoLineTrackerRepositories'
-}
-
-resource commitLineCountsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-01-01' = {
-  parent: tableService
-  name: 'PoRepoLineTrackerCommitLineCounts'
-}
-
-resource failedOperationsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-01-01' = {
-  parent: tableService
-  name: 'PoRepoLineTrackerFailedOperations'
 }
 
 // Azure Container Registry for storing container images
@@ -156,6 +113,14 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
           value: githubPAT
         }
         {
+          name: 'github-client-id'
+          value: githubClientId
+        }
+        {
+          name: 'github-client-secret'
+          value: githubClientSecret
+        }
+        {
           name: 'appinsights-connection-string'
           value: appInsights.properties.ConnectionString
         }
@@ -174,6 +139,10 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
               secretRef: 'appinsights-connection-string'
+            }
+            {
+              name: 'ConnectionStrings__tables'
+              secretRef: 'storage-connection-string'
             }
             {
               name: 'AzureTableStorage__ConnectionString'
@@ -198,6 +167,14 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'GitHub__PAT'
               secretRef: 'github-pat'
+            }
+            {
+              name: 'GitHub__ClientId'
+              secretRef: 'github-client-id'
+            }
+            {
+              name: 'GitHub__ClientSecret'
+              secretRef: 'github-client-secret'
             }
             {
               name: 'ASPNETCORE_URLS'

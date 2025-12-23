@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Security.Claims;
 using AspNet.Security.OAuth.GitHub;
+using Microsoft.AspNetCore.HttpOverrides;
 
 namespace PoRepoLineTracker.Api
 {
@@ -201,7 +202,7 @@ namespace PoRepoLineTracker.Api
                 options.Cookie.Name = "PoRepoLineTracker.Auth";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // Always use Secure in production
                 options.ExpireTimeSpan = TimeSpan.FromDays(7);
                 options.SlidingExpiration = true;
                 options.LoginPath = "/auth/login";
@@ -223,6 +224,10 @@ namespace PoRepoLineTracker.Api
                 options.ClientId = builder.Configuration["GitHub:ClientId"] ?? throw new InvalidOperationException("GitHub:ClientId is not configured");
                 options.ClientSecret = builder.Configuration["GitHub:ClientSecret"] ?? throw new InvalidOperationException("GitHub:ClientSecret is not configured");
                 options.CallbackPath = builder.Configuration["GitHub:CallbackPath"] ?? "/signin-github";
+                
+                // Configure correlation cookie for OAuth state validation
+                options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.CorrelationCookie.SameSite = SameSiteMode.None;
                 
                 // Request scopes for repository access
                 options.Scope.Add("user:email");
@@ -343,7 +348,19 @@ namespace PoRepoLineTracker.Api
             builder.Services.AddHealthChecks()
                 .AddCheck<PoRepoLineTracker.Api.HealthChecks.AzureTableStorageHealthCheck>("azure_table_storage");
 
+            // Configure forwarded headers for reverse proxy (Azure Container Apps)
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                // Clear known networks/proxies to trust all forwarders (Azure Container Apps)
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
+            });
+
             var app = builder.Build();
+
+            // Apply forwarded headers first (before any other middleware)
+            app.UseForwardedHeaders();
 
             // Map Aspire default endpoints (health checks)
             app.MapDefaultEndpoints();

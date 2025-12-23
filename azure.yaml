@@ -4,6 +4,15 @@ name: PoRepoLineTracker
 metadata:
   template: PoRepoLineTracker
 
+infra:
+  provider: bicep
+  path: infra
+  module: main
+  parameters:
+    githubPAT: ${GITHUB_PAT}
+    githubClientId: ${GITHUB_CLIENT_ID}
+    githubClientSecret: ${GITHUB_CLIENT_SECRET}
+
 services:
   api:
     project: ./src/PoRepoLineTracker.Api
