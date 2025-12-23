@@ -2,11 +2,29 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "PoRepoLineTracker.Api",
+      "name": "Aspire AppHost",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/PoRepoLineTracker.Api/bin/Debug/net9.0/PoRepoLineTracker.Api.dll",
+      "program": "${workspaceFolder}/src/PoRepoLineTracker.AppHost/bin/Debug/net10.0/PoRepoLineTracker.AppHost.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/PoRepoLineTracker.AppHost",
+      "stopAtEntry": false,
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bLogin to the dashboard at\\s+(https?://\\S+)"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "PoRepoLineTracker.Api (standalone)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/PoRepoLineTracker.Api/bin/Debug/net10.0/PoRepoLineTracker.Api.dll",
       "args": [],
       "cwd": "${workspaceFolder}/src/PoRepoLineTracker.Api",
       "stopAtEntry": false,
@@ -16,9 +34,6 @@
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "sourceFileMap": {
-        "/Views": "${workspaceFolder}/Views"
       }
     }
   ]

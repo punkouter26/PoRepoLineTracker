@@ -18,15 +18,14 @@ public class RepositoryDataService : IRepositoryDataService
 
     private bool _tablesInitialized = false;
 
-    public RepositoryDataService(IConfiguration configuration, ILogger<RepositoryDataService> logger)
+    public RepositoryDataService(TableServiceClient tableServiceClient, IConfiguration configuration, ILogger<RepositoryDataService> logger)
     {
         _logger = logger;
-        var connectionString = configuration["AzureTableStorage:ConnectionString"] ?? "UseDevelopmentStorage=true";
         var repositoryTableName = configuration["AzureTableStorage:RepositoryTableName"] ?? "PoRepoLineTrackerRepositories";
         var commitLineCountTableName = configuration["AzureTableStorage:CommitLineCountTableName"] ?? "PoRepoLineTrackerCommitLineCounts";
 
-        _repositoryTableClient = new TableClient(connectionString, repositoryTableName);
-        _commitLineCountTableClient = new TableClient(connectionString, commitLineCountTableName);
+        _repositoryTableClient = tableServiceClient.GetTableClient(repositoryTableName);
+        _commitLineCountTableClient = tableServiceClient.GetTableClient(commitLineCountTableName);
     }
 
     private async Task EnsureTablesExistAsync()

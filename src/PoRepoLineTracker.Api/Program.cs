@@ -13,7 +13,6 @@ using PoRepoLineTracker.Client.Models; // Add this using statement
 using System.Text.Json; // Add this for JSON serialization
 using Microsoft.AspNetCore.Mvc; // Add this for FromBody attribute
 using Microsoft.AspNetCore.OpenApi; // Add this for WithOpenApi
-using Microsoft.OpenApi.Models; // Add this for Swagger
 using Swashbuckle.AspNetCore.Annotations; // Add this for EnableAnnotations
 using System.Collections.Generic; // Add this for List<object>
 using OpenTelemetry.Resources;
@@ -50,6 +49,12 @@ namespace PoRepoLineTracker.Api
         public static WebApplication CreateWebApplication(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            // Add Aspire ServiceDefaults for observability and resilience
+            builder.AddServiceDefaults();
+
+            // Add Aspire Azure Table Storage client (uses connection string from Aspire orchestrator)
+            builder.AddAzureTableServiceClient("tables");
 
             // Add local development configuration
             if (builder.Environment.IsDevelopment())
@@ -250,6 +255,10 @@ namespace PoRepoLineTracker.Api
                 .AddCheck<PoRepoLineTracker.Api.HealthChecks.AzureTableStorageHealthCheck>("azure_table_storage");
 
             var app = builder.Build();
+            
+            // Map Aspire default endpoints (health checks)
+            app.MapDefaultEndpoints();
+            
             app.UseMiddleware<ExceptionHandlingMiddleware>(); // Global exception handling
 
             // Configure the HTTP request pipeline.
@@ -270,7 +279,7 @@ namespace PoRepoLineTracker.Api
             app.UseStaticFiles();
             app.MapFallbackToFile("index.html");
 
-            // Health Check Endpoint
+            // Health Check Endpoint (detailed) - Note: /health/live and /health/ready are mapped by MapDefaultEndpoints()
             app.MapHealthChecks("/api/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
             {
                 ResponseWriter = async (context, report) =>
@@ -291,9 +300,7 @@ namespace PoRepoLineTracker.Api
                     await context.Response.WriteAsync(result);
                 }
             })
-            .WithName("HealthCheck")
-            .WithOpenApi();
-
+            .WithName("HealthCheck");
             // API Endpoints
             app.MapPost("/api/repositories", async (GitHubRepository newRepo, IMediator mediator) =>
             {
@@ -609,8 +616,7 @@ namespace PoRepoLineTracker.Api
 
                 return Results.Json(healthStatus);
             })
-            .WithName("HealthCheckSimple")
-            .WithOpenApi();
+            .WithName("HealthCheckSimple");
 
             // Client Logging Endpoint (Development only for security)
             if (app.Environment.IsDevelopment())
@@ -645,7 +651,6 @@ namespace PoRepoLineTracker.Api
                     return Results.Ok(new { Status = "Logged" });
                 })
                 .WithName("LogClientEvent")
-                .WithOpenApi()
                 .WithSummary("Accepts client-side log entries (Development only)")
                 .WithDescription("Ingests client-side logs and forwards them to server-side logging infrastructure including Application Insights");
             }

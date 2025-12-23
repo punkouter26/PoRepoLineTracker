@@ -1,15 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <StaticWebAssetProjectMode>All</StaticWebAssetProjectMode>
     <WasmBlazorWebAssemblyHost>true</WasmBlazorWebAssemblyHost>
     <UserSecretsId>a1b2c3d4-e5f6-7890-1234-567890abcdef</UserSecretsId>
+    <!-- AOT disabled: codebase uses reflection-based JSON serialization -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Azure.Data.Tables" />
     <PackageReference Include="MediatR" />
     <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
@@ -28,6 +32,7 @@
     <PackageReference Include="Serilog.Sinks.ApplicationInsights" />
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
     <PackageReference Include="Swashbuckle.AspNetCore.Annotations" />
   </ItemGroup>
@@ -36,6 +41,7 @@
     <ProjectReference Include="..\PoRepoLineTracker.Application\PoRepoLineTracker.Application.csproj" />
     <ProjectReference Include="..\PoRepoLineTracker.Infrastructure\PoRepoLineTracker.Infrastructure.csproj" />
     <ProjectReference Include="..\PoRepoLineTracker.Client\PoRepoLineTracker.Client.csproj" />
+    <ProjectReference Include="..\PoRepoLineTracker.ServiceDefaults\PoRepoLineTracker.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>

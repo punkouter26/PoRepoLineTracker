@@ -18,13 +18,12 @@ public class FailedOperationService : IFailedOperationService
     private readonly ILogger<FailedOperationService> _logger;
     private bool _tablesInitialized = false;
 
-    public FailedOperationService(IConfiguration configuration, ILogger<FailedOperationService> logger)
+    public FailedOperationService(TableServiceClient tableServiceClient, IConfiguration configuration, ILogger<FailedOperationService> logger)
     {
         _logger = logger;
-        var connectionString = configuration["AzureTableStorage:ConnectionString"] ?? "UseDevelopmentStorage=true";
         var failedOperationTableName = configuration["AzureTableStorage:FailedOperationTableName"] ?? "PoRepoLineTrackerFailedOperations";
 
-        _failedOperationTableClient = new TableClient(connectionString, failedOperationTableName);
+        _failedOperationTableClient = tableServiceClient.GetTableClient(failedOperationTableName);
     }
 
     private async Task EnsureTablesExistAsync()
