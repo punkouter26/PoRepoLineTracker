@@ -1,99 +1,167 @@
 @page "/failed-operations"
+@attribute [Authorize]
 @inject HttpClient Http
 @inject ILogger<FailedOperations> Logger
+@inject Radzen.DialogService DialogService
+@inject Radzen.NotificationService NotificationService
+@using Radzen
+@using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
 
-<h3>Failed Operations</h3>
+<RadzenStack Gap="1rem">
+    <RadzenText TextStyle="TextStyle.H3">Failed Operations</RadzenText>
 
-<div class="mb-3">
-    <div class="row">
-        <div class="col-md-6">
-            <div class="input-group">
-                <input type="text" class="form-control" placeholder="Repository ID (GUID)" @bind="repositoryId" />
-                <button class="btn btn-primary" @onclick="LoadFailedOperations" disabled="@(isLoading || string.IsNullOrEmpty(repositoryId))">
-                    @if (isLoading)
+    <RadzenCard>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="1rem" Wrap="FlexWrap.Wrap">
+            <RadzenStack Gap="0.25rem">
+                <RadzenLabel Text="Repository ID (GUID)" />
+                <RadzenTextBox @bind-Value="@repositoryId" Placeholder="Enter Repository GUID" Style="width: 300px;" />
+            </RadzenStack>
+            <RadzenButton Text="Load Failed Operations" 
+                          Icon="search" 
+                          ButtonStyle="ButtonStyle.Primary"
+                          Click="@LoadFailedOperations" 
+                          IsBusy="@isLoading"
+                          BusyText="Loading..."
+                          Disabled="@(string.IsNullOrEmpty(repositoryId))" />
+        </RadzenStack>
+    </RadzenCard>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true" Close="@(() => errorMessage = string.Empty)">
+            @errorMessage
+        </RadzenAlert>
+    }
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1rem">
+                <RadzenSkeleton Width="200px" Height="24px" />
+                <RadzenStack Gap="0.5rem">
+                    @for (int i = 0; i < 5; i++)
                     {
-                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
+                            <RadzenSkeleton Width="100px" />
+                            <RadzenSkeleton Width="150px" />
+                            <RadzenSkeleton Width="250px" />
+                            <RadzenSkeleton Width="120px" />
+                            <RadzenSkeleton Width="60px" />
+                            <RadzenSkeleton Width="120px" />
+                            <RadzenSkeleton Width="40px" />
+                        </RadzenStack>
                     }
-                    Load Failed Operations
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-@if (!string.IsNullOrEmpty(errorMessage))
-{
-    <div class="alert alert-danger">@errorMessage</div>
-}
-
-@if (failedOperations.Any())
-{
-    <div class="table-responsive">
-        <table class="table table-striped table-hover">
-            <thead>
-                <tr>
-                    <th>Operation Type</th>
-                    <th>Entity ID</th>
-                    <th>Error Message</th>
-                    <th>Failed At</th>
-                    <th>Retry Count</th>
-                    <th>Last Retry</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var operation in failedOperations)
-                {
-                    <tr>
-                        <td>@operation.OperationType</td>
-                        <td>@operation.EntityId</td>
-                        <td>
-                            <small class="text-muted">@operation.ErrorMessage</small>
-                        </td>
-                        <td>@operation.FailedAt.ToString("yyyy-MM-dd HH:mm")</td>
-                        <td>@operation.RetryCount</td>
-                        <td>
-                            @if (operation.LastRetryAttempt.HasValue)
+                </RadzenStack>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (failedOperations.Any())
+    {
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin-bottom: 1rem; color: var(--rz-text-secondary-color);">
+                @failedOperations.Count failed operation(s) found
+            </RadzenText>
+            
+            <RadzenDataGrid Data="@failedOperations" 
+                            TItem="FailedOperationDto"
+                            AllowFiltering="true" 
+                            FilterMode="FilterMode.Simple"
+                            AllowSorting="true" 
+                            AllowPaging="true" 
+                            PageSize="10"
+                            PagerHorizontalAlign="HorizontalAlign.Center"
+                            ShowPagingSummary="true"
+                            AllowColumnResize="true"
+                            RowExpand="@OnRowExpand"
+                            ExpandMode="DataGridExpandMode.Single">
+                <Template Context="operation">
+                    @if (!string.IsNullOrEmpty(operation.StackTrace))
+                    {
+                        <RadzenCard Style="margin: 1rem 0; background: var(--rz-base-100);">
+                            <RadzenText TextStyle="TextStyle.Subtitle2">Stack Trace</RadzenText>
+                            <pre style="white-space: pre-wrap; font-size: 0.8em; max-height: 300px; overflow-y: auto; background: var(--rz-base-200); padding: 1rem; border-radius: 4px;">@operation.StackTrace</pre>
+                        </RadzenCard>
+                    }
+                    else
+                    {
+                        <RadzenText Style="color: var(--rz-text-secondary-color);">No stack trace available</RadzenText>
+                    }
+                </Template>
+                <Columns>
+                    <RadzenDataGridColumn TItem="FailedOperationDto" Property="OperationType" Title="Operation Type" Width="150px">
+                        <Template Context="op">
+                            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="@op.OperationType" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FailedOperationDto" Property="EntityId" Title="Entity ID" Width="180px">
+                        <Template Context="op">
+                            <code style="font-size: 0.85em;">@op.EntityId</code>
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FailedOperationDto" Property="ErrorMessage" Title="Error Message" Width="300px">
+                        <Template Context="op">
+                            <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-danger);">
+                                @(op.ErrorMessage.Length > 100 ? op.ErrorMessage.Substring(0, 100) + "..." : op.ErrorMessage)
+                            </RadzenText>
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FailedOperationDto" Property="FailedAt" Title="Failed At" Width="160px" FormatString="{0:yyyy-MM-dd HH:mm}" />
+                    <RadzenDataGridColumn TItem="FailedOperationDto" Property="RetryCount" Title="Retries" Width="90px" TextAlign="TextAlign.Center">
+                        <Template Context="op">
+                            <RadzenBadge BadgeStyle="@(op.RetryCount > 3 ? BadgeStyle.Danger : BadgeStyle.Info)" Text="@op.RetryCount.ToString()" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FailedOperationDto" Property="LastRetryAttempt" Title="Last Retry" Width="160px">
+                        <Template Context="op">
+                            @if (op.LastRetryAttempt.HasValue)
                             {
-                                @operation.LastRetryAttempt.Value.ToString("yyyy-MM-dd HH:mm")
+                                <RadzenText>@op.LastRetryAttempt.Value.ToString("yyyy-MM-dd HH:mm")</RadzenText>
                             }
                             else
                             {
-                                <span class="text-muted">Never</span>
+                                <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Never" />
                             }
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-danger" @onclick="@(e => DeleteFailedOperation(operation.Id))" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                    @if (!string.IsNullOrEmpty(operation.StackTrace))
-                    {
-                        <tr>
-                            <td colspan="7">
-                                <small class="text-muted">
-                                    <strong>Stack Trace:</strong><br/>
-                                    <pre style="white-space: pre-wrap; font-size: 0.8em;">@operation.StackTrace</pre>
-                                </small>
-                            </td>
-                        </tr>
-                    }
-                }
-            </tbody>
-        </table>
-    </div>
-}
-else if (!string.IsNullOrEmpty(repositoryId) && !isLoading)
-{
-    <div class="alert alert-info">No failed operations found for this repository.</div>
-}
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FailedOperationDto" Title="Actions" Width="80px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
+                        <Template Context="op">
+                            <RadzenButton Icon="delete" 
+                                          Size="ButtonSize.Small" 
+                                          ButtonStyle="ButtonStyle.Danger" 
+                                          Variant="Variant.Text" 
+                                          Click="@(() => ConfirmDeleteOperation(op))" 
+                                          title="Delete" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenCard>
+    }
+    else if (!string.IsNullOrEmpty(repositoryId))
+    {
+        <RadzenCard>
+            <RadzenStack AlignItems="AlignItems.Center" Gap="1rem" class="rz-p-8">
+                <RadzenIcon Icon="check_circle" Style="font-size: 4rem; color: var(--rz-success);" />
+                <RadzenText TextStyle="TextStyle.H5">No Failed Operations</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color);">
+                    Good news! No failed operations found for this repository.
+                </RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+</RadzenStack>
 
 @code {
     private string repositoryId = string.Empty;
     private List<FailedOperationDto> failedOperations = new();
     private bool isLoading = false;
     private string errorMessage = string.Empty;
+
+    private void OnRowExpand(FailedOperationDto operation)
+    {
+        // Row expansion is automatic via DataGrid
+    }
 
     private async Task LoadFailedOperations()
     {
@@ -122,18 +190,45 @@ else if (!string.IsNullOrEmpty(repositoryId) && !isLoading)
         }
     }
 
+    private async Task ConfirmDeleteOperation(FailedOperationDto operation)
+    {
+        var confirmed = await DialogService.Confirm(
+            $"Are you sure you want to delete this failed operation?",
+            "Delete Failed Operation",
+            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+
+        if (confirmed == true)
+        {
+            await DeleteFailedOperation(operation.Id);
+        }
+    }
+
     private async Task DeleteFailedOperation(Guid operationId)
     {
         try
         {
             await Http.DeleteAsync($"/api/failed-operations/{operationId}");
             failedOperations.RemoveAll(o => o.Id == operationId);
-            StateHasChanged();
+            
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Summary = "Deleted",
+                Detail = "Failed operation deleted successfully!",
+                Duration = 4000
+            });
+            
             Logger.LogInformation("Deleted failed operation {OperationId}", operationId);
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error deleting failed operation: {ex.Message}";
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Error",
+                Detail = $"Error deleting failed operation: {ex.Message}",
+                Duration = 6000
+            });
             Logger.LogError(ex, "Error deleting failed operation {OperationId}", operationId);
         }
     }

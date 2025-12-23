@@ -29,6 +29,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PoRepoLineTracker.Application\PoRepoLineTracker.Application.csproj" />
     <ProjectReference Include="..\..\src\PoRepoLineTracker.Domain\PoRepoLineTracker.Domain.csproj" />
+    <ProjectReference Include="..\..\src\PoRepoLineTracker.Infrastructure\PoRepoLineTracker.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

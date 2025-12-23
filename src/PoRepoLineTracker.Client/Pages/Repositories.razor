@@ -1,247 +1,273 @@
 @page "/"
 @page "/repositories"
+@attribute [Authorize]
 @inject HttpClient Http
 @inject ILogger<Repositories> Logger
+@inject NavigationManager Navigation
+@inject Radzen.DialogService DialogService
+@inject Radzen.NotificationService NotificationService
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Domain.Models
 @using PoRepoLineTracker.Application.Models
+@using Radzen
 @using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
 
-<h3>GitHub Repositories</h3>
-
-@* Success/Error Messages *@
-@if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
-{
-    <div class="alert alert-info alert-dismissible fade show" role="alert">
-        @pageState.AddRepoMessage
-        <button type="button" class="btn-close" @onclick="() => pageState.AddRepoMessage = string.Empty"></button>
-    </div>
-}
-@if (!string.IsNullOrEmpty(pageState.ErrorMessage))
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @pageState.ErrorMessage
-        <button type="button" class="btn-close" @onclick="() => pageState.ErrorMessage = string.Empty"></button>
-    </div>
-}
-
-<h4>Existing Repositories</h4>
-@if (pageState.IsLoadingRepositories)
-{
-    <p><em>Loading repositories...</em></p>
-}
-else if (!pageState.Repositories.Any())
-{
-    <p>No repositories added yet. <a href="/add-repository">Add one here!</a></p>
-}
-else
-{
-    <div class="mb-3 d-flex justify-content-between align-items-center">
-        <span class="text-muted">(@(pageState.Repositories!.Count) repositories found - automatically analyzed when added)</span>
-        <button class="btn btn-danger btn-sm" @onclick="RemoveAllRepositories" disabled="@isRemovingAll">
-            @if (isRemovingAll)
+<RadzenStack Gap="1rem">
+    <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">Repositories</RadzenText>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="6" class="rz-text-align-end">
+            @if (pageState.Repositories.Any())
             {
-                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                <span>Removing...</span>
+                <RadzenButton Text="Remove All" 
+                              Icon="delete_forever" 
+                              ButtonStyle="ButtonStyle.Danger" 
+                              Variant="Variant.Outlined"
+                              Click="@ConfirmRemoveAll" 
+                              IsBusy="@isRemovingAll"
+                              BusyText="Removing..." />
             }
-            else
-            {
-                <i class="fas fa-trash-alt me-2"></i>
-                <span>Remove ALL</span>
-            }
-        </button>
-    </div>
-}
-    
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Owner</th>
-                <th>Name</th>
-                <th>Last Analyzed</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var repo in pageState.Repositories ?? new List<GitHubRepository>())
-            {
-                <tr>
-                    <td>@repo.Owner</td>
-                    <td>@repo.Name</td>
-                    <td>@(repo.LastAnalyzedCommitDate.HasValue ? repo.LastAnalyzedCommitDate.Value.ToString("MM/dd/yyyy HH:mm") : "Never")</td>
-                    <td>
-                        <span class="badge bg-success">✓ Analyzed</span>
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-info me-2" @onclick="() => ShowLineCountChart(repo.Id)">
-                            @(selectedRepositoryId == repo.Id ? "Hide Chart" : "Show Chart")
-                        </button>
-                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteRepository(repo.Id)" title="Delete Repository">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-                @if (selectedRepositoryId == repo.Id)
-                {
-                    <tr>
-                        <td colspan="5">
-                            <div class="row">
-                                <!-- Line Count History Chart -->
-                                <div class="col-lg-8 col-md-12 mb-4">
-                                    <div class="card mt-2 mb-2">
-                                        <div class="card-header">
-                                            <h5 class="mb-0">📈 Line Count History for @repo.Name (Last 365 Days)</h5>
-                                        </div>
-                                        <div class="card-body">
-                                            @if (isLoadingChartData)
-                                            {
-                                                <div class="text-center py-4">
-                                                    <div class="spinner-border text-primary" role="status">
-                                                        <span class="visually-hidden">Loading chart data...</span>
-                                                    </div>
-                                                    <p class="mt-2 mb-0"><em>Loading chart data...</em></p>
-                                                </div>
-                                            }
-                                            else if (!string.IsNullOrEmpty(chartErrorMessage))
-                                            {
-                                                <div class="alert alert-warning">
-                                                    <h6 class="alert-heading">Chart Data Unavailable</h6>
-                                                    <p class="mb-2">@chartErrorMessage</p>
-                                                    <button class="btn btn-sm btn-outline-warning" @onclick="() => FetchLineCountHistory(repo.Id)">
-                                                        <i class="fas fa-redo"></i> Retry
-                                                    </button>
-                                                </div>
-                                            }
-                                            else if (lineCountHistory != null && lineCountHistory.Any())
-                                            {
-                                                <RadzenChart Style="height: 400px; width: 100%;">
-                                                    <RadzenLineSeries 
-                                                        Data="@lineCountHistory" 
-                                                        CategoryProperty="Date" 
-                                                        ValueProperty="TotalLines" 
-                                                        Title="Total Lines of Code"
-                                                        Stroke="#2563eb"
-                                                        StrokeWidth="4">
-                                                        <RadzenMarkers MarkerType="MarkerType.Circle" />
-                                                    </RadzenLineSeries>
-                                                    <RadzenCategoryAxis>
-                                                        <RadzenGridLines Visible="true" />
-                                                    </RadzenCategoryAxis>
-                                                    <RadzenValueAxis Min="0" Max="@chartMaxLines">
-                                                        <RadzenGridLines Visible="true" />
-                                                    </RadzenValueAxis>
-                                                    <RadzenLegend Visible="true" />
-                                                </RadzenChart>
-                                            }
-                                            else
-                                            {
-                                                <div class="text-center py-4 text-muted">
-                                                    <i class="fas fa-chart-line fa-2x mb-2"></i>
-                                                    <p class="mb-0">No line count history available for the selected period.</p>
-                                                    <small>Try analyzing the repository first or check back later.</small>
-                                                </div>
-                                            }
-                                        </div>
-                                    </div>
-                                </div>
+        </RadzenColumn>
+    </RadzenRow>
 
-                                <!-- File Extension Percentages Column -->
-                                <div class="col-lg-4 col-md-12 mb-4">
-                                    <div class="card mt-2 mb-2">
-                                        <div class="card-header">
-                                            <h5 class="mb-0">
-                                                <i class="fas fa-file-code me-2"></i>
-                                                Top File Extensions by Lines
-                                            </h5>
-                                        </div>
-                                        <div class="card-body">
-                                            @if (fileExtensionPercentages != null && fileExtensionPercentages.Any())
-                                            {
-                                                <ul class="list-group list-group-flush">
-                                                    @foreach (var ext in fileExtensionPercentages)
-                                                    {
-                                                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                                                            <code>@ext.FileExtension</code>
-                                                            <span class="badge bg-primary rounded-pill">@ext.Percentage.ToString("F2")%</span>
-                                                        </li>
-                                                    }
-                                                </ul>
-                                            }
-                                            else
-                                            {
-                                                <p class="text-muted">No file extension data available.</p>
-                                            }
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Data Table below chart -->
-                                <div class="col-12">
-                                    <div class="card mt-2">
-                                        <div class="card-header">
-                                            <h5 class="mb-0">Line Count Details</h5>
-                                        </div>
-                                        <div class="card-body p-0">
-                                            <div class="table-responsive">
-                                                <table class="table table-striped table-hover mb-0">
-                                                    <thead class="table-light">
-                                                        <tr>
-                                                            <th>Date</th>
-                                                            <th>Lines of Code</th>
-                                                            <th>Difference from Previous</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        @if (lineCountHistory != null && lineCountHistory.Any())
-                                                        {
-                                                            @for (int i = 0; i < lineCountHistory.Count; i++)
-                                                            {
-                                                                var item = lineCountHistory[i];
-                                                                var previousItem = i > 0 ? lineCountHistory[i - 1] : null;
-                                                                var difference = previousItem != null ? item.TotalLines - previousItem.TotalLines : 0;
-                                                                var differenceClass = difference > 0 ? "text-success" : difference < 0 ? "text-danger" : "";
-                                                                var differenceSign = difference > 0 ? "+" : "";
-                                                                
-                                                                <tr>
-                                                                    <td>@item.Date.ToString("MM/dd/yyyy HH:mm")</td>
-                                                                    <td>@item.TotalLines.ToString("N0")</td>
-                                                                    <td class="@differenceClass">@differenceSign@difference.ToString("N0")</td>
-                                                                </tr>
-                                                            }
-                                                        }
-                                                        else
-                                                        {
-                                                            <tr>
-                                                                <td colspan="3" class="text-center text-muted">No data available</td>
-                                                            </tr>
-                                                        }
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                }
-            }
-        </tbody>
-    </table>
-}
+    @* Notification Messages *@
+    @if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true" AllowClose="true" Close="@(() => pageState.AddRepoMessage = string.Empty)">
+            @pageState.AddRepoMessage
+        </RadzenAlert>
+    }
+    @if (!string.IsNullOrEmpty(pageState.ErrorMessage))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true" Close="@(() => pageState.ErrorMessage = string.Empty)">
+            @pageState.ErrorMessage
+        </RadzenAlert>
+    }
+
+    @* Repository Data Grid *@
+    @if (pageState.IsLoadingRepositories)
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1rem">
+                <RadzenSkeleton Width="200px" Height="24px" />
+                <RadzenStack Gap="0.5rem">
+                    @for (int i = 0; i < 5; i++)
+                    {
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
+                            <RadzenSkeleton Circle="true" Width="40px" Height="40px" />
+                            <RadzenSkeleton Width="150px" />
+                            <RadzenSkeleton Width="200px" />
+                            <RadzenSkeleton Width="120px" />
+                            <RadzenSkeleton Width="80px" />
+                        </RadzenStack>
+                    }
+                </RadzenStack>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (!pageState.Repositories.Any())
+    {
+        <RadzenCard>
+            <RadzenStack AlignItems="AlignItems.Center" Gap="1rem" class="rz-p-8">
+                <RadzenIcon Icon="folder_off" Style="font-size: 4rem; color: var(--rz-text-disabled-color);" />
+                <RadzenText TextStyle="TextStyle.H5">No repositories added yet</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color);">
+                    Get started by adding your first GitHub repository to track.
+                </RadzenText>
+                <RadzenButton Text="Add Repository" Icon="add_circle" ButtonStyle="ButtonStyle.Primary" Click="@NavigateToAddRepo" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else
+    {
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin-bottom: 1rem; color: var(--rz-text-secondary-color);">
+                @pageState.Repositories.Count repositories tracked
+            </RadzenText>
+            
+            <RadzenDataGrid @ref="grid" 
+                            Data="@pageState.Repositories" 
+                            TItem="GitHubRepository"
+                            AllowFiltering="false" 
+                            AllowSorting="true" 
+                            AllowPaging="true" 
+                            PageSize="10"
+                            PagerHorizontalAlign="HorizontalAlign.Center"
+                            ShowPagingSummary="true"
+                            PagingSummaryFormat="Showing {0} to {1} of {2} repositories"
+                            AllowColumnResize="true"
+                            RowExpand="@OnRowExpand"
+                            ExpandMode="DataGridExpandMode.Single"
+                            Density="Density.Compact"
+                            Style="height: auto;">
+                <Template Context="repo">
+                    <RadzenCard Style="margin: 1rem 0;">
+                        @if (isLoadingChartData && selectedRepositoryId == repo.Id)
+                        {
+                            <RadzenStack Gap="1rem">
+                                <RadzenSkeleton Width="100%" Height="300px" />
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
+                                    <RadzenSkeleton Width="33%" Height="200px" />
+                                    <RadzenSkeleton Width="67%" Height="200px" />
+                                </RadzenStack>
+                            </RadzenStack>
+                        }
+                        else
+                        {
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12" SizeLG="4">
+                                    <RadzenCard>
+                                        <RadzenText TextStyle="TextStyle.H6">
+                                            <RadzenIcon Icon="show_chart" Style="vertical-align: middle;" />
+                                            Line Count History (Last 365 Days)
+                                        </RadzenText>
+                                        @if (!string.IsNullOrEmpty(chartErrorMessage))
+                                        {
+                                            <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
+                                                @chartErrorMessage
+                                                <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text" Click="@(() => FetchLineCountHistory(repo.Id))" />
+                                            </RadzenAlert>
+                                        }
+                                        else if (lineCountHistory != null && lineCountHistory.Any())
+                                        {
+                                            <RadzenChart Style="height: 350px; width: 100%;">
+                                                <RadzenLineSeries Data="@lineCountHistory" 
+                                                                  CategoryProperty="Date" 
+                                                                  ValueProperty="TotalLines" 
+                                                                  Title="Total Lines"
+                                                                  Stroke="var(--rz-primary)"
+                                                                  StrokeWidth="3">
+                                                    <RadzenMarkers MarkerType="MarkerType.Circle" />
+                                                </RadzenLineSeries>
+                                                <RadzenCategoryAxis>
+                                                    <RadzenGridLines Visible="true" />
+                                                </RadzenCategoryAxis>
+                                                <RadzenValueAxis Min="0" Max="@chartMaxLines">
+                                                    <RadzenGridLines Visible="true" />
+                                                </RadzenValueAxis>
+                                                <RadzenLegend Visible="true" Position="LegendPosition.Bottom" />
+                                            </RadzenChart>
+                                        }
+                                        else
+                                        {
+                                            <RadzenStack AlignItems="AlignItems.Center" class="rz-p-4">
+                                                <RadzenIcon Icon="bar_chart" Style="font-size: 2rem; color: var(--rz-text-disabled-color);" />
+                                                <RadzenText>No history data available</RadzenText>
+                                            </RadzenStack>
+                                        }
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeLG="4">
+                                    <RadzenCard>
+                                        <RadzenText TextStyle="TextStyle.H6">
+                                            <RadzenIcon Icon="description" Style="vertical-align: middle;" />
+                                            File Extensions
+                                        </RadzenText>
+                                        @if (fileExtensionPercentages != null && fileExtensionPercentages.Any())
+                                        {
+                                            <RadzenDataList Data="@fileExtensionPercentages" TItem="FileExtensionPercentageDto">
+                                                <Template Context="ext">
+                                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-py-2">
+                                                        <RadzenText><code>@ext.FileExtension</code></RadzenText>
+                                                        <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="@($"{ext.Percentage:F1}%")" />
+                                                    </RadzenStack>
+                                                </Template>
+                                            </RadzenDataList>
+                                        }
+                                        else
+                                        {
+                                            <RadzenText Style="color: var(--rz-text-secondary-color);">No extension data</RadzenText>
+                                        }
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeLG="4">
+                                    <RadzenCard>
+                                        <RadzenText TextStyle="TextStyle.H6">
+                                            <RadzenIcon Icon="insert_drive_file" Style="vertical-align: middle;" />
+                                            Top 5 Files
+                                        </RadzenText>
+                                        @if (topFiles != null && topFiles.Any())
+                                        {
+                                            <RadzenDataList Data="@topFiles" TItem="TopFileDto">
+                                                <Template Context="file">
+                                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-py-2">
+                                                        <RadzenText Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;" title="@file.FileName">@file.FileName</RadzenText>
+                                                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@file.LineCount.ToString("N0")" />
+                                                    </RadzenStack>
+                                                </Template>
+                                            </RadzenDataList>
+                                        }
+                                        else
+                                        {
+                                            <RadzenText Style="color: var(--rz-text-secondary-color);">No file data</RadzenText>
+                                        }
+                                    </RadzenCard>
+                                </RadzenColumn>
+                            </RadzenRow>
+                        }
+                    </RadzenCard>
+                </Template>
+                <Columns>
+                    <RadzenDataGridColumn TItem="GitHubRepository" Property="Owner" Title="Owner" Width="150px" />
+                    <RadzenDataGridColumn TItem="GitHubRepository" Property="Name" Title="Repository" Width="200px">
+                        <Template Context="repo">
+                            <RadzenLink Path="@($"https://github.com/{repo.Owner}/{repo.Name}")" Target="_blank" Text="@repo.Name" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="GitHubRepository" Property="LastAnalyzedCommitDate" Title="Last Analyzed" Width="180px" FormatString="{0:MM/dd/yyyy HH:mm}">
+                        <Template Context="repo">
+                            @if (repo.LastAnalyzedCommitDate.HasValue)
+                            {
+                                <RadzenText>@repo.LastAnalyzedCommitDate.Value.ToString("MM/dd/yyyy HH:mm")</RadzenText>
+                            }
+                            else
+                            {
+                                <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Never" />
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="GitHubRepository" Title="Status" Width="120px" Filterable="false" Sortable="false">
+                        <Template Context="repo">
+                            @if (reanalyzingRepositoryId == repo.Id)
+                            {
+                                <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Re-analyzing..." />
+                            }
+                            else
+                            {
+                                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="✓ Analyzed" />
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="GitHubRepository" Title="Actions" Width="180px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
+                        <Template Context="repo">
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
+                                <RadzenButton Icon="bar_chart" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text" Click="@(() => ToggleChart(repo))" title="View Chart" />
+                                <RadzenButton Icon="refresh" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Text" Click="@(() => ConfirmReanalyze(repo))" title="Re-analyze with current settings" Disabled="@(reanalyzingRepositoryId == repo.Id)" />
+                                <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Click="@(() => ConfirmDeleteRepository(repo))" title="Delete" />
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenCard>
+    }
+</RadzenStack>
 
 
 @code {
     private RepositoryPageState pageState = new();
-    private HashSet<Guid> showAllCommitsFor = new();
+    private RadzenDataGrid<GitHubRepository>? grid;
     private Guid? selectedRepositoryId;
+    private Guid? reanalyzingRepositoryId;
     private List<DailyLineCountDto>? lineCountHistory;
     private List<FileExtensionPercentageDto>? fileExtensionPercentages;
+    private List<TopFileDto>? topFiles;
     private bool isLoadingChartData = false;
     private string chartErrorMessage = string.Empty;
     private bool isRemovingAll = false;
-    private int chartMaxLines = 50000; // Default value
+    private int chartMaxLines = 50000;
 
     protected override async Task OnInitializedAsync()
     {
@@ -262,26 +288,42 @@ else
         }
     }
 
-    private async Task ShowLineCountChart(Guid repositoryId)
+    private void NavigateToAddRepo()
     {
-        Logger.LogInformation("ShowLineCountChart called for repository ID: {RepositoryId}", repositoryId);
-        if (selectedRepositoryId == repositoryId)
+        Navigation.NavigateTo("/add-repository");
+    }
+
+    private async Task ToggleChart(GitHubRepository repo)
+    {
+        if (selectedRepositoryId == repo.Id)
         {
-            // If already selected, deselect to hide the chart and percentages
-            Logger.LogInformation("Deselecting repository ID: {RepositoryId}", repositoryId);
             selectedRepositoryId = null;
             lineCountHistory = null;
-            fileExtensionPercentages = null; // Clear percentages
+            fileExtensionPercentages = null;
             chartErrorMessage = string.Empty;
-            StateHasChanged();
+            // Note: RadzenDataGrid doesn't have CollapseRow, user can click row again or it auto-collapses in Single mode
         }
         else
         {
-            Logger.LogInformation("Selecting repository ID: {RepositoryId}", repositoryId);
-            selectedRepositoryId = repositoryId;
-            await FetchLineCountHistory(repositoryId);
-            await FetchFileExtensionPercentages(repositoryId); // Fetch percentages
-            StateHasChanged();
+            selectedRepositoryId = repo.Id;
+            await FetchLineCountHistory(repo.Id);
+            await FetchFileExtensionPercentages(repo.Id);
+            await FetchTopFiles(repo.Id);
+            if (grid != null)
+            {
+                await grid.ExpandRow(repo);
+            }
+        }
+    }
+
+    private async Task OnRowExpand(GitHubRepository repo)
+    {
+        if (selectedRepositoryId != repo.Id)
+        {
+            selectedRepositoryId = repo.Id;
+            await FetchLineCountHistory(repo.Id);
+            await FetchFileExtensionPercentages(repo.Id);
+            await FetchTopFiles(repo.Id);
         }
     }
 
@@ -304,8 +346,7 @@ else
             }
             else
             {
-                Logger.LogInformation("Loaded {Count} data points for repository {RepositoryId}. First: {First} lines, Last: {Last} lines", 
-                    lineCountHistory.Count, repositoryId, lineCountHistory.First().TotalLines, lineCountHistory.Last().TotalLines);
+                Logger.LogInformation("Loaded {Count} data points for repository {RepositoryId}", lineCountHistory.Count, repositoryId);
             }
         }
         catch (Exception ex)
@@ -316,26 +357,33 @@ else
         finally
         {
             isLoadingChartData = false;
+            StateHasChanged();
         }
     }
 
-    // New method to fetch file extension percentages
     private async Task FetchFileExtensionPercentages(Guid repositoryId)
     {
         Logger.LogInformation("Fetching file extension percentages for repository ID: {RepositoryId}", repositoryId);
         try
         {
             fileExtensionPercentages = await Http.GetFromJsonAsync<List<FileExtensionPercentageDto>>($"/api/repositories/{repositoryId}/file-extension-percentages");
-            if (fileExtensionPercentages == null || !fileExtensionPercentages.Any())
-            {
-                Logger.LogInformation("No file extension data found for repository ID: {RepositoryId}", repositoryId);
-            }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error fetching file extension percentages for repository {RepositoryId}: {Message}", repositoryId, ex.Message);
-            // Decide if this error should block the chart or just show empty percentages
-            // For now, it will just result in an empty list being displayed
+        }
+    }
+
+    private async Task FetchTopFiles(Guid repositoryId)
+    {
+        Logger.LogInformation("Fetching top files for repository ID: {RepositoryId}", repositoryId);
+        try
+        {
+            topFiles = await Http.GetFromJsonAsync<List<TopFileDto>>($"/api/repositories/{repositoryId}/top-files?count=5");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error fetching top files for repository {RepositoryId}: {Message}", repositoryId, ex.Message);
         }
     }
 
@@ -361,15 +409,88 @@ else
         }
     }
 
-    private void ToggleShowAllCommits(Guid repositoryId)
+    private async Task ConfirmDeleteRepository(GitHubRepository repo)
     {
-        if (showAllCommitsFor.Contains(repositoryId))
+        var confirmed = await DialogService.Confirm(
+            $"Are you sure you want to delete '{repo.Owner}/{repo.Name}'? This will remove all associated data.",
+            "Delete Repository",
+            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+
+        if (confirmed == true)
         {
-            showAllCommitsFor.Remove(repositoryId);
+            await DeleteRepository(repo.Id);
         }
-        else
+    }
+
+    private async Task ConfirmReanalyze(GitHubRepository repo)
+    {
+        var confirmed = await DialogService.Confirm(
+            $"Re-analyze '{repo.Owner}/{repo.Name}' from scratch?\n\nThis will delete all existing commit data and re-analyze the entire repository using your current file extension settings. This may take some time for repositories with many commits.",
+            "Re-analyze Repository",
+            new ConfirmOptions { OkButtonText = "Re-analyze", CancelButtonText = "Cancel" });
+
+        if (confirmed == true)
         {
-            showAllCommitsFor.Add(repositoryId);
+            await ReanalyzeRepository(repo);
+        }
+    }
+
+    private async Task ReanalyzeRepository(GitHubRepository repo)
+    {
+        try
+        {
+            reanalyzingRepositoryId = repo.Id;
+            StateHasChanged();
+
+            Logger.LogInformation("Re-analyzing repository {RepositoryId}", repo.Id);
+            var response = await Http.PostAsync($"/api/repositories/{repo.Id}/reanalyze", null);
+
+            if (response.IsSuccessStatusCode)
+            {
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Success,
+                    Summary = "Re-analysis Started",
+                    Detail = $"Re-analyzing '{repo.Owner}/{repo.Name}' with your current file extension settings. This may take a few minutes.",
+                    Duration = 6000
+                });
+                Logger.LogInformation("Re-analysis started for repository {RepositoryId}", repo.Id);
+
+                // Clear cached chart data for this repo
+                if (selectedRepositoryId == repo.Id)
+                {
+                    lineCountHistory = null;
+                    fileExtensionPercentages = null;
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = "Error",
+                    Detail = $"Failed to start re-analysis: {response.StatusCode}",
+                    Duration = 6000
+                });
+                Logger.LogError("Failed to re-analyze repository {RepositoryId}. Status: {StatusCode}", repo.Id, response.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Error",
+                Detail = $"Error starting re-analysis: {ex.Message}",
+                Duration = 6000
+            });
+            Logger.LogError(ex, "Error re-analyzing repository {RepositoryId}", repo.Id);
+        }
+        finally
+        {
+            reanalyzingRepositoryId = null;
+            StateHasChanged();
         }
     }
 
@@ -378,23 +499,28 @@ else
         try
         {
             Logger.LogInformation("Deleting repository {RepositoryId}", repositoryId);
-
             var response = await Http.DeleteAsync($"/api/repositories/{repositoryId}");
 
             if (response.IsSuccessStatusCode)
             {
-                // Remove the repository from the local list
                 var repoToRemove = pageState.Repositories.FirstOrDefault(r => r.Id == repositoryId);
                 if (repoToRemove != null)
                 {
                     pageState.Repositories.Remove(repoToRemove);
-                    pageState.AddRepoMessage = $"Repository '{repoToRemove.Owner}/{repoToRemove.Name}' deleted successfully!";
+                    NotificationService.Notify(new NotificationMessage
+                    {
+                        Severity = NotificationSeverity.Success,
+                        Summary = "Deleted",
+                        Detail = $"Repository '{repoToRemove.Owner}/{repoToRemove.Name}' deleted successfully!",
+                        Duration = 4000
+                    });
                 }
-                
-                // Hide chart if it was being displayed
+
                 if (selectedRepositoryId == repositoryId)
                 {
                     selectedRepositoryId = null;
+                    lineCountHistory = null;
+                    fileExtensionPercentages = null;
                 }
 
                 Logger.LogInformation("Repository {RepositoryId} deleted successfully", repositoryId);
@@ -402,22 +528,42 @@ else
             else
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                pageState.AddRepoMessage = $"Error deleting repository: {response.StatusCode} - {errorContent}";
-                Logger.LogError("Failed to delete repository {RepositoryId}. Status: {StatusCode}, Content: {ErrorContent}", repositoryId, response.StatusCode, errorContent);
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = "Error",
+                    Detail = $"Failed to delete repository: {response.StatusCode}",
+                    Duration = 6000
+                });
+                Logger.LogError("Failed to delete repository {RepositoryId}. Status: {StatusCode}", repositoryId, response.StatusCode);
             }
         }
         catch (Exception ex)
         {
-            pageState.AddRepoMessage = $"Error deleting repository: {ex.Message}";
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Error",
+                Detail = $"Error deleting repository: {ex.Message}",
+                Duration = 6000
+            });
             Logger.LogError(ex, "Error deleting repository {RepositoryId}: {Message}", repositoryId, ex.Message);
         }
-        finally
+    }
+
+    private async Task ConfirmRemoveAll()
+    {
+        var confirmed = await DialogService.Confirm(
+            "Are you sure you want to remove ALL repositories? This action cannot be undone.",
+            "Remove All Repositories",
+            new ConfirmOptions { OkButtonText = "Remove All", CancelButtonText = "Cancel" });
+
+        if (confirmed == true)
         {
-            StateHasChanged();
+            await RemoveAllRepositories();
         }
     }
-    
-    
+
     private async Task RemoveAllRepositories()
     {
         try
@@ -429,34 +575,48 @@ else
             
             if (response.IsSuccessStatusCode)
             {
-                // Clear the local repositories list
                 pageState.Repositories.Clear();
-                
-                // Hide any open charts
                 selectedRepositoryId = null;
                 lineCountHistory = null;
                 fileExtensionPercentages = null;
                 chartErrorMessage = string.Empty;
-                
-                pageState.AddRepoMessage = "All repositories and data have been successfully removed!";
+
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Success,
+                    Summary = "Success",
+                    Detail = "All repositories and data have been successfully removed!",
+                    Duration = 4000
+                });
                 Logger.LogInformation("All repositories removed successfully.");
             }
             else
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                pageState.AddRepoMessage = $"Error removing all repositories: {response.StatusCode} - {errorContent}";
-                Logger.LogError("Failed to remove all repositories. Status: {StatusCode}, Content: {ErrorContent}", response.StatusCode, errorContent);
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = "Error",
+                    Detail = $"Error removing repositories: {response.StatusCode}",
+                    Duration = 6000
+                });
+                Logger.LogError("Failed to remove all repositories. Status: {StatusCode}", response.StatusCode);
             }
         }
         catch (Exception ex)
         {
-            pageState.AddRepoMessage = $"Error removing all repositories: {ex.Message}";
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Error",
+                Detail = $"Error removing all repositories: {ex.Message}",
+                Duration = 6000
+            });
             Logger.LogError(ex, "Error removing all repositories: {Message}", ex.Message);
         }
         finally
         {
             isRemovingAll = false;
-            StateHasChanged();
         }
     }
 }

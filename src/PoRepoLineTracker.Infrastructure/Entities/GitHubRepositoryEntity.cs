@@ -4,14 +4,20 @@ using PoRepoLineTracker.Domain.Models;
 
 namespace PoRepoLineTracker.Infrastructure.Entities;
 
+/// <summary>
+/// Azure Table Storage entity for GitHubRepository.
+/// PartitionKey: UserId (partitions repositories by user for multi-tenancy)
+/// RowKey: Owner_Name (unique identifier for the repo within a user's collection)
+/// </summary>
 public class GitHubRepositoryEntity : ITableEntity
 {
-    public string PartitionKey { get; set; } = default!; // Owner
-    public string RowKey { get; set; } = default!;       // RepoName
+    public string PartitionKey { get; set; } = default!; // UserId (for multi-user partitioning)
+    public string RowKey { get; set; } = default!;       // Owner_Name
     public DateTimeOffset? Timestamp { get; set; }
     public ETag ETag { get; set; }
 
     public Guid Id { get; set; }
+    public Guid UserId { get; set; }
     public string Owner { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string CloneUrl { get; set; } = string.Empty;
@@ -22,6 +28,7 @@ public class GitHubRepositoryEntity : ITableEntity
         return new GitHubRepository
         {
             Id = Id,
+            UserId = UserId,
             Owner = Owner,
             Name = Name,
             CloneUrl = CloneUrl,
@@ -33,9 +40,10 @@ public class GitHubRepositoryEntity : ITableEntity
     {
         return new GitHubRepositoryEntity
         {
-            PartitionKey = model.Owner,
-            RowKey = model.Name,
+            PartitionKey = model.UserId.ToString(),
+            RowKey = $"{model.Owner}_{model.Name}",
             Id = model.Id,
+            UserId = model.UserId,
             Owner = model.Owner,
             Name = model.Name,
             CloneUrl = model.CloneUrl,
@@ -45,3 +53,4 @@ public class GitHubRepositoryEntity : ITableEntity
         };
     }
 }
+

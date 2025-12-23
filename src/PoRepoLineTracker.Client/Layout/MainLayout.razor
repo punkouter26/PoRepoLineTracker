@@ -1,54 +1,56 @@
 ﻿@inherits LayoutComponentBase
 @using PoRepoLineTracker.Client.Layout
+@using Radzen
+@using Radzen.Blazor
+@inject NavigationManager Navigation
 
-<div class="rz-layout">
-    <div class="rz-header">
-        <div class="container">
-            <div class="d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center" style="gap: 1rem;">
-                    <i class="material-icons" style="font-size: 2rem; color: var(--primary-color);">analytics</i>
-                    <div>
-                        <h4 class="mb-0" style="font-weight: 600; color: var(--text-primary);">PoRepoLineTracker</h4>
-                        <span style="font-size: var(--text-sm); color: var(--text-secondary);">Repository Line Count Analysis and Tracking</span>
-                    </div>
-                </div>
-                
-                <!-- Mobile menu button -->
-                <button class="btn btn-outline-primary d-lg-none" type="button" @onclick="ToggleMobileMenu" aria-label="Toggle navigation">
-                    <i class="material-icons">@(isMobileMenuOpen ? "close" : "menu")</i>
-                </button>
-            </div>
-        </div>
-    </div>
+<RadzenLayout>
+    <RadzenHeader>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Gap="1rem" class="rz-p-4">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="analytics" Style="font-size: 1.5rem; color: var(--rz-primary);" />
+                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; font-weight: 600;">PoRepoLineTracker</RadzenText>
+            </RadzenStack>
+            
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenButton Icon="settings" 
+                              ButtonStyle="ButtonStyle.Light" 
+                              Variant="Variant.Text"
+                              Click="@(() => Navigation.NavigateTo("/settings/extensions-counted"))"
+                              title="Settings" />
+                <LoginDisplay />
+                <RadzenButton Icon="@(sidebarExpanded ? "menu_open" : "menu")" 
+                              ButtonStyle="ButtonStyle.Light" 
+                              Variant="Variant.Text"
+                              Click="@ToggleSidebar"
+                              class="rz-display-none-lg" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenHeader>
     
-    <div class="rz-body">
-        <!-- Mobile sidebar overlay -->
-        <div class="mobile-sidebar-overlay @(isMobileMenuOpen ? "show" : "")" @onclick="CloseMobileMenu"></div>
-        
-        <!-- Sidebar -->
-        <div class="rz-sidebar @(isMobileMenuOpen ? "show" : "")">
+    <RadzenSidebar @bind-Expanded="@sidebarExpanded" Style="width: 280px; background: var(--rz-sidebar-background-color);">
+        <RadzenPanelMenu>
             <NavMenu />
+        </RadzenPanelMenu>
+    </RadzenSidebar>
+    
+    <RadzenBody>
+        <div class="rz-p-4">
+            @Body
         </div>
-        
-        <!-- Main content -->
-        <div class="rz-content-container">
-            <div class="container">
-                @Body
-            </div>
-        </div>
-    </div>
-</div>
+    </RadzenBody>
+</RadzenLayout>
+
+<RadzenDialog />
+<RadzenNotification />
+<RadzenTooltip />
+<RadzenContextMenu />
 
 @code {
-    private bool isMobileMenuOpen = false;
+    private bool sidebarExpanded = true;
 
-    private void ToggleMobileMenu()
+    private void ToggleSidebar()
     {
-        isMobileMenuOpen = !isMobileMenuOpen;
-    }
-
-    private void CloseMobileMenu()
-    {
-        isMobileMenuOpen = false;
+        sidebarExpanded = !sidebarExpanded;
     }
 }

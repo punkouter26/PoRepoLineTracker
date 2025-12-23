@@ -433,3 +433,4 @@ appsettings.*.local.json
 secrets-backup.json
 secrets-backup*.json
 *-secrets.json
+secrets.json

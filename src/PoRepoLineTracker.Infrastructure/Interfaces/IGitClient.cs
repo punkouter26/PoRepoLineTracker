@@ -9,14 +9,16 @@ namespace PoRepoLineTracker.Infrastructure.Interfaces
         /// </summary>
         /// <param name="repoUrl">The URL of the remote repository.</param>
         /// <param name="localPath">The local path where the repository should be cloned.</param>
+        /// <param name="accessToken">Optional: OAuth access token for authentication.</param>
         /// <returns>The path to the cloned repository.</returns>
-        string Clone(string repoUrl, string localPath);
+        string Clone(string repoUrl, string localPath, string? accessToken = null);
 
         /// <summary>
         /// Pulls changes from the remote repository for a given local repository.
         /// </summary>
         /// <param name="localPath">The local path of the repository.</param>
-        void Pull(string localPath);
+        /// <param name="accessToken">Optional: OAuth access token for authentication.</param>
+        void Pull(string localPath, string? accessToken = null);
 
         /// <summary>
         /// Gets all commits from a local repository, optionally since a specific date.

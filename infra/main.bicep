@@ -11,15 +11,12 @@ param githubPAT string
 // Naming convention: All resources use 'PoRepoLineTracker' prefix for consistency
 // Storage account names must be lowercase with no special characters due to Azure constraints
 var resourceGroupName = 'PoRepoLineTracker'
-var storageAccountName = 'porepolinetracker'  // Lowercase, no hyphens
-var appInsightsName = 'PoRepoLineTracker'
-var logAnalyticsName = 'PoRepoLineTracker'
-var appServiceName = 'PoRepoLineTracker'
-
-// Shared infrastructure references
-// Uses existing shared App Service Plan to minimize costs (Free F1 tier supports multiple apps)
-var sharedResourceGroupName = 'PoShared'
-var sharedAppServicePlanName = 'PoShared'
+var storageAccountName = 'porepolinetrackeraca'  // Unique name for ACA deployment
+var appInsightsName = 'PoRepoLineTrackerACA'
+var logAnalyticsName = 'PoRepoLineTrackerACA'
+var containerAppName = 'porepolinetracker'  // Container App names must be lowercase
+var containerAppEnvName = 'porepolinetracker-env'
+var containerRegistryName = 'porepolinetrackeracr'
 
 // Create resource group for this application's resources
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -36,8 +33,9 @@ module resources 'resources.bicep' = {
     storageAccountName: storageAccountName
     appInsightsName: appInsightsName
     logAnalyticsName: logAnalyticsName
-    appServiceName: appServiceName
-    sharedAppServicePlanResourceId: '/subscriptions/${subscription().subscriptionId}/resourceGroups/${sharedResourceGroupName}/providers/Microsoft.Web/serverfarms/${sharedAppServicePlanName}'
+    containerAppName: containerAppName
+    containerAppEnvName: containerAppEnvName
+    containerRegistryName: containerRegistryName
     githubPAT: githubPAT
   }
 }
@@ -56,4 +54,7 @@ output AZURE_STORAGE_ACCOUNT_NAME string = resources.outputs.storageAccountName
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = resources.outputs.appInsightsConnectionString
 
 @description('Public URL of the deployed application')
-output APP_SERVICE_URL string = resources.outputs.appServiceUrl
+output CONTAINER_APP_URL string = resources.outputs.containerAppUrl
+
+@description('Azure Container Registry endpoint')
+output AZURE_CONTAINER_REGISTRY_ENDPOINT string = resources.outputs.containerRegistryEndpoint

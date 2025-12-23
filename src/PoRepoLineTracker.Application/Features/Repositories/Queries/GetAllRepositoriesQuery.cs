@@ -4,5 +4,5 @@ using System.Collections.Generic;
 
 namespace PoRepoLineTracker.Application.Features.Repositories.Queries
 {
-    public record GetAllRepositoriesQuery() : IRequest<IEnumerable<GitHubRepository>>;
+    public record GetAllRepositoriesQuery(Guid UserId) : IRequest<IEnumerable<GitHubRepository>>;
 }

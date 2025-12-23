@@ -1,0 +1,9 @@
+@inject NavigationManager Navigation
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Redirect to the login endpoint
+        Navigation.NavigateTo("api/auth/login", forceLoad: true);
+    }
+}

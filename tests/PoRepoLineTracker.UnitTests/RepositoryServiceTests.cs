@@ -32,11 +32,11 @@ public class RepositoryServiceTests
         var owner = "testowner";
         var repoName = "testrepo";
         var cloneUrl = "https://github.com/testowner/testrepo.git";
-        var expectedRepo = new GitHubRepository 
-        { 
-            Owner = owner, 
-            Name = repoName, 
-            CloneUrl = cloneUrl 
+        var expectedRepo = new GitHubRepository
+        {
+            Owner = owner,
+            Name = repoName,
+            CloneUrl = cloneUrl
         };
 
         _mockMediator.Send(Arg.Any<AddRepositoryCommand>(), Arg.Any<CancellationToken>())
@@ -50,12 +50,12 @@ public class RepositoryServiceTests
         result.Owner.Should().Be(owner);
         result.Name.Should().Be(repoName);
         result.CloneUrl.Should().Be(cloneUrl);
-        
+
         await _mockMediator.Received(1).Send(
-            Arg.Is<AddRepositoryCommand>(cmd => 
-                cmd.Owner == owner && 
-                cmd.RepoName == repoName && 
-                cmd.CloneUrl == cloneUrl), 
+            Arg.Is<AddRepositoryCommand>(cmd =>
+                cmd.Owner == owner &&
+                cmd.RepoName == repoName &&
+                cmd.CloneUrl == cloneUrl),
             Arg.Any<CancellationToken>());
     }
 
@@ -79,7 +79,7 @@ public class RepositoryServiceTests
 
         // Assert
         await _mockMediator.Received(1).Send(
-            Arg.Is<AnalyzeRepositoryCommitsCommand>(cmd => cmd.RepositoryId == repoId), 
+            Arg.Is<AnalyzeRepositoryCommitsCommand>(cmd => cmd.RepositoryId == repoId),
             Arg.Any<CancellationToken>());
     }
 }

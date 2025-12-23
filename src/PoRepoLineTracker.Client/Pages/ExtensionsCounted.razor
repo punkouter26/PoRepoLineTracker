@@ -1,40 +1,329 @@
 @page "/settings/extensions-counted"
+@attribute [Authorize]
 @inject HttpClient Http
+@inject Radzen.NotificationService NotificationService
+@inject Radzen.DialogService DialogService
+@inject ILogger<ExtensionsCounted> Logger
+@using Microsoft.AspNetCore.Authorization
+@using PoRepoLineTracker.Domain.Models
+@using Radzen
+@using Radzen.Blazor
 
-<h3>Extensions Counted</h3>
+<RadzenStack Gap="1rem">
+    <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">File Extension Settings</RadzenText>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="6" class="rz-text-align-end">
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+                <RadzenButton Text="Reset to Defaults" 
+                              Icon="restore" 
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Small"
+                              Click="@ResetToDefaults"
+                              Disabled="@(isLoading || isSaving)" />
+                <RadzenButton Text="Save Changes" 
+                              Icon="save" 
+                              ButtonStyle="ButtonStyle.Success"
+                              Size="ButtonSize.Small"
+                              Click="@SavePreferences"
+                              IsBusy="@isSaving"
+                              BusyText="Saving..."
+                              Disabled="@(!hasChanges || isLoading)" />
+            </RadzenStack>
+        </RadzenColumn>
+    </RadzenRow>
 
-@if (extensions == null)
-{
-    <p><em>Loading extensions...</em></p>
-}
-else if (errorMessage != null)
-{
-    <p class="text-danger">Error: @errorMessage</p>
-}
-else
-{
-    <p>The following file extensions are included in line count calculations:</p>
-    <ul>
-        @foreach (var extension in extensions)
-        {
-            <li>@extension</li>
-        }
-    </ul>
-}
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true" Close="@(() => errorMessage = null)">
+            @errorMessage
+        </RadzenAlert>
+    }
+
+    @if (hasChanges)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
+            You have unsaved changes. Click "Save Changes" to apply them.
+        </RadzenAlert>
+    }
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1rem" AlignItems="AlignItems.Center" class="rz-p-8">
+                <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Large" />
+                <RadzenText>Loading preferences...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1rem">
+                <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                    <RadzenColumn>
+                        <RadzenText TextStyle="TextStyle.H6">Extensions (@(extensionItems?.Count ?? 0))</RadzenText>
+                    </RadzenColumn>
+                    <RadzenColumn class="rz-text-align-end">
+                        <RadzenButton Text="Add Extension" 
+                                      Icon="add" 
+                                      ButtonStyle="ButtonStyle.Primary"
+                                      Size="ButtonSize.Small"
+                                      Click="@AddNewExtension" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenDataGrid @ref="extensionGrid"
+                                Data="@extensionItems" 
+                                TItem="ExtensionItem"
+                                AllowFiltering="false"
+                                AllowSorting="true"
+                                AllowPaging="true"
+                                PageSize="15"
+                                PagerHorizontalAlign="HorizontalAlign.Center"
+                                ShowPagingSummary="true"
+                                EditMode="DataGridEditMode.Single"
+                                RowUpdate="@OnUpdateRow"
+                                RowCreate="@OnCreateRow"
+                                Density="Density.Compact"
+                                Style="height: auto;">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="ExtensionItem" Property="Extension" Title="Extension" Width="200px">
+                            <Template Context="item">
+                                <code style="font-size: 1rem;">@item.Extension</code>
+                            </Template>
+                            <EditTemplate Context="item">
+                                <RadzenTextBox @bind-Value="item.Extension" Style="width: 100%;" autofocus />
+                            </EditTemplate>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ExtensionItem" Property="Category" Title="Category" Width="150px">
+                            <Template Context="item">
+                                <RadzenBadge BadgeStyle="@GetCategoryBadgeStyle(item.Category)" Text="@item.Category" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ExtensionItem" Title="Actions" Width="120px" TextAlign="TextAlign.Center" Sortable="false">
+                            <Template Context="item">
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
+                                    <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text" Click="@(() => EditRow(item))" title="Edit" />
+                                    <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Click="@(() => DeleteRow(item))" title="Delete" />
+                                </RadzenStack>
+                            </Template>
+                            <EditTemplate Context="item">
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
+                                    <RadzenButton Icon="check" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Text" Click="@(() => SaveRow(item))" title="Save" />
+                                    <RadzenButton Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Click="@(() => CancelEdit(item))" title="Cancel" />
+                                </RadzenStack>
+                            </EditTemplate>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </RadzenStack>
+        </RadzenCard>
+
+    }
+</RadzenStack>
 
 @code {
-    private List<string>? extensions;
+    private RadzenDataGrid<ExtensionItem>? extensionGrid;
+    private List<ExtensionItem>? extensionItems;
+    private List<ExtensionItem>? originalExtensionItems;
     private string? errorMessage;
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool hasChanges = false;
+    private UserPreferences? preferences;
+    private string newExtensionValue = string.Empty;
+
+    private static readonly Dictionary<string, string[]> categoryMap = new()
+    {
+        { ".NET", [".cs", ".vb", ".fs", ".razor", ".cshtml", ".xaml", ".csproj", ".fsproj"] },
+        { "Web", [".html", ".css", ".scss", ".less", ".svg"] },
+        { "JavaScript", [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue"] },
+        { "Python", [".py", ".pyw", ".pyx", ".pyi"] },
+        { "Data", [".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".config"] },
+        { "Scripts", [".sh", ".bash", ".ps1", ".bat", ".cmd"] }
+    };
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadPreferences();
+    }
+
+    private async Task LoadPreferences()
+    {
+        isLoading = true;
+        errorMessage = null;
+        
         try
         {
-            extensions = await Http.GetFromJsonAsync<List<string>>("/api/settings/file-extensions");
+            preferences = await Http.GetFromJsonAsync<UserPreferences>("/api/settings/user-preferences");
+            var extensions = preferences?.FileExtensions?.ToList() ?? [];
+            extensionItems = extensions.Select(ext => new ExtensionItem { Extension = ext, Category = GetCategory(ext) }).ToList();
+            originalExtensionItems = extensionItems.Select(e => new ExtensionItem { Extension = e.Extension, Category = e.Category }).ToList();
+            hasChanges = false;
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            Logger.LogError(ex, "Error loading user preferences");
+            errorMessage = $"Failed to load preferences: {ex.Message}";
+            extensionItems = [];
+            originalExtensionItems = [];
         }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetCategory(string extension)
+    {
+        foreach (var (category, extensions) in categoryMap)
+        {
+            if (extensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+                return category;
+        }
+        return "Custom";
+    }
+
+    private static BadgeStyle GetCategoryBadgeStyle(string category) => category switch
+    {
+        ".NET" => BadgeStyle.Primary,
+        "Web" => BadgeStyle.Info,
+        "JavaScript" => BadgeStyle.Warning,
+        "Python" => BadgeStyle.Success,
+        "Data" => BadgeStyle.Secondary,
+        "Scripts" => BadgeStyle.Dark,
+        _ => BadgeStyle.Light
+    };
+
+    private async Task AddNewExtension()
+    {
+        var result = await DialogService.OpenAsync("Add Extension", ds =>
+            @<RadzenStack Gap="1rem" Style="padding: 1rem;">
+                <RadzenTextBox @bind-Value="@newExtensionValue" Placeholder="e.g., .py or py" Style="width: 100%;" />
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => ds.Close(null))" />
+                    <RadzenButton Text="Add" ButtonStyle="ButtonStyle.Primary" Click="@(() => ds.Close(newExtensionValue))" />
+                </RadzenStack>
+            </RadzenStack>,
+            new DialogOptions { Width = "350px", Height = "180px" });
+
+        if (!string.IsNullOrEmpty(result as string))
+        {
+            var ext = NormalizeExtension((string)result);
+            if (string.IsNullOrEmpty(ext))
+            {
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Warning, Summary = "Invalid Extension", Detail = "Must contain only letters/numbers after dot.", Duration = 3000 });
+                newExtensionValue = string.Empty;
+                return;
+            }
+
+            if (extensionItems?.Any(e => e.Extension.Equals(ext, StringComparison.OrdinalIgnoreCase)) == true)
+            {
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Warning, Summary = "Duplicate", Detail = $"'{ext}' already exists.", Duration = 3000 });
+                newExtensionValue = string.Empty;
+                return;
+            }
+
+            extensionItems ??= [];
+            extensionItems.Add(new ExtensionItem { Extension = ext, Category = GetCategory(ext) });
+            CheckForChanges();
+            await extensionGrid!.Reload();
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Added", Detail = $"Added '{ext}'", Duration = 2000 });
+        }
+        newExtensionValue = string.Empty;
+    }
+
+    private async Task EditRow(ExtensionItem item) => await extensionGrid!.EditRow(item);
+
+    private async Task SaveRow(ExtensionItem item)
+    {
+        item.Extension = NormalizeExtension(item.Extension);
+        item.Category = GetCategory(item.Extension);
+        await extensionGrid!.UpdateRow(item);
+        CheckForChanges();
+    }
+
+    private void CancelEdit(ExtensionItem item) => extensionGrid!.CancelEditRow(item);
+    private void OnUpdateRow(ExtensionItem item) => CheckForChanges();
+    private void OnCreateRow(ExtensionItem item) => CheckForChanges();
+
+    private async Task DeleteRow(ExtensionItem item)
+    {
+        var confirmed = await DialogService.Confirm($"Delete '{item.Extension}'?", "Confirm", new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+        if (confirmed == true)
+        {
+            extensionItems?.Remove(item);
+            CheckForChanges();
+            await extensionGrid!.Reload();
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Info, Summary = "Removed", Detail = $"Removed '{item.Extension}'", Duration = 2000 });
+        }
+    }
+
+    private void ResetToDefaults()
+    {
+        extensionItems = UserPreferences.DefaultFileExtensions.Select(ext => new ExtensionItem { Extension = ext, Category = GetCategory(ext) }).ToList();
+        CheckForChanges();
+        NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Info, Summary = "Reset", Detail = "Extension list reset. Save to apply.", Duration = 3000 });
+    }
+
+    private void CheckForChanges()
+    {
+        if (originalExtensionItems == null || extensionItems == null) { hasChanges = false; return; }
+        var currentSet = extensionItems.Select(e => e.Extension.ToLowerInvariant()).OrderBy(x => x).ToList();
+        var originalSet = originalExtensionItems.Select(e => e.Extension.ToLowerInvariant()).OrderBy(x => x).ToList();
+        hasChanges = !currentSet.SequenceEqual(originalSet);
+    }
+
+    private async Task SavePreferences()
+    {
+        if (extensionItems == null) return;
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            var updatedPrefs = new UserPreferences { UserId = preferences?.UserId ?? Guid.Empty, FileExtensions = extensionItems.Select(e => e.Extension).ToList(), LastUpdated = DateTime.UtcNow };
+            var response = await Http.PutAsJsonAsync("/api/settings/user-preferences", updatedPrefs);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                preferences = await response.Content.ReadFromJsonAsync<UserPreferences>();
+                originalExtensionItems = extensionItems.Select(e => new ExtensionItem { Extension = e.Extension, Category = e.Category }).ToList();
+                hasChanges = false;
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Saved", Detail = "Re-analyze repositories to apply.", Duration = 4000 });
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                throw new Exception($"Server returned {response.StatusCode}: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving user preferences");
+            errorMessage = $"Failed to save: {ex.Message}";
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Failed", Detail = ex.Message, Duration = 5000 });
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string NormalizeExtension(string ext)
+    {
+        ext = ext.Trim().ToLowerInvariant();
+        if (!ext.StartsWith('.')) ext = "." + ext;
+        if (ext.Length < 2 || !ext[1..].All(c => char.IsLetterOrDigit(c))) return string.Empty;
+        return ext;
+    }
+
+    public class ExtensionItem
+    {
+        public string Extension { get; set; } = string.Empty;
+        public string Category { get; set; } = "Custom";
     }
 }

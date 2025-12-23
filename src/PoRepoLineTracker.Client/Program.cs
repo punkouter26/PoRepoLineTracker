@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using PoRepoLineTracker.Client;
@@ -10,6 +11,11 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // Configure HttpClient for API calls
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+
+// Add authentication services
+builder.Services.AddScoped<ApiAuthenticationStateProvider>();
+builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<ApiAuthenticationStateProvider>());
+builder.Services.AddAuthorizationCore();
 
 // Add client-side logging service
 builder.Services.AddScoped<ClientLogger>();

@@ -8,8 +8,8 @@ public interface IRepositoryDataService
     Task AddRepositoryAsync(GitHubRepository repository);
     Task UpdateRepositoryAsync(GitHubRepository repository);
     Task<GitHubRepository?> GetRepositoryByIdAsync(Guid id);
-    Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name);
-    Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync();
+    Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name, Guid userId);
+    Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync(Guid userId);
 
     Task AddCommitLineCountAsync(CommitLineCount commitLineCount);
     Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(Guid repositoryId);
@@ -17,7 +17,7 @@ public interface IRepositoryDataService
     Task<bool> CommitExistsAsync(Guid repositoryId, string commitSha);
     Task DeleteCommitLineCountsForRepositoryAsync(Guid repositoryId); // Added for temporary endpoint
     Task DeleteRepositoryAsync(Guid repositoryId);
-    Task RemoveAllRepositoriesAsync(); // Added for removing all repositories and data
+    Task RemoveAllRepositoriesAsync(Guid userId); // Removes all repositories for a specific user
     Task CheckConnectionAsync();
     Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync(); // Added for file extensions
     Task AnalyzeRepositoryCommitsAsync(Guid repositoryId); // Added for commit analysis

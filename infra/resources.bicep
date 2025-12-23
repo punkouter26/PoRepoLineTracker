@@ -10,11 +10,14 @@ param appInsightsName string
 @description('Name of the Log Analytics Workspace')
 param logAnalyticsName string
 
-@description('Name of the App Service')
-param appServiceName string
+@description('Name of the Container App')
+param containerAppName string
 
-@description('Resource ID of the shared App Service Plan')
-param sharedAppServicePlanResourceId string
+@description('Name of the Container App Environment')
+param containerAppEnvName string
+
+@description('Name of the Azure Container Registry')
+param containerRegistryName string
 
 @secure()
 @description('GitHub Personal Access Token for repository access')
@@ -46,149 +49,178 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
+// Reference existing Storage Account for Azure Table Storage
 // Storage Account for Azure Table Storage
 // Used to persist repository and commit line count data
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
   location: location
   sku: {
-    name: 'Standard_LRS'  // Locally-redundant storage (3 copies in same datacenter, cost-effective)
+    name: 'Standard_LRS'
   }
-  kind: 'StorageV2'  // General-purpose v2 account with latest features
+  kind: 'StorageV2'
   properties: {
-    minimumTlsVersion: 'TLS1_2'  // Enforce secure connections only
-    allowBlobPublicAccess: false  // Disable public blob access for security
-    supportsHttpsTrafficOnly: true  // Require HTTPS for all connections
-    accessTier: 'Hot'  // Optimize for frequent access patterns
-  }
-}
-
-// Diagnostic settings for Storage Account
-resource storageAccountDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  name: 'storage-diagnostics'
-  scope: storageAccount
-  properties: {
-    workspaceId: logAnalytics.id
-    metrics: [
-      {
-        category: 'Transaction'
-        enabled: true
-      }
-    ]
+    minimumTlsVersion: 'TLS1_2'
+    allowBlobPublicAccess: false
+    supportsHttpsTrafficOnly: true
+    accessTier: 'Hot'
   }
 }
 
 // Table Service (part of Storage Account)
 resource tableService 'Microsoft.Storage/storageAccounts/tableServices@2023-01-01' = {
-  parent: storageAccount  // Uses parent property instead of / in name (Bicep best practice)
+  parent: storageAccount
   name: 'default'
 }
 
 // Application-specific tables
-// Table for storing repository metadata (owner, name, URL, etc.)
 resource repositoriesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-01-01' = {
   parent: tableService
   name: 'PoRepoLineTrackerRepositories'
 }
 
-// Table for storing commit line count history
 resource commitLineCountsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-01-01' = {
   parent: tableService
   name: 'PoRepoLineTrackerCommitLineCounts'
 }
 
-// Table for tracking failed operations for retry/debugging
 resource failedOperationsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-01-01' = {
   parent: tableService
   name: 'PoRepoLineTrackerFailedOperations'
 }
 
-// App Service for hosting the Blazor WebAssembly application and API
-// Uses a shared App Service Plan to minimize costs
-resource appService 'Microsoft.Web/sites@2022-09-01' = {
-  name: appServiceName
-  location: 'eastus2'  // Must match shared plan location
-  kind: 'app'
+// Azure Container Registry for storing container images
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+  name: containerRegistryName
+  location: location
+  sku: {
+    name: 'Basic'
+  }
+  properties: {
+    adminUserEnabled: true
+  }
+}
+
+// Container App Environment for hosting the container app
+// Uses Log Analytics workspace for log aggregation
+resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
+  name: containerAppEnvName
+  location: location
+  properties: {
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalytics.properties.customerId
+        sharedKey: logAnalytics.listKeys().primarySharedKey
+      }
+    }
+    daprAIConnectionString: appInsights.properties.ConnectionString
+    zoneRedundant: false
+  }
+}
+
+// Container App for hosting the Blazor WebAssembly application and API
+resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
+  name: containerAppName
+  location: location
   tags: {
     'azd-service-name': 'api'  // Azure Developer CLI service tag
   }
   properties: {
-    serverFarmId: sharedAppServicePlanResourceId  // References shared App Service Plan
-    siteConfig: {
-      netFrameworkVersion: 'v9.0'  // .NET 9 runtime
-      use32BitWorkerProcess: true  // Required for Free/Shared tier plans
-      alwaysOn: false  // Not available in Free tier (app may sleep after idle)
-      ftpsState: 'Disabled'  // Disable FTP/FTPS for security
-      minTlsVersion: '1.2'  // Minimum TLS version for security compliance
-      healthCheckPath: '/api/health'  // Health check endpoint for monitoring
-      appSettings: [
-        // Application Insights configuration for telemetry
+    managedEnvironmentId: containerAppEnv.id
+    configuration: {
+      ingress: {
+        external: true
+        targetPort: 8080
+        transport: 'auto'
+        allowInsecure: false
+      }
+      registries: [
         {
-          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-          value: appInsights.properties.ConnectionString
+          server: containerRegistry.properties.loginServer
+          username: containerRegistry.listCredentials().username
+          passwordSecretRef: 'acr-password'
+        }
+      ]
+      secrets: [
+        {
+          name: 'acr-password'
+          value: containerRegistry.listCredentials().passwords[0].value
         }
         {
-          name: 'ApplicationInsightsAgent_EXTENSION_VERSION'
-          value: '~3'  // Latest major version of App Insights agent
-        }
-        // Azure Table Storage configuration
-        {
-          name: 'AzureTableStorage__ConnectionString'
+          name: 'storage-connection-string'
           value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
         }
         {
-          name: 'AzureTableStorage__RepositoryTableName'
-          value: 'PoRepoLineTrackerRepositories'
+          name: 'github-pat'
+          value: githubPAT
         }
         {
-          name: 'AzureTableStorage__CommitLineCountTableName'
-          value: 'PoRepoLineTrackerCommitLineCounts'
-        }
-        {
-          name: 'AzureTableStorage__FailedOperationTableName'
-          value: 'PoRepoLineTrackerFailedOperations'
-        }
-        // GitHub integration configuration
-        {
-          name: 'GitHub__LocalReposPath'
-          value: 'D:\\home\\site\\wwwroot\\LocalRepos'  // Azure App Service path for temp storage
-        }
-        {
-          name: 'GitHub__PAT'
-          value: githubPAT  // Secure parameter passed at deployment time
+          name: 'appinsights-connection-string'
+          value: appInsights.properties.ConnectionString
         }
       ]
     }
-    httpsOnly: true
-  }
-}
-
-// Diagnostic settings for App Service
-resource appServiceDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  name: 'appservice-diagnostics'
-  scope: appService
-  properties: {
-    workspaceId: logAnalytics.id
-    logs: [
-      {
-        category: 'AppServiceHTTPLogs'
-        enabled: true
+    template: {
+      containers: [
+        {
+          name: 'api'
+          image: '${containerRegistry.properties.loginServer}/api:latest'  // Will be replaced by azd deploy
+          resources: {
+            cpu: json('0.5')
+            memory: '1Gi'
+          }
+          env: [
+            {
+              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+              secretRef: 'appinsights-connection-string'
+            }
+            {
+              name: 'AzureTableStorage__ConnectionString'
+              secretRef: 'storage-connection-string'
+            }
+            {
+              name: 'AzureTableStorage__RepositoryTableName'
+              value: 'PoRepoLineTrackerRepositories'
+            }
+            {
+              name: 'AzureTableStorage__CommitLineCountTableName'
+              value: 'PoRepoLineTrackerCommitLineCounts'
+            }
+            {
+              name: 'AzureTableStorage__FailedOperationTableName'
+              value: 'PoRepoLineTrackerFailedOperations'
+            }
+            {
+              name: 'GitHub__LocalReposPath'
+              value: '/app/LocalRepos'  // Container path for temp storage
+            }
+            {
+              name: 'GitHub__PAT'
+              secretRef: 'github-pat'
+            }
+            {
+              name: 'ASPNETCORE_URLS'
+              value: 'http://+:8080'
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 0
+        maxReplicas: 3
+        rules: [
+          {
+            name: 'http-scaling'
+            http: {
+              metadata: {
+                concurrentRequests: '10'
+              }
+            }
+          }
+        ]
       }
-      {
-        category: 'AppServiceConsoleLogs'
-        enabled: true
-      }
-      {
-        category: 'AppServiceAppLogs'
-        enabled: true
-      }
-    ]
-    metrics: [
-      {
-        category: 'AllMetrics'
-        enabled: true
-      }
-    ]
+    }
   }
 }
 
@@ -199,8 +231,11 @@ output storageAccountName string = storageAccount.name
 @description('Application Insights connection string for telemetry')
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
 
-@description('Public URL of the deployed App Service')
-output appServiceUrl string = 'https://${appService.properties.defaultHostName}'
+@description('Public URL of the deployed Container App')
+output containerAppUrl string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
 
 @description('Resource ID of the Log Analytics Workspace')
 output logAnalyticsId string = logAnalytics.id
+
+@description('Azure Container Registry login server')
+output containerRegistryEndpoint string = containerRegistry.properties.loginServer

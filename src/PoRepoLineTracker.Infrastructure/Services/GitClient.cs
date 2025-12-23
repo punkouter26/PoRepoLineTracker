@@ -6,32 +6,30 @@ namespace PoRepoLineTracker.Infrastructure.Services
 {
     public class GitClient : IGitClient
     {
-        private readonly string? _githubPAT;
-
         public GitClient(IConfiguration configuration)
         {
-            _githubPAT = configuration["GitHub:PAT"];
+            // No longer store PAT - tokens are passed per-request
         }
 
-        public string Clone(string repoUrl, string localPath)
+        public string Clone(string repoUrl, string localPath, string? accessToken = null)
         {
             var cloneOptions = new CloneOptions();
 
-            // Configure credentials using GitHub PAT for private repositories
-            if (!string.IsNullOrEmpty(_githubPAT))
+            // Configure credentials using access token for private repositories
+            if (!string.IsNullOrEmpty(accessToken))
             {
                 cloneOptions.FetchOptions.CredentialsProvider = (url, usernameFromUrl, types) =>
                     new UsernamePasswordCredentials
                     {
-                        Username = _githubPAT, // For GitHub, the token is used as the username
-                        Password = string.Empty // Password is empty when using PAT
+                        Username = accessToken, // For GitHub, the token is used as the username
+                        Password = string.Empty // Password is empty when using token
                     };
             }
 
             return Repository.Clone(repoUrl, localPath, cloneOptions);
         }
 
-        public void Pull(string localPath)
+        public void Pull(string localPath, string? accessToken = null)
         {
             using (var repo = new Repository(localPath))
             {
@@ -40,13 +38,13 @@ namespace PoRepoLineTracker.Infrastructure.Services
                     FetchOptions = new FetchOptions()
                 };
 
-                // Configure credentials using GitHub PAT for private repositories
-                if (!string.IsNullOrEmpty(_githubPAT))
+                // Configure credentials using access token for private repositories
+                if (!string.IsNullOrEmpty(accessToken))
                 {
                     options.FetchOptions.CredentialsProvider = (url, usernameFromUrl, types) =>
                         new UsernamePasswordCredentials
                         {
-                            Username = _githubPAT,
+                            Username = accessToken,
                             Password = string.Empty
                         };
                 }
@@ -59,8 +57,8 @@ namespace PoRepoLineTracker.Infrastructure.Services
         {
             using (var repo = new Repository(localPath))
             {
-                IEnumerable<Commit> commits = repo.Commits.QueryBy(new CommitFilter 
-                { 
+                IEnumerable<Commit> commits = repo.Commits.QueryBy(new CommitFilter
+                {
                     SortBy = CommitSortStrategies.Time,
                     IncludeReachableFrom = repo.Head
                 });

@@ -18,7 +18,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Queries
 
         public async Task<IEnumerable<GitHubRepository>> Handle(GetAllRepositoriesQuery request, CancellationToken cancellationToken)
         {
-            return await _repositoryDataService.GetAllRepositoriesAsync();
+            return await _repositoryDataService.GetAllRepositoriesAsync(request.UserId);
         }
     }
 }

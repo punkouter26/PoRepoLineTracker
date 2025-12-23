@@ -13,24 +13,30 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
         private readonly IGitHubService _gitHubService;
         private readonly IRepositoryDataService _repositoryDataService;
         private readonly IFailedOperationService _failedOperationService;
+        private readonly IUserService _userService;
+        private readonly IUserPreferencesService _userPreferencesService;
         private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
 
         public AnalyzeRepositoryCommitsCommandHandler(
             IGitHubService gitHubService,
             IRepositoryDataService repositoryDataService,
             IFailedOperationService failedOperationService,
+            IUserService userService,
+            IUserPreferencesService userPreferencesService,
             ILogger<AnalyzeRepositoryCommitsCommandHandler> logger)
         {
             _gitHubService = gitHubService;
             _repositoryDataService = repositoryDataService;
             _failedOperationService = failedOperationService;
+            _userService = userService;
+            _userPreferencesService = userPreferencesService;
             _logger = logger;
         }
 
         public async Task<Unit> Handle(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Analyzing commits for repository ID: {RepositoryId} (ForceReanalysis: {ForceReanalysis})",
-                request.RepositoryId, request.ForceReanalysis);
+            _logger.LogInformation("Analyzing commits for repository ID: {RepositoryId} (ForceReanalysis: {ForceReanalysis}, ClearExistingData: {ClearExistingData})",
+                request.RepositoryId, request.ForceReanalysis, request.ClearExistingData);
 
             // Get the repository to analyze
             var repository = await _repositoryDataService.GetRepositoryByIdAsync(request.RepositoryId);
@@ -38,6 +44,24 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
             {
                 _logger.LogWarning("Repository with ID {RepositoryId} not found", request.RepositoryId);
                 return Unit.Value;
+            }
+
+            // Clear existing commit data if requested (for full re-analysis with new extensions)
+            if (request.ClearExistingData)
+            {
+                _logger.LogInformation("Clearing existing commit data for repository {RepositoryId} for full re-analysis", request.RepositoryId);
+                await _repositoryDataService.DeleteCommitLineCountsForRepositoryAsync(request.RepositoryId);
+                
+                // Reset the last analyzed date so all commits are processed
+                repository.LastAnalyzedCommitDate = null;
+                await _repositoryDataService.UpdateRepositoryAsync(repository);
+            }
+
+            // Get the user's access token for private repository access
+            string? accessToken = null;
+            if (repository.UserId != Guid.Empty)
+            {
+                accessToken = await _userService.GetAccessTokenAsync(repository.UserId);
             }
 
             try
@@ -49,21 +73,23 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                     // Generate a unique local path for this repository
                     localPath = $"repo_{request.RepositoryId}";
                     _logger.LogInformation("Cloning repository {Owner}/{Name} to {LocalPath}", repository.Owner, repository.Name, localPath);
-                    await _gitHubService.CloneRepositoryAsync(repository.CloneUrl, localPath);
+                    await _gitHubService.CloneRepositoryAsync(repository.CloneUrl, localPath, accessToken);
                 }
                 else
                 {
                     localPath = repository.LocalPath;
                     _logger.LogInformation("Pulling repository {Owner}/{Name} from {LocalPath}", repository.Owner, repository.Name, localPath);
-                    await _gitHubService.PullRepositoryAsync(localPath);
+                    await _gitHubService.PullRepositoryAsync(localPath, accessToken);
                 }
 
                 // Update repository with local path
                 repository.LocalPath = localPath;
                 await _repositoryDataService.UpdateRepositoryAsync(repository);
 
-                // Get configured file extensions to count
-                var fileExtensionsToCount = await _repositoryDataService.GetConfiguredFileExtensionsAsync();
+                // Get user-specific file extensions to count (falls back to defaults if not configured)
+                var fileExtensionsToCount = repository.UserId != Guid.Empty
+                    ? await _userPreferencesService.GetFileExtensionsAsync(repository.UserId)
+                    : UserPreferences.DefaultFileExtensions;
 
                 // Get commit stats from all time (use a date far in the past to get all commits)
                 var sinceDate = DateTime.UtcNow.AddYears(-50); // Get all commits from the repository's entire history

@@ -19,6 +19,10 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
 using PoRepoLineTracker.Api.Telemetry;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Security.Claims;
+using AspNet.Security.OAuth.GitHub;
 
 namespace PoRepoLineTracker.Api
 {
@@ -177,8 +181,93 @@ namespace PoRepoLineTracker.Api
             builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryDataService, PoRepoLineTracker.Infrastructure.Services.RepositoryDataService>();
             builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IRepositoryService, PoRepoLineTracker.Application.Services.RepositoryService>(); // Re-enabled: RepositoryService now uses MediatR
 
+            // Register User Service for authentication
+            builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IUserService, PoRepoLineTracker.Infrastructure.Services.UserService>();
+
+            // Register User Preferences Service
+            builder.Services.AddScoped<PoRepoLineTracker.Application.Interfaces.IUserPreferencesService, PoRepoLineTracker.Infrastructure.Services.UserPreferencesService>();
+
             // Add MediatR
             builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(PoRepoLineTracker.Application.Features.Repositories.Commands.AddRepositoryCommand).Assembly));
+
+            // Configure GitHub OAuth Authentication
+            builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = GitHubAuthenticationDefaults.AuthenticationScheme;
+            })
+            .AddCookie(options =>
+            {
+                options.Cookie.Name = "PoRepoLineTracker.Auth";
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SameSite = SameSiteMode.Lax;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                options.ExpireTimeSpan = TimeSpan.FromDays(7);
+                options.SlidingExpiration = true;
+                options.LoginPath = "/auth/login";
+                options.LogoutPath = "/auth/logout";
+                options.Events.OnRedirectToLogin = context =>
+                {
+                    // For API requests, return 401 instead of redirect
+                    if (context.Request.Path.StartsWithSegments("/api"))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        return Task.CompletedTask;
+                    }
+                    context.Response.Redirect(context.RedirectUri);
+                    return Task.CompletedTask;
+                };
+            })
+            .AddGitHub(options =>
+            {
+                options.ClientId = builder.Configuration["GitHub:ClientId"] ?? throw new InvalidOperationException("GitHub:ClientId is not configured");
+                options.ClientSecret = builder.Configuration["GitHub:ClientSecret"] ?? throw new InvalidOperationException("GitHub:ClientSecret is not configured");
+                options.CallbackPath = builder.Configuration["GitHub:CallbackPath"] ?? "/signin-github";
+                
+                // Request scopes for repository access
+                options.Scope.Add("user:email");
+                options.Scope.Add("read:user");
+                options.Scope.Add("repo"); // Full repo access for private repos
+                
+                options.SaveTokens = true;
+                
+                options.Events.OnCreatingTicket = async context =>
+                {
+                    // Extract user info from GitHub claims
+                    var gitHubId = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                    var username = context.Principal?.FindFirst(ClaimTypes.Name)?.Value; // GitHub maps "login" to ClaimTypes.Name
+                    var displayName = context.Principal?.FindFirst(GitHubAuthenticationConstants.Claims.Name)?.Value
+                                   ?? context.Principal?.FindFirst(ClaimTypes.GivenName)?.Value;
+                    var email = context.Principal?.FindFirst(ClaimTypes.Email)?.Value;
+                    
+                    // Avatar URL comes from the user JSON response directly
+                    var avatarUrl = context.User.GetProperty("avatar_url").GetString();
+                    var accessToken = context.AccessToken;
+
+                    if (gitHubId != null && username != null && accessToken != null)
+                    {
+                        // Get or create user in our system
+                        var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
+                        var user = new User
+                        {
+                            GitHubId = gitHubId,
+                            Username = username,
+                            DisplayName = displayName ?? username,
+                            Email = email,
+                            AvatarUrl = avatarUrl ?? string.Empty,
+                            AccessToken = accessToken
+                        };
+
+                        var savedUser = await userService.UpsertUserAsync(user);
+
+                        // Add our internal user ID to claims
+                        var identity = context.Principal?.Identity as ClaimsIdentity;
+                        identity?.AddClaim(new Claim("UserId", savedUser.Id.ToString()));
+                    }
+                };
+            });
+
+            builder.Services.AddAuthorization();
 
             // Add Application Insights telemetry
             builder.Services.AddApplicationInsightsTelemetry(options =>
@@ -201,7 +290,7 @@ namespace PoRepoLineTracker.Api
                         {
                             // Enrich traces with additional HTTP request details
                             options.RecordException = true;
-                            options.Filter = context => 
+                            options.Filter = context =>
                             {
                                 // Skip health check endpoint from traces
                                 return !context.Request.Path.StartsWithSegments("/api/health");
@@ -255,10 +344,10 @@ namespace PoRepoLineTracker.Api
                 .AddCheck<PoRepoLineTracker.Api.HealthChecks.AzureTableStorageHealthCheck>("azure_table_storage");
 
             var app = builder.Build();
-            
+
             // Map Aspire default endpoints (health checks)
             app.MapDefaultEndpoints();
-            
+
             app.UseMiddleware<ExceptionHandlingMiddleware>(); // Global exception handling
 
             // Configure the HTTP request pipeline.
@@ -274,6 +363,10 @@ namespace PoRepoLineTracker.Api
             }
 
             app.UseHttpsRedirection();
+
+            // Authentication & Authorization middleware (after HTTPS redirect, before endpoints)
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             app.UseBlazorFrameworkFiles();
             app.UseStaticFiles();
@@ -301,6 +394,64 @@ namespace PoRepoLineTracker.Api
                 }
             })
             .WithName("HealthCheck");
+
+            // ========== AUTHENTICATION ENDPOINTS ==========
+            
+            // Login - redirects to GitHub OAuth
+            app.MapGet("/api/auth/login", (string? returnUrl) =>
+            {
+                var properties = new AuthenticationProperties
+                {
+                    RedirectUri = returnUrl ?? "/"
+                };
+                return Results.Challenge(properties, [GitHubAuthenticationDefaults.AuthenticationScheme]);
+            })
+            .WithName("Login")
+            .AllowAnonymous();
+
+            // Logout
+            app.MapGet("/api/auth/logout", async (HttpContext context) =>
+            {
+                await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                return Results.Redirect("/");
+            })
+            .WithName("Logout");
+
+            // Get current user info
+            app.MapGet("/api/auth/me", async (HttpContext context, IUserService userService) =>
+            {
+                if (context.User.Identity?.IsAuthenticated != true)
+                {
+                    return Results.Ok(new { isAuthenticated = false });
+                }
+
+                var userIdClaim = context.User.FindFirst("UserId")?.Value;
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+                {
+                    return Results.Ok(new { isAuthenticated = false });
+                }
+
+                var user = await userService.GetUserByIdAsync(userId);
+                if (user == null)
+                {
+                    return Results.Ok(new { isAuthenticated = false });
+                }
+
+                return Results.Ok(new
+                {
+                    isAuthenticated = true,
+                    userId = user.Id,
+                    username = user.Username,
+                    displayName = user.DisplayName,
+                    avatarUrl = user.AvatarUrl,
+                    email = user.Email
+                });
+            })
+            .WithName("GetCurrentUser")
+            .AllowAnonymous();
+
+            // ========== API ENDPOINTS ==========
+            
             // API Endpoints
             app.MapPost("/api/repositories", async (GitHubRepository newRepo, IMediator mediator) =>
             {
@@ -309,11 +460,19 @@ namespace PoRepoLineTracker.Api
             })
             .WithName("AddRepository");
 
-            app.MapGet("/api/repositories", async (IMediator mediator) =>
+            app.MapGet("/api/repositories", async (HttpContext httpContext, IMediator mediator) =>
             {
-                var repositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetAllRepositoriesQuery());
+                // Get the current user's ID from claims
+                var userIdClaim = httpContext.User.FindFirst("UserId")?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                {
+                    return Results.Unauthorized();
+                }
+
+                var repositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetAllRepositoriesQuery(userId));
                 return Results.Ok(repositories);
             })
+            .RequireAuthorization()
             .WithName("GetAllRepositories");
 
             app.MapGet("/api/repositories/{repositoryId}/linecounts", async (Guid repositoryId, IMediator mediator) =>
@@ -338,11 +497,18 @@ namespace PoRepoLineTracker.Api
             })
             .WithName("GetRepositoryLineHistory");
 
-            app.MapGet("/api/repositories/allcharts/{days}", async (int days, IMediator mediator) =>
+            app.MapGet("/api/repositories/allcharts/{days}", async (int days, HttpContext httpContext, IMediator mediator) =>
             {
                 try
                 {
-                    var allChartsData = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetAllRepositoriesLineCountHistoryQuery(days));
+                    // Get the current user's ID from claims
+                    var userIdClaim = httpContext.User.FindFirst("UserId")?.Value;
+                    if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    var allChartsData = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetAllRepositoriesLineCountHistoryQuery(days, userId));
                     return Results.Ok(allChartsData);
                 }
                 catch (Exception ex)
@@ -351,6 +517,7 @@ namespace PoRepoLineTracker.Api
                     return Results.Problem($"Error retrieving all repositories line count history: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
                 }
             })
+            .RequireAuthorization()
             .WithName("GetAllRepositoriesLineHistory");
 
             app.MapGet("/api/settings/file-extensions", async (IMediator mediator) =>
@@ -375,6 +542,75 @@ namespace PoRepoLineTracker.Api
             })
             .WithName("GetChartMaxLines");
 
+            // User Preferences Endpoints
+            app.MapGet("/api/settings/user-preferences", async (HttpContext httpContext, PoRepoLineTracker.Application.Interfaces.IUserPreferencesService preferencesService) =>
+            {
+                try
+                {
+                    var userIdClaim = httpContext.User.FindFirst("UserId")?.Value;
+                    if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    var preferences = await preferencesService.GetPreferencesAsync(userId);
+                    return Results.Ok(preferences);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error retrieving user preferences");
+                    return Results.Problem($"Error retrieving user preferences: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .RequireAuthorization()
+            .WithName("GetUserPreferences");
+
+            app.MapPut("/api/settings/user-preferences", async (HttpContext httpContext, PoRepoLineTracker.Application.Interfaces.IUserPreferencesService preferencesService, PoRepoLineTracker.Domain.Models.UserPreferences preferences) =>
+            {
+                try
+                {
+                    var userIdClaim = httpContext.User.FindFirst("UserId")?.Value;
+                    if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    // Ensure the UserId in preferences matches the authenticated user
+                    preferences = preferences with { UserId = userId, LastUpdated = DateTime.UtcNow };
+                    await preferencesService.SavePreferencesAsync(preferences);
+                    return Results.Ok(preferences);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error saving user preferences");
+                    return Results.Problem($"Error saving user preferences: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .RequireAuthorization()
+            .WithName("SaveUserPreferences");
+
+            app.MapGet("/api/settings/user-extensions", async (HttpContext httpContext, PoRepoLineTracker.Application.Interfaces.IUserPreferencesService preferencesService) =>
+            {
+                try
+                {
+                    var userIdClaim = httpContext.User.FindFirst("UserId")?.Value;
+                    if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    var extensions = await preferencesService.GetFileExtensionsAsync(userId);
+                    return Results.Ok(extensions);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error retrieving user file extensions");
+                    return Results.Problem($"Error retrieving user file extensions: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .RequireAuthorization()
+            .WithName("GetUserFileExtensions");
+
             app.MapGet("/api/repositories/{repositoryId}/file-extension-percentages", async (Guid repositoryId, IMediator mediator) =>
             {
                 try
@@ -389,6 +625,21 @@ namespace PoRepoLineTracker.Api
                 }
             })
             .WithName("GetFileExtensionPercentages");
+
+            app.MapGet("/api/repositories/{repositoryId}/top-files", async (Guid repositoryId, IMediator mediator, int count = 5) =>
+            {
+                try
+                {
+                    var topFiles = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetTopFilesQuery(repositoryId, count));
+                    return Results.Ok(topFiles);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error retrieving top files for repository {RepositoryId}", repositoryId);
+                    return Results.Problem($"Error retrieving top files: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .WithName("GetTopFiles");
 
             app.MapDelete("/api/repositories/{repositoryId}", async (Guid repositoryId, IMediator mediator) =>
             {
@@ -411,33 +662,57 @@ namespace PoRepoLineTracker.Api
             })
             .WithName("DeleteRepository");
 
-            app.MapDelete("/api/repositories/all", async (IMediator mediator) =>
+            app.MapDelete("/api/repositories/all", async (HttpContext httpContext, IMediator mediator) =>
             {
                 try
                 {
-                    await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.RemoveAllRepositoriesCommand());
-                    Log.Information("All repositories removed successfully via API.");
+                    // Get the current user's ID from claims
+                    var userIdClaim = httpContext.User.FindFirst("UserId")?.Value;
+                    if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                    {
+                        Log.Warning("Remove all repositories failed: No valid UserId claim found");
+                        return Results.Unauthorized();
+                    }
+
+                    Log.Information("Starting removal of all repositories for user {UserId}", userId);
+                    await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.RemoveAllRepositoriesCommand(userId));
+                    Log.Information("All repositories for user {UserId} removed successfully via API.", userId);
                     return Results.NoContent();
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "Error removing all repositories");
-                    return Results.Problem($"Error removing all repositories: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                    Log.Error(ex, "Error removing all repositories: {ErrorType} - {ErrorMessage}", ex.GetType().Name, ex.Message);
+                    return Results.Problem($"Error removing all repositories: {ex.GetType().Name} - {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
                 }
             })
+            .RequireAuthorization()
             .WithName("RemoveAllRepositories");
 
-            app.MapGet("/api/github/user-repositories", async (IGitHubService githubService) =>
+            app.MapGet("/api/github/user-repositories", async (HttpContext httpContext, IGitHubService githubService, IUserService userService) =>
             {
                 try
                 {
-                    var userRepositories = await githubService.GetUserRepositoriesAsync();
+                    // Get the current user's ID from claims
+                    var userIdClaim = httpContext.User.FindFirst("UserId")?.Value;
+                    if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    // Get the user's access token
+                    var accessToken = await userService.GetAccessTokenAsync(userId);
+                    if (string.IsNullOrEmpty(accessToken))
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    var userRepositories = await githubService.GetUserRepositoriesAsync(accessToken);
                     return Results.Ok(userRepositories);
                 }
                 catch (InvalidOperationException ex)
                 {
-                    Log.Warning("GitHub PAT not configured: {ErrorMessage}", ex.Message);
-                    return Results.BadRequest($"GitHub configuration error: {ex.Message}");
+                    Log.Warning("Authentication error: {ErrorMessage}", ex.Message);
+                    return Results.BadRequest($"Authentication error: {ex.Message}");
                 }
                 catch (Exception ex)
                 {
@@ -445,12 +720,20 @@ namespace PoRepoLineTracker.Api
                     return Results.Problem($"Error fetching user repositories: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
                 }
             })
+            .RequireAuthorization()
             .WithName("GetUserRepositories");
 
-            app.MapPost("/api/repositories/bulk", async ([FromBody] IEnumerable<PoRepoLineTracker.Application.Models.BulkRepositoryDto> repositories, IMediator mediator) =>
+            app.MapPost("/api/repositories/bulk", async ([FromBody] IEnumerable<PoRepoLineTracker.Application.Models.BulkRepositoryDto> repositories, HttpContext httpContext, IMediator mediator) =>
             {
                 try
                 {
+                    // Get the current user's ID from claims
+                    var userIdClaim = httpContext.User.FindFirst("UserId")?.Value;
+                    if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                    {
+                        return Results.Unauthorized();
+                    }
+
                     Log.Information("=== BULK REPOSITORY ADD ENDPOINT CALLED ===");
                     Log.Information("Request body received: {IsNull}", repositories == null ? "NULL" : "NOT NULL");
 
@@ -465,8 +748,8 @@ namespace PoRepoLineTracker.Api
                             i, repo?.Owner ?? "NULL", repo?.RepoName ?? "NULL", repo?.CloneUrl ?? "NULL");
                     }
 
-                    Log.Information("Sending AddMultipleRepositoriesCommand to MediatR with {Count} repositories", repoList.Count);
-                    var addedRepositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddMultipleRepositoriesCommand(repositories ?? Enumerable.Empty<PoRepoLineTracker.Application.Models.BulkRepositoryDto>()));
+                    Log.Information("Sending AddMultipleRepositoriesCommand to MediatR with {Count} repositories for user {UserId}", repoList.Count, userId);
+                    var addedRepositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddMultipleRepositoriesCommand(repositories ?? Enumerable.Empty<PoRepoLineTracker.Application.Models.BulkRepositoryDto>(), userId));
 
                     var addedList = addedRepositories.ToList();
                     Log.Information("MediatR returned {Count} repositories", addedList.Count);
@@ -480,6 +763,7 @@ namespace PoRepoLineTracker.Api
                     return Results.Problem($"Error adding repositories: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
                 }
             })
+            .RequireAuthorization()
             .WithName("AddMultipleRepositories");
 
             // Health Check Endpoints
@@ -516,11 +800,13 @@ namespace PoRepoLineTracker.Api
             })
             .WithName("CheckGitHubApiHealth");
 
-            app.MapPost("/api/repositories/{repositoryId}/analyze", async (Guid repositoryId, IMediator mediator) =>
+            // POST to create a new analysis (force=true to re-analyze)
+            app.MapPost("/api/repositories/{repositoryId}/analyses", async (Guid repositoryId, [FromQuery] bool force, IMediator mediator) =>
             {
                 try
                 {
-                    await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repositoryId));
+                    await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repositoryId, ForceReanalysis: force));
+                    Log.Information("Analysis initiated for repository {RepositoryId} (force={Force})", repositoryId, force);
                     return Results.Accepted();
                 }
                 catch (Exception ex)
@@ -529,22 +815,35 @@ namespace PoRepoLineTracker.Api
                     return Results.Problem($"Error analyzing repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
                 }
             })
-            .WithName("AnalyzeRepository");
+            .WithName("CreateRepositoryAnalysis");
 
-            app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, IMediator mediator) =>
-                        {
-                            try
-                            {
-                                await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repositoryId, ForceReanalysis: true));
-                                return Results.Accepted();
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Error(ex, "Error force re-analyzing repository {RepositoryId}", repositoryId);
-                                return Results.Problem($"Error force re-analyzing repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-                            }
-                        })
-                        .WithName("ForceReanalyzeRepository");
+            // POST to re-analyze repository from scratch (clears all existing data and re-analyzes with current user's file extension preferences)
+            app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, HttpContext httpContext, IMediator mediator) =>
+            {
+                try
+                {
+                    var userIdClaim = httpContext.User.FindFirst("UserId")?.Value;
+                    if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    Log.Information("Re-analysis requested for repository {RepositoryId} by user {UserId} - clearing existing data", repositoryId, userId);
+                    await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(
+                        repositoryId, 
+                        ForceReanalysis: false, 
+                        ClearExistingData: true));
+                    
+                    return Results.Accepted(value: new { message = "Re-analysis started. All commit data will be re-calculated with your current file extension preferences." });
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error re-analyzing repository {RepositoryId}", repositoryId);
+                    return Results.Problem($"Error re-analyzing repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                }
+            })
+            .RequireAuthorization()
+            .WithName("ReanalyzeRepository");
 
             // Failed Operations Endpoints
             app.MapGet("/api/failed-operations/{repositoryId}", async (Guid repositoryId, IFailedOperationService failedOperationService) =>

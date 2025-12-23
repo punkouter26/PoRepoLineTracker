@@ -32,7 +32,7 @@ public static class AppTelemetry
     public static readonly Meter Meter = new(SourceName, Version);
 
     // ===== Counters =====
-    
+
     /// <summary>
     /// Counter for total repositories added to the system.
     /// Tags: status (success/failure)
@@ -70,7 +70,7 @@ public static class AppTelemetry
         description: "Total repository clone operations");
 
     // ===== Histograms =====
-    
+
     /// <summary>
     /// Histogram for repository analysis duration.
     /// Tracks how long it takes to analyze a repository's commits.
@@ -102,7 +102,7 @@ public static class AppTelemetry
         description: "Duration of individual commit processing");
 
     // ===== Gauges (Observable) =====
-    
+
     /// <summary>
     /// Observable gauge for total repositories in the system.
     /// Updated periodically to reflect current count.

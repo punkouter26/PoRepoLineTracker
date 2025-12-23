@@ -70,8 +70,13 @@ public class RepositoryDataService : IRepositoryDataService
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Updating repository {RepoName} in Table Storage.", repository.Name);
+        
+        // Use UserId as partition key and Owner_Name as row key
+        var partitionKey = repository.UserId.ToString();
+        var rowKey = $"{repository.Owner}_{repository.Name}";
+        
         // Retrieve the existing entity to get its ETag for optimistic concurrency
-        var existingEntity = await _repositoryTableClient.GetEntityAsync<GitHubRepositoryEntity>(repository.Owner, repository.Name);
+        var existingEntity = await _repositoryTableClient.GetEntityAsync<GitHubRepositoryEntity>(partitionKey, rowKey);
         var entityToUpdate = GitHubRepositoryEntity.FromDomainModel(repository);
         entityToUpdate.ETag = existingEntity.Value.ETag; // Assign the ETag from the retrieved entity
 
@@ -92,16 +97,16 @@ public class RepositoryDataService : IRepositoryDataService
         return null;
     }
 
-    public async Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync()
+    public async Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync(Guid userId)
     {
         await EnsureTablesExistAsync();
-        _logger.LogInformation("Getting all repositories from Table Storage.");
+        _logger.LogInformation("Getting all repositories for user {UserId} from Table Storage.", userId);
         var repositories = new List<GitHubRepository>();
-        await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>())
+        await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(e => e.PartitionKey == userId.ToString()))
         {
             repositories.Add(entity.ToDomainModel());
         }
-        _logger.LogInformation("Found {Count} repositories.", repositories.Count);
+        _logger.LogInformation("Found {Count} repositories for user {UserId}.", repositories.Count, userId);
         return repositories;
     }
 
@@ -210,24 +215,25 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
-    public async Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name)
+    public async Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name, Guid userId)
     {
         await EnsureTablesExistAsync();
-        _logger.LogInformation("Getting repository by Owner: {Owner} and Name: {Name} from Table Storage.", owner, name);
+        _logger.LogInformation("Getting repository by Owner: {Owner} and Name: {Name} for user {UserId} from Table Storage.", owner, name, userId);
         try
         {
-            var entity = await _repositoryTableClient.GetEntityAsync<GitHubRepositoryEntity>(owner, name);
-            _logger.LogInformation("Found repository {RepoName} by Owner {Owner} and Name {Name}.", name, owner, name);
+            var rowKey = $"{owner}_{name}";
+            var entity = await _repositoryTableClient.GetEntityAsync<GitHubRepositoryEntity>(userId.ToString(), rowKey);
+            _logger.LogInformation("Found repository {RepoName} by Owner {Owner} and Name {Name} for user {UserId}.", name, owner, name, userId);
             return entity.Value.ToDomainModel();
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
-            _logger.LogInformation("Repository with Owner {Owner} and Name {Name} not found.", owner, name);
+            _logger.LogInformation("Repository with Owner {Owner} and Name {Name} not found for user {UserId}.", owner, name, userId);
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting repository by Owner {Owner} and Name {Name}. Error: {ErrorMessage}", owner, name, ex.Message);
+            _logger.LogError(ex, "Error getting repository by Owner {Owner} and Name {Name} for user {UserId}. Error: {ErrorMessage}", owner, name, userId, ex.Message);
             throw;
         }
     }
@@ -353,97 +359,50 @@ public class RepositoryDataService : IRepositoryDataService
     }
 
     /// <summary>
-    /// Repository Pattern: Implements comprehensive data removal strategy for all repositories.
+    /// Repository Pattern: Implements comprehensive data removal strategy for all repositories belonging to a user.
     /// Removes all data from both repository and commit line count tables in Azure Table Storage.
     /// Uses batch operations for optimal performance.
     /// </summary>
-    public async Task RemoveAllRepositoriesAsync()
+    public async Task RemoveAllRepositoriesAsync(Guid userId)
     {
-        _logger.LogInformation("Starting removal of all repositories and commit data from Azure Table Storage.");
+        _logger.LogInformation("Starting removal of all repositories and commit data for user {UserId} from Azure Table Storage.", userId);
 
         try
         {
-            // Step 1: Remove all commit line counts
-            await RemoveAllCommitLineCountsAsync();
+            // Step 1: Get all repositories for this user
+            var repositories = await GetAllRepositoriesAsync(userId);
+            
+            // Step 2: Remove commit line counts for each repository
+            foreach (var repo in repositories)
+            {
+                await DeleteCommitLineCountsForRepositoryAsync(repo.Id);
+            }
 
-            // Step 2: Remove all repositories
-            await RemoveAllRepositoryEntitiesAsync();
+            // Step 3: Remove all repository entities for this user
+            await RemoveAllRepositoryEntitiesForUserAsync(userId);
 
-            _logger.LogInformation("Successfully removed all repositories and commit data from Azure Table Storage.");
+            _logger.LogInformation("Successfully removed all repositories and commit data for user {UserId} from Azure Table Storage.", userId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred while removing all data from Azure Table Storage: {ErrorMessage}", ex.Message);
+            _logger.LogError(ex, "Error occurred while removing all data for user {UserId} from Azure Table Storage: {ErrorMessage}", userId, ex.Message);
             throw;
         }
     }
 
     /// <summary>
-    /// Strategy Pattern: Implements batch deletion strategy for commit line counts.
-    /// Removes all entities from the commit line count table.
+    /// Strategy Pattern: Implements batch deletion strategy for repository entities for a specific user.
     /// </summary>
-    private async Task RemoveAllCommitLineCountsAsync()
+    private async Task RemoveAllRepositoryEntitiesForUserAsync(Guid userId)
     {
-        _logger.LogInformation("Removing all commit line counts from Table Storage.");
-
-        var entitiesToDelete = new List<CommitLineCountEntity>();
-
-        try
-        {
-            // Query all entities from the commit line count table
-            await foreach (var entity in _commitLineCountTableClient.QueryAsync<CommitLineCountEntity>())
-            {
-                entitiesToDelete.Add(entity);
-            }
-        }
-        catch (Azure.RequestFailedException ex) when (ex.Status == 404)
-        {
-            _logger.LogInformation("Commit line count table does not exist. Nothing to delete.");
-            return;
-        }
-
-        if (entitiesToDelete.Any())
-        {
-            _logger.LogInformation("Found {Count} commit line count entities to delete.", entitiesToDelete.Count);
-
-            // Delete entities in parallel batches for better performance
-            const int batchSize = 100;
-            var batches = entitiesToDelete
-                .Select((entity, index) => new { entity, index })
-                .GroupBy(x => x.index / batchSize)
-                .Select(g => g.Select(x => x.entity).ToList());
-
-            foreach (var batch in batches)
-            {
-                var deleteTasks = batch.Select(entity =>
-                    _commitLineCountTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, entity.ETag));
-
-                await Task.WhenAll(deleteTasks);
-                _logger.LogDebug("Deleted batch of {Count} commit line count entities.", batch.Count);
-            }
-
-            _logger.LogInformation("Successfully deleted {Count} commit line count entities.", entitiesToDelete.Count);
-        }
-        else
-        {
-            _logger.LogInformation("No commit line count entities found to delete.");
-        }
-    }
-
-    /// <summary>
-    /// Strategy Pattern: Implements batch deletion strategy for repository entities.
-    /// Removes all entities from the repository table.
-    /// </summary>
-    private async Task RemoveAllRepositoryEntitiesAsync()
-    {
-        _logger.LogInformation("Removing all repository entities from Table Storage.");
+        _logger.LogInformation("Removing all repository entities for user {UserId} from Table Storage.", userId);
 
         var entitiesToDelete = new List<GitHubRepositoryEntity>();
 
         try
         {
-            // Query all entities from the repository table
-            await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>())
+            // Query all entities for this user
+            await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(e => e.PartitionKey == userId.ToString()))
             {
                 entitiesToDelete.Add(entity);
             }
@@ -456,7 +415,7 @@ public class RepositoryDataService : IRepositoryDataService
 
         if (entitiesToDelete.Any())
         {
-            _logger.LogInformation("Found {Count} repository entities to delete.", entitiesToDelete.Count);
+            _logger.LogInformation("Found {Count} repository entities to delete for user {UserId}.", entitiesToDelete.Count, userId);
 
             // Delete entities in parallel batches for better performance
             const int batchSize = 100;
@@ -474,11 +433,11 @@ public class RepositoryDataService : IRepositoryDataService
                 _logger.LogDebug("Deleted batch of {Count} repository entities.", batch.Count);
             }
 
-            _logger.LogInformation("Successfully deleted {Count} repository entities.", entitiesToDelete.Count);
+            _logger.LogInformation("Successfully deleted {Count} repository entities for user {UserId}.", entitiesToDelete.Count, userId);
         }
         else
         {
-            _logger.LogInformation("No repository entities found to delete.");
+            _logger.LogInformation("No repository entities found to delete for user {UserId}.", userId);
         }
     }
 }

@@ -32,7 +32,7 @@ public static class AppTelemetry
     public static readonly Meter Meter = new(SourceName, Version);
 
     // ===== Counters =====
-    
+
     /// <summary>
     /// Counter for total repositories added to the system.
     /// Tags: status (success/failure)
@@ -61,7 +61,7 @@ public static class AppTelemetry
         description: "Total lines of code analyzed");
 
     // ===== Histograms =====
-    
+
     /// <summary>
     /// Histogram for repository analysis duration.
     /// Tracks how long it takes to analyze a repository's commits.

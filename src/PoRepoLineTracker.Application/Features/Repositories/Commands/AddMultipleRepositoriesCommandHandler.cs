@@ -58,9 +58,9 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                     continue;
                 }
 
-                // Check if repository already exists
-                _logger.LogInformation("Checking if repository {Owner}/{Name} already exists...", repo.Owner, repo.RepoName);
-                var existingRepo = await _repositoryDataService.GetRepositoryByOwnerAndNameAsync(repo.Owner, repo.RepoName);
+                // Check if repository already exists for this user
+                _logger.LogInformation("Checking if repository {Owner}/{Name} already exists for user {UserId}...", repo.Owner, repo.RepoName, request.UserId);
+                var existingRepo = await _repositoryDataService.GetRepositoryByOwnerAndNameAsync(repo.Owner, repo.RepoName, request.UserId);
                 if (existingRepo != null)
                 {
                     _logger.LogInformation("Repository {Owner}/{Name} already exists with ID {Id}, adding to result list.",
@@ -74,6 +74,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                 var newRepo = new GitHubRepository
                 {
                     Id = Guid.NewGuid(),
+                    UserId = request.UserId,
                     Owner = repo.Owner,
                     Name = repo.RepoName,
                     CloneUrl = repo.CloneUrl,

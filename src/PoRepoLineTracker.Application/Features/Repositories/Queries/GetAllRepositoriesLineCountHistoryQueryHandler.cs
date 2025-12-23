@@ -21,7 +21,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Queries
 
         public async Task<IEnumerable<RepositoryLineCountHistoryDto>> Handle(GetAllRepositoriesLineCountHistoryQuery request, CancellationToken cancellationToken)
         {
-            var allRepositories = await _repositoryDataService.GetAllRepositoriesAsync();
+            var allRepositories = await _repositoryDataService.GetAllRepositoriesAsync(request.UserId);
             var result = new List<RepositoryLineCountHistoryDto>();
 
             foreach (var repo in allRepositories)

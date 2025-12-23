@@ -17,7 +17,6 @@ public class GitHubService : IGitHubService
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubService> _logger;
     private readonly string _localReposPath;
-    private readonly string? _gitHubPat;
     private readonly Dictionary<string, ILineCounter> _lineCounterMap; // New field for line counter map
     private readonly IGitClient _gitClient; // Added for DIP
     private readonly PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter _fileIgnoreFilter; // Added for file filtering
@@ -43,7 +42,6 @@ public class GitHubService : IGitHubService
             // Running locally
             _localReposPath = configuration["GitHub:LocalReposPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
         }
-        _gitHubPat = configuration["GitHub:PAT"]; // Still needed for cloning credentials
 
         if (!Directory.Exists(_localReposPath))
         {
@@ -53,7 +51,7 @@ public class GitHubService : IGitHubService
         _lineCounterMap = lineCounters.ToDictionary(lc => lc.FileExtension, lc => lc); // Initialize map
     }
 
-    public async Task<string> CloneRepositoryAsync(string repoUrl, string localPath)
+    public async Task<string> CloneRepositoryAsync(string repoUrl, string localPath, string? accessToken = null)
     {
         return await Task.Run(() =>
         {
@@ -75,7 +73,7 @@ public class GitHubService : IGitHubService
                     Directory.CreateDirectory(parentDir);
                 }
 
-                _gitClient.Clone(repoUrl, fullLocalPath); // Use IGitClient
+                _gitClient.Clone(repoUrl, fullLocalPath, accessToken); // Use IGitClient with access token
                 _logger.LogInformation("Successfully cloned repository {RepoUrl} to {LocalPath}", repoUrl, fullLocalPath);
                 return fullLocalPath;
             }
@@ -87,7 +85,7 @@ public class GitHubService : IGitHubService
         });
     }
 
-    public async Task<string> PullRepositoryAsync(string localPath)
+    public async Task<string> PullRepositoryAsync(string localPath, string? accessToken = null)
     {
         return await Task.Run(() =>
         {
@@ -100,7 +98,7 @@ public class GitHubService : IGitHubService
                 throw new DirectoryNotFoundException($"Local repository not found or invalid at {fullLocalPath}");
             }
 
-            _gitClient.Pull(fullLocalPath); // Use IGitClient
+            _gitClient.Pull(fullLocalPath, accessToken); // Use IGitClient with access token
 
             _logger.LogInformation("Successfully pulled repository at {LocalPath}", fullLocalPath);
             return fullLocalPath;
@@ -413,6 +411,96 @@ public class GitHubService : IGitHubService
         return lines;
     }
 
+    public async Task<IEnumerable<TopFileDto>> GetTopFilesByLineCountAsync(string localPath, IEnumerable<string> fileExtensionsToCount, int count = 5)
+    {
+        var fullLocalPath = Path.Combine(_localReposPath, localPath);
+        _logger.LogInformation("Getting top {Count} files by line count for repository at {LocalPath}", count, fullLocalPath);
+
+        if (!Repository.IsValid(fullLocalPath))
+        {
+            _logger.LogError("Local repository not found or invalid at {LocalPath}. Cannot get top files.", fullLocalPath);
+            return Enumerable.Empty<TopFileDto>();
+        }
+
+        var fileLineCounts = new List<(string FileName, int LineCount)>();
+
+        try
+        {
+            using (var repo = new Repository(fullLocalPath))
+            {
+                var headCommit = repo.Head.Tip;
+                if (headCommit == null || headCommit.Tree == null)
+                {
+                    _logger.LogWarning("Repository at {LocalPath} has no HEAD commit or tree.", fullLocalPath);
+                    return Enumerable.Empty<TopFileDto>();
+                }
+
+                await CollectFileLineCountsAsync(headCommit.Tree, fileExtensionsToCount, "", fileLineCounts);
+            }
+
+            var topFiles = fileLineCounts
+                .OrderByDescending(f => f.LineCount)
+                .Take(count)
+                .Select(f => new TopFileDto { FileName = f.FileName, LineCount = f.LineCount })
+                .ToList();
+
+            _logger.LogInformation("Found top {Count} files for {LocalPath}", topFiles.Count, fullLocalPath);
+            return topFiles;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting top files for {LocalPath}: {ErrorMessage}", fullLocalPath, ex.Message);
+            return Enumerable.Empty<TopFileDto>();
+        }
+    }
+
+    private async Task CollectFileLineCountsAsync(Tree tree, IEnumerable<string> fileExtensionsToCount, string currentPath, List<(string FileName, int LineCount)> fileLineCounts)
+    {
+        foreach (var entry in tree)
+        {
+            var entryPath = string.IsNullOrEmpty(currentPath) ? entry.Name : $"{currentPath}/{entry.Name}";
+
+            if (entry.TargetType == TreeEntryTargetType.Tree)
+            {
+                if (_fileIgnoreFilter.ShouldIgnoreDirectory(entryPath))
+                {
+                    continue;
+                }
+
+                if (entry.Target is Tree subTree)
+                {
+                    await CollectFileLineCountsAsync(subTree, fileExtensionsToCount, entryPath, fileLineCounts);
+                }
+            }
+            else if (entry.TargetType == TreeEntryTargetType.Blob)
+            {
+                if (_fileIgnoreFilter.ShouldIgnoreFile(entry.Name, entryPath))
+                {
+                    continue;
+                }
+
+                var fileExtension = Path.GetExtension(entry.Name.ToLowerInvariant());
+                if (fileExtensionsToCount.Contains(fileExtension))
+                {
+                    var blob = entry.Target as Blob;
+                    if (blob != null)
+                    {
+                        int lineCount = 0;
+                        using (var contentStream = blob.GetContentStream())
+                        using (var reader = new StreamReader(contentStream))
+                        {
+                            while (await reader.ReadLineAsync() != null)
+                            {
+                                lineCount++;
+                            }
+                        }
+                        fileLineCounts.Add((entry.Name, lineCount));
+                    }
+                }
+            }
+        }
+    }
+
     public async Task CheckConnectionAsync()
     {
         _logger.LogInformation("Checking GitHub API connection.");
@@ -422,20 +510,24 @@ public class GitHubService : IGitHubService
         _logger.LogInformation("GitHub API connection successful.");
     }
 
-    public async Task<IEnumerable<GitHubUserRepository>> GetUserRepositoriesAsync()
+    public async Task<IEnumerable<GitHubUserRepository>> GetUserRepositoriesAsync(string accessToken)
     {
         _logger.LogInformation("Fetching user repositories from GitHub API.");
 
-        if (string.IsNullOrEmpty(_gitHubPat))
+        if (string.IsNullOrEmpty(accessToken))
         {
-            _logger.LogError("GitHub PAT is not configured. Cannot fetch user repositories.");
-            throw new InvalidOperationException("GitHub Personal Access Token is not configured.");
+            _logger.LogError("Access token is required to fetch user repositories.");
+            throw new InvalidOperationException("Access token is required to fetch user repositories.");
         }
 
         try
         {
-            // GitHub API endpoint to get authenticated user's repositories
-            var response = await _httpClient.GetAsync("https://api.github.com/user/repos?type=owner&sort=name&direction=asc&per_page=100");
+            // Create a new request with the user's access token
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user/repos?type=owner&sort=name&direction=asc&per_page=100");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            request.Headers.UserAgent.ParseAdd("PoRepoLineTracker");
+
+            var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
 
             var jsonContent = await response.Content.ReadAsStringAsync();

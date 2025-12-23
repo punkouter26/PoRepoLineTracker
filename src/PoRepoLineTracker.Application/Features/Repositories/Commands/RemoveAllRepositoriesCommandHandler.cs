@@ -31,24 +31,32 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
 
     public async Task<Unit> Handle(RemoveAllRepositoriesCommand request, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Starting removal of all repositories and associated data.");
+        _logger.LogInformation("Starting removal of all repositories and associated data for user {UserId}.", request.UserId);
 
         try
         {
-            // Step 1: Remove all data from Azure Table Storage
-            await _repositoryDataService.RemoveAllRepositoriesAsync();
-            _logger.LogInformation("All repository data removed from Azure Table Storage successfully.");
+            // Step 1: Remove all data from Azure Table Storage for this user
+            await _repositoryDataService.RemoveAllRepositoriesAsync(request.UserId);
+            _logger.LogInformation("All repository data for user {UserId} removed from Azure Table Storage successfully.", request.UserId);
 
-            // Step 2: Remove all local repository directories
-            await RemoveAllLocalRepositoriesAsync();
-            _logger.LogInformation("All local repository directories removed successfully.");
+            // Step 2: Remove all local repository directories (best effort - don't fail if this doesn't work)
+            try
+            {
+                await RemoveAllLocalRepositoriesAsync();
+                _logger.LogInformation("All local repository directories removed successfully.");
+            }
+            catch (Exception localEx)
+            {
+                // Log but don't fail - local cleanup is secondary to data cleanup
+                _logger.LogWarning(localEx, "Failed to clean up local repository directories. This is non-critical: {ErrorMessage}", localEx.Message);
+            }
 
-            _logger.LogInformation("Successfully completed removal of all repositories and associated data.");
+            _logger.LogInformation("Successfully completed removal of all repositories and associated data for user {UserId}.", request.UserId);
             return Unit.Value;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred while removing all repositories: {ErrorMessage}", ex.Message);
+            _logger.LogError(ex, "Error occurred while removing all repositories for user {UserId}: {ErrorMessage}", request.UserId, ex.Message);
             throw;
         }
     }
@@ -144,7 +152,7 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
                 try
                 {
                     File.SetAttributes(file, FileAttributes.Normal);
-                    
+
                     // Retry file deletion
                     for (int retry = 0; retry < 3; retry++)
                     {

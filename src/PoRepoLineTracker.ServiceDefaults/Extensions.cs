@@ -31,7 +31,7 @@ public static class Extensions
             // Enable service discovery by default
             http.AddServiceDiscovery();
         });
-        
+
         // Uncomment for HTTP client logging during development
         // builder.Services.AddHttpClientLogger();
 
@@ -52,15 +52,25 @@ public static class Extensions
         builder.Services.AddOpenTelemetry()
             .WithMetrics(metrics =>
             {
+                // Only add essential metrics to reduce noise
                 metrics.AddAspNetCoreInstrumentation()
-                       .AddHttpClientInstrumentation()
                        .AddRuntimeInstrumentation();
+                // Removed: .AddHttpClientInstrumentation() - reduces verbose HTTP client metrics
             })
             .WithTracing(tracing =>
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
                        .AddAspNetCoreInstrumentation()
-                       .AddHttpClientInstrumentation();
+                       // Filter out noisy health check traces
+                       .AddHttpClientInstrumentation(options =>
+                       {
+                           options.FilterHttpRequestMessage = (httpRequestMessage) =>
+                           {
+                               // Filter out health check and telemetry requests
+                               var path = httpRequestMessage.RequestUri?.AbsolutePath ?? "";
+                               return !path.Contains("health") && !path.Contains("otlp");
+                           };
+                       });
             });
 
         builder.AddOpenTelemetryExporters();

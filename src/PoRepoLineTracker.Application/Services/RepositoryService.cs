@@ -24,10 +24,10 @@ public class RepositoryService : IRepositoryService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync()
+    [Obsolete("Use API endpoint with authentication instead. This method requires user context.")]
+    public Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync()
     {
-        _logger.LogInformation("Retrieving all repositories via MediatR.");
-        return await _mediator.Send(new GetAllRepositoriesQuery());
+        throw new NotSupportedException("GetAllRepositoriesAsync requires user context. Call the API endpoint directly with authentication.");
     }
 
     public async Task<GitHubRepoStatsDto?> GetRepositoryByOwnerAndNameAsync(string owner, string repoName)
@@ -42,10 +42,10 @@ public class RepositoryService : IRepositoryService
         return await _mediator.Send(new AddRepositoryCommand(owner, repoName, cloneUrl));
     }
 
-    public async Task<IEnumerable<GitHubRepository>> AddMultipleRepositoriesAsync(IEnumerable<Application.Models.BulkRepositoryDto> repositories)
+    [Obsolete("Use API endpoint with authentication instead. This method requires user context.")]
+    public Task<IEnumerable<GitHubRepository>> AddMultipleRepositoriesAsync(IEnumerable<Application.Models.BulkRepositoryDto> repositories)
     {
-        _logger.LogInformation("Adding multiple repositories ({Count} total) via MediatR.", repositories.Count());
-        return await _mediator.Send(new AddMultipleRepositoriesCommand(repositories));
+        throw new NotSupportedException("AddMultipleRepositoriesAsync requires user context. Call the API endpoint directly with authentication.");
     }
 
     public async Task AnalyzeRepositoryCommitsAsync(Guid repositoryId)
@@ -72,10 +72,10 @@ public class RepositoryService : IRepositoryService
         return await _repositoryDataService.GetLineCountHistoryAsync(repositoryId, days);
     }
 
-    public async Task<IEnumerable<RepositoryLineCountHistoryDto>> GetAllRepositoriesLineCountHistoryAsync(int days)
+    [Obsolete("Use API endpoint with authentication instead. This method requires user context.")]
+    public Task<IEnumerable<RepositoryLineCountHistoryDto>> GetAllRepositoriesLineCountHistoryAsync(int days)
     {
-        _logger.LogInformation("Getting line count history for all repositories for the past {Days} days via MediatR.", days);
-        return await _mediator.Send(new GetAllRepositoriesLineCountHistoryQuery(days));
+        throw new NotSupportedException("GetAllRepositoriesLineCountHistoryAsync requires user context. Call the API endpoint directly with authentication.");
     }
 
     public async Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync()
@@ -91,11 +91,10 @@ public class RepositoryService : IRepositoryService
         _logger.LogInformation("Repository {RepositoryId} deleted successfully.", repositoryId);
     }
 
-    public async Task RemoveAllRepositoriesAsync()
+    [Obsolete("Use API endpoint with authentication instead. This method requires user context.")]
+    public Task RemoveAllRepositoriesAsync()
     {
-        _logger.LogInformation("Starting removal of all repositories via MediatR.");
-        await _mediator.Send(new RemoveAllRepositoriesCommand());
-        _logger.LogInformation("All repositories removed successfully.");
+        throw new NotSupportedException("RemoveAllRepositoriesAsync requires user context. Call the API endpoint directly with authentication.");
     }
 
     public async Task<IEnumerable<FileExtensionPercentageDto>> GetFileExtensionPercentagesAsync(Guid repositoryId)
