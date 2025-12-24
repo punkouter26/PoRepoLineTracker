@@ -205,7 +205,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                 _logger.LogInformation("Calculating top files for repository ID: {RepositoryId}", request.RepositoryId);
                 try
                 {
-                    var topFiles = await _gitHubService.GetTopFilesByLineCountAsync(localPath, fileExtensionsToCount, 10);
+                    var topFiles = await _gitHubService.GetTopFilesByLineCountAsync(localPath, fileExtensionsToCount, 100);
                     await _repositoryDataService.SaveTopFilesAsync(request.RepositoryId, topFiles);
                     _logger.LogInformation("Saved top files for repository ID: {RepositoryId}", request.RepositoryId);
                 }

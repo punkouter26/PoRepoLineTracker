@@ -461,7 +461,7 @@ public class RepositoryDataService : IRepositoryDataService
 
             // Save new top files with ranked row keys
             var rank = 1;
-            foreach (var topFile in topFiles.Take(10)) // Store up to 10 for flexibility
+            foreach (var topFile in topFiles.Take(100)) // Store up to 100 for flexibility
             {
                 var entity = TopFileEntity.FromDto(repositoryId, topFile, rank);
                 await _topFilesTableClient.AddEntityAsync(entity);
