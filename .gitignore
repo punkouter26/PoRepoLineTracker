@@ -425,6 +425,8 @@ __blobstorage__/
 __queuestorage__/
 log*.txt
 *.http
+apphost_resources.json
+tmp_*.html
 
 # Local development settings with secrets
 appsettings.*.local.json
