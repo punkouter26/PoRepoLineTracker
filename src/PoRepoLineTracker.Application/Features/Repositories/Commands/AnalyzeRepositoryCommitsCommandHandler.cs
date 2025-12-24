@@ -201,6 +201,20 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                     }
                 }
 
+                // After processing all commits, calculate and store top files
+                _logger.LogInformation("Calculating top files for repository ID: {RepositoryId}", request.RepositoryId);
+                try
+                {
+                    var topFiles = await _gitHubService.GetTopFilesByLineCountAsync(localPath, fileExtensionsToCount, 10);
+                    await _repositoryDataService.SaveTopFilesAsync(request.RepositoryId, topFiles);
+                    _logger.LogInformation("Saved top files for repository ID: {RepositoryId}", request.RepositoryId);
+                }
+                catch (Exception topFilesEx)
+                {
+                    _logger.LogError(topFilesEx, "Error calculating/saving top files for repository {RepositoryId}", request.RepositoryId);
+                    // Don't fail the whole analysis if top files calculation fails
+                }
+
                 _logger.LogInformation("Completed analysis for repository ID: {RepositoryId}", request.RepositoryId);
             }
             catch (Exception ex)

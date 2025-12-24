@@ -24,6 +24,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Security.Claims;
 using AspNet.Security.OAuth.GitHub;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.DataProtection;
+using Azure.Storage.Blobs;
 
 namespace PoRepoLineTracker.Api
 {
@@ -191,6 +193,22 @@ namespace PoRepoLineTracker.Api
             // Add MediatR
             builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(PoRepoLineTracker.Application.Features.Repositories.Commands.AddRepositoryCommand).Assembly));
 
+            // Configure Data Protection for cookie encryption
+            // Use Azure Blob Storage for key persistence across container restarts
+            var storageConnectionString = builder.Configuration["AzureTableStorage:ConnectionString"] 
+                                       ?? builder.Configuration["ConnectionStrings:tables"];
+            if (!string.IsNullOrEmpty(storageConnectionString) && !storageConnectionString.Contains("UseDevelopmentStorage"))
+            {
+                builder.Services.AddDataProtection()
+                    .SetApplicationName("PoRepoLineTracker")
+                    .PersistKeysToAzureBlobStorage(storageConnectionString, "dataprotection", "keys.xml");
+            }
+            else
+            {
+                builder.Services.AddDataProtection()
+                    .SetApplicationName("PoRepoLineTracker");
+            }
+
             // Configure GitHub OAuth Authentication
             builder.Services.AddAuthentication(options =>
             {
@@ -226,8 +244,10 @@ namespace PoRepoLineTracker.Api
                 options.CallbackPath = builder.Configuration["GitHub:CallbackPath"] ?? "/signin-github";
                 
                 // Configure correlation cookie for OAuth state validation
+                // Use Lax since both initial request and callback are on the same domain
                 options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
-                options.CorrelationCookie.SameSite = SameSiteMode.None;
+                options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+                options.CorrelationCookie.HttpOnly = true;
                 
                 // Request scopes for repository access
                 options.Scope.Add("user:email");
@@ -235,6 +255,14 @@ namespace PoRepoLineTracker.Api
                 options.Scope.Add("repo"); // Full repo access for private repos
                 
                 options.SaveTokens = true;
+                
+                // Handle remote authentication failures gracefully
+                options.Events.OnRemoteFailure = context =>
+                {
+                    context.Response.Redirect("/?error=auth_failed");
+                    context.HandleResponse();
+                    return Task.CompletedTask;
+                };
                 
                 options.Events.OnCreatingTicket = async context =>
                 {
@@ -353,7 +381,7 @@ namespace PoRepoLineTracker.Api
             {
                 options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
                 // Clear known networks/proxies to trust all forwarders (Azure Container Apps)
-                options.KnownNetworks.Clear();
+                options.KnownIPNetworks.Clear();
                 options.KnownProxies.Clear();
             });
 

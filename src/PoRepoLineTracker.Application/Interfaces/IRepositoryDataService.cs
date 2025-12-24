@@ -21,4 +21,9 @@ public interface IRepositoryDataService
     Task CheckConnectionAsync();
     Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync(); // Added for file extensions
     Task AnalyzeRepositoryCommitsAsync(Guid repositoryId); // Added for commit analysis
+    
+    // Top files storage (calculated during analysis, stored for retrieval without local git clone)
+    Task SaveTopFilesAsync(Guid repositoryId, IEnumerable<TopFileDto> topFiles);
+    Task<IEnumerable<TopFileDto>> GetTopFilesAsync(Guid repositoryId, int count = 5);
+    Task DeleteTopFilesForRepositoryAsync(Guid repositoryId);
 }

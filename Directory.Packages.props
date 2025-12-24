@@ -3,18 +3,15 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Aspire 13.1.0 -->
     <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.1.0" />
     <PackageVersion Include="Aspire.Azure.Data.Tables" Version="13.1.0" />
-    
     <!-- Azure & Storage -->
     <PackageVersion Include="Azure.Data.Tables" Version="12.11.0" />
-    
     <!-- MediatR -->
+    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.1" />
     <PackageVersion Include="MediatR" Version="14.0.0" />
-    
     <!-- Microsoft Core Extensions (.NET 10.0.1 - required by Aspire 13.1.0) -->
     <PackageVersion Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.23.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.1" />
@@ -31,23 +28,18 @@
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.1.0" />
-    
     <!-- Git & Source Control -->
     <PackageVersion Include="LibGit2Sharp" Version="0.31.0" />
-    
     <!-- Polly Resilience -->
     <PackageVersion Include="Polly.Core" Version="8.6.5" />
     <PackageVersion Include="Polly.Extensions.Http" Version="3.0.0" />
-    
     <!-- UI Components -->
     <PackageVersion Include="Radzen.Blazor" Version="8.4.2" />
-    
     <!-- Logging (Serilog) -->
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.ApplicationInsights" Version="4.1.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
-    
     <!-- OpenTelemetry 1.14.0 - required by Aspire 13.1.0 -->
     <PackageVersion Include="OpenTelemetry" Version="1.14.0" />
     <PackageVersion Include="OpenTelemetry.Api" Version="1.14.0" />
@@ -57,20 +49,16 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.14.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.14.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.14.0" />
-    
     <!-- OpenAPI / Swagger -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.3.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.1.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore.Annotations" Version="10.1.0" />
-    
     <!-- Authentication -->
     <PackageVersion Include="AspNet.Security.OAuth.GitHub" Version="9.3.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.3.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.1" />
-    
     <!-- Code Analyzers -->
     <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.0-preview1.25178.2" />
-    
     <!-- Testing Frameworks -->
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="FluentAssertions" Version="8.8.0" />

@@ -19,12 +19,12 @@ param githubClientSecret string
 // Naming convention: All resources use 'PoRepoLineTracker' prefix for consistency
 // Storage account names must be lowercase with no special characters due to Azure constraints
 var resourceGroupName = 'PoRepoLineTracker'
-var storageAccountName = 'porepolinetracker'  // Use existing storage account
+var storageAccountName = 'porepolinetrackeraca'  // Use existing storage account
 var appInsightsName = 'PoRepoLineTracker'  // Use existing App Insights
 var logAnalyticsName = 'PoRepoLineTracker'  // Use existing Log Analytics
 var containerAppName = 'porepolinetracker'  // Container App names must be lowercase
 var containerAppEnvName = 'porepolinetracker-env'
-var containerRegistryName = 'porepolinetracker25cr'
+var containerRegistryName = 'porepolinetrackeracr'
 
 // Create resource group for this application's resources
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {

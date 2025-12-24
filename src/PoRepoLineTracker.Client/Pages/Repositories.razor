@@ -184,10 +184,10 @@
                                 </RadzenColumn>
                                 <RadzenColumn Size="12" SizeLG="4">
                                     <RadzenCard>
-                                        <RadzenText TextStyle="TextStyle.H6">
-                                            <RadzenIcon Icon="insert_drive_file" Style="vertical-align: middle;" />
-                                            Top 5 Files
-                                        </RadzenText>
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenIcon Icon="insert_drive_file" />
+                                            <RadzenButton Text="Top 5 Files" Variant="Variant.Text" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" Click="@(async () => await OpenTopFilesModal(repo))" Style="padding: 0; font-size: 1.1rem; font-weight: 600;" />
+                                        </RadzenStack>
                                         @if (topFiles != null && topFiles.Any())
                                         {
                                             <RadzenDataList Data="@topFiles" TItem="TopFileDto">
@@ -255,6 +255,57 @@
     }
 </RadzenStack>
 
+@* Top 100 Files Modal *@
+@if (showTopFilesModal)
+{
+    <div class="modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center;" @onclick="CloseTopFilesModal">
+        <RadzenCard Style="max-width: 700px; width: 90vw; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column;" @onclick:stopPropagation="true">
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-3">
+                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">
+                    <RadzenIcon Icon="insert_drive_file" Style="vertical-align: middle;" />
+                    Top 100 Files - @modalRepositoryName
+                </RadzenText>
+                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Click="CloseTopFilesModal" />
+            </RadzenStack>
+            
+            <div style="overflow-y: auto; flex: 1;">
+                @if (isLoadingModalFiles)
+                {
+                    <RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Style="height: 200px;">
+                        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Large" />
+                        <RadzenText>Loading files...</RadzenText>
+                    </RadzenStack>
+                }
+                else if (topFilesForModal != null && topFilesForModal.Any())
+                {
+                    <RadzenDataGrid Data="@topFilesForModal" TItem="TopFileDto" AllowPaging="true" PageSize="20" PagerPosition="PagerPosition.Bottom" Style="height: 100%;">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="TopFileDto" Title="#" Width="50px">
+                                <Template Context="file">
+                                    @((topFilesForModal!.IndexOf(file) + 1))
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="TopFileDto" Property="FileName" Title="File Name">
+                                <Template Context="file">
+                                    <span title="@file.FileName" style="word-break: break-all;">@file.FileName</span>
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="TopFileDto" Property="LineCount" Title="Lines" Width="100px" TextAlign="TextAlign.Right">
+                                <Template Context="file">
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@file.LineCount.ToString("N0")" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                }
+                else
+                {
+                    <RadzenText Style="color: var(--rz-text-secondary-color); text-align: center; padding: 2rem;">No file data available. Try refreshing the repository.</RadzenText>
+                }
+            </div>
+        </RadzenCard>
+    </div>
+}
 
 @code {
     private RepositoryPageState pageState = new();
@@ -267,6 +318,12 @@
     private bool isLoadingChartData = false;
     private string chartErrorMessage = string.Empty;
     private bool isRemovingAll = false;
+    
+    // Top files modal state
+    private bool showTopFilesModal = false;
+    private List<TopFileDto>? topFilesForModal;
+    private string? modalRepositoryName;
+    private bool isLoadingModalFiles = false;
     private int chartMaxLines = 50000;
 
     protected override async Task OnInitializedAsync()
@@ -385,6 +442,36 @@
         {
             Logger.LogError(ex, "Error fetching top files for repository {RepositoryId}: {Message}", repositoryId, ex.Message);
         }
+    }
+
+    private async Task OpenTopFilesModal(GitHubRepository repo)
+    {
+        modalRepositoryName = $"{repo.Owner}/{repo.Name}";
+        isLoadingModalFiles = true;
+        showTopFilesModal = true;
+        topFilesForModal = null;
+        StateHasChanged();
+
+        try
+        {
+            topFilesForModal = await Http.GetFromJsonAsync<List<TopFileDto>>($"/api/repositories/{repo.Id}/top-files?count=100");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error fetching top 100 files for modal: {Message}", ex.Message);
+        }
+        finally
+        {
+            isLoadingModalFiles = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseTopFilesModal()
+    {
+        showTopFilesModal = false;
+        topFilesForModal = null;
+        modalRepositoryName = null;
     }
 
     private async Task LoadRepositories()
