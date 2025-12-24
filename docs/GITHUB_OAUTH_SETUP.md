@@ -18,7 +18,7 @@ This guide explains how to configure GitHub OAuth authentication for PoRepoLineT
    | **Application name** | PoRepoLineTracker (or your preferred name) |
    | **Homepage URL** | `https://localhost:5001` (development) or your production URL |
    | **Application description** | (Optional) Repository line count tracking application |
-   | **Authorization callback URL** | `https://localhost:5001/signin-github` |
+   | **Authorization callback URL** | `https://localhost:5001/signin-github` (development) or `https://porepolinetracker.yellowwater-fc81a70d.eastus.azurecontainerapps.io/signin-github` (production) |
 
 4. Click **"Register application"**
 
