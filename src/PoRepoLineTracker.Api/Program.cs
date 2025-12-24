@@ -331,8 +331,9 @@ namespace PoRepoLineTracker.Api
                         })
                         .AddHttpClientInstrumentation(); // Track outgoing HTTP calls (e.g., to GitHub API)
 
-                    // Export traces to console in development
-                    if (builder.Environment.IsDevelopment())
+                    // Export traces to console in development only when explicitly enabled
+                    // Set EnableConsoleExporters=true in configuration to enable
+                    if (builder.Environment.IsDevelopment() && string.Equals(builder.Configuration["EnableConsoleExporters"], "true", StringComparison.OrdinalIgnoreCase))
                     {
                         tracing.AddConsoleExporter();
                     }
@@ -355,8 +356,9 @@ namespace PoRepoLineTracker.Api
                         .AddAspNetCoreInstrumentation() // Add ASP.NET Core metrics
                         .AddHttpClientInstrumentation(); // Add HttpClient metrics
 
-                    // Export metrics to console in development
-                    if (builder.Environment.IsDevelopment())
+                    // Export metrics to console in development only when explicitly enabled
+                    // Set EnableConsoleExporters=true in configuration to enable
+                    if (builder.Environment.IsDevelopment() && string.Equals(builder.Configuration["EnableConsoleExporters"], "true", StringComparison.OrdinalIgnoreCase))
                     {
                         metrics.AddConsoleExporter();
                     }
