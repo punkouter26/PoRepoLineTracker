@@ -1,41 +1,63 @@
+General Engineering Principles
+Unified Identity: Use Po{SolutionName} as the master prefix for all namespaces, Azure Resource Groups, and Aspire resource names (e.g., PoTask1.API, rg-PoTask1-prod).
+Global Cleanup: Actively delete unused files, dead code, or obsolete assets. Maintain a "zero-waste" codebase.
+Directory.Build.props: Enforce <TreatWarningsAsErrors>true</TreatWarningsAsErrors> and <Nullable>enable</Nullable> at the repository root to ensure all projects inherit strict safety standards.
+Have /health endpoint on the server project that checks connections to all APIs and databases used
+Context Management: Maintain a .copilotignore file to exclude bin/, obj/, and node_modules/, keeping AI focus on source logic.
+Modern Tooling: Use Context7 MCP to fetch the latest SDKs and NuGet versions, ensuring the AI agent is working with up-to-date documentation.
+Package Management: Use Central Package Management (CPM) via Directory.Packages.props with transitive pinning enabled.
+Standard: Use DefaultAzureCredential for all environment-agnostic resource access.
+Local Development: Primary secrets reside in dotnet user-secrets.
+Cloud/Production: Use Azure Key Vault via Managed Identity.
+Shared Resources: All keys/secrets are stored in the PoShared resource group in the Key Vault service; use these as a local fallback only if user-secrets are absent.
+When deploying services to Azure make sure you use this subscription Punkouter26
+Bbb8dfbe-9169-432f-9b7a-fbf861b51037
+Use the Managed Identity as needed that is already in the PoShared resource group
+Use Context7 MCP to verify latest versions of .NET and any nuget/npm packages
+Create .http files that can be helpful for debugging API endpoints (https://learn.microsoft.com/en-us/aspnet/core/test/http-files?view=aspnetcore-10.0)
+Look in the Azure resource group PoShared for services to use
+Looking into the Key Vault service contained in the resource group PoShared for Secrets and Keys 
+Use Kay Vault when running code locally and in Azure
+Create debug logs in the browser console and server to provide enough information during function calls to be helpful when debugging
 
 
-1. Project Identity & SDK Standards
-Unified ID Strategy: Use the Solution name (e.g., PoAppName) as the master identifier for Azure Resource Groups and ACA environments. Use the short prefix (PoApp) for project namespaces.
-Modern SDK Standards: Target .NET 10 and C# 14 exclusively. Enforce Central Package Management (CPM) via Directory.Packages.props with CentralPackageTransitivePinning enabled.
-AOT-First Syntax: * Enable <IsAotCompatible>true</IsAotCompatible> and <TreatWarningsAsErrors>true</TreatWarningsAsErrors>.
-Use Primary Constructors, Collection Expressions, and the field keyword.
-Use Extension Blocks (extension keyword) for domain logic.
-Prohibition: Avoid reflection-based mappers. Use Mapperly for all DTO-to-Entity conversions.
-2. Orchestration & Inner-Loop (The Aspire Way)
-Aspire Ecosystem: Use dotnet new aspire-starter. The AppHost is the source of truth for local orchestration and service discovery.
-Dynamic Endpoints: Avoid hardcoded ports in launchsettings.json. Rely on Aspire’s named references (e.g., builder.AddProject<Projects.MyApi>("api")) for internal networking.
-Developer Command Center: Enhance the Aspire Dashboard by adding Custom Resource Actions to the AppHost (e.g., "Seed Database," "Clear Cache," "Reset Azurite").
-Startup & Persistence: Use .WaitFor(resource) for sequencing and .WithLifetime(ContainerLifetime.Persistent) for infrastructure (databases/Redis) to eliminate cold-start delays.
-3. Architecture: Flattened Vertical Slice (VSA)
-Feature Folders: Keep Endpoints, DTOs, and Business Logic together within a single feature folder. Logic must be self-contained.
-Result Pattern: Use the ErrorOr library. Minimal APIs must use the .Match() extension to return TypedResults.
-Data Access: Use lightweight expression visitors to map DTO filters directly to the TableClient (Azure Table Storage), keeping slices storage-agnostic without a heavy ORM.
-Logic Enforcement: Use NetArchTest to automatically fail builds if architectural rules (e.g., prohibited dependencies) are breached.
-4. UI & Security (BFF Pattern)
-Secure BFF: The API acts as the security proxy for the Blazor WASM client via YARP.
-Cookie-Only Security: The WASM client handles Secure Cookies only; it never touches JWTs.
-Rendering & Hydration: * Prioritize Static SSR for initial loads; hydrate to Interactive WASM only when necessary.
-Use [PersistentComponentState] to eliminate flickering.
-State Management: Use standard Component Parameters for parent-child flow. Use a Scoped StateContainer only for truly global cross-page state (e.g., User Preferences).
-Dev Proxy: In development, let the AppHost proxy traffic to the Blazor dev server to preserve hot-reload functionality.
-5. Secret & Configuration Management
-Zero-Trust Config: Use the Azure Key Vault Configuration Provider. Secrets are fetched at runtime via Managed Identity.
-No Hardcoded References: Remove @Microsoft.KeyVault(...) from App Service/ACA settings. Secrets should be transparent to the environment variables, managed via the DefaultAzureCredential in code.
-Local Secrets: Use user-secrets locally and Aspire .RunAsEmulator() for storage.
-6. Resilience & Observability
-Native Resilience: Apply .AddStandardResilienceHandler() (Polly) to all HttpClient and Storage client configurations in ServiceDefaults.
-Source-Generated Logging: Use LoggerMessage Delegates (Source Generators) instead of Serilog where performance is critical. Follow a "Context-First" policy.
-Health Probes: Use standard MapHealthChecks("/health"). Ensure Readiness checks include connectivity tests for all backing services.
-Telemetry: Enable OpenTelemetry for tracing and custom metrics, exported directly to Azure Monitor (Application Insights).
-7. Infrastructure & Deployment
-Provisioning: Use Azure Developer CLI (azd up) to generate Bicep modules from the Aspire model.
-ACA Scaling: Define KEDA triggers (CPU, Memory, or Queue depth) directly within the Aspire AppHost.
-Continuous Testing: Focus on Integration Testing (API to Storage) using Azurite. Use Snapshot Testing (Verify/Bunit) for presentational UI components.
 
 
+Create a set of 3 test project / Unit (C#)/ Integration (C#) /E2E (typescript)
+.NET Unit Tests: Focus on pure logic and domain rules (High speed).
+.NET Integration Tests: Target the API and Database. Use Testcontainers to spin up ephemeral SQL/Redis instances to verify real-world behavior.
+Playwright E2E headless (TypeScript) (Chromium and mobile only):
+Scope: Critical user paths only.
+Constraints: Limit rendering to Chromium and Mobile.
+Workflow: Run headed during development to verify functionality alongside the local server.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+App Stack: Blazor Web App + Aspire (Azure ACA Containers)
+Template: Target .NET 10 Unified Blazor Web App (Server SSR + WASM Client).
+Rendering Policy: Default to Static SSR. Elevate to InteractiveAuto only for specific components requiring low-latency responsiveness.
+Vertical Slice Architecture (VSA): Organize by features, not layers. Group Endpoints, DTOs, and Logic within single, flattened feature folders.
+Minimalist API: If the WASM client requires data, create minimal endpoints within the Server project. A separate API project is not required but instead the Server project will expose the services using .NET minimal APIs
+Use OpenApi instead of Swashbuckle for API endpoint UI
+
+
+Use Aspire CLI https://aspire.dev/get-started/install-cli/
+Aspire First: Use .NET Aspire (AppHost and ServiceDefaults) for all local and cloud orchestration.
+Service Discovery: Use Aspire project references; never hardcode ports or connection strings.
+Telemetry: Enable OpenTelemetry (Logs, Traces, Metrics) globally, aggregating into Application Insights within the PoShared resource group.
+Azd-Driven Infra: Use azd up to generate and deploy infrastructure (Azure Container Apps) directly from the Aspire model.
+Po<solutionName> resource group in Azure should container a container app, table storage (if uses azure table storage)
+PoShared will contain all other services needed and will have a key vault service for saving secrets as needed

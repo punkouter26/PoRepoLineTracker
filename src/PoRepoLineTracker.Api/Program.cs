@@ -12,8 +12,7 @@ using MediatR; // Add this using statement
 using PoRepoLineTracker.Client.Models; // Add this using statement
 using System.Text.Json; // Add this for JSON serialization
 using Microsoft.AspNetCore.Mvc; // Add this for FromBody attribute
-using Microsoft.AspNetCore.OpenApi; // Add this for WithOpenApi
-using Swashbuckle.AspNetCore.Annotations; // Add this for EnableAnnotations
+using Scalar.AspNetCore;
 using System.Collections.Generic; // Add this for List<object>
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -103,18 +102,16 @@ namespace PoRepoLineTracker.Api
                 }
             });
 
-            // Add services to the container.
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen(c =>
+            // Add OpenAPI services
+            builder.Services.AddOpenApi(options =>
             {
-                c.SwaggerDoc("v1", new()
+                options.AddDocumentTransformer((document, context, cancellationToken) =>
                 {
-                    Title = "PoRepoLineTracker API",
-                    Version = "v1",
-                    Description = "API for tracking repository line counts and code statistics"
+                    document.Info.Title = "PoRepoLineTracker API";
+                    document.Info.Version = "v1";
+                    document.Info.Description = "API for tracking repository line counts and code statistics";
+                    return Task.CompletedTask;
                 });
-                c.EnableAnnotations();
             });
 
             // Configure JSON options for case-insensitive property matching
@@ -400,13 +397,12 @@ namespace PoRepoLineTracker.Api
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
-                app.UseSwagger();
-                app.UseSwaggerUI(c =>
-                {
-                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "PoRepoLineTracker API v1");
-                    c.RoutePrefix = "swagger";
-                });
                 app.MapOpenApi();
+                app.MapScalarApiReference(options =>
+                {
+                    options.WithTitle("PoRepoLineTracker API");
+                    options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+                });
             }
 
             app.UseHttpsRedirection();
