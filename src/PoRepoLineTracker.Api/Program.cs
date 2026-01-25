@@ -323,7 +323,7 @@ namespace PoRepoLineTracker.Api
                             options.Filter = context =>
                             {
                                 // Skip health check endpoint from traces
-                                return !context.Request.Path.StartsWithSegments("/api/health");
+                                return !context.Request.Path.StartsWithSegments("/health");
                             };
                         })
                         .AddHttpClientInstrumentation(); // Track outgoing HTTP calls (e.g., to GitHub API)
@@ -415,28 +415,7 @@ namespace PoRepoLineTracker.Api
             app.UseStaticFiles();
             app.MapFallbackToFile("index.html");
 
-            // Health Check Endpoint (detailed) - Note: /health/live and /health/ready are mapped by MapDefaultEndpoints()
-            app.MapHealthChecks("/api/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-            {
-                ResponseWriter = async (context, report) =>
-                {
-                    context.Response.ContentType = "application/json";
-                    var result = System.Text.Json.JsonSerializer.Serialize(new
-                    {
-                        status = report.Status.ToString(),
-                        checks = report.Entries.Select(e => new
-                        {
-                            name = e.Key,
-                            status = e.Value.Status.ToString(),
-                            description = e.Value.Description,
-                            duration = e.Value.Duration.TotalMilliseconds
-                        }),
-                        totalDuration = report.TotalDuration.TotalMilliseconds
-                    });
-                    await context.Response.WriteAsync(result);
-                }
-            })
-            .WithName("HealthCheck");
+            // Deprecated: detailed framework health endpoint removed. Use /health for JSON external checks instead.
 
             // ========== AUTHENTICATION ENDPOINTS ==========
             
@@ -809,39 +788,7 @@ namespace PoRepoLineTracker.Api
             .RequireAuthorization()
             .WithName("AddMultipleRepositories");
 
-            // Health Check Endpoints
-            app.MapGet("/api/health/azure-table-storage", async (IRepositoryDataService repoDataService) =>
-            {
-                try
-                {
-                    // Attempt a simple operation to check connectivity, e.g., try to list a non-existent table
-                    // This will throw an exception if connectivity fails
-                    await repoDataService.CheckConnectionAsync();
-                    return Results.Ok("Azure Table Storage: Connected");
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Azure Table Storage health check failed.");
-                    return Results.Problem($"Azure Table Storage: Disconnected - {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-                }
-            })
-            .WithName("CheckAzureTableStorageHealth");
-
-            app.MapGet("/api/health/github-api", async (IGitHubService githubService) =>
-            {
-                try
-                {
-                    // Attempt a simple operation to check connectivity, e.g., get a public repository
-                    await githubService.CheckConnectionAsync();
-                    return Results.Ok("GitHub API: Connected");
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "GitHub API health check failed.");
-                    return Results.Problem($"GitHub API: Disconnected - {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-                }
-            })
-            .WithName("CheckGitHubApiHealth");
+            // Individual health endpoints removed. Use the aggregated `/health` endpoint to check external dependencies and receive a JSON report.
 
             // POST to create a new analysis (force=true to re-analyze)
             app.MapPost("/api/repositories/{repositoryId}/analyses", async (Guid repositoryId, [FromQuery] bool force, IMediator mediator) =>
@@ -921,8 +868,8 @@ namespace PoRepoLineTracker.Api
             .WithName("DeleteFailedOperation")
             .RequireAuthorization(); // Require authorization for failed operations endpoints
 
-            // Health Check Endpoint for Diag.razor page
-            app.MapGet("/healthz", async (IRepositoryDataService repoDataService, IGitHubService githubService) =>
+            // Health Check Endpoint (checks external connections and returns JSON)
+            app.MapGet("/health", async (IRepositoryDataService repoDataService, IGitHubService githubService) =>
             {
                 var checks = new List<object>();
                 var isHealthy = true;

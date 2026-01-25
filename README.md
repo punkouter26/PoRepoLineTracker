@@ -283,7 +283,7 @@ dotnet test --verbosity normal
 ### Health Monitoring
 - Azure Table Storage connectivity checks
 - GitHub API connectivity validation
-- Application health diagnostics at `/api/health/*`
+- Application health diagnostics at `/health`
 
 ## 🏛️ Project Structure
 

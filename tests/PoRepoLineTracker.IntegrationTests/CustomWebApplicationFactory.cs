@@ -56,19 +56,70 @@ namespace PoRepoLineTracker.IntegrationTests
             // Configure app configuration FIRST - this must happen before services are registered
             builder.ConfigureAppConfiguration((context, config) =>
             {
+                // For integration tests prefer a local Azurite instance if available (faster & more deterministic than launching containers here)
                 var inMemorySettings = new Dictionary<string, string?>
                 {
-                    {"AzureTableStorage:ConnectionString", "UseDevelopmentStorage=true"},
                     {"AzureTableStorage:RepositoryTableName", "PoRepoLineTrackerRepositoriesTest"},
                     {"AzureTableStorage:CommitLineCountTableName", "PoRepoLineTrackerCommitLineCountsTest"},
                     {"GitHub:LocalReposPath", System.IO.Path.GetTempPath()},
                     // Provide mock OAuth credentials for testing
                     {"GitHub:ClientId", "test-client-id"},
                     {"GitHub:ClientSecret", "test-client-secret"},
-                    {"GitHub:CallbackPath", "/signin-github"},
-                    // Connection strings for Aspire-style configuration
-                    {"ConnectionStrings:tables", "UseDevelopmentStorage=true"}
+                    {"GitHub:CallbackPath", "/signin-github"}
                 };
+
+                // Detect local Azurite on default table port
+                bool azuriteAvailable = false;
+                try
+                {
+                    using (var tcp = new System.Net.Sockets.TcpClient())
+                    {
+                        var task = tcp.ConnectAsync("127.0.0.1", 10002);
+                        azuriteAvailable = task.Wait(1500) && tcp.Connected;
+                    }
+                }
+                catch { /* ignore */ }
+
+                if (azuriteAvailable)
+                {
+                    var connectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM...;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;";
+                    try
+                    {
+                        var serviceClient = new Azure.Data.Tables.TableServiceClient(connectionString);
+                        serviceClient.CreateTableIfNotExists("PoRepoLineTrackerRepositoriesTest");
+                        serviceClient.CreateTableIfNotExists("PoRepoLineTrackerCommitLineCountsTest");
+
+                        // Clear entities to ensure clean state
+                        var repoTable = serviceClient.GetTableClient("PoRepoLineTrackerRepositoriesTest");
+                        foreach (var entity in repoTable.Query<Azure.Data.Tables.TableEntity>())
+                        {
+                            repoTable.DeleteEntity(entity.PartitionKey, entity.RowKey);
+                        }
+
+                        var lineTable = serviceClient.GetTableClient("PoRepoLineTrackerCommitLineCountsTest");
+                        foreach (var entity in lineTable.Query<Azure.Data.Tables.TableEntity>())
+                        {
+                            lineTable.DeleteEntity(entity.PartitionKey, entity.RowKey);
+                        }
+
+                        inMemorySettings["AzureTableStorage:ConnectionString"] = connectionString;
+                        inMemorySettings["ConnectionStrings:tables"] = connectionString;
+                        // Provide variations used by Aspire/aspire-table configuration
+                        inMemorySettings["Aspire:Azure:Data:Tables:tables:ConnectionString"] = connectionString;
+                        inMemorySettings["Aspire:Azure:Data:Tables:ConnectionString"] = connectionString;
+                    }
+                    catch
+                    {
+                        inMemorySettings["AzureTableStorage:ConnectionString"] = "UseDevelopmentStorage=true";
+                        inMemorySettings["ConnectionStrings:tables"] = "UseDevelopmentStorage=true";
+                    }
+                }
+                else
+                {
+                    // Fall back to development storage emulator if Azurite not available
+                    inMemorySettings["AzureTableStorage:ConnectionString"] = "UseDevelopmentStorage=true";
+                    inMemorySettings["ConnectionStrings:tables"] = "UseDevelopmentStorage=true";
+                }
 
                 config.AddInMemoryCollection(inMemorySettings);
             });
@@ -98,9 +149,35 @@ namespace PoRepoLineTracker.IntegrationTests
                 // Replace services with mocks
                 services.AddScoped(provider => mockGitClient);
                 services.AddScoped(provider => mockGitHubService);
+
+                // Replace Table-backed services with simple mocks so integration startup does not require a live table connection
+                services.AddScoped<PoRepoLineTracker.Application.Interfaces.IUserService>(provider => Substitute.For<PoRepoLineTracker.Application.Interfaces.IUserService>());
+                services.AddScoped<PoRepoLineTracker.Application.Interfaces.IFailedOperationService>(provider => Substitute.For<PoRepoLineTracker.Application.Interfaces.IFailedOperationService>());
+                services.AddScoped<PoRepoLineTracker.Application.Interfaces.IUserPreferencesService>(provider => Substitute.For<PoRepoLineTracker.Application.Interfaces.IUserPreferencesService>());
+
+                // Remove the real background service that requires Azure Tables and replace with a no-op to keep startup deterministic
+                var descriptor = services.FirstOrDefault(d => d.ImplementationType?.FullName == "PoRepoLineTracker.Infrastructure.Services.FailedOperationBackgroundService");
+                if (descriptor != null)
+                {
+                    services.Remove(descriptor);
+                }
+
+                services.AddHostedService<NoOpHostedService>();
+            });
+
+            // No-op hosted service for tests
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<NoOpHostedService>();
             });
 
             builder.UseEnvironment("Testing");
+        }
+
+        // No-op hosted service used to replace real background services during tests
+        private class NoOpHostedService : Microsoft.Extensions.Hosting.BackgroundService
+        {
+            protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
         }
     }
 }

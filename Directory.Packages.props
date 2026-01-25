@@ -59,6 +59,7 @@
     <!-- Code Analyzers -->
     <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.0-preview1.25178.2" />
     <!-- Testing Frameworks -->
+    <PackageVersion Include="DotNet.Testcontainers" Version="1.7.0-beta.2269" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="FluentAssertions" Version="8.8.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />

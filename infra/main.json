@@ -239,7 +239,7 @@
                   "alwaysOn": false,
                   "ftpsState": "Disabled",
                   "minTlsVersion": "1.2",
-                  "healthCheckPath": "/api/health",
+                  "healthCheckPath": "/health",
                   "appSettings": [
                     {
                       "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
