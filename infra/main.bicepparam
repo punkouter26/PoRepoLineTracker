@@ -5,4 +5,4 @@ using './main.bicep'
 // the PoShared Key Vault at runtime via DefaultAzureCredential.
 // Deploy with: azd up
 
-param location = 'eastus'
+param location = 'eastus2'

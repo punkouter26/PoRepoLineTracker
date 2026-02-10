@@ -29,16 +29,19 @@ param sharedResourceGroupName string
 // Existing resources (pre-created in this RG)
 // ─────────────────────────────────────────────
 
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
+  name: storageAccountName
+}
+
+// Shared resources in PoShared RG
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = {
   name: logAnalyticsName
+  scope: resourceGroup(sharedResourceGroupName)
 }
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: appInsightsName
-}
-
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
-  name: storageAccountName
+  scope: resourceGroup(sharedResourceGroupName)
 }
 
 // ─────────────────────────────────────────────

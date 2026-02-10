@@ -2,14 +2,14 @@ targetScope = 'subscription'
 
 @minLength(1)
 @description('Primary location for all resources')
-param location string = 'eastus'
+param location string = 'eastus2'
 
 // Naming convention: Po{SolutionName} prefix; resource group follows rg-Po{Name}-prod pattern
 var resourceGroupName = 'PoRepoLineTracker'
 var sharedResourceGroupName = 'PoShared'
-var storageAccountName = 'porepolinetrackeraca'  // Existing storage account in PoRepoLineTracker RG
-var appInsightsName = 'PoRepoLineTracker'
-var logAnalyticsName = 'PoRepoLineTracker'
+var storageAccountName = 'stporepolinetracker'  // Existing storage account in PoRepoLineTracker RG
+var appInsightsName = 'poappideinsights8f9c9a4e'  // Shared App Insights in PoShared RG
+var logAnalyticsName = 'PoShared-LogAnalytics'  // Shared Log Analytics in PoShared RG
 var containerAppName = 'porepolinetracker'
 var containerAppEnvName = 'porepolinetracker-env'
 var containerRegistryName = 'porepolinetrackeracr'
