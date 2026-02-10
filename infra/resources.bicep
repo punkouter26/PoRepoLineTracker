@@ -131,24 +131,13 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
 }
 
 // ─────────────────────────────────────────────
-// RBAC: Grant Web App managed identity access to Table Storage
-// Role: Storage Table Data Contributor (0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3)
-// ─────────────────────────────────────────────
-
-resource storageTableRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, webApp.id, '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
-  scope: storageAccount
-  properties: {
-    principalId: webApp.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
-  }
-}
-
-// ─────────────────────────────────────────────
-// RBAC: Grant Web App managed identity access to PoShared Key Vault
-// Role: Key Vault Secrets User (4633458b-17de-408a-b874-0445c86b69e6)
-// This must be applied in the PoShared RG. Configure via Azure portal or az CLI:
+// RBAC: Managed externally (already assigned)
+// Web App managed identity has Storage Table Data Contributor on the storage account
+// and Key Vault Secrets User on kv-poshared in PoShared RG.
+// If the identity is recreated, re-run:
+//   az role assignment create --role "Storage Table Data Contributor" \
+//     --assignee <webApp-principalId> \
+//     --scope /subscriptions/.../resourceGroups/PoRepoLineTracker/providers/Microsoft.Storage/storageAccounts/stporepolinetracker
 //   az role assignment create --role "Key Vault Secrets User" \
 //     --assignee <webApp-principalId> \
 //     --scope /subscriptions/.../resourceGroups/PoShared/providers/Microsoft.KeyVault/vaults/kv-poshared
