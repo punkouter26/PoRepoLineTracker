@@ -1,4 +1,4 @@
-# Azure Container Apps deployment via Azure Developer CLI (azd)
+# Azure App Service deployment via Azure Developer CLI (azd)
 # Triggered on push to master or manual dispatch
 on:
   workflow_dispatch:
@@ -34,6 +34,6 @@ jobs:
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
 
-      - name: Deploy to Azure Container Apps
+      - name: Deploy to Azure App Service
         run: azd up --no-prompt
         

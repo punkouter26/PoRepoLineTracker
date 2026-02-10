@@ -13,7 +13,4 @@ services:
   api:
     project: ./src/PoRepoLineTracker.Api
     language: dotnet
-    host: containerapp
-    docker:
-      path: ./src/PoRepoLineTracker.Api/Dockerfile
-      context: .
+    host: appservice

@@ -1,5 +1,5 @@
-@description('Azure region where resources will be deployed')
-param location string
+@description('Location for the Web App (must match the App Service Plan location)')
+param webAppLocation string
 
 @description('Name of the Azure Storage Account for Table Storage')
 param storageAccountName string
@@ -10,14 +10,11 @@ param appInsightsName string
 @description('Name of the Log Analytics Workspace')
 param logAnalyticsName string
 
-@description('Name of the Container App')
-param containerAppName string
+@description('Name of the App Service (Web App)')
+param webAppName string
 
-@description('Name of the Container App Environment')
-param containerAppEnvName string
-
-@description('Name of the Azure Container Registry')
-param containerRegistryName string
+@description('Name of the shared Linux App Service Plan in PoShared RG')
+param appServicePlanName string
 
 @description('Name of the Key Vault in the PoShared resource group')
 param keyVaultName string
@@ -54,48 +51,23 @@ resource sharedKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 }
 
 // ─────────────────────────────────────────────
-// Container Registry (Basic SKU — lowest cost)
+// Reference shared Linux App Service Plan in PoShared RG
 // ─────────────────────────────────────────────
 
-resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
-  name: containerRegistryName
-  location: location
-  sku: {
-    name: 'Basic'
-  }
-  properties: {
-    adminUserEnabled: true
-  }
+resource appServicePlan 'Microsoft.Web/serverFarms@2023-12-01' existing = {
+  name: appServicePlanName
+  scope: resourceGroup(sharedResourceGroupName)
 }
 
 // ─────────────────────────────────────────────
-// Container App Environment
+// App Service (Web App) — uses system-assigned managed identity
+// Secrets pulled from PoShared Key Vault at runtime via DefaultAzureCredential
+// Uses shared App Service Plan from PoShared RG (westus2)
 // ─────────────────────────────────────────────
 
-resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
-  name: containerAppEnvName
-  location: location
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalytics.properties.customerId
-        sharedKey: logAnalytics.listKeys().primarySharedKey
-      }
-    }
-    daprAIConnectionString: appInsights.properties.ConnectionString
-    zoneRedundant: false
-  }
-}
-
-// ─────────────────────────────────────────────
-// Container App — uses system-assigned managed identity
-// Secrets pulled from PoShared Key Vault at runtime
-// ─────────────────────────────────────────────
-
-resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
-  name: containerAppName
-  location: location
+resource webApp 'Microsoft.Web/sites@2023-12-01' = {
+  name: webAppName
+  location: webAppLocation
   identity: {
     type: 'SystemAssigned'
   }
@@ -103,127 +75,82 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
     'azd-service-name': 'api'
   }
   properties: {
-    managedEnvironmentId: containerAppEnv.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8080
-        transport: 'auto'
-        allowInsecure: false
-      }
-      registries: [
+    serverFarmId: appServicePlan.id
+    httpsOnly: true
+    siteConfig: {
+      linuxFxVersion: 'DOTNETCORE|10.0'
+      ftpsState: 'Disabled'
+      minTlsVersion: '1.2'
+      appSettings: [
+        // Key Vault URL — app reads secrets via DefaultAzureCredential at startup
         {
-          server: containerRegistry.properties.loginServer
-          username: containerRegistry.listCredentials().username
-          passwordSecretRef: 'acr-password'
+          name: 'KeyVault__Url'
+          value: sharedKeyVault.properties.vaultUri
+        }
+        // Table Storage — use DefaultAzureCredential, not connection string keys
+        {
+          name: 'AzureTableStorage__ServiceUrl'
+          value: storageAccount.properties.primaryEndpoints.table
+        }
+        // Non-secret table names
+        {
+          name: 'AzureTableStorage__RepositoryTableName'
+          value: 'PoRepoLineTrackerRepositories'
+        }
+        {
+          name: 'AzureTableStorage__CommitLineCountTableName'
+          value: 'PoRepoLineTrackerCommitLineCounts'
+        }
+        {
+          name: 'AzureTableStorage__FailedOperationTableName'
+          value: 'PoRepoLineTrackerFailedOperations'
+        }
+        {
+          name: 'AzureTableStorage__UserTableName'
+          value: 'PoRepoLineTrackerUsers'
+        }
+        {
+          name: 'AzureTableStorage__UserPreferencesTableName'
+          value: 'PoRepoLineTrackerUserPreferences'
+        }
+        {
+          name: 'GitHub__LocalReposPath'
+          value: '/home/LocalRepos'
+        }
+        {
+          name: 'GitHub__CallbackPath'
+          value: '/signin-github'
+        }
+        {
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: appInsights.properties.ConnectionString
         }
       ]
-      secrets: [
-        {
-          name: 'acr-password'
-          value: containerRegistry.listCredentials().passwords[0].value
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: 'api'
-          image: '${containerRegistry.properties.loginServer}/api:latest'
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
-          env: [
-            // Key Vault URL — app reads secrets via DefaultAzureCredential at startup
-            {
-              name: 'KeyVault__Url'
-              value: sharedKeyVault.properties.vaultUri
-            }
-            // Table Storage — use DefaultAzureCredential, not connection string keys
-            {
-              name: 'AzureTableStorage__ServiceUrl'
-              value: storageAccount.properties.primaryEndpoints.table
-            }
-            // Non-secret table names
-            {
-              name: 'AzureTableStorage__RepositoryTableName'
-              value: 'PoRepoLineTrackerRepositories'
-            }
-            {
-              name: 'AzureTableStorage__CommitLineCountTableName'
-              value: 'PoRepoLineTrackerCommitLineCounts'
-            }
-            {
-              name: 'AzureTableStorage__FailedOperationTableName'
-              value: 'PoRepoLineTrackerFailedOperations'
-            }
-            {
-              name: 'AzureTableStorage__UserTableName'
-              value: 'PoRepoLineTrackerUsers'
-            }
-            {
-              name: 'AzureTableStorage__UserPreferencesTableName'
-              value: 'PoRepoLineTrackerUserPreferences'
-            }
-            {
-              name: 'GitHub__LocalReposPath'
-              value: '/app/LocalRepos'
-            }
-            {
-              name: 'GitHub__CallbackPath'
-              value: '/signin-github'
-            }
-            {
-              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-              value: appInsights.properties.ConnectionString
-            }
-            {
-              name: 'ASPNETCORE_URLS'
-              value: 'http://+:8080'
-            }
-          ]
-        }
-      ]
-      scale: {
-        minReplicas: 0
-        maxReplicas: 3
-        rules: [
-          {
-            name: 'http-scaling'
-            http: {
-              metadata: {
-                concurrentRequests: '10'
-              }
-            }
-          }
-        ]
-      }
     }
   }
 }
 
 // ─────────────────────────────────────────────
-// RBAC: Grant Container App managed identity access to Table Storage
+// RBAC: Grant Web App managed identity access to Table Storage
 // Role: Storage Table Data Contributor (0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3)
 // ─────────────────────────────────────────────
 
 resource storageTableRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, containerApp.id, '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
+  name: guid(storageAccount.id, webApp.id, '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
   scope: storageAccount
   properties: {
-    principalId: containerApp.identity.principalId
+    principalId: webApp.identity.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
   }
 }
 
 // ─────────────────────────────────────────────
-// RBAC: Grant Container App managed identity access to PoShared Key Vault
+// RBAC: Grant Web App managed identity access to PoShared Key Vault
 // Role: Key Vault Secrets User (4633458b-17de-408a-b874-0445c86b69e6)
 // This must be applied in the PoShared RG. Configure via Azure portal or az CLI:
 //   az role assignment create --role "Key Vault Secrets User" \
-//     --assignee <containerApp-principalId> \
+//     --assignee <webApp-principalId> \
 //     --scope /subscriptions/.../resourceGroups/PoShared/providers/Microsoft.KeyVault/vaults/kv-poshared
 // ─────────────────────────────────────────────
 
@@ -234,14 +161,11 @@ output storageAccountName string = storageAccount.name
 @description('Application Insights connection string for telemetry')
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
 
-@description('Public URL of the deployed Container App')
-output containerAppUrl string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
+@description('Public URL of the deployed Web App')
+output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
 
 @description('Resource ID of the Log Analytics Workspace')
 output logAnalyticsId string = logAnalytics.id
 
-@description('Azure Container Registry login server')
-output containerRegistryEndpoint string = containerRegistry.properties.loginServer
-
-@description('Container App managed identity principal ID (use to grant Key Vault access)')
-output containerAppPrincipalId string = containerApp.identity.principalId
+@description('Web App managed identity principal ID (use to grant Key Vault access)')
+output webAppPrincipalId string = webApp.identity.principalId
