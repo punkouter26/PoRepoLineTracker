@@ -125,6 +125,10 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: appInsights.properties.ConnectionString
         }
+        {
+          name: 'ASPNETCORE_URLS'
+          value: 'http://+:8080'
+        }
       ]
     }
   }
