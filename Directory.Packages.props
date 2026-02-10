@@ -9,7 +9,6 @@
     <PackageVersion Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.4.0" />
     <!-- Azure & Storage -->
     <PackageVersion Include="Azure.Data.Tables" Version="12.11.0" />
-    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.1" />
     <!-- MediatR -->
     <PackageVersion Include="MediatR" Version="14.0.0" />
     <!-- Microsoft Core Extensions (.NET 10.0.1) -->
