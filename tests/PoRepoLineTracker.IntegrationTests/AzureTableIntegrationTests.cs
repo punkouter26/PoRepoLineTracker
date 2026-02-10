@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Threading.Tasks;
+using FluentAssertions;
 using Xunit;
 
 namespace PoRepoLineTracker.IntegrationTests
@@ -7,6 +8,26 @@ namespace PoRepoLineTracker.IntegrationTests
     public class AzureTableIntegrationTests : IClassFixture<CustomWebApplicationFactory>
     {
         private readonly CustomWebApplicationFactory _factory;
+
+        /// <summary>
+        /// Runtime check: is Azurite listening on port 10002?
+        /// When true, table-storage tests run; otherwise they are skipped automatically.
+        /// </summary>
+        private static readonly bool AzuriteAvailable = CheckAzuriteAvailable();
+
+        private static bool CheckAzuriteAvailable()
+        {
+            try
+            {
+                using var tcp = new System.Net.Sockets.TcpClient();
+                var task = tcp.ConnectAsync("127.0.0.1", 10002);
+                return task.Wait(1500) && tcp.Connected;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         public AzureTableIntegrationTests(CustomWebApplicationFactory factory)
         {
@@ -29,11 +50,12 @@ namespace PoRepoLineTracker.IntegrationTests
             }
         }
 
-        [Fact(Skip = "Requires local Azurite; enable when running with docker/azurite available")]
+        [SkippableFact]
         public async Task Example_Table_Operation_With_Azurite()
         {
-            // Example (skipped by default) that demonstrates how to run a Table operation against Azurite in CI/local runs where Azurite is available
-            var connectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqG7hQ==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;";
+            Skip.IfNot(AzuriteAvailable, "Azurite is not running on port 10002 — skipping table storage test");
+
+            var connectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;";
             var serviceClient = new Azure.Data.Tables.TableServiceClient(connectionString);
             var table = serviceClient.GetTableClient("PoRepoLineTrackerIntegrationTestTable");
             await table.CreateIfNotExistsAsync();
@@ -42,7 +64,8 @@ namespace PoRepoLineTracker.IntegrationTests
             await table.AddEntityAsync(entity);
 
             var retrieved = await table.GetEntityAsync<Azure.Data.Tables.TableEntity>(entity.PartitionKey, entity.RowKey);
-            Assert.Equal("abc", retrieved.Value.GetString("Value")?.ToString() ?? retrieved.Value["Value"].ToString());
+            var value = retrieved.Value.GetString("Value")?.ToString() ?? retrieved.Value["Value"].ToString();
+            value.Should().Be("abc");
 
             await table.DeleteEntityAsync(entity.PartitionKey, entity.RowKey);
         }

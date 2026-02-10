@@ -4,15 +4,15 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Aspire 13.1.0 -->
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.1.0" />
-    <PackageVersion Include="Aspire.Azure.Data.Tables" Version="13.1.0" />
+    <!-- Azure & Identity -->
+    <PackageVersion Include="Azure.Identity" Version="1.13.2" />
+    <PackageVersion Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.4.0" />
     <!-- Azure & Storage -->
     <PackageVersion Include="Azure.Data.Tables" Version="12.11.0" />
-    <!-- MediatR -->
     <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.1" />
+    <!-- MediatR -->
     <PackageVersion Include="MediatR" Version="14.0.0" />
-    <!-- Microsoft Core Extensions (.NET 10.0.1 - required by Aspire 13.1.0) -->
+    <!-- Microsoft Core Extensions (.NET 10.0.1) -->
     <PackageVersion Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.23.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.1" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.1" />
@@ -27,7 +27,6 @@
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.1.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.1.0" />
     <!-- Git & Source Control -->
     <PackageVersion Include="LibGit2Sharp" Version="0.31.0" />
     <!-- Polly Resilience -->
@@ -40,7 +39,7 @@
     <PackageVersion Include="Serilog.Sinks.ApplicationInsights" Version="4.1.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
-    <!-- OpenTelemetry 1.14.0 - required by Aspire 13.1.0 -->
+    <!-- OpenTelemetry 1.14.0 -->
     <PackageVersion Include="OpenTelemetry" Version="1.14.0" />
     <PackageVersion Include="OpenTelemetry.Api" Version="1.14.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.14.0" />
@@ -71,5 +70,6 @@
     <PackageVersion Include="NUnit3TestAdapter" Version="4.6.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.23" />
   </ItemGroup>
 </Project>

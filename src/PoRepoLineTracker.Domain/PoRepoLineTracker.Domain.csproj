@@ -6,7 +6,6 @@
     <Nullable>enable</Nullable>
     <!-- AOT disabled: codebase uses reflection-based JSON serialization -->
     <IsAotCompatible>false</IsAotCompatible>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
 </Project>

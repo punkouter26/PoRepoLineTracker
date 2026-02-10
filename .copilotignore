@@ -1,0 +1,9 @@
+# Exclude build outputs and dependency caches from AI focus
+bin/
+obj/
+node_modules/
+.vs/
+*.user
+*.suo
+TestResults/
+playwright-report/

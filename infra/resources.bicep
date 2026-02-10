@@ -19,34 +19,41 @@ param containerAppEnvName string
 @description('Name of the Azure Container Registry')
 param containerRegistryName string
 
-@secure()
-@description('GitHub Personal Access Token for repository access')
-param githubPAT string
+@description('Name of the Key Vault in the PoShared resource group')
+param keyVaultName string
 
-@secure()
-@description('GitHub OAuth Client ID for authentication')
-param githubClientId string
+@description('Name of the PoShared resource group containing shared services')
+param sharedResourceGroupName string
 
-@secure()
-@description('GitHub OAuth Client Secret for authentication')
-param githubClientSecret string
+// ─────────────────────────────────────────────
+// Existing resources (pre-created in this RG)
+// ─────────────────────────────────────────────
 
-// Reference existing Log Analytics Workspace
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = {
   name: logAnalyticsName
 }
 
-// Reference existing Application Insights
 resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: appInsightsName
 }
 
-// Reference existing Storage Account for Azure Table Storage
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
   name: storageAccountName
 }
 
-// Azure Container Registry for storing container images
+// ─────────────────────────────────────────────
+// Reference Key Vault in PoShared resource group
+// ─────────────────────────────────────────────
+
+resource sharedKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
+  scope: resourceGroup(sharedResourceGroupName)
+}
+
+// ─────────────────────────────────────────────
+// Container Registry (Basic SKU — lowest cost)
+// ─────────────────────────────────────────────
+
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: containerRegistryName
   location: location
@@ -58,8 +65,10 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' =
   }
 }
 
-// Container App Environment for hosting the container app
-// Uses Log Analytics workspace for log aggregation
+// ─────────────────────────────────────────────
+// Container App Environment
+// ─────────────────────────────────────────────
+
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: containerAppEnvName
   location: location
@@ -76,12 +85,19 @@ resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   }
 }
 
-// Container App for hosting the Blazor WebAssembly application and API
+// ─────────────────────────────────────────────
+// Container App — uses system-assigned managed identity
+// Secrets pulled from PoShared Key Vault at runtime
+// ─────────────────────────────────────────────
+
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: containerAppName
   location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
   tags: {
-    'azd-service-name': 'api'  // Azure Developer CLI service tag
+    'azd-service-name': 'api'
   }
   properties: {
     managedEnvironmentId: containerAppEnv.id
@@ -104,50 +120,29 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
           name: 'acr-password'
           value: containerRegistry.listCredentials().passwords[0].value
         }
-        {
-          name: 'storage-connection-string'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
-        }
-        {
-          name: 'github-pat'
-          value: githubPAT
-        }
-        {
-          name: 'github-client-id'
-          value: githubClientId
-        }
-        {
-          name: 'github-client-secret'
-          value: githubClientSecret
-        }
-        {
-          name: 'appinsights-connection-string'
-          value: appInsights.properties.ConnectionString
-        }
       ]
     }
     template: {
       containers: [
         {
           name: 'api'
-          image: '${containerRegistry.properties.loginServer}/api:latest'  // Will be replaced by azd deploy
+          image: '${containerRegistry.properties.loginServer}/api:latest'
           resources: {
             cpu: json('0.5')
             memory: '1Gi'
           }
           env: [
+            // Key Vault URL — app reads secrets via DefaultAzureCredential at startup
             {
-              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-              secretRef: 'appinsights-connection-string'
+              name: 'KeyVault__Url'
+              value: sharedKeyVault.properties.vaultUri
             }
+            // Table Storage — use DefaultAzureCredential, not connection string keys
             {
-              name: 'ConnectionStrings__tables'
-              secretRef: 'storage-connection-string'
+              name: 'AzureTableStorage__ServiceUrl'
+              value: storageAccount.properties.primaryEndpoints.table
             }
-            {
-              name: 'AzureTableStorage__ConnectionString'
-              secretRef: 'storage-connection-string'
-            }
+            // Non-secret table names
             {
               name: 'AzureTableStorage__RepositoryTableName'
               value: 'PoRepoLineTrackerRepositories'
@@ -161,20 +156,24 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
               value: 'PoRepoLineTrackerFailedOperations'
             }
             {
+              name: 'AzureTableStorage__UserTableName'
+              value: 'PoRepoLineTrackerUsers'
+            }
+            {
+              name: 'AzureTableStorage__UserPreferencesTableName'
+              value: 'PoRepoLineTrackerUserPreferences'
+            }
+            {
               name: 'GitHub__LocalReposPath'
-              value: '/app/LocalRepos'  // Container path for temp storage
+              value: '/app/LocalRepos'
             }
             {
-              name: 'GitHub__PAT'
-              secretRef: 'github-pat'
+              name: 'GitHub__CallbackPath'
+              value: '/signin-github'
             }
             {
-              name: 'GitHub__ClientId'
-              secretRef: 'github-client-id'
-            }
-            {
-              name: 'GitHub__ClientSecret'
-              secretRef: 'github-client-secret'
+              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+              value: appInsights.properties.ConnectionString
             }
             {
               name: 'ASPNETCORE_URLS'
@@ -201,6 +200,30 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   }
 }
 
+// ─────────────────────────────────────────────
+// RBAC: Grant Container App managed identity access to Table Storage
+// Role: Storage Table Data Contributor (0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3)
+// ─────────────────────────────────────────────
+
+resource storageTableRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, containerApp.id, '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
+  scope: storageAccount
+  properties: {
+    principalId: containerApp.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
+  }
+}
+
+// ─────────────────────────────────────────────
+// RBAC: Grant Container App managed identity access to PoShared Key Vault
+// Role: Key Vault Secrets User (4633458b-17de-408a-b874-0445c86b69e6)
+// This must be applied in the PoShared RG. Configure via Azure portal or az CLI:
+//   az role assignment create --role "Key Vault Secrets User" \
+//     --assignee <containerApp-principalId> \
+//     --scope /subscriptions/.../resourceGroups/PoShared/providers/Microsoft.KeyVault/vaults/kv-poshared
+// ─────────────────────────────────────────────
+
 // Outputs
 @description('Name of the deployed Storage Account')
 output storageAccountName string = storageAccount.name
@@ -216,3 +239,6 @@ output logAnalyticsId string = logAnalytics.id
 
 @description('Azure Container Registry login server')
 output containerRegistryEndpoint string = containerRegistry.properties.loginServer
+
+@description('Container App managed identity principal ID (use to grant Key Vault access)')
+output containerAppPrincipalId string = containerApp.identity.principalId

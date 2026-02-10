@@ -12,8 +12,6 @@ COPY ["src/PoRepoLineTracker.Application/PoRepoLineTracker.Application.csproj", 
 COPY ["src/PoRepoLineTracker.Client/PoRepoLineTracker.Client.csproj", "src/PoRepoLineTracker.Client/"]
 COPY ["src/PoRepoLineTracker.Domain/PoRepoLineTracker.Domain.csproj", "src/PoRepoLineTracker.Domain/"]
 COPY ["src/PoRepoLineTracker.Infrastructure/PoRepoLineTracker.Infrastructure.csproj", "src/PoRepoLineTracker.Infrastructure/"]
-COPY ["src/PoRepoLineTracker.ServiceDefaults/PoRepoLineTracker.ServiceDefaults.csproj", "src/PoRepoLineTracker.ServiceDefaults/"]
-COPY ["src/PoRepoLineTracker.AppHost/PoRepoLineTracker.AppHost.csproj", "src/PoRepoLineTracker.AppHost/"]
 
 # Restore packages
 RUN dotnet restore "src/PoRepoLineTracker.Api/PoRepoLineTracker.Api.csproj"

@@ -1,5 +1,5 @@
 General Engineering Principles
-Unified Identity: Use Po{SolutionName} as the master prefix for all namespaces, Azure Resource Groups, and Aspire resource names (e.g., PoTask1.API, rg-PoTask1-prod).
+Unified Identity: Use Po{SolutionName} as the master prefix for all namespaces, Azure Resource Groups, and resource names (e.g., PoTask1.API, rg-PoTask1-prod).
 Global Cleanup: Actively delete unused files, dead code, or obsolete assets. Maintain a "zero-waste" codebase.
 Directory.Build.props: Enforce <TreatWarningsAsErrors>true</TreatWarningsAsErrors> and <Nullable>enable</Nullable> at the repository root to ensure all projects inherit strict safety standards.
 Have /health endpoint on the server project that checks connections to all APIs and databases used
@@ -46,7 +46,7 @@ Workflow: Run headed during development to verify functionality alongside the lo
 
 
 
-App Stack: Blazor Web App + Aspire (Azure ACA Containers)
+App Stack: Blazor Web App (Azure App Service / ACA Containers)
 Template: Target .NET 10 Unified Blazor Web App (Server SSR + WASM Client).
 Rendering Policy: Default to Static SSR. Elevate to InteractiveAuto only for specific components requiring low-latency responsiveness.
 Vertical Slice Architecture (VSA): Organize by features, not layers. Group Endpoints, DTOs, and Logic within single, flattened feature folders.
@@ -54,10 +54,8 @@ Minimalist API: If the WASM client requires data, create minimal endpoints withi
 Use OpenApi instead of Swashbuckle for API endpoint UI
 
 
-Use Aspire CLI https://aspire.dev/get-started/install-cli/
-Aspire First: Use .NET Aspire (AppHost and ServiceDefaults) for all local and cloud orchestration.
-Service Discovery: Use Aspire project references; never hardcode ports or connection strings.
 Telemetry: Enable OpenTelemetry (Logs, Traces, Metrics) globally, aggregating into Application Insights within the PoShared resource group.
-Azd-Driven Infra: Use azd up to generate and deploy infrastructure (Azure Container Apps) directly from the Aspire model.
-Po<solutionName> resource group in Azure should container a container app, table storage (if uses azure table storage)
+Infra: Use azd up to deploy infrastructure (Azure Container Apps).
+Ports: Use 5000 (HTTP) and 5001 (HTTPS).
+Po<solutionName> resource group in Azure should contain a container app, table storage (if uses azure table storage)
 PoShared will contain all other services needed and will have a key vault service for saving secrets as needed

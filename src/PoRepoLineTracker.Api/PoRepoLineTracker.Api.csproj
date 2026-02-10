@@ -12,8 +12,10 @@
 
   <ItemGroup>
     <PackageReference Include="AspNet.Security.OAuth.GitHub" />
-    <PackageReference Include="Aspire.Azure.Data.Tables" />
+    <PackageReference Include="Azure.Data.Tables" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" />
     <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
+    <PackageReference Include="Azure.Identity" />
     <PackageReference Include="MediatR" />
     <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
@@ -40,7 +42,6 @@
     <ProjectReference Include="..\PoRepoLineTracker.Application\PoRepoLineTracker.Application.csproj" />
     <ProjectReference Include="..\PoRepoLineTracker.Infrastructure\PoRepoLineTracker.Infrastructure.csproj" />
     <ProjectReference Include="..\PoRepoLineTracker.Client\PoRepoLineTracker.Client.csproj" />
-    <ProjectReference Include="..\PoRepoLineTracker.ServiceDefaults\PoRepoLineTracker.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>

@@ -428,6 +428,12 @@ log*.txt
 apphost_resources.json
 tmp_*.html
 
+# Deployment artifacts & logs
+deploy.zip
+webapp-logs*.zip
+webapp-logs*/
+azure-logs/
+
 # Local development settings with secrets
 appsettings.*.local.json
 

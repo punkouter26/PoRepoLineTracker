@@ -82,7 +82,7 @@ namespace PoRepoLineTracker.IntegrationTests
 
                 if (azuriteAvailable)
                 {
-                    var connectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM...;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;";
+                    var connectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;";
                     try
                     {
                         var serviceClient = new Azure.Data.Tables.TableServiceClient(connectionString);
@@ -104,9 +104,6 @@ namespace PoRepoLineTracker.IntegrationTests
 
                         inMemorySettings["AzureTableStorage:ConnectionString"] = connectionString;
                         inMemorySettings["ConnectionStrings:tables"] = connectionString;
-                        // Provide variations used by Aspire/aspire-table configuration
-                        inMemorySettings["Aspire:Azure:Data:Tables:tables:ConnectionString"] = connectionString;
-                        inMemorySettings["Aspire:Azure:Data:Tables:ConnectionString"] = connectionString;
                     }
                     catch
                     {

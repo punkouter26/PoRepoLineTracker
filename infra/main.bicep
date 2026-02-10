@@ -4,35 +4,29 @@ targetScope = 'subscription'
 @description('Primary location for all resources')
 param location string = 'eastus'
 
-@secure()
-@description('GitHub Personal Access Token for repository access')
-param githubPAT string
-
-@secure()
-@description('GitHub OAuth Client ID for authentication')
-param githubClientId string
-
-@secure()
-@description('GitHub OAuth Client Secret for authentication')
-param githubClientSecret string
-
-// Naming convention: All resources use 'PoRepoLineTracker' prefix for consistency
-// Storage account names must be lowercase with no special characters due to Azure constraints
+// Naming convention: Po{SolutionName} prefix; resource group follows rg-Po{Name}-prod pattern
 var resourceGroupName = 'PoRepoLineTracker'
-var storageAccountName = 'porepolinetrackeraca'  // Use existing storage account
-var appInsightsName = 'PoRepoLineTracker'  // Use existing App Insights
-var logAnalyticsName = 'PoRepoLineTracker'  // Use existing Log Analytics
-var containerAppName = 'porepolinetracker'  // Container App names must be lowercase
+var sharedResourceGroupName = 'PoShared'
+var storageAccountName = 'porepolinetrackeraca'  // Existing storage account in PoRepoLineTracker RG
+var appInsightsName = 'PoRepoLineTracker'
+var logAnalyticsName = 'PoRepoLineTracker'
+var containerAppName = 'porepolinetracker'
 var containerAppEnvName = 'porepolinetracker-env'
 var containerRegistryName = 'porepolinetrackeracr'
+var keyVaultName = 'kv-poshared'  // Existing Key Vault in PoShared RG
 
-// Create resource group for this application's resources
+// Reference the app resource group (must already exist or be created separately)
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   name: resourceGroupName
   location: location
 }
 
-// Deploy resources into the resource group
+// Reference the PoShared resource group (must already exist — contains Key Vault, App Insights, etc.)
+resource sharedRg 'Microsoft.Resources/resourceGroups@2021-04-01' existing = {
+  name: sharedResourceGroupName
+}
+
+// Deploy resources into the app resource group
 module resources 'resources.bicep' = {
   name: 'resources'
   scope: rg
@@ -44,9 +38,8 @@ module resources 'resources.bicep' = {
     containerAppName: containerAppName
     containerAppEnvName: containerAppEnvName
     containerRegistryName: containerRegistryName
-    githubPAT: githubPAT
-    githubClientId: githubClientId
-    githubClientSecret: githubClientSecret
+    keyVaultName: keyVaultName
+    sharedResourceGroupName: sharedResourceGroupName
   }
 }
 

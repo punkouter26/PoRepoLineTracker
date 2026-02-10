@@ -25,6 +25,7 @@ using AspNet.Security.OAuth.GitHub;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using Azure.Storage.Blobs;
+using Azure.Identity;
 
 namespace PoRepoLineTracker.Api
 {
@@ -56,11 +57,54 @@ namespace PoRepoLineTracker.Api
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add Aspire ServiceDefaults for observability and resilience
-            builder.AddServiceDefaults();
+            // Add Azure Key Vault configuration provider (secrets from PoShared Key Vault)
+            // In production the managed identity is used; locally DefaultAzureCredential
+            // falls through to Azure CLI / Visual Studio credentials.
+            var keyVaultUrl = builder.Configuration["KeyVault:Url"];
+            if (!string.IsNullOrEmpty(keyVaultUrl))
+            {
+                builder.Configuration.AddAzureKeyVault(
+                    new Uri(keyVaultUrl),
+                    new DefaultAzureCredential(),
+                    new PrefixKeyVaultSecretManager());
+                Log.Information("Azure Key Vault configuration loaded from {KeyVaultUrl}", keyVaultUrl);
+            }
+            else
+            {
+                Log.Warning("KeyVault:Url not configured — secrets must come from user-secrets or environment variables");
+            }
 
-            // Add Aspire Azure Table Storage client (uses connection string from Aspire orchestrator)
-            builder.AddAzureTableServiceClient("tables");
+            // Register Azure Table Storage client
+            // Uses DefaultAzureCredential for cloud endpoints; falls back to connection string for Azurite/emulator
+            builder.Services.AddSingleton<Azure.Data.Tables.TableServiceClient>(sp =>
+            {
+                var config = sp.GetRequiredService<IConfiguration>();
+                var connStr = config["AzureTableStorage:ConnectionString"]
+                           ?? config["ConnectionStrings:tables"];
+
+                // Azurite / emulator uses a connection string
+                if (!string.IsNullOrEmpty(connStr) && connStr.Contains("UseDevelopmentStorage", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new Azure.Data.Tables.TableServiceClient(connStr);
+                }
+
+                // Cloud: use the storage account endpoint + DefaultAzureCredential (no keys)
+                var storageEndpoint = config["AzureTableStorage:ServiceUrl"];
+                if (!string.IsNullOrEmpty(storageEndpoint))
+                {
+                    return new Azure.Data.Tables.TableServiceClient(
+                        new Uri(storageEndpoint),
+                        new DefaultAzureCredential());
+                }
+
+                // Fallback: plain connection string (for integration tests or legacy config)
+                if (!string.IsNullOrEmpty(connStr))
+                {
+                    return new Azure.Data.Tables.TableServiceClient(connStr);
+                }
+
+                return new Azure.Data.Tables.TableServiceClient("UseDevelopmentStorage=true");
+            });
 
             // Add local development configuration
             if (builder.Environment.IsDevelopment())
@@ -388,9 +432,6 @@ namespace PoRepoLineTracker.Api
 
             // Apply forwarded headers first (before any other middleware)
             app.UseForwardedHeaders();
-
-            // Map Aspire default endpoints (health checks)
-            app.MapDefaultEndpoints();
 
             app.UseMiddleware<ExceptionHandlingMiddleware>(); // Global exception handling
 
@@ -906,6 +947,53 @@ namespace PoRepoLineTracker.Api
                 return Results.Json(healthStatus);
             })
             .WithName("HealthCheckSimple");
+
+            // Diagnostics endpoint — exposes sanitised config values for troubleshooting
+            // Middle characters of each value are masked for security (e.g., "abc***xyz")
+            app.MapGet("/diag", (IConfiguration configuration, IWebHostEnvironment env) =>
+            {
+                static string Mask(string? value)
+                {
+                    if (string.IsNullOrEmpty(value)) return "(not set)";
+                    if (value.Length <= 6) return new string('*', value.Length);
+                    var visibleLen = Math.Min(3, value.Length / 4);
+                    return string.Concat(value.AsSpan(0, visibleLen), "***", value.AsSpan(value.Length - visibleLen));
+                }
+
+                var diag = new
+                {
+                    Environment = env.EnvironmentName,
+                    Timestamp = DateTime.UtcNow,
+                    KeyVault = new
+                    {
+                        Url = configuration["KeyVault:Url"] ?? "(not set)"
+                    },
+                    AzureTableStorage = new
+                    {
+                        ServiceUrl = Mask(configuration["AzureTableStorage:ServiceUrl"]),
+                        ConnectionString = Mask(configuration["AzureTableStorage:ConnectionString"])
+                    },
+                    GitHub = new
+                    {
+                        ClientId = Mask(configuration["GitHub:ClientId"]),
+                        ClientSecret = Mask(configuration["GitHub:ClientSecret"]),
+                        PAT = Mask(configuration["GitHub:PAT"]),
+                        CallbackPath = configuration["GitHub:CallbackPath"]
+                    },
+                    ApplicationInsights = new
+                    {
+                        ConnectionString = Mask(configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"])
+                    },
+                    OpenTelemetry = new
+                    {
+                        OtlpEndpoint = Mask(configuration["OpenTelemetry:OtlpEndpoint"])
+                    }
+                };
+
+                return Results.Json(diag);
+            })
+            .WithName("Diagnostics")
+            .AllowAnonymous();
 
             // Client Logging Endpoint (Development only for security)
             if (app.Environment.IsDevelopment())
