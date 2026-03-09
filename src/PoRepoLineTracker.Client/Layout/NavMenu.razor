@@ -1,8 +1,10 @@
 ﻿@using Microsoft.AspNetCore.Components.Routing
 @using Radzen
 @using Radzen.Blazor
+@using Microsoft.AspNetCore.Components.Authorization
 @inject HttpClient Http
 @inject ILogger<NavMenu> Logger
+@inject AuthenticationStateProvider AuthStateProvider
 
 <RadzenPanelMenuItem Text="Repositories" Icon="storage" Path="/" />
 <RadzenPanelMenuItem Text="@(_failedCount > 0 ? $"Failed Operations ({_failedCount})" : "Failed Operations")"
@@ -16,6 +18,10 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated != true)
+            return;
+
         try
         {
             var ops = await Http.GetFromJsonAsync<List<System.Text.Json.JsonElement>>("/api/failed-operations");

@@ -69,6 +69,21 @@ public static class AuthServiceExtensions
                 return Task.CompletedTask;
             };
 
+            // Return 401 for API fetch calls instead of redirecting to GitHub OAuth,
+            // which would cause a browser CORS error on the cross-origin redirect.
+            // Exclude /api/auth/login — that endpoint intentionally challenges to GitHub.
+            options.Events.OnRedirectToAuthorizationEndpoint = context =>
+            {
+                if (context.Request.Path.StartsWithSegments("/api")
+                    && !context.Request.Path.StartsWithSegments("/api/auth/login"))
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return Task.CompletedTask;
+                }
+                context.Response.Redirect(context.RedirectUri);
+                return Task.CompletedTask;
+            };
+
             options.Events.OnCreatingTicket = async context =>
             {
                 var gitHubId = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
