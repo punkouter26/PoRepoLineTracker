@@ -120,12 +120,11 @@ public class AddMultipleRepositoriesCommandHandlerTests
 {
     private readonly IRepositoryDataService _dataService = Substitute.For<IRepositoryDataService>();
     private readonly ILogger<AddMultipleRepositoriesCommandHandler> _logger = Substitute.For<ILogger<AddMultipleRepositoriesCommandHandler>>();
-    private readonly IMediator _mediator = Substitute.For<IMediator>();
     private readonly AddMultipleRepositoriesCommandHandler _sut;
 
     public AddMultipleRepositoriesCommandHandlerTests()
     {
-        _sut = new AddMultipleRepositoriesCommandHandler(_dataService, _logger, _mediator);
+        _sut = new AddMultipleRepositoriesCommandHandler(_dataService, _logger);
     }
 
     [Fact]

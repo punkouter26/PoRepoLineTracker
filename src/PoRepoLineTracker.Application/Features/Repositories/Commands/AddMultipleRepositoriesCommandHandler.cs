@@ -9,16 +9,13 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
 {
     private readonly IRepositoryDataService _repositoryDataService;
     private readonly ILogger<AddMultipleRepositoriesCommandHandler> _logger;
-    private readonly IMediator _mediator; // Inject IMediator
 
     public AddMultipleRepositoriesCommandHandler(
         IRepositoryDataService repositoryDataService,
-        ILogger<AddMultipleRepositoriesCommandHandler> logger,
-        IMediator mediator) // Add IMediator to constructor
+        ILogger<AddMultipleRepositoriesCommandHandler> logger)
     {
         _repositoryDataService = repositoryDataService;
         _logger = logger;
-        _mediator = mediator; // Assign mediator
     }
 
     public async Task<IEnumerable<GitHubRepository>> Handle(AddMultipleRepositoriesCommand request, CancellationToken cancellationToken)
@@ -36,7 +33,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
         }
 
         var addedRepositories = new List<GitHubRepository>();
-        var repositoriesToAnalyze = new List<Guid>(); // Track repos that need analysis
+        var repositoriesToAnalyze = new List<Guid>();
 
         // PHASE 1: Add repositories to database
         foreach (var repo in request.Repositories)
@@ -88,7 +85,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                 _logger.LogInformation("Successfully saved repository {Owner}/{Name}. Adding to result list.",
                     newRepo.Owner, newRepo.Name);
                 addedRepositories.Add(newRepo);
-                repositoriesToAnalyze.Add(newRepo.Id); // Queue for analysis
+                repositoriesToAnalyze.Add(newRepo.Id);
             }
             catch (Exception ex)
             {
@@ -98,35 +95,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
             }
         }
 
-        _logger.LogInformation("Phase 1 complete: Added {Count} repositories to database", addedRepositories.Count);
-
-        // PHASE 2: Analyze repositories synchronously so they're ready when user returns to home page
-        if (repositoriesToAnalyze.Any())
-        {
-            _logger.LogInformation("Phase 2: Analyzing {Count} repositories (synchronous)", repositoriesToAnalyze.Count);
-
-            foreach (var repoId in repositoriesToAnalyze)
-            {
-                try
-                {
-                    var repo = addedRepositories.FirstOrDefault(r => r.Id == repoId);
-                    _logger.LogInformation("Analyzing repository ID: {Id} ({Owner}/{Name})",
-                        repoId, repo?.Owner ?? "Unknown", repo?.Name ?? "Unknown");
-
-                    await _mediator.Send(new AnalyzeRepositoryCommitsCommand(repoId), cancellationToken);
-
-                    _logger.LogInformation("✓ Analysis completed for repository ID: {Id}", repoId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "✗ EXCEPTION during analysis of repository ID: {Id}. Message: {Message}",
-                        repoId, ex.Message);
-                    // Continue with other analyses even if one fails
-                }
-            }
-
-            _logger.LogInformation("All repository analyses completed");
-        }
+        _logger.LogInformation("Phase 1 complete: Added {Count} repositories to database. Analysis will be queued by the caller.", addedRepositories.Count);
 
         _logger.LogInformation("=== COMPLETED AddMultipleRepositoriesCommandHandler ===");
         _logger.LogInformation("Final result: Successfully added {Count} out of {Total} repositories.",

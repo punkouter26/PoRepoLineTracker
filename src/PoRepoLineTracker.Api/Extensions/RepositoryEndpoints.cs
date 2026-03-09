@@ -137,7 +137,7 @@ internal static class RepositoryEndpoints
         .RequireAuthorization()
         .WithName("RemoveAllRepositories");
 
-        app.MapPost("/api/repositories/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, IMediator mediator) =>
+        app.MapPost("/api/repositories/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory) =>
         {
             try
             {
@@ -158,13 +158,43 @@ internal static class RepositoryEndpoints
 
                 Log.Information("Sending AddMultipleRepositoriesCommand to MediatR with {Count} repositories for user {UserId}", repoList.Count, userId);
                 var addedRepositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddMultipleRepositoriesCommand(
-                    repositories ?? Enumerable.Empty<BulkRepositoryDto>(), userId));
+                    repoList, userId));
 
                 var addedList = addedRepositories.ToList();
                 Log.Information("MediatR returned {Count} repositories: {Repos}", addedList.Count,
                     string.Join(", ", addedList.Select(r => $"{r.Owner}/{r.Name}")));
 
-                return Results.Ok(addedRepositories);
+                // Fire analysis in the background so the HTTP response returns immediately.
+                // Cloning + line-counting can take several minutes — doing it synchronously
+                // causes Blazor WASM's 100 s HttpClient timeout to fire.
+                var newRepoIds = addedList
+                    .Where(r => r.LastAnalyzedCommitDate == null)
+                    .Select(r => r.Id)
+                    .ToList();
+
+                if (newRepoIds.Count > 0)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        using var scope = scopeFactory.CreateScope();
+                        var bgMediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                        foreach (var repoId in newRepoIds)
+                        {
+                            try
+                            {
+                                Log.Information("Background: starting analysis for repo {RepoId}", repoId);
+                                await bgMediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repoId));
+                                Log.Information("Background: analysis complete for repo {RepoId}", repoId);
+                            }
+                            catch (Exception bgEx)
+                            {
+                                Log.Error(bgEx, "Background: analysis failed for repo {RepoId}: {Message}", repoId, bgEx.Message);
+                            }
+                        }
+                    });
+                }
+
+                return Results.Ok(addedList);
             }
             catch (Exception ex)
             {
