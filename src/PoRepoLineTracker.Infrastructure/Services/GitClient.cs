@@ -2,7 +2,6 @@ using LibGit2Sharp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.Infrastructure.Interfaces;
-using System.Diagnostics;
 
 namespace PoRepoLineTracker.Infrastructure.Services
 {
@@ -17,39 +16,22 @@ namespace PoRepoLineTracker.Infrastructure.Services
 
         public string Clone(string repoUrl, string localPath, string? accessToken = null)
         {
-            // Build authenticated URL without logging the token
-            string cloneUrl = repoUrl;
+            _logger.LogInformation("Cloning repository {RepoUrl} to {LocalPath} via LibGit2Sharp", repoUrl, localPath);
+
+            var cloneOptions = new CloneOptions();
             if (!string.IsNullOrEmpty(accessToken))
             {
-                var uri = new Uri(repoUrl);
-                cloneUrl = $"https://{accessToken}@{uri.Host}{uri.AbsolutePath}";
+                cloneOptions.FetchOptions.CredentialsProvider = (url, usernameFromUrl, types) =>
+                    new UsernamePasswordCredentials
+                    {
+                        Username = accessToken,
+                        Password = string.Empty
+                    };
             }
 
-            _logger.LogInformation("Cloning repository {RepoUrl} to {LocalPath} via git CLI", repoUrl, localPath);
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = "git",
-                Arguments = $"clone \"{cloneUrl}\" \"{localPath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi)!;
-            var stderr = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            if (process.ExitCode != 0)
-            {
-                var safeError = stderr.Replace(accessToken ?? string.Empty, "***");
-                _logger.LogError("git clone failed (exit {Code}): {Error}", process.ExitCode, safeError);
-                throw new InvalidOperationException($"git clone failed (exit {process.ExitCode}): {safeError}");
-            }
-
+            var result = Repository.Clone(repoUrl, localPath, cloneOptions);
             _logger.LogInformation("Successfully cloned to {LocalPath}", localPath);
-            return localPath;
+            return result;
         }
 
         public void Pull(string localPath, string? accessToken = null)
