@@ -77,6 +77,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
+        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>())
             .Returns("pulled");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
@@ -102,6 +103,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
+        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
             .Returns(Enumerable.Empty<CommitStatsDto>());
@@ -132,6 +134,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var lineCounts = new Dictionary<string, int> { { ".cs", 100 }, { ".js", 50 } };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
+        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(commitStats);
         _dataService.CommitExistsAsync(repoId, "abc123").Returns(false);
@@ -164,6 +167,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
+        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(commitStats);
         _dataService.CommitExistsAsync(repoId, "existing-sha").Returns(true); // Already processed
@@ -191,6 +195,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
+        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(commitStats);
         _dataService.CommitExistsAsync(repoId, "fail-sha").Returns(false);
@@ -224,6 +229,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
+        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(commitStats);
         _dataService.CommitExistsAsync(repoId, Arg.Any<string>()).Returns(false);
@@ -255,6 +261,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
         _userService.GetAccessTokenAsync(userId).Returns("ghp_test_token");
+        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
             .Returns(Enumerable.Empty<CommitStatsDto>());
@@ -279,6 +286,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
+        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
             .Returns(Enumerable.Empty<CommitStatsDto>());

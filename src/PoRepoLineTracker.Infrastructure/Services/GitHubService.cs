@@ -84,6 +84,12 @@ public class GitHubService : IGitHubService
         });
     }
 
+    public Task<bool> IsRepositoryValidAsync(string localPath)
+    {
+        var fullLocalPath = Path.Combine(_localReposPath, localPath);
+        return Task.FromResult(Repository.IsValid(fullLocalPath));
+    }
+
     public async Task<string> PullRepositoryAsync(string localPath, string? accessToken = null)
     {
         return await Task.Run(() =>

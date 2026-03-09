@@ -90,20 +90,23 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
 
             try
             {
-                // Clone or pull the repository
-                string localPath;
-                if (string.IsNullOrEmpty(repository.LocalPath))
+                // Clone or pull the repository.
+                // Always derive a stable local path from the repo ID so we can re-clone safely
+                // after an Azure App Service container restart (ephemeral filesystem).
+                var localPath = string.IsNullOrEmpty(repository.LocalPath)
+                    ? $"repo_{request.RepositoryId}"
+                    : repository.LocalPath;
+
+                bool repoExistsLocally = await _gitHubService.IsRepositoryValidAsync(localPath);
+                if (repoExistsLocally)
                 {
-                    // Generate a unique local path for this repository
-                    localPath = $"repo_{request.RepositoryId}";
-                    _logger.LogInformation("Cloning repository {Owner}/{Name} to {LocalPath}", repository.Owner, repository.Name, localPath);
-                    await _gitHubService.CloneRepositoryAsync(repository.CloneUrl, localPath, accessToken);
+                    _logger.LogInformation("Pulling repository {Owner}/{Name} from {LocalPath}", repository.Owner, repository.Name, localPath);
+                    await _gitHubService.PullRepositoryAsync(localPath, accessToken);
                 }
                 else
                 {
-                    localPath = repository.LocalPath;
-                    _logger.LogInformation("Pulling repository {Owner}/{Name} from {LocalPath}", repository.Owner, repository.Name, localPath);
-                    await _gitHubService.PullRepositoryAsync(localPath, accessToken);
+                    _logger.LogInformation("Local path missing or invalid — cloning repository {Owner}/{Name} to {LocalPath}", repository.Owner, repository.Name, localPath);
+                    await _gitHubService.CloneRepositoryAsync(repository.CloneUrl, localPath, accessToken);
                 }
 
                 // Update repository with local path
@@ -246,6 +249,15 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                 {
                     _logger.LogError(topFilesEx, "Error calculating/saving top files for repository {RepositoryId}", request.RepositoryId);
                     // Don't fail the whole analysis if top files calculation fails
+                }
+
+                // Update LastAnalyzedCommitDate to the latest commit date so the UI shows "Analyzed"
+                if (commitStats.Any())
+                {
+                    var latestCommitDate = commitStats.Max(c => c.CommitDate);
+                    repository.LastAnalyzedCommitDate = latestCommitDate;
+                    await _repositoryDataService.UpdateRepositoryAsync(repository);
+                    _logger.LogInformation("Updated LastAnalyzedCommitDate to {Date} for repository {RepositoryId}", latestCommitDate, request.RepositoryId);
                 }
 
                 _logger.LogInformation("Completed analysis for repository ID: {RepositoryId}", request.RepositoryId);

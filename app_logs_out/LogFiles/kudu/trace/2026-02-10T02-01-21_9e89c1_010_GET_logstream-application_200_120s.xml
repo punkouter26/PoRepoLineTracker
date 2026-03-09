@@ -1,0 +1,6 @@
+<step title="Incoming Request" date="2026-02-10T02:01:21.195" instance="9e89c1" url="/logstream/application" method="GET" type="request" pid="855,1,27" Host="app-porepolinetracker.scm.azurewebsites.net" User-Agent="AZURECLI/2.83.0 (MSI)" Accept-Encoding="identity" Authorization="Bea..." x-ms-client-request-id="61dfe3ec-0624-11f1-b124-e8a72f88f0de" X-ARR-LOG-ID="61dfe3ec-0624-11f1-b124-e8a72f88f0de" CLIENT-IP="73.135.148.163:61925" X-SITE-DEPLOYMENT-ID="app-porepolinetracker" WAS-DEFAULT-HOSTNAME="app-porepolinetracker.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/logstream/application" X-Client-IP="73.135.148.163" X-Client-Port="61925" >
+  <step title="Cleanup Xml Logs" date="2026-02-10T02:01:21.200" /><!-- duration: 7ms -->
+  <step title="LogStreamHandlerMiddleware.Invoke" date="2026-02-10T02:01:21.326" /><!-- duration: 47ms -->
+  <step title="Error occurred" date="2026-02-10T02:03:21.413" type="error" text="LogStreamManager: ProcessRequest end" /><!-- duration: 33ms -->
+  <step title="Outgoing response" date="2026-02-10T02:03:21.549" type="response" statusCode="200" statusText="OK" /><!-- duration: 22ms -->
+</step><!-- duration: 120404ms -->

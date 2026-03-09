@@ -1,0 +1,15 @@
+<step title="Incoming Request" date="2026-02-10T03:42:00.915" instance="9e89c1" url="/api/zipdeploy?isAsync=true" method="POST" type="request" pid="857,1,32" Accept="application/json" Host="app-porepolinetracker.scm.azurewebsites.net" User-Agent="azsdk-go-zip-deploy/1.0.0 (go1.25.0 X:loopvar; linux),azdev/1.23.3 (Go go1.25.0 X:loopvar; linux/amd64) GhActions" Accept-Encoding="gzip" Authorization="Bea..." Content-Type="application/octet-stream" Content-Length="44304344" x-ms-correlation-request-id="e198cacb4a175fefe71281aa8e024957" X-ARR-LOG-ID="e198cacb-4a17-5fef-e712-81aa8e024957" CLIENT-IP="52.234.40.193:43016" X-SITE-DEPLOYMENT-ID="app-porepolinetracker" WAS-DEFAULT-HOSTNAME="app-porepolinetracker.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/zipdeploy?isAsync=true" X-Client-IP="52.234.40.193" X-Client-Port="43016" >
+  <step title="Cleanup Xml Logs" date="2026-02-10T03:42:00.924" /><!-- duration: 82ms -->
+  <step title="ZipPushDeploy" date="2026-02-10T03:42:01.725" >
+    <step title="ZipDeploy. Extract zip." date="2026-02-10T03:42:01.766" /><!-- duration: 6ms -->
+    <step title="Starting PushDeployAsync" date="2026-02-10T03:42:02.050" /><!-- duration: 38ms -->
+    <step title="Writing artifact to /tmp/zipdeploy/334b3cf4-4bea-40c1-ad1b-a3a88bde56a9.zip" date="2026-02-10T03:42:03.482" >
+      <step title="Writing multipart request body to /tmp/zipdeploy/334b3cf4-4bea-40c1-ad1b-a3a88bde56a9.zip" date="2026-02-10T03:42:03.494" /><!-- duration: 19ms -->
+    </step><!-- duration: 7950ms -->
+    <step title="Start deployment in the background" date="2026-02-10T03:42:11.488" >
+      <step title="Acquiring Deployment Lock" date="2026-02-10T03:42:12.113" /><!-- duration: 7ms -->
+      <step title="Acquired Deployment Lock" date="2026-02-10T03:42:12.184" /><!-- duration: 4ms -->
+    </step><!-- duration: 1350ms -->
+  </step><!-- duration: 11346ms -->
+  <step title="Outgoing response" date="2026-02-10T03:42:13.091" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 114ms -->
+</step><!-- duration: 12325ms -->

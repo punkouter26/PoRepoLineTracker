@@ -206,46 +206,55 @@ internal static class RepositoryEndpoints
         .WithName("AddMultipleRepositories");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        app.MapPost("/api/repositories/{repositoryId}/analyses", async (Guid repositoryId, [FromQuery] bool force, HttpContext ctx, IMediator mediator) =>
+        app.MapPost("/api/repositories/{repositoryId}/analyses", async (Guid repositoryId, [FromQuery] bool force, HttpContext ctx, IServiceScopeFactory scopeFactory) =>
         {
-            try
-            {
-                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out _))
-                    return Results.Unauthorized();
+            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out _))
+                return Results.Unauthorized();
 
-                await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repositoryId, ForceReanalysis: force));
-                Log.Information("Analysis initiated for repository {RepositoryId} (force={Force})", repositoryId, force);
-                return Results.Accepted();
-            }
-            catch (Exception ex)
+            Log.Information("Background analysis queued for repository {RepositoryId} (force={Force})", repositoryId, force);
+            _ = Task.Run(async () =>
             {
-                Log.Error(ex, "Error analyzing repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error analyzing repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+                using var scope = scopeFactory.CreateScope();
+                var bgMediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                try
+                {
+                    await bgMediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repositoryId, ForceReanalysis: force));
+                    Log.Information("Background analysis completed for repository {RepositoryId}", repositoryId);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Background analysis failed for repository {RepositoryId}", repositoryId);
+                }
+            });
+            return Results.Accepted();
         })
         .RequireAuthorization()
         .WithName("CreateRepositoryAnalysis");
 
-        app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, HttpContext ctx, IMediator mediator) =>
+        app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, HttpContext ctx, IServiceScopeFactory scopeFactory) =>
         {
-            try
-            {
-                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-                    return Results.Unauthorized();
+            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                return Results.Unauthorized();
 
-                Log.Information("Re-analysis requested for repository {RepositoryId} by user {UserId}", repositoryId, userId);
-                await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(
-                    repositoryId, ForceReanalysis: false, ClearExistingData: true));
-
-                return Results.Accepted(value: new { message = "Re-analysis started. All commit data will be re-calculated with your current file extension preferences." });
-            }
-            catch (Exception ex)
+            Log.Information("Background re-analysis queued for repository {RepositoryId} by user {UserId}", repositoryId, userId);
+            _ = Task.Run(async () =>
             {
-                Log.Error(ex, "Error re-analyzing repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error re-analyzing repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+                using var scope = scopeFactory.CreateScope();
+                var bgMediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                try
+                {
+                    await bgMediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(
+                        repositoryId, ForceReanalysis: false, ClearExistingData: true));
+                    Log.Information("Background re-analysis completed for repository {RepositoryId}", repositoryId);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Background re-analysis failed for repository {RepositoryId}", repositoryId);
+                }
+            });
+            return Results.Accepted(value: new { message = "Re-analysis started. All commit data will be re-calculated with your current file extension preferences." });
         })
         .RequireAuthorization()
         .WithName("ReanalyzeRepository");
