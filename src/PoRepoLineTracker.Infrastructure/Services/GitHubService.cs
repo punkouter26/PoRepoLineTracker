@@ -90,6 +90,17 @@ public class GitHubService : IGitHubService
         return Task.FromResult(Repository.IsValid(fullLocalPath));
     }
 
+    public Task DeleteLocalRepositoryAsync(string localPath)
+    {
+        var fullLocalPath = Path.Combine(_localReposPath, localPath);
+        if (Directory.Exists(fullLocalPath))
+        {
+            _logger.LogInformation("Deleting local repository directory {LocalPath} for re-clone", fullLocalPath);
+            Directory.Delete(fullLocalPath, recursive: true);
+        }
+        return Task.CompletedTask;
+    }
+
     public async Task<string> PullRepositoryAsync(string localPath, string? accessToken = null)
     {
         return await Task.Run(() =>

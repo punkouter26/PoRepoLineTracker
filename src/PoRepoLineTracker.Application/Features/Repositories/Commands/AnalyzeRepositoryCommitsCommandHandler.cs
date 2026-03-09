@@ -101,7 +101,18 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                 if (repoExistsLocally)
                 {
                     _logger.LogInformation("Pulling repository {Owner}/{Name} from {LocalPath}", repository.Owner, repository.Name, localPath);
-                    await _gitHubService.PullRepositoryAsync(localPath, accessToken);
+                    try
+                    {
+                        await _gitHubService.PullRepositoryAsync(localPath, accessToken);
+                    }
+                    catch (Exception pullEx)
+                    {
+                        _logger.LogWarning(pullEx,
+                            "Pull failed for repository {RepositoryId} at {LocalPath} — deleting local copy and re-cloning",
+                            request.RepositoryId, localPath);
+                        await _gitHubService.DeleteLocalRepositoryAsync(localPath);
+                        await _gitHubService.CloneRepositoryAsync(repository.CloneUrl, localPath, accessToken);
+                    }
                 }
                 else
                 {
