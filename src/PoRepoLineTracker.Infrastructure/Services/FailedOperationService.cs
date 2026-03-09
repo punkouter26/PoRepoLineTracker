@@ -185,11 +185,13 @@ public class FailedOperationService : IFailedOperationService
         {
             var cutoffTime = DateTime.UtcNow.AddMinutes(-5); // Wait at least 5 minutes between retries
 
+            // Azure Table Storage OData does not support null comparisons (e.g. "LastRetryAttempt eq null"),
+            // so we only filter by RetryCount in the OData query and apply the LastRetryAttempt check in-memory.
             await foreach (var entity in _failedOperationTableClient.QueryAsync<FailedOperationEntity>(
-                e => e.RetryCount < maxRetryCount &&
-                     (e.LastRetryAttempt == null || e.LastRetryAttempt < cutoffTime)))
+                e => e.RetryCount < maxRetryCount))
             {
-                retryableOperations.Add(entity.ToDomainModel());
+                if (entity.LastRetryAttempt == null || entity.LastRetryAttempt < cutoffTime)
+                    retryableOperations.Add(entity.ToDomainModel());
             }
             _logger.LogInformation("Found {Count} retryable failed operations.", retryableOperations.Count);
         }
