@@ -7,16 +7,16 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
 {
     public class DeleteRepositoryCommandHandler : IRequestHandler<DeleteRepositoryCommand, Unit>
     {
-        private readonly IRepositoryService _repositoryService;
+        private readonly IRepositoryDataService _repositoryDataService;
 
-        public DeleteRepositoryCommandHandler(IRepositoryService repositoryService)
+        public DeleteRepositoryCommandHandler(IRepositoryDataService repositoryDataService)
         {
-            _repositoryService = repositoryService;
+            _repositoryDataService = repositoryDataService;
         }
 
         public async Task<Unit> Handle(DeleteRepositoryCommand request, CancellationToken cancellationToken)
         {
-            await _repositoryService.DeleteRepositoryAsync(request.RepositoryId);
+            await _repositoryDataService.DeleteRepositoryAsync(request.RepositoryId);
             return Unit.Value;
         }
     }

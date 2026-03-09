@@ -101,6 +101,36 @@ public static class AppTelemetry
         unit: "ms",
         description: "Duration of individual commit processing");
 
+    /// <summary>
+    /// Histogram for GitHub API latency.
+    /// Tracks response times for GitHub API calls to detect performance degradation.
+    /// Tags: endpoint (e.g., /repos, /commits), status_code (200, 403, 500, etc.)
+    /// </summary>
+    public static readonly Histogram<double> GitHubApiLatency = Meter.CreateHistogram<double>(
+        "github_api.latency",
+        unit: "ms",
+        description: "GitHub API response latency for performance monitoring");
+
+    /// <summary>
+    /// Counter for GitHub API calls.
+    /// Helps detect rate limiting and API usage patterns.
+    /// Tags: endpoint (e.g., /repos, /commits), status_code (200, 403, 429, 500)
+    /// </summary>
+    public static readonly Counter<long> GitHubApiCalls = Meter.CreateCounter<long>(
+        "github_api.calls",
+        unit: "{request}",
+        description: "Total GitHub API calls made by the application");
+
+    /// <summary>
+    /// Counter for failed operations (analysis failures, clone failures, etc.).
+    /// Tags: failure_type (analysis_failure, clone_failure, storage_failure, etc.), 
+    ///       repository_id, error_category (transient, permanent)
+    /// </summary>
+    public static readonly Counter<long> FailedOperations = Meter.CreateCounter<long>(
+        "operations.failed",
+        unit: "{operation}",
+        description: "Total number of failed operations (analysis, clone, storage)");
+
     // ===== Gauges (Observable) =====
 
     /// <summary>
@@ -116,14 +146,30 @@ public static class AppTelemetry
     public static ObservableGauge<int>? PendingAnalysis { get; set; }
 
     /// <summary>
+    /// Observable gauge for GitHub API rate limit remaining.
+    /// Tracks available API calls before hitting rate limit.
+    /// </summary>
+    public static ObservableGauge<int>? GitHubRateLimitRemaining { get; set; }
+
+    /// <summary>
+    /// Observable gauge for total lines of code across all repositories.
+    /// Provides a high-level metric of the codebase size being tracked.
+    /// </summary>
+    public static ObservableGauge<long>? TotalLinesOfCode { get; set; }
+
+    /// <summary>
     /// Initializes observable gauges with callback functions.
     /// Call this during application startup after services are configured.
     /// </summary>
     /// <param name="getTotalRepositories">Callback to get total repository count</param>
     /// <param name="getPendingAnalysis">Callback to get pending analysis count</param>
+    /// <param name="getGitHubRateLimit">Callback to get GitHub API rate limit remaining</param>
+    /// <param name="getTotalLinesOfCode">Callback to get total lines of code across all repositories</param>
     public static void InitializeGauges(
         Func<int> getTotalRepositories,
-        Func<int> getPendingAnalysis)
+        Func<int> getPendingAnalysis,
+        Func<int>? getGitHubRateLimit = null,
+        Func<long>? getTotalLinesOfCode = null)
     {
         TotalRepositories = Meter.CreateObservableGauge(
             "repositories.total",
@@ -136,5 +182,23 @@ public static class AppTelemetry
             getPendingAnalysis,
             unit: "{repository}",
             description: "Number of repositories pending analysis");
+
+        if (getGitHubRateLimit != null)
+        {
+            GitHubRateLimitRemaining = Meter.CreateObservableGauge(
+                "github_api.rate_limit_remaining",
+                getGitHubRateLimit,
+                unit: "{requests}",
+                description: "Remaining GitHub API calls before hitting rate limit");
+        }
+
+        if (getTotalLinesOfCode != null)
+        {
+            TotalLinesOfCode = Meter.CreateObservableGauge(
+                "code.total_lines",
+                getTotalLinesOfCode,
+                unit: "{lines}",
+                description: "Total lines of code across all repositories");
+        }
     }
 }

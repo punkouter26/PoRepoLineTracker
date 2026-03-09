@@ -7,23 +7,29 @@
 @using Radzen
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
+@using PoRepoLineTracker.Domain.Models
 
 <RadzenStack Gap="1rem">
-    <RadzenText TextStyle="TextStyle.H3">Failed Operations</RadzenText>
+    <div class="repo-hero">
+        <RadzenStack Gap="0.125rem">
+            <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">Failed Operations</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); margin: 0;">Review and retry failed commit analysis jobs</RadzenText>
+        </RadzenStack>
+    </div>
 
     <RadzenCard>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="1rem" Wrap="FlexWrap.Wrap">
             <RadzenStack Gap="0.25rem">
-                <RadzenLabel Text="Repository ID (GUID)" />
-                <RadzenTextBox @bind-Value="@repositoryId" Placeholder="Enter Repository GUID" Style="width: 300px;" />
+                <RadzenLabel Text="Filter by Repository" />
+                <RadzenDropDown @bind-Value="@selectedRepositoryId"
+                                Data="@_repositories"
+                                TextProperty="@nameof(GitHubRepository.Name)"
+                                ValueProperty="@nameof(GitHubRepository.Id)"
+                                Placeholder="All repositories"
+                                Style="width: 300px;"
+                                AllowClear="true"
+                                Change="@(() => StateHasChanged())" />
             </RadzenStack>
-            <RadzenButton Text="Load Failed Operations" 
-                          Icon="search" 
-                          ButtonStyle="ButtonStyle.Primary"
-                          Click="@LoadFailedOperations" 
-                          IsBusy="@isLoading"
-                          BusyText="Loading..."
-                          Disabled="@(string.IsNullOrEmpty(repositoryId))" />
         </RadzenStack>
     </RadzenCard>
 
@@ -56,14 +62,15 @@
             </RadzenStack>
         </RadzenCard>
     }
-    else if (failedOperations.Any())
+    else if (FilteredFailedOperations.Any())
     {
         <RadzenCard>
             <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin-bottom: 1rem; color: var(--rz-text-secondary-color);">
-                @failedOperations.Count failed operation(s) found
+                @FilteredFailedOperations.Count() failed operation(s)
+                @(selectedRepositoryId.HasValue ? " for selected repository" : " across all repositories")
             </RadzenText>
             
-            <RadzenDataGrid Data="@failedOperations" 
+            <RadzenDataGrid Data="@FilteredFailedOperations.ToList()" 
                             TItem="FailedOperationDto"
                             AllowFiltering="true" 
                             FilterMode="FilterMode.Simple"
@@ -138,14 +145,14 @@
             </RadzenDataGrid>
         </RadzenCard>
     }
-    else if (!string.IsNullOrEmpty(repositoryId))
+    else if (!isLoading && _isLoaded)
     {
         <RadzenCard>
             <RadzenStack AlignItems="AlignItems.Center" Gap="1rem" class="rz-p-8">
                 <RadzenIcon Icon="check_circle" Style="font-size: 4rem; color: var(--rz-success);" />
                 <RadzenText TextStyle="TextStyle.H5">No Failed Operations</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color);">
-                    Good news! No failed operations found for this repository.
+                    Good news! @(selectedRepositoryId.HasValue ? "No failed operations for this repository." : "No failed operations found.")
                 </RadzenText>
             </RadzenStack>
         </RadzenCard>
@@ -153,19 +160,64 @@
 </RadzenStack>
 
 @code {
-    private string repositoryId = string.Empty;
+    private Guid? selectedRepositoryId;
+    private List<GitHubRepository>? _repositories;
     private List<FailedOperationDto> failedOperations = new();
     private bool isLoading = false;
+    private bool _isLoaded = false;
     private string errorMessage = string.Empty;
+
+    private IEnumerable<FailedOperationDto> FilteredFailedOperations =>
+        selectedRepositoryId.HasValue
+            ? failedOperations.Where(o => o.RepositoryId == selectedRepositoryId.Value)
+            : failedOperations;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _repositories = await Http.GetFromJsonAsync<List<GitHubRepository>>("/api/repositories") ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading repositories for dropdown");
+            _repositories = [];
+        }
+        await LoadAllFailedOperations();
+    }
+
+    private async Task LoadAllFailedOperations()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+        StateHasChanged();
+        try
+        {
+            var ops = await Http.GetFromJsonAsync<List<FailedOperationDto>>("/api/failed-operations");
+            failedOperations = ops?.OrderByDescending(o => o.FailedAt).ToList() ?? [];
+            Logger.LogInformation("Auto-loaded {Count} failed operations.", failedOperations.Count);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading failed operations: {ex.Message}";
+            Logger.LogError(ex, "Error auto-loading all failed operations");
+        }
+        finally
+        {
+            isLoading = false;
+            _isLoaded = true;
+            StateHasChanged();
+        }
+    }
 
     private void OnRowExpand(FailedOperationDto operation)
     {
-        // Row expansion is automatic via DataGrid
+        // Row expansion is handled automatically by RadzenDataGrid
     }
 
     private async Task LoadFailedOperations()
     {
-        if (string.IsNullOrEmpty(repositoryId)) return;
+        if (!selectedRepositoryId.HasValue) return;
 
         isLoading = true;
         errorMessage = string.Empty;
@@ -174,14 +226,14 @@
 
         try
         {
-            var operations = await Http.GetFromJsonAsync<List<FailedOperationDto>>($"/api/failed-operations/{repositoryId}");
-            failedOperations = operations?.OrderByDescending(o => o.FailedAt).ToList() ?? new List<FailedOperationDto>();
-            Logger.LogInformation("Loaded {Count} failed operations for repository {RepositoryId}", failedOperations.Count, repositoryId);
+            var operations = await Http.GetFromJsonAsync<List<FailedOperationDto>>($"/api/failed-operations/{selectedRepositoryId.Value}");
+            failedOperations = operations?.OrderByDescending(o => o.FailedAt).ToList() ?? [];
+            Logger.LogInformation("Loaded {Count} failed operations for repository {RepositoryId}", failedOperations.Count, selectedRepositoryId.Value);
         }
         catch (Exception ex)
         {
             errorMessage = $"Error loading failed operations: {ex.Message}";
-            Logger.LogError(ex, "Error loading failed operations for repository {RepositoryId}", repositoryId);
+            Logger.LogError(ex, "Error loading failed operations for repository {RepositoryId}", selectedRepositoryId.Value);
         }
         finally
         {

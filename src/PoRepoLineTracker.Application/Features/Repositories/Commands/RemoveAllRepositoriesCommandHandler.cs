@@ -64,7 +64,7 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
     /// <summary>
     /// Strategy Pattern: Implements file system cleanup strategy.
     /// Removes the entire local repositories directory tree.
-    /// Uses garbage collection and retries to handle locked Git repository files.
+    /// Uses retries to handle locked Git repository files.
     /// </summary>
     private async Task RemoveAllLocalRepositoriesAsync()
     {
@@ -84,56 +84,43 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
 
         _logger.LogInformation("Removing local repositories directory: {Path}", localReposPath);
 
-        await Task.Run(() =>
+        // #5 fix: removed Task.Run wrapper + GC.Collect() - run retry loop directly as async
+        const int maxRetries = 3;
+        const int delayBetweenRetriesMs = 500;
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            // Force garbage collection to release any open file handles
-            // This is particularly important for LibGit2Sharp Repository objects
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-
-            // Retry logic to handle file locks
-            const int maxRetries = 3;
-            const int delayBetweenRetriesMs = 500;
-
-            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            try
             {
-                try
-                {
-                    _logger.LogInformation("Attempting to delete local repositories directory (attempt {Attempt}/{MaxRetries})", attempt, maxRetries);
+                _logger.LogInformation("Attempting to delete local repositories directory (attempt {Attempt}/{MaxRetries})", attempt, maxRetries);
 
-                    // Force delete the entire directory tree
-                    Directory.Delete(localReposPath, recursive: true);
-                    _logger.LogInformation("Local repositories directory removed successfully: {Path}", localReposPath);
-                    return; // Success - exit
-                }
-                catch (IOException ex) when (attempt < maxRetries)
-                {
-                    _logger.LogWarning(ex, "Attempt {Attempt} failed. Some files may be locked. Retrying in {DelayMs}ms...", attempt, delayBetweenRetriesMs);
-                    Thread.Sleep(delayBetweenRetriesMs);
-
-                    // Force another GC cycle between retries
-                    GC.Collect();
-                    GC.WaitForPendingFinalizers();
-                }
-                catch (IOException ex) when (attempt == maxRetries)
-                {
-                    _logger.LogWarning(ex, "All retry attempts exhausted. Attempting individual file cleanup for: {Path}", localReposPath);
-
-                    // Attempt to delete individual files if directory deletion fails
-                    ForceDeleteDirectory(localReposPath);
-                    return;
-                }
+                // Force delete the entire directory tree
+                Directory.Delete(localReposPath, recursive: true);
+                _logger.LogInformation("Local repositories directory removed successfully: {Path}", localReposPath);
+                return; // Success - exit
             }
-        });
+            catch (IOException ex) when (attempt < maxRetries)
+            {
+                _logger.LogWarning(ex, "Attempt {Attempt} failed. Some files may be locked. Retrying in {DelayMs}ms...", attempt, delayBetweenRetriesMs);
+                // #5 fix: was Thread.Sleep — await Task.Delay yields the thread back to the pool
+                await Task.Delay(delayBetweenRetriesMs);
+            }
+            catch (IOException ex) when (attempt == maxRetries)
+            {
+                _logger.LogWarning(ex, "All retry attempts exhausted. Attempting individual file cleanup for: {Path}", localReposPath);
+
+                // Attempt to delete individual files if directory deletion fails
+                await ForceDeleteDirectoryAsync(localReposPath);
+                return;
+            }
+        }
     }
 
     /// <summary>
     /// Strategy Pattern: Implements aggressive file deletion strategy for locked files.
     /// Uses recursive approach to handle file system locks and read-only attributes.
-    /// Includes retry logic and garbage collection to release file handles.
     /// </summary>
-    private void ForceDeleteDirectory(string directoryPath)
+    private async Task ForceDeleteDirectoryAsync(string directoryPath)
     {
         try
         {
@@ -141,10 +128,6 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
                 return;
 
             _logger.LogInformation("Force deleting directory: {Path}", directoryPath);
-
-            // Force GC again before individual file deletion
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
 
             // Remove read-only attributes and delete files
             foreach (var file in Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories))
@@ -163,8 +146,8 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
                         }
                         catch (IOException) when (retry < 2)
                         {
-                            Thread.Sleep(100);
-                            GC.Collect();
+                            // #5 fix: was Thread.Sleep(100) + GC.Collect() — yield thread back to pool
+                            await Task.Delay(100);
                         }
                     }
                 }

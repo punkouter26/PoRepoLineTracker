@@ -2,21 +2,24 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "PoRepoLineTracker.Api",
+      "name": "PoRepoLineTracker.Api (Debug)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build",
+      "preLaunchTask": "kill-dotnet-and-build",
       "program": "${workspaceFolder}/src/PoRepoLineTracker.Api/bin/Debug/net10.0/PoRepoLineTracker.Api.dll",
       "args": [],
       "cwd": "${workspaceFolder}/src/PoRepoLineTracker.Api",
       "stopAtEntry": false,
       "serverReadyAction": {
         "action": "openExternally",
-        "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s"
       },
       "env": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "https://localhost:5001;http://localhost:5000"
+      },
+      "launchSettingsProfile": "https"
     }
   ]
 }

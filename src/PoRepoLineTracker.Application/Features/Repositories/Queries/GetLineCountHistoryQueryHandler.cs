@@ -1,7 +1,6 @@
 using MediatR;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Application.Models;
-using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,16 +9,16 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Queries
 {
     public class GetLineCountHistoryQueryHandler : IRequestHandler<GetLineCountHistoryQuery, IEnumerable<DailyLineCountDto>>
     {
-        private readonly IRepositoryService _repositoryService;
+        private readonly IRepositoryDataService _repositoryDataService;
 
-        public GetLineCountHistoryQueryHandler(IRepositoryService repositoryService)
+        public GetLineCountHistoryQueryHandler(IRepositoryDataService repositoryDataService)
         {
-            _repositoryService = repositoryService;
+            _repositoryDataService = repositoryDataService;
         }
 
         public async Task<IEnumerable<DailyLineCountDto>> Handle(GetLineCountHistoryQuery request, CancellationToken cancellationToken)
         {
-            return await _repositoryService.GetLineCountHistoryAsync(request.RepositoryId, request.Days);
+            return await _repositoryDataService.GetLineCountHistoryAsync(request.RepositoryId, request.Days);
         }
     }
 }

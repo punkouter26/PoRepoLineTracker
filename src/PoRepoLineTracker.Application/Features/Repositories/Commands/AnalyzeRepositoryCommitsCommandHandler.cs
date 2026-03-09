@@ -2,6 +2,7 @@ using MediatR;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
@@ -16,6 +17,9 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
         private readonly IUserService _userService;
         private readonly IUserPreferencesService _userPreferencesService;
         private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
+
+        // #10 fix: per-repository semaphore prevents git Checkout() race conditions on shared local path
+        private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> _repoLocks = new();
 
         public AnalyzeRepositoryCommitsCommandHandler(
             IGitHubService gitHubService,
@@ -34,6 +38,26 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
         }
 
         public async Task<Unit> Handle(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken)
+        {
+            // #10 fix: if another analysis is already running for this repo, skip instead of racing
+            var semaphore = _repoLocks.GetOrAdd(request.RepositoryId, _ => new SemaphoreSlim(1, 1));
+            if (!await semaphore.WaitAsync(TimeSpan.Zero, cancellationToken))
+            {
+                _logger.LogWarning("Analysis for repository {RepositoryId} already in progress — skipping concurrent request", request.RepositoryId);
+                return Unit.Value;
+            }
+
+            try
+            {
+            return await HandleInternalAsync(request, cancellationToken);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        }
+
+        private async Task<Unit> HandleInternalAsync(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Analyzing commits for repository ID: {RepositoryId} (ForceReanalysis: {ForceReanalysis}, ClearExistingData: {ClearExistingData})",
                 request.RepositoryId, request.ForceReanalysis, request.ClearExistingData);
@@ -97,6 +121,16 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                 var commitStats = await _gitHubService.GetCommitStatsAsync(localPath, sinceDate);
                 _logger.LogInformation("Found {CommitCount} commits to analyze for repository {RepositoryId}", commitStats.Count(), request.RepositoryId);
 
+                // #3 fix: pre-load ALL existing commits in one query so the loop never re-fetches per-SHA
+                Dictionary<string, CommitLineCount>? existingCommitsBySha = null;
+                if (request.ForceReanalysis)
+                {
+                    _logger.LogDebug("Pre-loading existing commits for ForceReanalysis on repository {RepositoryId}", request.RepositoryId);
+                    var allExisting = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(request.RepositoryId);
+                    existingCommitsBySha = allExisting.ToDictionary(c => c.CommitSha);
+                    _logger.LogDebug("Pre-loaded {Count} existing commits for repository {RepositoryId}", existingCommitsBySha.Count, request.RepositoryId);
+                }
+
                 // Process each commit
                 foreach (var commitStat in commitStats)
                 {
@@ -108,9 +142,8 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                     {
                         if (request.ForceReanalysis)
                         {
-                            // Get the existing commit to check if it needs re-analysis
-                            var existingCommits = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(request.RepositoryId);
-                            existingCommit = existingCommits.FirstOrDefault(c => c.CommitSha == commitStat.Sha);
+                            // #3 fix: look up from pre-loaded dictionary — no extra Azure Table query per commit
+                            existingCommitsBySha!.TryGetValue(commitStat.Sha, out existingCommit);
 
                             // Re-process if both LinesAdded and LinesRemoved are zero (indicates old analysis)
                             if (existingCommit != null && existingCommit.LinesAdded == 0 && existingCommit.LinesRemoved == 0)

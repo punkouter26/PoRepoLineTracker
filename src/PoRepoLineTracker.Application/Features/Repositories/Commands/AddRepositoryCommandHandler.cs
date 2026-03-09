@@ -44,6 +44,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                 var repository = new GitHubRepository
                 {
                     Id = Guid.NewGuid(),
+                    UserId = request.UserId,
                     Owner = request.Owner,
                     Name = request.RepoName,
                     CloneUrl = request.CloneUrl,

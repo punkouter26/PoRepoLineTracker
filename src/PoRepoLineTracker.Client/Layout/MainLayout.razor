@@ -3,16 +3,25 @@
 @using Radzen
 @using Radzen.Blazor
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <RadzenLayout>
     <RadzenHeader>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Gap="1rem" class="rz-p-4">
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                <RadzenIcon Icon="analytics" Style="font-size: 1.5rem; color: var(--rz-primary);" />
+                <span class="brand-icon-wrap">
+                    <RadzenIcon Icon="code" Style="font-size: 1.2rem; color: var(--rz-primary);" />
+                    <RadzenIcon Icon="trending_up" class="brand-icon-trend" Style="font-size: 0.55rem; color: white;" />
+                </span>
                 <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; font-weight: 600;">PoRepoLineTracker</RadzenText>
             </RadzenStack>
             
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenButton Icon="@(_isDarkMode ? "light_mode" : "dark_mode")"
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Text"
+                              title="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")"
+                              Click="@ToggleDarkMode" />
                 <RadzenButton Icon="settings" 
                               ButtonStyle="ButtonStyle.Light" 
                               Variant="Variant.Text"
@@ -48,9 +57,27 @@
 
 @code {
     private bool sidebarExpanded = true;
+    private bool _isDarkMode = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var saved = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "theme");
+            _isDarkMode = saved == "dark";
+            if (_isDarkMode) StateHasChanged();
+        }
+    }
 
     private void ToggleSidebar()
     {
         sidebarExpanded = !sidebarExpanded;
+    }
+
+    private async Task ToggleDarkMode()
+    {
+        _isDarkMode = !_isDarkMode;
+        await JSRuntime.InvokeVoidAsync("setTheme", _isDarkMode ? "dark" : "light");
+        StateHasChanged();
     }
 }

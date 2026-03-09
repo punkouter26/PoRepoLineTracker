@@ -1,5 +1,4 @@
 using PoRepoLineTracker.Application.Interfaces;
-using PoRepoLineTracker.Domain.Models;
 using LibGit2Sharp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -265,7 +264,8 @@ public class GitHubService : IGitHubService
 
             var commitStatsList = new List<CommitStatsDto>();
 
-            using (var repo = new Repository(fullLocalPath))
+            // #2 fix: use _gitClient abstraction instead of direct Repository instantiation (DIP)
+            using (var repo = _gitClient.OpenRepository(fullLocalPath))
             {
                 var filter = new CommitFilter
                 {
@@ -337,7 +337,8 @@ public class GitHubService : IGitHubService
 
         try
         {
-            using (var repo = new Repository(fullLocalPath))
+            // #2 fix: use _gitClient abstraction instead of direct Repository instantiation (DIP)
+            using (var repo = _gitClient.OpenRepository(fullLocalPath))
             {
                 // Get the current HEAD commit's tree
                 var headCommit = repo.Head.Tip;
@@ -426,7 +427,8 @@ public class GitHubService : IGitHubService
 
         try
         {
-            using (var repo = new Repository(fullLocalPath))
+            // #2 fix: use _gitClient abstraction instead of direct Repository instantiation (DIP)
+            using (var repo = _gitClient.OpenRepository(fullLocalPath))
             {
                 var headCommit = repo.Head.Tip;
                 if (headCommit == null || headCommit.Tree == null)
@@ -510,7 +512,7 @@ public class GitHubService : IGitHubService
         _logger.LogInformation("GitHub API connection successful.");
     }
 
-    public async Task<IEnumerable<GitHubUserRepository>> GetUserRepositoriesAsync(string accessToken)
+    public async Task<IEnumerable<GitHubUserRepositoryDto>> GetUserRepositoriesAsync(string accessToken)
     {
         _logger.LogInformation("Fetching user repositories from GitHub API.");
 
@@ -533,15 +535,22 @@ public class GitHubService : IGitHubService
             var jsonContent = await response.Content.ReadAsStringAsync();
             var repoData = System.Text.Json.JsonSerializer.Deserialize<List<GitHubApiRepository>>(jsonContent);
 
-            var userRepositories = repoData?.Select(repo => new GitHubUserRepository
+            var userRepositories = repoData?.Select(repo =>
             {
-                Name = repo.name ?? string.Empty,
-                FullName = repo.full_name ?? string.Empty,
-                CloneUrl = repo.clone_url ?? string.Empty,
-                Description = repo.description ?? string.Empty,
-                IsPrivate = repo.@private,
-                Language = repo.language ?? string.Empty
-            }) ?? Enumerable.Empty<GitHubUserRepository>();
+                var fullName = repo.full_name ?? string.Empty;
+                var slashIndex = fullName.IndexOf('/');
+                var owner = slashIndex > 0 ? fullName[..slashIndex] : string.Empty;
+                return new GitHubUserRepositoryDto
+                {
+                    Name = repo.name ?? string.Empty,
+                    Owner = owner,
+                    FullName = fullName,
+                    CloneUrl = repo.clone_url ?? string.Empty,
+                    Description = repo.description ?? string.Empty,
+                    IsPrivate = repo.@private,
+                    Language = repo.language ?? string.Empty
+                };
+            }) ?? Enumerable.Empty<GitHubUserRepositoryDto>();
 
             _logger.LogInformation("Successfully fetched {RepositoryCount} user repositories from GitHub API.", userRepositories.Count());
             return userRepositories;

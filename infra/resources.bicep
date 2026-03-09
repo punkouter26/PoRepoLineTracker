@@ -22,6 +22,23 @@ param keyVaultName string
 @description('Name of the PoShared resource group containing shared services')
 param sharedResourceGroupName string
 
+@description('SKU tier for the App Service Plan (B1, B2, B3, or S1 for production)')
+param appServicePlanSkuTier string = 'B1'
+
+@description('SKU name for the App Service Plan (Basic or Standard)')
+param appServicePlanSkuName string = 'B1'
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// IMPORTANT: Shared App Service Plan in PoShared RG must be configured with:
+//   - Linux OS
+//   - SKU Tier: B1 (Basic - low-cost, suitable for non-production)
+//             S1 (Standard - for production workloads)
+//   - Minimum 1 instance
+//
+// This Bicep template references the EXISTING plan. To verify/update the plan SKU:
+//   az appservice plan show --name asp-poshared-linux --resource-group PoShared
+// ═════════════════════════════════════════════════════════════════════════════════════════
+
 // ─────────────────────────────────────────────
 // Existing resources (pre-created in this RG)
 // ─────────────────────────────────────────────

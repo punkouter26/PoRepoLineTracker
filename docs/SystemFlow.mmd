@@ -1,0 +1,56 @@
+flowchart TD
+  subgraph AUTH["Authentication Flow"]
+    A1["Browser visits app"] --> A2{"Auth cookie\npresent?"}
+    A2 -- No --> A3["RedirectToLogin\nnavigates to /login"]
+    A3 --> A4["Login.razor —\nBranded page"]
+    A4 --> A5["User clicks\nSign in with GitHub"]
+    A5 --> A6["GET /api/auth/login\n→ GitHub OAuth redirect"]
+    A6 --> A7["GitHub: user authorises\napp, returns code"]
+    A7 --> A8["GET /signin-github\n→ OnCreatingTicket"]
+    A8 --> A9["Upsert User record\nin Table Storage"]
+    A9 --> A10["Set auth cookie\nSlidingExpiration 7d"]
+    A10 --> A11["Redirect → /"]
+    A2 -- Yes --> REPOS
+  end
+
+  subgraph REPOS["Repository Management (CRUD)"]
+    B1["Repositories.razor\nloads"] --> B2["GET /api/repositories\n→ user-scoped query"]
+    B2 --> B3["Render grid with\nsearch + status badges"]
+    B3 --> B4{"User action?"}
+    B4 -- "Add Repo" --> B5["OpenAddRepositoryDialog\n→ AddRepository.razor"]
+    B5 --> B6["GET /api/github/user-repositories\n→ list from GitHub API"]
+    B6 --> B7["User selects repos\nPOST /api/repositories/bulk"]
+    B7 --> B8["AddRepository command\n→ clone + queue analysis"]
+    B8 --> B9["Background: AnalyzeRepositoryCommits\nprocesses each commit"]
+    B9 --> B10["Write CommitLineCount\nto Table Storage"]
+    B10 --> B11["DialogService.Close()\n→ reload grid"]
+    B4 -- "Re-analyze" --> B12["POST /api/repositories/{id}/reanalyze\nrecords start time"]
+    B12 --> B9
+    B4 -- "Delete" --> B13["DELETE /api/repositories/{id}\n+ local clone removal"]
+  end
+
+  subgraph PIPELINE["Data Pipeline — Commit Analysis"]
+    C1["AnalyzeRepositoryCommitsCommandHandler"] --> C2["LibGit2Sharp: iterate commits\nmost-recent first"]
+    C2 --> C3["Per commit: compute diff\nfilter by UserPreferences extensions"]
+    C3 --> C4["LineCounter: count\nadded + removed lines"]
+    C4 --> C5["Accumulate TotalLines\nper file extension"]
+    C5 --> C6{"Success?"}
+    C6 -- Yes --> C7["Write CommitLineCount\nto Azure Table Storage"]
+    C6 -- No --> C8["Write FailedOperation\nto Table Storage"]
+    C8 --> C9["FailedOperations page\nauto-loads on visit"]
+  end
+
+  subgraph VIZ["Visualisation"]
+    D1["Click repository row\n→ expand detail panel"] --> D2["GET /api/repositories/{id}/linecounts"]
+    D2 --> D3["Radzen line chart\n(last 365 days)"]
+    D3 --> D4["Tabs: File Extensions\n% breakdown"]
+    D3 --> D5["Tabs: Top 5 Files\nby line count"]
+  end
+
+  A11 --> REPOS
+  B10 --> VIZ
+
+  style AUTH fill:#1e1b4b,stroke:#4a3575,color:#fff
+  style REPOS fill:#1a3a5c,stroke:#005a9e,color:#fff
+  style PIPELINE fill:#1a3a1a,stroke:#107c41,color:#fff
+  style VIZ fill:#2d1b1b,stroke:#ca5010,color:#fff

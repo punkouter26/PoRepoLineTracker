@@ -3,7 +3,7 @@
 @code {
     protected override void OnInitialized()
     {
-        // Redirect to the login endpoint
-        Navigation.NavigateTo("api/auth/login", forceLoad: true);
+        // Redirect to the branded login page
+        Navigation.NavigateTo("/login");
     }
 }

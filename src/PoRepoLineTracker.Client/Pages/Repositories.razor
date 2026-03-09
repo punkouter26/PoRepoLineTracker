@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject Radzen.DialogService DialogService
 @inject Radzen.NotificationService NotificationService
+@inject Radzen.TooltipService TooltipService
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Domain.Models
 @using PoRepoLineTracker.Application.Models
@@ -14,23 +15,33 @@
 @using Microsoft.AspNetCore.Authorization
 
 <RadzenStack Gap="1rem">
+    <div class="repo-hero">
     <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-        <RadzenColumn Size="12" SizeMD="6">
-            <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">Repositories</RadzenText>
+        <RadzenColumn Size="12" SizeMD="8">
+            <RadzenStack Gap="0.125rem">
+                <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">Repositories</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); margin: 0;">
+                    @if (pageState.IsLoadingRepositories)
+                    {
+                        <span>Loading your repositories...</span>
+                    }
+                    else
+                    {
+                        <span>Tracking @pageState.Repositories.Count @(pageState.Repositories.Count == 1 ? "repository" : "repositories")</span>
+                    }
+                </RadzenText>
+            </RadzenStack>
         </RadzenColumn>
-        <RadzenColumn Size="12" SizeMD="6" class="rz-text-align-end">
-            @if (pageState.Repositories.Any())
-            {
-                <RadzenButton Text="Remove All" 
-                              Icon="delete_forever" 
-                              ButtonStyle="ButtonStyle.Danger" 
-                              Variant="Variant.Outlined"
-                              Click="@ConfirmRemoveAll" 
-                              IsBusy="@isRemovingAll"
-                              BusyText="Removing..." />
-            }
+        <RadzenColumn Size="12" SizeMD="4" class="rz-text-align-end">
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+                <RadzenButton Text="Add Repository"
+                              Icon="add_circle"
+                              ButtonStyle="ButtonStyle.Primary"
+                              Click="@OpenAddRepositoryDialog" />
+            </RadzenStack>
         </RadzenColumn>
     </RadzenRow>
+    </div>
 
     @* Notification Messages *@
     @if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
@@ -43,6 +54,17 @@
     {
         <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true" Close="@(() => pageState.ErrorMessage = string.Empty)">
             @pageState.ErrorMessage
+        </RadzenAlert>
+    }
+
+    @if (failedOpsCount > 0)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" AllowClose="false">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Gap="0.5rem">
+                <RadzenText Style="margin: 0;">@failedOpsCount failed analysis @(failedOpsCount == 1 ? "job" : "jobs") detected. Review errors to keep your data current.</RadzenText>
+                <RadzenButton Text="View Failed Operations" Icon="error_outline" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Outlined" Size="ButtonSize.Small"
+                              Click="@(() => Navigation.NavigateTo("/failed-operations"))" />
+            </RadzenStack>
         </RadzenAlert>
     }
 
@@ -76,19 +98,29 @@
                 <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color);">
                     Get started by adding your first GitHub repository to track.
                 </RadzenText>
-                <RadzenButton Text="Add Repository" Icon="add_circle" ButtonStyle="ButtonStyle.Primary" Click="@NavigateToAddRepo" />
+                <RadzenButton Text="Add Repository" Icon="add_circle" ButtonStyle="ButtonStyle.Primary" Click="@OpenAddRepositoryDialog" />
             </RadzenStack>
         </RadzenCard>
     }
     else
     {
         <RadzenCard>
-            <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin-bottom: 1rem; color: var(--rz-text-secondary-color);">
-                @pageState.Repositories.Count repositories tracked
-            </RadzenText>
+            <RadzenStack Gap="1rem" Style="margin-bottom: 1rem;">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Start" Wrap="FlexWrap.Wrap" Gap="0.5rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="search" Style="color: var(--rz-text-secondary-color);" />
+                        <RadzenTextBox Value="@searchText" ValueChanged="@OnSearchTextChanged" Placeholder="Search owner or repository..." Style="width: 280px;" />
+                        @if (!string.IsNullOrEmpty(searchText))
+                        {
+                            <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
+                                          Click="@(() => OnSearchTextChanged(string.Empty))" title="Clear search" />
+                        }
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenStack>
             
             <RadzenDataGrid @ref="grid" 
-                            Data="@pageState.Repositories" 
+                            Data="@FilteredRepositories" 
                             TItem="GitHubRepository"
                             AllowFiltering="false" 
                             AllowSorting="true" 
@@ -100,127 +132,51 @@
                             AllowColumnResize="true"
                             RowExpand="@OnRowExpand"
                             ExpandMode="DataGridExpandMode.Single"
-                            Density="Density.Compact"
+                            Density="Density.Default"
                             Style="height: auto;">
                 <Template Context="repo">
-                    <RadzenCard Style="margin: 1rem 0;">
-                        @if (isLoadingChartData && selectedRepositoryId == repo.Id)
-                        {
-                            <RadzenStack Gap="1rem">
-                                <RadzenSkeleton Width="100%" Height="300px" />
-                                <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
-                                    <RadzenSkeleton Width="33%" Height="200px" />
-                                    <RadzenSkeleton Width="67%" Height="200px" />
-                                </RadzenStack>
-                            </RadzenStack>
-                        }
-                        else
-                        {
-                            <RadzenRow Gap="1rem">
-                                <RadzenColumn Size="12" SizeLG="4">
-                                    <RadzenCard>
-                                        <RadzenText TextStyle="TextStyle.H6">
-                                            <RadzenIcon Icon="show_chart" Style="vertical-align: middle;" />
-                                            Line Count History (Last 365 Days)
-                                        </RadzenText>
-                                        @if (!string.IsNullOrEmpty(chartErrorMessage))
-                                        {
-                                            <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
-                                                @chartErrorMessage
-                                                <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text" Click="@(() => FetchLineCountHistory(repo.Id))" />
-                                            </RadzenAlert>
-                                        }
-                                        else if (lineCountHistory != null && lineCountHistory.Any())
-                                        {
-                                            <RadzenChart Style="height: 350px; width: 100%;">
-                                                <RadzenLineSeries Data="@lineCountHistory" 
-                                                                  CategoryProperty="Date" 
-                                                                  ValueProperty="TotalLines" 
-                                                                  Title="Total Lines"
-                                                                  Stroke="var(--rz-primary)"
-                                                                  StrokeWidth="3">
-                                                    <RadzenMarkers MarkerType="MarkerType.Circle" />
-                                                </RadzenLineSeries>
-                                                <RadzenCategoryAxis>
-                                                    <RadzenGridLines Visible="true" />
-                                                </RadzenCategoryAxis>
-                                                <RadzenValueAxis Min="0" Max="@chartMaxLines">
-                                                    <RadzenGridLines Visible="true" />
-                                                </RadzenValueAxis>
-                                                <RadzenLegend Visible="true" Position="LegendPosition.Bottom" />
-                                            </RadzenChart>
-                                        }
-                                        else
-                                        {
-                                            <RadzenStack AlignItems="AlignItems.Center" class="rz-p-4">
-                                                <RadzenIcon Icon="bar_chart" Style="font-size: 2rem; color: var(--rz-text-disabled-color);" />
-                                                <RadzenText>No history data available</RadzenText>
-                                            </RadzenStack>
-                                        }
-                                    </RadzenCard>
-                                </RadzenColumn>
-                                <RadzenColumn Size="12" SizeLG="4">
-                                    <RadzenCard>
-                                        <RadzenText TextStyle="TextStyle.H6">
-                                            <RadzenIcon Icon="description" Style="vertical-align: middle;" />
-                                            File Extensions
-                                        </RadzenText>
-                                        @if (fileExtensionPercentages != null && fileExtensionPercentages.Any())
-                                        {
-                                            <RadzenDataList Data="@fileExtensionPercentages" TItem="FileExtensionPercentageDto">
-                                                <Template Context="ext">
-                                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-py-2">
-                                                        <RadzenText><code>@ext.FileExtension</code></RadzenText>
-                                                        <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="@($"{ext.Percentage:F1}%")" />
-                                                    </RadzenStack>
-                                                </Template>
-                                            </RadzenDataList>
-                                        }
-                                        else
-                                        {
-                                            <RadzenText Style="color: var(--rz-text-secondary-color);">No extension data</RadzenText>
-                                        }
-                                    </RadzenCard>
-                                </RadzenColumn>
-                                <RadzenColumn Size="12" SizeLG="4">
-                                    <RadzenCard>
-                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                            <RadzenIcon Icon="insert_drive_file" />
-                                            <RadzenButton Text="Top 5 Files" Variant="Variant.Text" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" Click="@(async () => await OpenTopFilesModal(repo))" Style="padding: 0; font-size: 1.1rem; font-weight: 600;" />
-                                        </RadzenStack>
-                                        @if (topFiles != null && topFiles.Any())
-                                        {
-                                            <RadzenDataList Data="@topFiles" TItem="TopFileDto">
-                                                <Template Context="file">
-                                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-py-2">
-                                                        <RadzenText Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;" title="@file.FileName">@file.FileName</RadzenText>
-                                                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@file.LineCount.ToString("N0")" />
-                                                    </RadzenStack>
-                                                </Template>
-                                            </RadzenDataList>
-                                        }
-                                        else
-                                        {
-                                            <RadzenText Style="color: var(--rz-text-secondary-color);">No file data</RadzenText>
-                                        }
-                                    </RadzenCard>
-                                </RadzenColumn>
-                            </RadzenRow>
-                        }
-                    </RadzenCard>
+                    <RepositoryDetailPanel
+                        IsLoading="@(isLoadingChartData && selectedRepositoryId == repo.Id)"
+                        ChartErrorMessage="@chartErrorMessage"
+                        LineCountHistory="@lineCountHistory"
+                        ChartMaxLines="@chartMaxLines"
+                        ExtensionPercentages="@fileExtensionPercentages"
+                        TopFiles="@topFiles"
+                        Repository="@repo"
+                        OnRetryLoadHistory="@(id => FetchLineCountHistory(id))"
+                        OnOpenTopFilesModal="@(r => OpenTopFilesModal(r))" />
                 </Template>
                 <Columns>
-                    <RadzenDataGridColumn TItem="GitHubRepository" Property="Owner" Title="Owner" Width="150px" />
-                    <RadzenDataGridColumn TItem="GitHubRepository" Property="Name" Title="Repository" Width="200px">
+                    <RadzenDataGridColumn TItem="GitHubRepository" Title="Repository" Width="220px">
                         <Template Context="repo">
-                            <RadzenLink Path="@($"https://github.com/{repo.Owner}/{repo.Name}")" Target="_blank" Text="@repo.Name" />
+                            <RadzenLink Path="@($"https://github.com/{repo.Owner}/{repo.Name}")" Target="_blank"
+                                        Text="@($"{repo.Owner}/{repo.Name}")" />
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="GitHubRepository" Property="LastAnalyzedCommitDate" Title="Last Analyzed" Width="180px" FormatString="{0:MM/dd/yyyy HH:mm}">
+                    <RadzenDataGridColumn TItem="GitHubRepository" Title="Total Lines" Width="130px" TextAlign="TextAlign.Right" Sortable="false" Filterable="false">
+                        <Template Context="repo">
+                            @if (_repoLatestLineCounts.TryGetValue(repo.Id, out var totalLines))
+                            {
+                                <RadzenText Style="font-weight: 600; color: var(--rz-primary);">@totalLines.ToString("N0")</RadzenText>
+                            }
+                            else if (repo.LastAnalyzedCommitDate.HasValue)
+                            {
+                                <RadzenSkeleton Width="70px" Height="18px" />
+                            }
+                            else
+                            {
+                                <RadzenText Style="color: var(--rz-text-disabled-color);">—</RadzenText>
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="GitHubRepository" Property="LastAnalyzedCommitDate" Title="Last Analyzed" Width="160px" Sortable="true">
                         <Template Context="repo">
                             @if (repo.LastAnalyzedCommitDate.HasValue)
                             {
-                                <RadzenText>@repo.LastAnalyzedCommitDate.Value.ToString("MM/dd/yyyy HH:mm")</RadzenText>
+                                <RadzenStack Gap="0.1rem">
+                                    <RadzenText Style="font-weight: 500;">@ToRelativeTime(repo.LastAnalyzedCommitDate)</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">@repo.LastAnalyzedCommitDate.Value.ToString("MM/dd/yy HH:mm")</RadzenText>
+                                </RadzenStack>
                             }
                             else
                             {
@@ -228,108 +184,163 @@
                             }
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="GitHubRepository" Title="Status" Width="120px" Filterable="false" Sortable="false">
+                    <RadzenDataGridColumn TItem="GitHubRepository" Title="Status" Width="150px" Filterable="false" Sortable="false">
                         <Template Context="repo">
                             @if (reanalyzingRepositoryId == repo.Id)
                             {
-                                <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Re-analyzing..." />
+                                <RadzenStack Gap="0.125rem">
+                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                        <RadzenIcon Icon="sync" class="spin-icon" Style="font-size: 1rem; color: var(--rz-badge-info-background-color, #17a2b8);" />
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Re-analyzing" />
+                                    </RadzenStack>
+                                    @if (_reanalysisStartTimes.TryGetValue(repo.Id, out var startTime))
+                                    {
+                                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); font-size: 0.7rem; padding-left: 0.25rem;">
+                                            @GetReanalysisElapsed(startTime)
+                                        </RadzenText>
+                                    }
+                                </RadzenStack>
+                            }
+                            else if (!repo.LastAnalyzedCommitDate.HasValue)
+                            {
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                    <RadzenIcon Icon="schedule" Style="font-size: 1rem; color: var(--rz-warning);" />
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Pending" />
+                                </RadzenStack>
                             }
                             else
                             {
-                                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="✓ Analyzed" />
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                    <RadzenIcon Icon="check_circle" Style="font-size: 1rem; color: var(--rz-success);" />
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Analyzed" />
+                                </RadzenStack>
                             }
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="GitHubRepository" Title="Actions" Width="180px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
+                    <RadzenDataGridColumn TItem="GitHubRepository" Title="Actions" Width="210px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
                         <Template Context="repo">
                             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
-                                <RadzenButton Icon="bar_chart" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text" Click="@(() => ToggleChart(repo))" title="View Chart" />
-                                <RadzenButton Icon="refresh" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Text" Click="@(() => ConfirmReanalyze(repo))" title="Re-analyze with current settings" Disabled="@(reanalyzingRepositoryId == repo.Id)" />
-                                <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Click="@(() => ConfirmDeleteRepository(repo))" title="Delete" />
+                                <RadzenButton Text="Chart" Icon="bar_chart" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Info" Variant="Variant.Outlined" Click="@(() => ToggleChart(repo))" title="View line count chart" />
+                                <RadzenButton Text="Re-run" Icon="refresh" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Outlined" Click="@(() => ConfirmReanalyze(repo))" title="Re-analyze from scratch" Disabled="@(reanalyzingRepositoryId == repo.Id)" />
+                                <RadzenButton Text="Delete" Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined" Click="@(() => ConfirmDeleteRepository(repo))" title="Delete repository" />
                             </RadzenStack>
                         </Template>
                     </RadzenDataGridColumn>
                 </Columns>
             </RadzenDataGrid>
+
+            @* Danger Zone — separated from primary actions *@
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
+                         Style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--rz-border-disabled-color);">
+                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color); font-style: italic;">Danger Zone</RadzenText>
+                <RadzenButton Text="Remove All Repositories"
+                              Icon="delete_forever"
+                              ButtonStyle="ButtonStyle.Danger"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Small"
+                              Click="@ConfirmRemoveAll"
+                              IsBusy="@isRemovingAll"
+                              BusyText="Removing..." />
+            </RadzenStack>
         </RadzenCard>
     }
 </RadzenStack>
 
-@* Top 100 Files Modal *@
-@if (showTopFilesModal)
-{
-    <div class="modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center;" @onclick="CloseTopFilesModal">
-        <RadzenCard Style="max-width: 700px; width: 90vw; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column;" @onclick:stopPropagation="true">
-            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-3">
-                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">
-                    <RadzenIcon Icon="insert_drive_file" Style="vertical-align: middle;" />
-                    Top 100 Files - @modalRepositoryName
-                </RadzenText>
-                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Click="CloseTopFilesModal" />
-            </RadzenStack>
-            
-            <div style="overflow-y: auto; flex: 1;">
-                @if (isLoadingModalFiles)
-                {
-                    <RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Style="height: 200px;">
-                        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Large" />
-                        <RadzenText>Loading files...</RadzenText>
-                    </RadzenStack>
-                }
-                else if (topFilesForModal != null && topFilesForModal.Any())
-                {
-                    <RadzenDataGrid Data="@topFilesForModal" TItem="TopFileDto" AllowPaging="true" PageSize="20" PagerPosition="PagerPosition.Bottom" Style="height: 100%;">
-                        <Columns>
-                            <RadzenDataGridColumn TItem="TopFileDto" Title="#" Width="50px">
-                                <Template Context="file">
-                                    @((topFilesForModal!.IndexOf(file) + 1))
-                                </Template>
-                            </RadzenDataGridColumn>
-                            <RadzenDataGridColumn TItem="TopFileDto" Property="FileName" Title="File Name">
-                                <Template Context="file">
-                                    <span title="@file.FileName" style="word-break: break-all;">@file.FileName</span>
-                                </Template>
-                            </RadzenDataGridColumn>
-                            <RadzenDataGridColumn TItem="TopFileDto" Property="LineCount" Title="Lines" Width="100px" TextAlign="TextAlign.Right">
-                                <Template Context="file">
-                                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@file.LineCount.ToString("N0")" />
-                                </Template>
-                            </RadzenDataGridColumn>
-                        </Columns>
-                    </RadzenDataGrid>
-                }
-                else
-                {
-                    <RadzenText Style="color: var(--rz-text-secondary-color); text-align: center; padding: 2rem;">No file data available. Try refreshing the repository.</RadzenText>
-                }
-            </div>
-        </RadzenCard>
-    </div>
-}
+
 
 @code {
+    [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
     private RepositoryPageState pageState = new();
     private RadzenDataGrid<GitHubRepository>? grid;
     private Guid? selectedRepositoryId;
     private Guid? reanalyzingRepositoryId;
+    private int failedOpsCount = 0;
+    private bool _autoExpanded = false;
     private List<DailyLineCountDto>? lineCountHistory;
     private List<FileExtensionPercentageDto>? fileExtensionPercentages;
     private List<TopFileDto>? topFiles;
     private bool isLoadingChartData = false;
     private string chartErrorMessage = string.Empty;
     private bool isRemovingAll = false;
+    private string searchText = string.Empty;
+    private Dictionary<Guid, DateTime> _reanalysisStartTimes = new();
+    private Dictionary<Guid, int> _repoLatestLineCounts = new();
     
-    // Top files modal state
-    private bool showTopFilesModal = false;
-    private List<TopFileDto>? topFilesForModal;
-    private string? modalRepositoryName;
-    private bool isLoadingModalFiles = false;
     private int chartMaxLines = 50000;
+
+    private IEnumerable<GitHubRepository> FilteredRepositories =>
+        string.IsNullOrWhiteSpace(searchText)
+            ? pageState.Repositories
+            : pageState.Repositories.Where(r =>
+                r.Owner.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                r.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnParametersSet()
+    {
+        searchText = Q ?? string.Empty;
+    }
 
     protected override async Task OnInitializedAsync()
     {
         await LoadRepositories();
         await LoadChartMaxLines();
+        await LoadFailedOpsCount();
+        await LoadLatestLineCounts();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Auto-expand the most recently analysed repository so returning users see their chart immediately
+        if (!_autoExpanded && grid != null && pageState.Repositories.Any() && !pageState.IsLoadingRepositories)
+        {
+            _autoExpanded = true;
+            var mostRecent = pageState.Repositories
+                .Where(r => r.LastAnalyzedCommitDate.HasValue)
+                .OrderByDescending(r => r.LastAnalyzedCommitDate)
+                .FirstOrDefault();
+
+            if (mostRecent != null)
+            {
+                Logger.LogInformation("Auto-expanding most recently analysed repository {Name} on load", mostRecent.Name);
+                await ToggleChart(mostRecent);
+            }
+        }
+    }
+
+    private async Task LoadFailedOpsCount()
+    {
+        try
+        {
+            var ops = await Http.GetFromJsonAsync<List<System.Text.Json.JsonElement>>("/api/failed-operations");
+            failedOpsCount = ops?.Count ?? 0;
+            Logger.LogInformation("Loaded failed operations count: {Count}", failedOpsCount);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load failed operations count — banner suppressed");
+        }
+    }
+
+    private async Task LoadLatestLineCounts()
+    {
+        try
+        {
+            var all = await Http.GetFromJsonAsync<List<RepositoryLineCountHistoryDto>>("/api/repositories/allcharts/365");
+            if (all != null)
+            {
+                _repoLatestLineCounts = all
+                    .Where(r => r.DailyLineCounts.Any())
+                    .ToDictionary(
+                        r => r.RepositoryId,
+                        r => r.DailyLineCounts.OrderByDescending(d => d.Date).First().TotalLines);
+                Logger.LogInformation("Loaded latest line counts for {Count} repositories", _repoLatestLineCounts.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load latest line counts — Total Lines column will show dashes");
+        }
     }
 
     private async Task LoadChartMaxLines()
@@ -345,9 +356,57 @@
         }
     }
 
-    private void NavigateToAddRepo()
+    private void OnSearchTextChanged(string value)
     {
-        Navigation.NavigateTo("/add-repository");
+        searchText = value;
+        var uri = Navigation.GetUriWithQueryParameter("q", string.IsNullOrEmpty(value) ? null : value);
+        Navigation.NavigateTo(uri, replace: true);
+    }
+
+    private static string ToRelativeTime(DateTime? dt)
+    {
+        if (!dt.HasValue) return string.Empty;
+        var diff = DateTime.UtcNow - dt.Value.ToUniversalTime();
+        if (diff.TotalHours < 1) return "just now";
+        if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        if (diff.TotalDays < 30) return $"{(int)(diff.TotalDays / 7)}w ago";
+        if (diff.TotalDays < 365) return $"{(int)(diff.TotalDays / 30)}mo ago";
+        return $"{(int)(diff.TotalDays / 365)}y ago";
+    }
+
+    private async Task OpenAddRepositoryDialog()
+    {
+        var existingIds = pageState.Repositories.Select(r => r.Id).ToHashSet();
+        await DialogService.OpenAsync<AddRepository>(
+            "Add Repositories",
+            options: new DialogOptions { Width = "750px", CloseDialogOnOverlayClick = false, ShowClose = true });
+        // Reload after dialog closes regardless of outcome
+        await LoadRepositories();
+        await LoadLatestLineCounts();
+        StateHasChanged();
+
+        // Auto-expand the newly added repository so the chart is immediately visible
+        var newRepo = pageState.Repositories
+            .Where(r => !existingIds.Contains(r.Id))
+            .OrderByDescending(r => r.LastAnalyzedCommitDate)
+            .FirstOrDefault()
+            ?? pageState.Repositories.Where(r => !existingIds.Contains(r.Id)).LastOrDefault();
+
+        if (newRepo != null && grid != null)
+        {
+            Logger.LogInformation("Auto-expanding newly added repository {Name}", newRepo.Name);
+            _autoExpanded = true; // prevent OnAfterRender from overriding with older selection
+            await ToggleChart(newRepo);
+        }
+    }
+
+    private static string GetReanalysisElapsed(DateTime startTime)
+    {
+        var elapsed = DateTime.UtcNow - startTime;
+        if (elapsed.TotalMinutes < 1) return "just started";
+        if (elapsed.TotalMinutes < 60) return $"started {(int)elapsed.TotalMinutes} min ago";
+        return $"started {(int)elapsed.TotalHours}h ago";
     }
 
     private async Task ToggleChart(GitHubRepository repo)
@@ -404,6 +463,8 @@
             else
             {
                 Logger.LogInformation("Loaded {Count} data points for repository {RepositoryId}", lineCountHistory.Count, repositoryId);
+                // Keep the Total Lines column fresh when chart data loads
+                _repoLatestLineCounts[repositoryId] = lineCountHistory.OrderByDescending(d => d.Date).First().TotalLines;
             }
         }
         catch (Exception ex)
@@ -446,32 +507,10 @@
 
     private async Task OpenTopFilesModal(GitHubRepository repo)
     {
-        modalRepositoryName = $"{repo.Owner}/{repo.Name}";
-        isLoadingModalFiles = true;
-        showTopFilesModal = true;
-        topFilesForModal = null;
-        StateHasChanged();
-
-        try
-        {
-            topFilesForModal = await Http.GetFromJsonAsync<List<TopFileDto>>($"/api/repositories/{repo.Id}/top-files?count=100");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error fetching top 100 files for modal: {Message}", ex.Message);
-        }
-        finally
-        {
-            isLoadingModalFiles = false;
-            StateHasChanged();
-        }
-    }
-
-    private void CloseTopFilesModal()
-    {
-        showTopFilesModal = false;
-        topFilesForModal = null;
-        modalRepositoryName = null;
+        await DialogService.OpenAsync<TopFilesDialog>(
+            $"Top 100 Files — {repo.Owner}/{repo.Name}",
+            new Dictionary<string, object> { { "RepositoryId", repo.Id } },
+            new DialogOptions { Width = "720px", CloseDialogOnOverlayClick = true, ShowClose = true });
     }
 
     private async Task LoadRepositories()
@@ -527,6 +566,7 @@
         try
         {
             reanalyzingRepositoryId = repo.Id;
+            _reanalysisStartTimes[repo.Id] = DateTime.UtcNow;
             StateHasChanged();
 
             Logger.LogInformation("Re-analyzing repository {RepositoryId}", repo.Id);
@@ -577,6 +617,7 @@
         finally
         {
             reanalyzingRepositoryId = null;
+            _reanalysisStartTimes.Remove(repo.Id);
             StateHasChanged();
         }
     }

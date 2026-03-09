@@ -1,0 +1,31 @@
+@page "/login"
+@layout PoRepoLineTracker.Client.Layout.LoginLayout
+@inject NavigationManager Navigation
+@using Radzen
+@using Radzen.Blazor
+
+<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--rz-base-100);">
+    <RadzenCard Style="max-width: 420px; width: 100%; text-align: center; padding: 2.5rem;">
+        <RadzenStack Gap="1.5rem" AlignItems="AlignItems.Center">
+            <span class="brand-icon-wrap">
+                <RadzenIcon Icon="code" Style="font-size: 1.2rem; color: var(--rz-primary);" />
+                <RadzenIcon Icon="trending_up" class="brand-icon-trend" Style="font-size: 0.55rem; color: white;" />
+            </span>
+            <RadzenStack Gap="0.25rem" AlignItems="AlignItems.Center">
+                <RadzenText TextStyle="TextStyle.H4" Style="font-weight: 700; margin: 0;">PoRepoLineTracker</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); max-width: 300px; text-align: center;">
+                    Track lines of code across all your GitHub repositories
+                </RadzenText>
+            </RadzenStack>
+            <hr style="border: none; border-top: 1px solid var(--rz-border-disabled-color); width: 100%; margin: 0.25rem 0;" />
+            <RadzenButton Text="Sign in with GitHub"
+                          Icon="login"
+                          ButtonStyle="ButtonStyle.Primary"
+                          Style="width: 100%; font-size: 1rem; padding: 0.75rem 1.5rem;"
+                          Click="@(() => Navigation.NavigateTo("api/auth/login", forceLoad: true))" />
+            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">
+                Your data stays in your own Azure Table Storage
+            </RadzenText>
+        </RadzenStack>
+    </RadzenCard>
+</div>

@@ -152,6 +152,29 @@ public class FailedOperationService : IFailedOperationService
         }
     }
 
+    public async Task<IEnumerable<FailedOperation>> GetAllFailedOperationsAsync()
+    {
+        await EnsureTablesExistAsync();
+        _logger.LogInformation("Getting all failed operations from Table Storage.");
+
+        var failedOperations = new List<FailedOperation>();
+        try
+        {
+            await foreach (var entity in _failedOperationTableClient.QueryAsync<FailedOperationEntity>())
+            {
+                failedOperations.Add(entity.ToDomainModel());
+            }
+            _logger.LogInformation("Found {Count} total failed operations.", failedOperations.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all failed operations: {ErrorMessage}", ex.Message);
+            throw;
+        }
+
+        return failedOperations;
+    }
+
     public async Task<IEnumerable<FailedOperation>> GetRetryableOperationsAsync(int maxRetryCount = 3)
     {
         await EnsureTablesExistAsync();

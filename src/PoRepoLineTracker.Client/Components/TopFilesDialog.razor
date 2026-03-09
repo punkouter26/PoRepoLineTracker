@@ -1,0 +1,69 @@
+@inject HttpClient Http
+@inject ILogger<TopFilesDialog> Logger
+@using PoRepoLineTracker.Application.Models
+
+@if (_isLoading)
+{
+    <RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Style="height: 320px; gap: 1rem;">
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Large" />
+        <RadzenText>Loading top files...</RadzenText>
+    </RadzenStack>
+}
+else if (_files != null && _files.Any())
+{
+    <RadzenDataGrid Data="@_files" TItem="TopFileDto"
+                    AllowPaging="true" PageSize="20"
+                    PagerPosition="PagerPosition.Bottom"
+                    PagerHorizontalAlign="HorizontalAlign.Center"
+                    ShowPagingSummary="true"
+                    AllowSorting="true"
+                    Style="height: 520px;">
+        <Columns>
+            <RadzenDataGridColumn TItem="TopFileDto" Title="#" Width="55px" Sortable="false">
+                <Template Context="file">
+                    <RadzenText Style="color: var(--rz-text-secondary-color);">@(_files!.IndexOf(file) + 1)</RadzenText>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="TopFileDto" Property="FileName" Title="File Name">
+                <Template Context="file">
+                    <span title="@file.FileName" style="word-break: break-all; font-size: 0.875rem;">@file.FileName</span>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="TopFileDto" Property="LineCount" Title="Lines" Width="110px" TextAlign="TextAlign.Right">
+                <Template Context="file">
+                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@file.LineCount.ToString("N0")" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+else
+{
+    <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-8">
+        <RadzenIcon Icon="folder_off" Style="font-size: 3rem; color: var(--rz-text-disabled-color);" />
+        <RadzenText Style="color: var(--rz-text-secondary-color);">No file data available. Try re-analyzing the repository first.</RadzenText>
+    </RadzenStack>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid RepositoryId { get; set; }
+
+    private List<TopFileDto>? _files;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _files = await Http.GetFromJsonAsync<List<TopFileDto>>($"/api/repositories/{RepositoryId}/top-files?count=100");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading top 100 files for repository {RepositoryId}", RepositoryId);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

@@ -1,0 +1,57 @@
+erDiagram
+  USER {
+    guid Id PK
+    string GitHubId UK
+    string Username
+    string DisplayName
+    string Email
+    string AvatarUrl
+    string AccessToken
+    datetime CreatedAt
+    datetime LastLoginAt
+  }
+
+  USER_PREFERENCES {
+    guid UserId PK_FK
+    json FileExtensions
+    datetime UpdatedAt
+  }
+
+  GITHUB_REPOSITORY {
+    guid Id PK
+    guid UserId FK
+    string Owner
+    string Name
+    string CloneUrl
+    string LocalPath
+    datetime LastAnalyzedCommitDate
+  }
+
+  COMMIT_LINE_COUNT {
+    guid Id PK
+    guid RepositoryId FK
+    string CommitSha
+    datetime CommitDate
+    int TotalLines
+    int LinesAdded
+    int LinesRemoved
+    json LinesByFileType
+  }
+
+  FAILED_OPERATION {
+    guid Id PK
+    guid RepositoryId FK
+    string OperationType
+    string EntityId
+    string ErrorMessage
+    string StackTrace
+    datetime FailedAt
+    int RetryCount
+    datetime LastRetryAttempt
+    json ContextData
+  }
+
+  USER ||--o| USER_PREFERENCES : "has preferences"
+  USER ||--o{ GITHUB_REPOSITORY : "tracks"
+  GITHUB_REPOSITORY ||--o{ COMMIT_LINE_COUNT : "has history"
+  GITHUB_REPOSITORY ||--o{ FAILED_OPERATION : "generates errors"

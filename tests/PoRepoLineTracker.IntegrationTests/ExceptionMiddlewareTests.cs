@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using PoRepoLineTracker.Application.Features.Repositories.Queries;
+using PoRepoLineTracker.Application.Models;
 
 namespace PoRepoLineTracker.IntegrationTests;
 
@@ -29,9 +30,9 @@ public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory
     [Fact]
     public async Task UnhandledException_Returns_500_ProblemDetails()
     {
-        // The factory configures GetLineCountsForRepository to throw
+        // The factory configures GetLineCountHistoryQuery to throw
         var repoId = ExceptionMiddlewareFactory.ThrowingRepoId;
-        var response = await _client.GetAsync($"/api/repositories/{repoId}/linecounts");
+        var response = await _client.GetAsync($"/api/repositories/{repoId}/linehistory/365");
         response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
     }
 
@@ -39,7 +40,7 @@ public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory
     public async Task UnhandledException_Returns_ProblemJson_ContentType()
     {
         var repoId = ExceptionMiddlewareFactory.ThrowingRepoId;
-        var response = await _client.GetAsync($"/api/repositories/{repoId}/linecounts");
+        var response = await _client.GetAsync($"/api/repositories/{repoId}/linehistory/365");
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
     }
 
@@ -47,7 +48,7 @@ public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory
     public async Task UnhandledException_ProblemDetails_Has_Title()
     {
         var repoId = ExceptionMiddlewareFactory.ThrowingRepoId;
-        var response = await _client.GetAsync($"/api/repositories/{repoId}/linecounts");
+        var response = await _client.GetAsync($"/api/repositories/{repoId}/linehistory/365");
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         json.TryGetProperty("title", out var title).Should().BeTrue();
         title.GetString().Should().NotBeNullOrEmpty();
@@ -57,7 +58,7 @@ public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory
     public async Task UnhandledException_ProblemDetails_Has_Status_500()
     {
         var repoId = ExceptionMiddlewareFactory.ThrowingRepoId;
-        var response = await _client.GetAsync($"/api/repositories/{repoId}/linecounts");
+        var response = await _client.GetAsync($"/api/repositories/{repoId}/linehistory/365");
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         json.TryGetProperty("status", out var status).Should().BeTrue();
         status.GetInt32().Should().Be(500);
@@ -67,7 +68,7 @@ public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory
     public async Task UnhandledException_ProblemDetails_Has_Detail()
     {
         var repoId = ExceptionMiddlewareFactory.ThrowingRepoId;
-        var response = await _client.GetAsync($"/api/repositories/{repoId}/linecounts");
+        var response = await _client.GetAsync($"/api/repositories/{repoId}/linehistory/365");
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         json.TryGetProperty("detail", out var detail).Should().BeTrue();
         detail.GetString().Should().NotBeNullOrEmpty();
@@ -96,7 +97,7 @@ public class ExceptionMiddlewareFactory : CustomWebApplicationFactory
             // Replace the mediator with one that throws for our specific query
             var mockMediator = Substitute.For<IMediator>();
             mockMediator
-                .Send(Arg.Is<GetLineCountsForRepositoryQuery>(q => q.RepositoryId == ThrowingRepoId), Arg.Any<CancellationToken>())
+                .Send(Arg.Is<GetLineCountHistoryQuery>(q => q.RepositoryId == ThrowingRepoId), Arg.Any<CancellationToken>())
                 .ThrowsAsync(new InvalidOperationException("Deliberate test exception for middleware verification"));
 
             services.AddScoped(_ => mockMediator);

@@ -442,3 +442,5 @@ secrets-backup.json
 secrets-backup*.json
 *-secrets.json
 secrets.json
+# Serilog runtime log files
+src/PoRepoLineTracker.Api/log*.txt

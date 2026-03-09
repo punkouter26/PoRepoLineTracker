@@ -1,0 +1,30 @@
+{
+  "schema": "potune-state/v1",
+  "lastUpdated": "2026-03-09",
+  "run": "PoTuneLogic-002",
+  "complexityDelta": {
+    "pre": {
+      "note": "Measured start of PoTuneLogic-002 run (post PoTuneClean-001)",
+      "srcFiles": 95,
+      "totalLinesOfCode": 6882
+    },
+    "post": {
+      "note": "Measured 2026-03-09 after all 10 PoTuneLogic-002 suggestions implemented",
+      "srcFiles": 119,
+      "totalLinesOfCode": 7169,
+      "filesCreated": 6
+    }
+  },
+  "pendingSuggestions": [
+    { "id": 1, "category": "refactor", "title": "Split ApiEndpointExtensions.cs into 6 VSA endpoint modules", "status": "completed" },
+    { "id": 2, "category": "correctness", "title": "Fix DIP violation in GitHubService: 3 direct new Repository() -> _gitClient.OpenRepository()", "status": "completed" },
+    { "id": 3, "category": "perf", "title": "Fix N+1 Azure Table scan in ForceReanalysis loop", "status": "completed" },
+    { "id": 4, "category": "correctness", "title": "Wire AppTelemetry.InitializeGauges() in Program.cs", "status": "completed" },
+    { "id": 5, "category": "correctness", "title": "Replace Thread.Sleep + GC.Collect with await Task.Delay", "status": "completed" },
+    { "id": 6, "category": "security", "title": "Add RequireAuthorization to 6 unprotected endpoints; ownership guard on DELETE", "status": "completed" },
+    { "id": 7, "category": "correctness", "title": "Remove duplicate @inject in AddRepository.razor; convert Bootstrap to Radzen", "status": "completed" },
+    { "id": 8, "category": "ui-ux", "title": "3-state status badge in Repositories.razor (Re-analyzing/Pending/Analyzed)", "status": "completed" },
+    { "id": 9, "category": "correctness", "title": "Guard Split('/')[1] in AddRepository.razor; [Required][EmailAddress] on TestLoginRequest", "status": "completed" },
+    { "id": 10, "category": "correctness", "title": "Per-repo SemaphoreSlim concurrency guard in AnalyzeRepositoryCommitsCommandHandler", "status": "completed" }
+  ]
+}

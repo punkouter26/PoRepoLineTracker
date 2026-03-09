@@ -79,11 +79,13 @@ test.describe('Page Load Quality', () => {
     await page.goto('/');
     await page.waitForTimeout(2000);
 
-    // Filter out known Blazor WASM loading noise
+    // Filter out known Blazor WASM loading noise and expected auth/CORS redirects
     const realErrors = errors.filter(e =>
       !e.includes('Failed to load resource') &&
       !e.includes('net::ERR_') &&
-      !e.includes('blazor.web.js')
+      !e.includes('blazor.web.js') &&
+      !e.includes('CORS policy') &&
+      !e.includes('Access-Control-Allow-Origin')
     );
 
     expect(realErrors).toHaveLength(0);

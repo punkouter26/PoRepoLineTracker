@@ -10,9 +10,11 @@
 @using Radzen.Blazor
 
 <RadzenStack Gap="1rem">
+    <div class="repo-hero">
     <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
         <RadzenColumn Size="12" SizeMD="6">
             <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">File Extension Settings</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); margin: 0;">Configure which file extensions are counted in line analysis</RadzenText>
         </RadzenColumn>
         <RadzenColumn Size="12" SizeMD="6" class="rz-text-align-end">
             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
@@ -34,6 +36,7 @@
             </RadzenStack>
         </RadzenColumn>
     </RadzenRow>
+    </div>
 
     @if (!string.IsNullOrEmpty(errorMessage))
     {

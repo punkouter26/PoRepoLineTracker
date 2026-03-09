@@ -38,6 +38,37 @@
         "panel": "shared"
       },
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "kill-dotnet-and-build",
+      "dependsOn": [
+        "kill-dotnet",
+        "build"
+      ],
+      "dependsOrder": "sequence",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "kill-dotnet",
+      "command": "powershell",
+      "type": "process",
+      "args": [
+        "-Command",
+        "Get-Process dotnet -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Write-Host 'Killed existing dotnet processes' -ForegroundColor Green; Start-Sleep -Milliseconds 500"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
     }
   ]
 }

@@ -1,8 +1,29 @@
 ﻿@using Microsoft.AspNetCore.Components.Routing
 @using Radzen
 @using Radzen.Blazor
+@inject HttpClient Http
+@inject ILogger<NavMenu> Logger
 
 <RadzenPanelMenuItem Text="Repositories" Icon="storage" Path="/" />
-<RadzenPanelMenuItem Text="Add Repository" Icon="add_circle" Path="/add-repository" />
-<RadzenPanelMenuItem Text="Failed Operations" Icon="error_outline" Path="/failed-operations" />
+<RadzenPanelMenuItem Text="@(_failedCount > 0 ? $"Failed Operations ({_failedCount})" : "Failed Operations")"
+                     Icon="error_outline"
+                     IconColor="@(_failedCount > 0 ? "var(--rz-danger)" : null)"
+                     Path="/failed-operations" />
 <RadzenPanelMenuItem Text="Settings" Icon="settings" Path="/settings/extensions-counted" />
+
+@code {
+    private int _failedCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var ops = await Http.GetFromJsonAsync<List<System.Text.Json.JsonElement>>("/api/failed-operations");
+            _failedCount = ops?.Count ?? 0;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "NavMenu: could not load failed ops count");
+        }
+    }
+}

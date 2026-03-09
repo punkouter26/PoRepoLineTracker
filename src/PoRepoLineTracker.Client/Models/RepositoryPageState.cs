@@ -1,3 +1,4 @@
+using PoRepoLineTracker.Application.Models;
 using PoRepoLineTracker.Domain.Models;
 
 namespace PoRepoLineTracker.Client.Models;

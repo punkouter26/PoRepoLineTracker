@@ -1,0 +1,119 @@
+@using PoRepoLineTracker.Application.Models
+@using PoRepoLineTracker.Domain.Models
+
+<div style="margin: 0.5rem 0; padding: 1rem; background: var(--rz-base-50); border: 1px solid var(--rz-base-200); border-radius: 8px;">
+    @if (IsLoading)
+    {
+        <RadzenStack Gap="1rem">
+            <RadzenSkeleton Width="100%" Height="300px" />
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
+                <RadzenSkeleton Width="33%" Height="200px" />
+                <RadzenSkeleton Width="67%" Height="200px" />
+            </RadzenStack>
+        </RadzenStack>
+    }
+    else
+    {
+        <RadzenRow Gap="1rem">
+            <RadzenColumn Size="12" SizeLG="8">
+                <RadzenText TextStyle="TextStyle.H6" Style="margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--rz-base-200);">
+                    <RadzenIcon Icon="show_chart" Style="vertical-align: middle;" />
+                    Line Count History (Last 365 Days)
+                </RadzenText>
+                @if (!string.IsNullOrEmpty(ChartErrorMessage))
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
+                        @ChartErrorMessage
+                        <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
+                                      Click="@(() => OnRetryLoadHistory.InvokeAsync(Repository.Id))" />
+                    </RadzenAlert>
+                }
+                else if (LineCountHistory != null && LineCountHistory.Any())
+                {
+                    <RadzenChart Style="height: 350px; width: 100%;">
+                        <RadzenLineSeries Data="@LineCountHistory"
+                                          CategoryProperty="Date"
+                                          ValueProperty="TotalLines"
+                                          Title="Total Lines"
+                                          Stroke="var(--rz-primary)"
+                                          StrokeWidth="3">
+                            <RadzenMarkers MarkerType="MarkerType.Circle" />
+                        </RadzenLineSeries>
+                        <RadzenCategoryAxis>
+                            <RadzenGridLines Visible="true" />
+                        </RadzenCategoryAxis>
+                        <RadzenValueAxis Min="0" Max="@ChartMaxLines">
+                            <RadzenGridLines Visible="true" />
+                        </RadzenValueAxis>
+                        <RadzenLegend Visible="true" Position="LegendPosition.Bottom" />
+                    </RadzenChart>
+                }
+                else
+                {
+                    <RadzenStack AlignItems="AlignItems.Center" class="rz-p-4">
+                        <RadzenIcon Icon="bar_chart" Style="font-size: 2rem; color: var(--rz-text-disabled-color);" />
+                        <RadzenText>No history data available</RadzenText>
+                    </RadzenStack>
+                }
+            </RadzenColumn>
+
+            <RadzenColumn Size="12" SizeLG="4" Style="border-left: 1px solid var(--rz-base-200); padding-left: 1rem;">
+                <RadzenTabs>
+                    <Tabs>
+                        <RadzenTabsItem Text="Extensions" Icon="description">
+                            @if (ExtensionPercentages != null && ExtensionPercentages.Any())
+                            {
+                                <RadzenDataList Data="@ExtensionPercentages" TItem="FileExtensionPercentageDto">
+                                    <Template Context="ext">
+                                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-py-2">
+                                            <RadzenText><code>@ext.FileExtension</code></RadzenText>
+                                            <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="@($"{ext.Percentage:F1}%")" />
+                                        </RadzenStack>
+                                    </Template>
+                                </RadzenDataList>
+                            }
+                            else
+                            {
+                                <RadzenText Style="color: var(--rz-text-secondary-color);">No extension data</RadzenText>
+                            }
+                        </RadzenTabsItem>
+
+                        <RadzenTabsItem Text="Top Files" Icon="insert_drive_file">
+                            @if (TopFiles != null && TopFiles.Any())
+                            {
+                                <RadzenButton Text="View All Top Files" Variant="Variant.Text" ButtonStyle="ButtonStyle.Primary"
+                                              Size="ButtonSize.Small"
+                                              Click="@(() => OnOpenTopFilesModal.InvokeAsync(Repository))"
+                                              Style="margin-bottom: 0.5rem;" />
+                                <RadzenDataList Data="@TopFiles" TItem="TopFileDto">
+                                    <Template Context="file">
+                                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-py-2">
+                                            <RadzenText Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;" title="@file.FileName">@file.FileName</RadzenText>
+                                            <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@file.LineCount.ToString("N0")" />
+                                        </RadzenStack>
+                                    </Template>
+                                </RadzenDataList>
+                            }
+                            else
+                            {
+                                <RadzenText Style="color: var(--rz-text-secondary-color);">No file data</RadzenText>
+                            }
+                        </RadzenTabsItem>
+                    </Tabs>
+                </RadzenTabs>
+            </RadzenColumn>
+        </RadzenRow>
+    }
+</div>
+
+@code {
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public string? ChartErrorMessage { get; set; }
+    [Parameter] public List<DailyLineCountDto>? LineCountHistory { get; set; }
+    [Parameter] public int ChartMaxLines { get; set; }
+    [Parameter] public List<FileExtensionPercentageDto>? ExtensionPercentages { get; set; }
+    [Parameter] public List<TopFileDto>? TopFiles { get; set; }
+    [Parameter, EditorRequired] public GitHubRepository Repository { get; set; } = default!;
+    [Parameter] public EventCallback<Guid> OnRetryLoadHistory { get; set; }
+    [Parameter] public EventCallback<GitHubRepository> OnOpenTopFilesModal { get; set; }
+}

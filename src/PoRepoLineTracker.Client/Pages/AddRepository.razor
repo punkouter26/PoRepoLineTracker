@@ -1,166 +1,128 @@
-@page "/add-repository"
+﻿@page "/add-repository"
 @attribute [Authorize]
 @inject HttpClient Http
 @inject ILogger<AddRepository> Logger
 @inject NavigationManager Navigation
+@inject DialogService DialogService
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Domain.Models
 @using PoRepoLineTracker.Application.Models
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 
-<h3>Add New Repository</h3>
+<RadzenStack Gap="1rem">
+    <RadzenText TextStyle="TextStyle.H4" Style="margin: 0 0 0.5rem 0;">Add Repositories</RadzenText>
 
-@if (!string.IsNullOrEmpty(pageState.ErrorMessage) && !pageState.ShowRepositorySelector)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="fas fa-exclamation-circle me-2"></i>@pageState.ErrorMessage
-        <button type="button" class="btn-close" @onclick="() => pageState.ErrorMessage = string.Empty"></button>
-    </div>
-}
+    @if (!string.IsNullOrEmpty(pageState.ErrorMessage) && !pageState.ShowRepositorySelector)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Flat"
+                     Close="@(() => pageState.ErrorMessage = string.Empty)">
+            @pageState.ErrorMessage
+        </RadzenAlert>
+    }
 
-@if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="fas fa-check-circle me-2"></i>@pageState.AddRepoMessage
-        <button type="button" class="btn-close" @onclick="() => pageState.AddRepoMessage = string.Empty"></button>
-    </div>
-}
+    @if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Success" ShowIcon="true" Variant="Variant.Flat"
+                     Close="@(() => pageState.AddRepoMessage = string.Empty)">
+            @pageState.AddRepoMessage
+        </RadzenAlert>
+    }
 
-<div class="mb-3">
     @if (pageState.ShowRepositorySelector)
     {
-        <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Select Repositories from Your GitHub Account</h5>
-                <button class="btn btn-sm btn-outline-light" @onclick="HideRepositorySelection">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="card-body">
-                @if (pageState.IsLoadingGitHubRepos)
-                {
-                    <div class="text-center p-4">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading GitHub repositories...</span>
-                        </div>
-                        <p class="mt-2"><em>Loading your GitHub repositories...</em></p>
-                    </div>
-                }
-                else if (pageState.GitHubUserRepositories.Any())
-                {
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                            <span class="text-muted">Found @pageState.GitHubUserRepositories.Count repositories</span>
-                            <div>
-                                <button class="btn btn-sm btn-outline-primary me-2" @onclick="SelectAllRepositories">
-                                    Select All
-                                </button>
-                                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearAllSelections">
-                                    Clear All
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="repository-list-container border rounded">
-                            @foreach (var repo in pageState.GitHubUserRepositories)
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-bottom: 1rem;">
+                <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">Select Repositories from Your GitHub Account</RadzenText>
+                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Click="HideRepositorySelection" />
+            </RadzenStack>
+            @if (pageState.IsLoadingGitHubRepos)
+            {
+                <RadzenStack AlignItems="AlignItems.Center" class="rz-p-4">
+                    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                    <RadzenText TextStyle="TextStyle.Body2"><em>Loading your GitHub repositories...</em></RadzenText>
+                </RadzenStack>
+            }
+            else if (pageState.GitHubUserRepositories.Any())
+            {
+                <RadzenStack Style="margin-bottom: 1rem;">
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-bottom: 0.5rem;">
+                        <RadzenText TextStyle="TextStyle.Caption">Found @pageState.GitHubUserRepositories.Count repositories</RadzenText>
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                            <RadzenButton Text="Select All" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="SelectAllRepositories" />
+                            <RadzenButton Text="Clear All" ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="ClearAllSelections" />
+                        </RadzenStack>
+                    </RadzenStack>
+
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin-bottom: 0.5rem;">
+                            <RadzenIcon Icon="search" Style="color: var(--rz-text-secondary-color);" />
+                            <RadzenTextBox @bind-Value="_repoFilterText" Placeholder="Filter repositories..." Style="width: 100%;" />
+                            @if (!string.IsNullOrEmpty(_repoFilterText))
                             {
-                                <div class="repository-item @(pageState.SelectedRepositories.Contains(repo) ? "selected" : "")">
-                                    <input class="form-check-input repository-checkbox" 
-                                           type="checkbox" 
-                                           id="repo-@repo.Id" 
-                                           checked="@pageState.SelectedRepositories.Contains(repo)"
-                                           @onchange="@(e => ToggleRepositorySelection(repo, (bool)e.Value!))" />
-                                    <label class="repository-label" for="repo-@repo.Id">
-                                        <div class="repo-main-info">
-                                            <div class="repo-name-desc">
-                                                <strong>@repo.Owner/@repo.Name</strong>
-                                                @if (!string.IsNullOrEmpty(repo.Description))
-                                                {
-                                                    <br><small class="text-muted repo-description">@repo.Description</small>
-                                                }
-                                            </div>
-                                            <div class="repo-badges">
-                                                @if (!string.IsNullOrEmpty(repo.Language))
-                                                {
-                                                    <span class="badge bg-secondary">@repo.Language</span>
-                                                }
-                                                @if (repo.Private)
-                                                {
-                                                    <span class="badge bg-warning text-dark">Private</span>
-                                                }
-                                            </div>
-                                        </div>
-                                    </label>
-                                </div>
+                                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
+                                              Click="@(() => _repoFilterText = string.Empty)" title="Clear filter" />
                             }
-                        </div>
-                        
-                        <div class="mt-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <span class="text-muted">@pageState.SelectedRepositories.Count selected</span>
-                            <button class="btn btn-success" 
-                                    @onclick="AddSelectedRepositories" 
-                                    disabled="@(pageState.IsAddingRepository || !pageState.SelectedRepositories.Any())">
-                                @if (pageState.IsAddingRepository)
-                                {
-                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                }
-                                Add Selected (@pageState.SelectedRepositories.Count)
-                            </button>
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <div class="alert alert-warning" role="alert">
-                        <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>No Repositories Found</h6>
-                        @if (!string.IsNullOrEmpty(pageState.ErrorMessage))
-                        {
-                            <p class="mb-2">@pageState.ErrorMessage</p>
-                        }
-                        else
-                        {
-                            <p class="mb-2">No repositories were found in your GitHub account.</p>
-                        }
-                        <hr>
-                        <p class="mb-0 small">
-                            <strong>Please ensure:</strong><br>
-                            • Your GitHub Personal Access Token is properly configured in Settings<br>
-                            • The token has the required permissions (repo scope)<br>
-                            • You have at least one repository in your GitHub account
-                        </p>
-                    </div>
-                }
-            </div>
-        </div>
+                        </RadzenStack>
+
+                        <RadzenListBox Value="@_selected"
+                                       ValueChanged="@((IEnumerable<GitHubUserRepositoryDto> v) => { _selected = v; StateHasChanged(); })"
+                                       Multiple="true"
+                                       Data="@FilteredGitHubRepos"
+                                       TValue="IEnumerable<GitHubUserRepositoryDto>"
+                                       TextProperty="FullName"
+                                       Style="height: 360px; width: 100%;" />
+                    </RadzenStack>
+
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-top: 1rem;">
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">
+                            @(_selected.Count()) selected
+                        </RadzenText>
+                        <RadzenButton Text="Add Selected Repositories"
+                                      Icon="add_circle"
+                                      ButtonStyle="ButtonStyle.Primary"
+                                      Click="AddSelectedRepositories"
+                                      IsBusy="@pageState.IsAddingRepository"
+                                      BusyText="Adding..."
+                                      Disabled="@(!_selected.Any() || pageState.IsAddingRepository)" />
+                    </RadzenStack>
+            }
+            else
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" Variant="Variant.Flat">
+                    <RadzenText TextStyle="TextStyle.Subtitle2">No Repositories Found</RadzenText>
+                    @if (!string.IsNullOrEmpty(pageState.ErrorMessage))
+                    {
+                        <RadzenText>@pageState.ErrorMessage</RadzenText>
+                    }
+                    else
+                    {
+                        <RadzenText>No repositories were found in your GitHub account.</RadzenText>
+                    }
+                    <RadzenText TextStyle="TextStyle.Body2">
+                        <strong>Please ensure:</strong><br />
+                        * Your GitHub Personal Access Token is properly configured in Settings<br />
+                        * The token has the required permissions (repo scope)<br />
+                        * You have at least one repository in your GitHub account
+                    </RadzenText>
+                </RadzenAlert>
+            }
+        </RadzenCard>
     }
-    
+
     @* Single repository mode removed as requested *@
-    
+
     @if (pageState.IsAddingRepository)
     {
-        <div class="mb-3">
-            <div class="progress" style="height: 25px;">
-                <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                     role="progressbar" 
-                     style="width: @(pageState.ProgressPercentage)%" 
-                     aria-valuenow="@pageState.ProgressPercentage" 
-                     aria-valuemin="0" 
-                     aria-valuemax="100">
-                    @(pageState.ProgressPercentage)%
-                </div>
-            </div>
-            <div class="text-center mt-2">
-                <small class="text-muted">@pageState.ProgressMessage</small>
-            </div>
-        </div>
+        <RadzenCard>
+            <RadzenProgressBar Value="@pageState.ProgressPercentage" ShowValue="true" />
+            <RadzenText TextStyle="TextStyle.Caption" Style="text-align: center; margin-top: 0.5rem;">@pageState.ProgressMessage</RadzenText>
+        </RadzenCard>
     }
-</div>
-
+</RadzenStack>
 @code {
     private RepositoryPageState pageState = new();
-    @inject HttpClient Http
-    @inject ILogger<AddRepository> Logger
+    // #7 fix: removed duplicate @inject Http and @inject Logger that were here inside @code —
+    // they are already declared at the top of the file (lines 3-4)
 
     protected override async Task OnInitializedAsync()
     {
@@ -206,41 +168,30 @@
         }
     }
 
-    private void ToggleRepositorySelection(GitHubUserRepositoryDto repository, bool isSelected)
-    {
-        if (isSelected)
-        {
-            if (!pageState.SelectedRepositories.Contains(repository))
-            {
-                pageState.SelectedRepositories.Add(repository);
-            }
-        }
-        else
-        {
-            pageState.SelectedRepositories.Remove(repository);
-        }
-        StateHasChanged();
-    }
+    private IEnumerable<GitHubUserRepositoryDto> _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
+    private string _repoFilterText = string.Empty;
+
+    private IEnumerable<GitHubUserRepositoryDto> FilteredGitHubRepos =>
+        string.IsNullOrWhiteSpace(_repoFilterText)
+            ? pageState.GitHubUserRepositories
+            : pageState.GitHubUserRepositories
+                .Where(r => r.FullName.Contains(_repoFilterText, StringComparison.OrdinalIgnoreCase));
 
     private void SelectAllRepositories()
     {
-        pageState.SelectedRepositories.Clear();
-        foreach (var repo in pageState.GitHubUserRepositories)
-        {
-            pageState.SelectedRepositories.Add(repo);
-        }
+        _selected = pageState.GitHubUserRepositories;
         StateHasChanged();
     }
 
     private void ClearAllSelections()
     {
-        pageState.SelectedRepositories.Clear();
+        _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
         StateHasChanged();
     }
 
     private async Task AddSelectedRepositories()
     {
-        if (pageState.IsAddingRepository || !pageState.SelectedRepositories.Any()) return;
+        if (pageState.IsAddingRepository || !_selected.Any()) return;
         
         pageState.IsAddingRepository = true;
         pageState.ClearMessages();
@@ -249,10 +200,9 @@
         try
         {
             Logger.LogInformation("=== START AddSelectedRepositories ===");
-            Logger.LogInformation("Number of selected repositories: {Count}", pageState.SelectedRepositories.Count);
+            Logger.LogInformation("Number of selected repositories: {Count}", _selected.Count());
             
-            // Log each selected repository
-            var selectedList = pageState.SelectedRepositories.ToList();
+            var selectedList = _selected.ToList();
             for (int i = 0; i < selectedList.Count; i++)
             {
                 var repo = selectedList[i];
@@ -261,13 +211,19 @@
             }
             
             // Step 1: Prepare repository data (25%)
-            pageState.SetProgress($"Preparing {pageState.SelectedRepositories.Count} repositories...", 25);
+            pageState.SetProgress($"Preparing {_selected.Count()} repositories...", 25);
             StateHasChanged();
             await Task.Delay(300);
 
-            var repositoriesToAdd = pageState.SelectedRepositories.Select(repo =>
+            var repositoriesToAdd = _selected.Select(repo =>
             {
-                var fullNameParts = repo.FullName.Split('/');
+                // #9 fix: guard against FullName missing '/' to avoid IndexOutOfRangeException
+                var fullNameParts = repo.FullName.Split('/', 2);
+                if (fullNameParts.Length < 2)
+                {
+                    Logger.LogWarning("Unexpected FullName format '{FullName}' — expected 'owner/repo'", repo.FullName);
+                    return new BulkRepositoryDto { Owner = repo.FullName, RepoName = repo.Name, CloneUrl = repo.CloneUrl };
+                }
                 Logger.LogInformation("Splitting FullName '{FullName}' into Owner='{Owner}' and RepoName='{RepoName}'",
                     repo.FullName, fullNameParts[0], fullNameParts[1]);
                     
@@ -329,12 +285,13 @@
                 StateHasChanged();
                 await Task.Delay(1000);
 
-                pageState.AddRepoMessage = $"{addedRepos?.Count ?? pageState.SelectedRepositories.Count} repositories added successfully! Analysis will begin automatically.";
-                pageState.SelectedRepositories.Clear(); // Clear selections
+                pageState.AddRepoMessage = $"{addedRepos?.Count ?? _selected.Count()} repositories added successfully! Analysis will begin automatically.";
+                _selected = Enumerable.Empty<GitHubUserRepositoryDto>(); // Clear selections
                 
-                // Navigate back to home page (repositories page)
-                Logger.LogInformation("Navigating to repositories page...");
+                // Close dialog (if open) or navigate back to repositories page
+                Logger.LogInformation("Closing dialog / navigating to repositories page...");
                 await Task.Delay(1500); // Brief delay to show success message
+                DialogService.Close(true); // closes dialog when opened as dialog
                 Navigation.NavigateTo("/repositories");
             }
             else
@@ -384,130 +341,3 @@
     }
 }
 
-<style>
-    /* Repository List Container - Fixed height with scroll */
-    .repository-list-container {
-        max-height: 500px;
-        overflow-y: auto;
-        overflow-x: hidden;
-        background-color: var(--bg-secondary, #f8f9fa);
-    }
-    
-    /* Individual Repository Item */
-    .repository-item {
-        display: flex;
-        align-items: flex-start;
-        padding: 0.75rem;
-        border-bottom: 1px solid var(--border-light, #dee2e6);
-        transition: background-color 0.2s ease;
-        gap: 0.75rem;
-    }
-    
-    .repository-item:hover {
-        background-color: rgba(0, 123, 255, 0.05);
-    }
-    
-    .repository-item.selected {
-        background-color: rgba(0, 123, 255, 0.1);
-    }
-    
-    .repository-item:last-child {
-        border-bottom: none;
-    }
-    
-    /* Checkbox styling */
-    .repository-checkbox {
-        flex-shrink: 0;
-        margin-top: 0.25rem;
-        cursor: pointer;
-        width: 1.2rem;
-        height: 1.2rem;
-    }
-    
-    /* Label takes up remaining space */
-    .repository-label {
-        flex-grow: 1;
-        margin-bottom: 0;
-        cursor: pointer;
-        width: 100%;
-        overflow: hidden;
-    }
-    
-    /* Main info container */
-    .repo-main-info {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 1rem;
-        width: 100%;
-    }
-    
-    /* Name and description */
-    .repo-name-desc {
-        flex: 1;
-        min-width: 0; /* Allow text truncation */
-        overflow: hidden;
-    }
-    
-    .repo-name-desc strong {
-        display: block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    
-    .repo-description {
-        display: block;
-        margin-top: 0.25rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        white-space: normal;
-    }
-    
-    /* Badges container */
-    .repo-badges {
-        flex-shrink: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        align-items: flex-end;
-    }
-    
-    /* Responsive adjustments */
-    @@media (max-width: 768px) {
-        .repo-main-info {
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        
-        .repo-badges {
-            flex-direction: row;
-            align-items: flex-start;
-        }
-        
-        .repository-list-container {
-            max-height: 400px;
-        }
-    }
-    
-    /* Smooth scrollbar styling */
-    .repository-list-container::-webkit-scrollbar {
-        width: 8px;
-    }
-    
-    .repository-list-container::-webkit-scrollbar-track {
-        background: var(--bg-tertiary, #f1f3f5);
-    }
-    
-    .repository-list-container::-webkit-scrollbar-thumb {
-        background: var(--border-medium, #cbd5e1);
-        border-radius: 4px;
-    }
-    
-    .repository-list-container::-webkit-scrollbar-thumb:hover {
-        background: var(--border-dark, #94a3b8);
-    }
-</style>

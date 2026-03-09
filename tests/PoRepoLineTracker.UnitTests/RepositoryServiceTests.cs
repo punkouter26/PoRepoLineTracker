@@ -1,86 +1,68 @@
 using FluentAssertions;
-using MediatR;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using PoRepoLineTracker.Application.Features.Repositories.Commands;
 using PoRepoLineTracker.Application.Interfaces;
-using PoRepoLineTracker.Application.Services;
 using PoRepoLineTracker.Domain.Models;
-using Xunit;
 
 namespace PoRepoLineTracker.UnitTests;
 
-public class RepositoryServiceTests
+/// <summary>
+/// Tests for AddRepositoryCommandHandler to ensure a repository is persisted
+/// and the correct entity is returned.
+/// </summary>
+public class AddRepositoryCommandHandlerTests
 {
-    private readonly IMediator _mockMediator;
-    private readonly IRepositoryDataService _mockRepositoryDataService;
-    private readonly ILogger<RepositoryService> _mockLogger;
-    private readonly RepositoryService _repositoryService;
+    private readonly IRepositoryDataService _dataService = Substitute.For<IRepositoryDataService>();
+    private readonly ILogger<AddRepositoryCommandHandler> _logger = Substitute.For<ILogger<AddRepositoryCommandHandler>>();
+    private readonly AddRepositoryCommandHandler _sut;
 
-    public RepositoryServiceTests()
+    public AddRepositoryCommandHandlerTests()
     {
-        _mockMediator = Substitute.For<IMediator>();
-        _mockRepositoryDataService = Substitute.For<IRepositoryDataService>();
-        _mockLogger = Substitute.For<ILogger<RepositoryService>>();
-        _repositoryService = new RepositoryService(_mockMediator, _mockRepositoryDataService, _mockLogger);
+        _sut = new AddRepositoryCommandHandler(_dataService, _logger);
     }
 
     [Fact]
-    public async Task AddRepositoryAsync_ShouldAddRepositoryToDataService()
+    public async Task Handle_ValidCommand_PersistsRepositoryAndReturnsIt()
     {
         // Arrange
-        var owner = "testowner";
-        var repoName = "testrepo";
-        var cloneUrl = "https://github.com/testowner/testrepo.git";
-        var expectedRepo = new GitHubRepository
-        {
-            Owner = owner,
-            Name = repoName,
-            CloneUrl = cloneUrl
-        };
-
-        _mockMediator.Send(Arg.Any<AddRepositoryCommand>(), Arg.Any<CancellationToken>())
-            .Returns(expectedRepo);
+        var userId = Guid.NewGuid();
+        var command = new AddRepositoryCommand("testowner", "testrepo", "https://github.com/testowner/testrepo.git", userId);
 
         // Act
-        var result = await _repositoryService.AddRepositoryAsync(owner, repoName, cloneUrl);
+        var result = await _sut.Handle(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
-        result.Owner.Should().Be(owner);
-        result.Name.Should().Be(repoName);
-        result.CloneUrl.Should().Be(cloneUrl);
+        result.Owner.Should().Be("testowner");
+        result.Name.Should().Be("testrepo");
+        result.CloneUrl.Should().Be("https://github.com/testowner/testrepo.git");
+        result.UserId.Should().Be(userId);
+        result.Id.Should().NotBeEmpty();
 
-        await _mockMediator.Received(1).Send(
-            Arg.Is<AddRepositoryCommand>(cmd =>
-                cmd.Owner == owner &&
-                cmd.RepoName == repoName &&
-                cmd.CloneUrl == cloneUrl),
-            Arg.Any<CancellationToken>());
+        await _dataService.Received(1).AddRepositoryAsync(
+            Arg.Is<GitHubRepository>(r =>
+                r.Owner == "testowner" &&
+                r.Name == "testrepo" &&
+                r.CloneUrl == "https://github.com/testowner/testrepo.git" &&
+                r.UserId == userId));
     }
 
     [Fact]
-    public async Task AnalyzeRepositoryCommitsAsync_ShouldAnalyzeAndSaveCommits()
+    public async Task Handle_WhenDataServiceThrows_ExceptionPropagates()
     {
         // Arrange
-        var repoId = Guid.NewGuid();
-        var lastAnalyzedDate = DateTime.UtcNow.AddDays(-7);
-        var repo = new GitHubRepository
-        {
-            Id = repoId,
-            Owner = "testowner",
-            Name = "testrepo",
-            CloneUrl = "https://github.com/testowner/testrepo.git",
-            LastAnalyzedCommitDate = lastAnalyzedDate
-        };
+        var command = new AddRepositoryCommand("owner", "repo", "https://github.com/owner/repo.git", Guid.NewGuid());
+        _dataService
+            .When(s => s.AddRepositoryAsync(Arg.Any<GitHubRepository>()))
+            .Do(_ => throw new InvalidOperationException("Storage unavailable"));
 
         // Act
-        await _repositoryService.AnalyzeRepositoryCommitsAsync(repoId);
+        var act = async () => await _sut.Handle(command, CancellationToken.None);
 
         // Assert
-        await _mockMediator.Received(1).Send(
-            Arg.Is<AnalyzeRepositoryCommitsCommand>(cmd => cmd.RepositoryId == repoId),
-            Arg.Any<CancellationToken>());
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Storage unavailable");
     }
 }
 

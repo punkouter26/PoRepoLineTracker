@@ -34,6 +34,11 @@ public interface IFailedOperationService
     Task DeleteFailedOperationAsync(Guid id);
 
     /// <summary>
+    /// Gets all failed operations across all repositories
+    /// </summary>
+    Task<IEnumerable<FailedOperation>> GetAllFailedOperationsAsync();
+
+    /// <summary>
     /// Gets all failed operations that are ready for retry
     /// </summary>
     Task<IEnumerable<FailedOperation>> GetRetryableOperationsAsync(int maxRetryCount = 3);

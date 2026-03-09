@@ -1,0 +1,32 @@
+C4Context
+  title System Context — PoRepoLineTracker
+
+  Person(user, "Developer", "Authenticated via GitHub OAuth")
+
+  System_Boundary(azure, "Azure Cloud") {
+    System(app, "PoRepoLineTracker App Service", "Blazor WASM + .NET 10 API\nLinux App Service (B1/S1)")
+    SystemDb(storage, "Azure Table Storage", "Repositories, CommitLineCounts,\nFailedOperations, Users")
+    System(kv, "Azure Key Vault", "GitHub ClientSecret, PAT,\nApp Insights connection string")
+    System(ai, "Application Insights", "Telemetry, structured logs,\nOpenTelemetry traces")
+    System(la, "Log Analytics Workspace", "Log aggregation & queries")
+    System(shared, "PoShared Resource Group", "Shared App Service Plan,\nKey Vault, App Insights,\nLog Analytics")
+  }
+
+  System_Ext(github, "GitHub API", "OAuth 2.0 login\nRepository listing\nClone URLs")
+
+  Rel(user, app, "HTTPS", "Browser")
+  Rel(app, github, "HTTPS", "OAuth token exchange\n+ repo metadata")
+  Rel(app, storage, "Azure SDK", "CRUD via TableClient")
+  Rel(app, kv, "Managed Identity", "Secret retrieval at startup")
+  Rel(app, ai, "OTLP / Serilog sink", "Traces + logs")
+  Rel(ai, la, "Workspace-based", "Log forwarding")
+  Rel(app, shared, "References", "Shared infra resources")
+
+  UpdateElementStyle(user, $fontColor="#000", $bgColor="#dae8fc", $borderColor="#6c8ebf")
+  UpdateElementStyle(app, $fontColor="#fff", $bgColor="#6750A4", $borderColor="#4a3575")
+  UpdateElementStyle(storage, $fontColor="#fff", $bgColor="#0078d4", $borderColor="#005a9e")
+  UpdateElementStyle(kv, $fontColor="#fff", $bgColor="#107c41", $borderColor="#0a5c30")
+  UpdateElementStyle(ai, $fontColor="#fff", $bgColor="#ca5010", $borderColor="#9e3c0a")
+  UpdateElementStyle(la, $fontColor="#fff", $bgColor="#8764b8", $borderColor="#5e3b8a")
+  UpdateElementStyle(github, $fontColor="#fff", $bgColor="#24292e", $borderColor="#000")
+  UpdateElementStyle(shared, $fontColor="#fff", $bgColor="#374649", $borderColor="#1a2426")

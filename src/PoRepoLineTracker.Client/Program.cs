@@ -17,9 +17,6 @@ builder.Services.AddScoped<ApiAuthenticationStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<ApiAuthenticationStateProvider>());
 builder.Services.AddAuthorizationCore();
 
-// Add client-side logging service
-builder.Services.AddScoped<ClientLogger>();
-
 // Add Radzen services with Material3 theme
 builder.Services.AddScoped<DialogService>();
 builder.Services.AddScoped<NotificationService>();
