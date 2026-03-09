@@ -379,6 +379,18 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Azure log downloads (Kudu diagnostics)
+app_logs.zip
+app_logs_out/
+docker_logs.zip
+docker_logs_out/
+
+# ASP.NET Data Protection keys (runtime-generated, must not be in source control)
+src/dataprotection-keys/
+
+# Generated ARM JSON from Bicep (compiled artifact)
+infra/main.json
+
 # content below from: https://github.com/github/gitignore/blob/master/Global/Windows.gitignore
 # Windows thumbnail cache files
 Thumbs.db

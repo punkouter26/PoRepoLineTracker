@@ -34,6 +34,22 @@ jobs:
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
 
-      - name: Deploy to Azure App Service
-        run: azd up --no-prompt
+      - name: Provision Infrastructure (creates ACR, App Service, etc.)
+        run: azd provision --no-prompt
+
+      - name: Build and Push Docker Image to ACR
+        # az acr build runs the Docker build in the cloud (no local Docker daemon needed).
+        # The ACR name is derived from the uniqueString-generated name in resources.bicep.
+        run: |
+          $acrName = az acr list --resource-group PoRepoLineTracker --query "[0].name" -o tsv
+          Write-Host "Building image in ACR: $acrName" -ForegroundColor Cyan
+          az acr build `
+            --registry $acrName `
+            --image api:latest `
+            --file src/PoRepoLineTracker.Api/Dockerfile `
+            .
+        shell: pwsh
+
+      - name: Restart App Service to pull new image
+        run: az webapp restart --name app-porepolinetracker --resource-group PoRepoLineTracker
         

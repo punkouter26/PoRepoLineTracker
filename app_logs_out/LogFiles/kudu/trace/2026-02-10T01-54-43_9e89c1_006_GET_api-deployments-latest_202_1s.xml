@@ -1,9 +1,0 @@
-<step title="Incoming Request" date="2026-02-10T01:54:43.968" instance="9e89c1" url="/api/deployments/latest?deployer=Push-Deployer&amp;time=2026-02-10_01-54-43Z" method="GET" type="request" pid="855,1,7" Host="app-porepolinetracker.scm.azurewebsites.net" User-Agent="azsdk-go-zip-deploy/1.0.0 (go1.25.0 X:loopvar; linux),azdev/1.23.3 (Go go1.25.0 X:loopvar; linux/amd64) GhActions" Accept-Encoding="gzip" Authorization="Bea..." x-ms-correlation-request-id="f72b636da0d966f30b2fff767e3e5b13" X-ARR-LOG-ID="f72b636d-a0d9-66f3-0b2f-ff767e3e5b13" CLIENT-IP="13.83.160.133:46784" X-SITE-DEPLOYMENT-ID="app-porepolinetracker" WAS-DEFAULT-HOSTNAME="app-porepolinetracker.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/deployments/latest?deployer=Push-Deployer&amp;time=2026-02-10_01-54-43Z" X-Client-IP="13.83.160.133" X-Client-Port="46784" >
-  <step title="Cleanup Xml Logs" date="2026-02-10T01:54:43.993" /><!-- duration: 15ms -->
-  <step title="DeploymentService.GetResult" date="2026-02-10T01:54:44.053" >
-    <step title="DeploymentService.GetLatestDeployment" date="2026-02-10T01:54:44.057" >
-      <step title="DeploymentManager.GetResults" date="2026-02-10T01:54:44.061" /><!-- duration: 357ms -->
-    </step><!-- duration: 369ms -->
-  </step><!-- duration: 377ms -->
-  <step title="Outgoing response" date="2026-02-10T01:54:44.465" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 6ms -->
-</step><!-- duration: 507ms -->
