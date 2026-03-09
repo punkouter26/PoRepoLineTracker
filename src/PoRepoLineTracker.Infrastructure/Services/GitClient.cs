@@ -1,32 +1,55 @@
 using LibGit2Sharp;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.Infrastructure.Interfaces;
+using System.Diagnostics;
 
 namespace PoRepoLineTracker.Infrastructure.Services
 {
     public class GitClient : IGitClient
     {
-        public GitClient(IConfiguration configuration)
+        private readonly ILogger<GitClient> _logger;
+
+        public GitClient(IConfiguration configuration, ILogger<GitClient> logger)
         {
-            // No longer store PAT - tokens are passed per-request
+            _logger = logger;
         }
 
         public string Clone(string repoUrl, string localPath, string? accessToken = null)
         {
-            var cloneOptions = new CloneOptions();
-
-            // Configure credentials using access token for private repositories
+            // Build authenticated URL without logging the token
+            string cloneUrl = repoUrl;
             if (!string.IsNullOrEmpty(accessToken))
             {
-                cloneOptions.FetchOptions.CredentialsProvider = (url, usernameFromUrl, types) =>
-                    new UsernamePasswordCredentials
-                    {
-                        Username = accessToken, // For GitHub, the token is used as the username
-                        Password = string.Empty // Password is empty when using token
-                    };
+                var uri = new Uri(repoUrl);
+                cloneUrl = $"https://{accessToken}@{uri.Host}{uri.AbsolutePath}";
             }
 
-            return Repository.Clone(repoUrl, localPath, cloneOptions);
+            _logger.LogInformation("Cloning repository {RepoUrl} to {LocalPath} via git CLI", repoUrl, localPath);
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = $"clone \"{cloneUrl}\" \"{localPath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi)!;
+            var stderr = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            if (process.ExitCode != 0)
+            {
+                var safeError = stderr.Replace(accessToken ?? string.Empty, "***");
+                _logger.LogError("git clone failed (exit {Code}): {Error}", process.ExitCode, safeError);
+                throw new InvalidOperationException($"git clone failed (exit {process.ExitCode}): {safeError}");
+            }
+
+            _logger.LogInformation("Successfully cloned to {LocalPath}", localPath);
+            return localPath;
         }
 
         public void Pull(string localPath, string? accessToken = null)

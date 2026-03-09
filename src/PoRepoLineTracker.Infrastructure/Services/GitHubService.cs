@@ -152,9 +152,7 @@ public class GitHubService : IGitHubService
                 return lineCounts;
             }
 
-            // Checkout the specific commit to count lines
-            _gitClient.Checkout(repo, commit); // Use IGitClient
-
+            // Read directly from the git object store (no working-tree checkout needed)
             if (commit.Tree != null)
             {
                 // Use a recursive function to traverse the tree
