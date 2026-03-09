@@ -458,7 +458,10 @@
             if (lineCountHistory == null || !lineCountHistory.Any())
             {
                 Logger.LogWarning("No line count history returned for repository {RepositoryId}", repositoryId);
-                chartErrorMessage = "No line count history available for the last 365 days.";
+                var repo = pageState.Repositories.FirstOrDefault(r => r.Id == repositoryId);
+                chartErrorMessage = repo?.LastAnalyzedCommitDate == null
+                    ? "This repository has not been analyzed yet. Use the Analyze button to start tracking line counts."
+                    : "No line count history available for the last 365 days.";
             }
             else
             {

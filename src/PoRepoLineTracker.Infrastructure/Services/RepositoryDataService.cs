@@ -339,13 +339,15 @@ public class RepositoryDataService : IRepositoryDataService
 
         _logger.LogInformation("Found {Count} commits within the last {Days} days for repository {RepositoryId}.", filteredCommits.Count, days, repositoryId);
 
-        // Group commits by date and aggregate the data
+        // Group commits by date and aggregate the data.
+        // TotalLines is a per-commit snapshot of the entire repo at that point, so use the
+        // last commit of each day (highest CommitDate) rather than summing all snapshots.
         var dailyData = filteredCommits
             .GroupBy(c => c.CommitDate.Date)
             .Select(g => new DailyLineCountDto
             {
                 Date = g.Key,
-                TotalLines = g.Sum(c => c.TotalLines),
+                TotalLines = g.OrderByDescending(c => c.CommitDate).First().TotalLines,
                 TotalLinesAdded = g.Sum(c => c.LinesAdded),
                 TotalLinesDeleted = g.Sum(c => c.LinesRemoved),
                 TotalLinesChanged = g.Sum(c => c.LinesAdded + c.LinesRemoved),

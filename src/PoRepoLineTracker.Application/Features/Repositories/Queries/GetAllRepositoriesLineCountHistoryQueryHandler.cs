@@ -34,6 +34,8 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Queries
                     .Select(g => new DailyLineCountDto
                     {
                         Date = g.Key,
+                        // TotalLines is a per-commit snapshot; use the last commit of the day
+                        TotalLines = g.OrderByDescending(clc => clc.CommitDate).First().TotalLines,
                         TotalLinesAdded = g.Sum(clc => clc.LinesAdded),
                         TotalLinesDeleted = g.Sum(clc => clc.LinesRemoved),
                         TotalLinesChanged = g.Sum(clc => clc.LinesAdded + clc.LinesRemoved)
