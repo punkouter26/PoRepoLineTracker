@@ -28,6 +28,9 @@ param appServicePlanSkuTier string = 'B1'
 @description('SKU name for the App Service Plan (Basic or Standard)')
 param appServicePlanSkuName string = 'B1'
 
+@description('Name of the Azure Container Registry (globally unique, alphanumeric, 5-50 chars)')
+param containerRegistryName string
+
 // ═════════════════════════════════════════════════════════════════════════════════════════
 // IMPORTANT: Shared App Service Plan in PoShared RG must be configured with:
 //   - Linux OS
@@ -45,6 +48,22 @@ param appServicePlanSkuName string = 'B1'
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
   name: storageAccountName
+}
+
+// ─────────────────────────────────────────────
+// Azure Container Registry — stores Docker images built from the Dockerfile
+// App Service pulls images using its system-assigned managed identity (AcrPull role below)
+// ─────────────────────────────────────────────
+
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' = {
+  name: containerRegistryName
+  location: webAppLocation
+  sku: {
+    name: 'Basic'
+  }
+  properties: {
+    adminUserEnabled: false  // Managed identity auth — no admin credentials needed
+  }
 }
 
 // Shared resources in PoShared RG
@@ -95,7 +114,10 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
     serverFarmId: appServicePlan.id
     httpsOnly: true
     siteConfig: {
-      linuxFxVersion: 'DOTNETCORE|10.0'
+      // Docker image built from src/PoRepoLineTracker.Api/Dockerfile (includes git)
+      // azd deploy pushes the image; :latest tag is updated on each deploy
+      linuxFxVersion: 'DOCKER|${containerRegistry.properties.loginServer}/api:latest'
+      acrUseManagedIdentityCreds: true  // Use system-assigned managed identity to pull from ACR
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       appSettings: [
@@ -146,8 +168,27 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
           name: 'ASPNETCORE_URLS'
           value: 'http://+:8080'
         }
+        {
+          name: 'DOCKER_REGISTRY_SERVER_URL'
+          value: 'https://${containerRegistry.properties.loginServer}'
+        }
       ]
     }
+  }
+}
+
+// ─────────────────────────────────────────────
+// AcrPull role: lets the App Service managed identity pull images from ACR
+// Role definition ID 7f951dda-4ed3-4680-a7ca-43fe172d538d = AcrPull (built-in)
+// ─────────────────────────────────────────────
+
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(containerRegistry.id, webApp.id, '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+  scope: containerRegistry
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+    principalId: webApp.identity.principalId
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -179,3 +220,6 @@ output logAnalyticsId string = logAnalytics.id
 
 @description('Web App managed identity principal ID (use to grant Key Vault access)')
 output webAppPrincipalId string = webApp.identity.principalId
+
+@description('Azure Container Registry login server (e.g. crporepo12345.azurecr.io)')
+output containerRegistryLoginServer string = containerRegistry.properties.loginServer
