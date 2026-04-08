@@ -468,6 +468,14 @@ LocalRepos/
 .potune-state.json
 TESTRESULTS/
 __azurite_db_*.json
+
+# Environment variable files (may contain secrets)
+.env
+.env.*
+!.env.example
+
+# Playwright-generated E2E screenshots (test run artifacts)
+tests/**/**/screenshot_*.png
 AzuriteConfig
 __blobstorage__/
 __queuestorage__/
