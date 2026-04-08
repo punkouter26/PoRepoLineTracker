@@ -74,7 +74,7 @@ jobs:
           Compress-Archive -Path "$Env:PUBLISH_OUTPUT_DIR/*" -DestinationPath "$Env:PUBLISH_PACKAGE_PATH"
 
       - name: Deploy published app to App Service
-        run: az webapp deploy --resource-group "$APP_RESOURCE_GROUP" --name "$APP_SERVICE_NAME" --src-path "$PUBLISH_PACKAGE_PATH" --type zip --clean true --restart true
+        run: az webapp deploy --resource-group "$APP_RESOURCE_GROUP" --name "$APP_SERVICE_NAME" --src-path "$PUBLISH_PACKAGE_PATH" --type zip --clean true --restart true --async true
 
       - name: Verify deployed health endpoint
         shell: pwsh
@@ -91,7 +91,7 @@ jobs:
 
           $healthUrl = "https://$hostName/health"
 
-          for ($attempt = 1; $attempt -le 12; $attempt++) {
+          for ($attempt = 1; $attempt -le 18; $attempt++) {
             try {
               $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 30
               Write-Host "Health response: $($response.Content)"
@@ -105,7 +105,7 @@ jobs:
               Write-Host "Health check attempt $attempt failed: $($_.Exception.Message)" -ForegroundColor Yellow
             }
 
-            if ($attempt -lt 12) {
+            if ($attempt -lt 18) {
               Start-Sleep -Seconds 10
             }
           }
