@@ -81,6 +81,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IFailedOperationService, PoRepoLineTracker.Infrastructure.Services.FailedOperationService>();
         services.AddHostedService<PoRepoLineTracker.Infrastructure.Services.FailedOperationBackgroundService>();
 
+        // Singleton: tracks live analysis progress across background Task.Run jobs
+        services.AddSingleton<IAnalysisProgressService, PoRepoLineTracker.Application.Services.AnalysisProgressService>();
+
         services.AddScoped<IGitHubService>(sp => new PoRepoLineTracker.Infrastructure.Services.GitHubService(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("GitHubClient"),
             sp.GetRequiredService<IConfiguration>(),

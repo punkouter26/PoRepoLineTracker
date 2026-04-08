@@ -337,5 +337,30 @@ internal static class RepositoryEndpoints
         })
         .RequireAuthorization()
         .WithName("GetTopFiles");
+
+        // Analysis progress endpoint — returns live step/commit progress for an active analysis job.
+        // Ownership check: only the owning user may read progress for their repo.
+        app.MapGet("/api/repositories/{repositoryId}/analysis-progress", async (Guid repositoryId, HttpContext ctx, IRepositoryDataService repoDataService, PoRepoLineTracker.Application.Interfaces.IAnalysisProgressService progressService) =>
+        {
+            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                return Results.Unauthorized();
+
+            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
+            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
+            if (existing.UserId != userId)
+            {
+                Log.Warning("IDOR attempt: user {UserId} tried to read analysis-progress for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
+                return Results.Forbid();
+            }
+
+            var progress = progressService.GetProgress(repositoryId);
+            if (progress == null)
+                return Results.NotFound(new { message = "No active or recent analysis job found for this repository." });
+
+            return Results.Ok(progress);
+        })
+        .RequireAuthorization()
+        .WithName("GetRepositoryAnalysisProgress");
     }
 }

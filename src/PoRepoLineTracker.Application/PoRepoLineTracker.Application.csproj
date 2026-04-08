@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PoRepoLineTracker.Domain\PoRepoLineTracker.Domain.csproj" />
+    <ProjectReference Include="..\PoRepoLineTracker.Shared\PoRepoLineTracker.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -16,6 +16,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
         private readonly IFailedOperationService _failedOperationService;
         private readonly IUserService _userService;
         private readonly IUserPreferencesService _userPreferencesService;
+        private readonly IAnalysisProgressService _progressService;
         private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
 
         // #10 fix: per-repository semaphore prevents git Checkout() race conditions on shared local path
@@ -27,6 +28,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
             IFailedOperationService failedOperationService,
             IUserService userService,
             IUserPreferencesService userPreferencesService,
+            IAnalysisProgressService progressService,
             ILogger<AnalyzeRepositoryCommitsCommandHandler> logger)
         {
             _gitHubService = gitHubService;
@@ -34,6 +36,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
             _failedOperationService = failedOperationService;
             _userService = userService;
             _userPreferencesService = userPreferencesService;
+            _progressService = progressService;
             _logger = logger;
         }
 
@@ -67,6 +70,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
             if (repository == null)
             {
                 _logger.LogWarning("Repository with ID {RepositoryId} not found", request.RepositoryId);
+                _progressService.ReportError(request.RepositoryId, "Repository not found.");
                 return Unit.Value;
             }
 
@@ -90,7 +94,11 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
 
             try
             {
-                // Clone or pull the repository.
+                // ── Step 1: Clone or pull the repository ─────────────────────────────────
+                _progressService.ReportStep(request.RepositoryId, 1, "Cloning",
+                    $"Step 1/4 — Cloning/pulling {repository.Owner}/{repository.Name}");
+                _logger.LogInformation("[Step 1/4] Clone/pull for repository {RepositoryId}", request.RepositoryId);
+
                 // Always derive a stable local path from the repo ID so we can re-clone safely
                 // after an Azure App Service container restart (ephemeral filesystem).
                 var localPath = string.IsNullOrEmpty(repository.LocalPath)
@@ -129,11 +137,18 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                     ? await _userPreferencesService.GetFileExtensionsAsync(repository.UserId)
                     : UserPreferences.DefaultFileExtensions;
 
+                // ── Step 2: Fetch all commit stats ────────────────────────────────────────
+                _progressService.ReportStep(request.RepositoryId, 2, "Fetching",
+                    $"Step 2/4 — Fetching commit history for {repository.Owner}/{repository.Name}");
+                _logger.LogInformation("[Step 2/4] Fetching commit stats for repository {RepositoryId}", request.RepositoryId);
+
                 // Get commit stats from all time (use a date far in the past to get all commits)
                 var sinceDate = DateTime.UtcNow.AddYears(-50); // Get all commits from the repository's entire history
                 _logger.LogInformation("Fetching all commit stats for repository {RepositoryId} (since {SinceDate})", request.RepositoryId, sinceDate);
                 var commitStats = await _gitHubService.GetCommitStatsAsync(localPath, sinceDate);
-                _logger.LogInformation("Found {CommitCount} commits to analyze for repository {RepositoryId}", commitStats.Count(), request.RepositoryId);
+                var commitStatsList = commitStats.ToList();
+                _logger.LogInformation("Found {CommitCount} commits to analyze for repository {RepositoryId}", commitStatsList.Count, request.RepositoryId);
+                _progressService.ReportCommitsFound(request.RepositoryId, commitStatsList.Count);
 
                 // #3 fix: pre-load ALL existing commits in one query so the loop never re-fetches per-SHA
                 Dictionary<string, CommitLineCount>? existingCommitsBySha = null;
@@ -145,8 +160,14 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                     _logger.LogDebug("Pre-loaded {Count} existing commits for repository {RepositoryId}", existingCommitsBySha.Count, request.RepositoryId);
                 }
 
+                // ── Step 3: Process each commit ───────────────────────────────────────────
+                _progressService.ReportStep(request.RepositoryId, 3, "Processing",
+                    $"Step 3/4 — Processing {commitStatsList.Count} commits");
+                _logger.LogInformation("[Step 3/4] Processing commits for repository {RepositoryId}", request.RepositoryId);
+
+                int processedCount = 0;
                 // Process each commit
-                foreach (var commitStat in commitStats)
+                foreach (var commitStat in commitStatsList)
                 {
                     bool shouldProcessCommit = false;
                     CommitLineCount? existingCommit = null;
@@ -207,6 +228,13 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                         await _repositoryDataService.AddCommitLineCountAsync(commitLineCount);
                         _logger.LogDebug("Processed commit {CommitSha} with {TotalLines} lines (Added: {LinesAdded}, Removed: {LinesRemoved})",
                             commitStat.Sha, totalLines, commitStat.LinesAdded, commitStat.LinesRemoved);
+
+                        // Report commit progress every 5 commits to avoid excessive updates
+                        processedCount++;
+                        if (processedCount % 5 == 0 || processedCount == commitStatsList.Count)
+                        {
+                            _progressService.ReportCommitProgress(request.RepositoryId, processedCount, commitStatsList.Count);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -248,6 +276,10 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                     }
                 }
 
+                // ── Step 4: Calculate top files ───────────────────────────────────────────
+                _progressService.ReportStep(request.RepositoryId, 4, "Saving",
+                    $"Step 4/4 — Calculating top files for {repository.Owner}/{repository.Name}");
+                _logger.LogInformation("[Step 4/4] Calculating top files for repository ID: {RepositoryId}", request.RepositoryId);
                 // After processing all commits, calculate and store top files
                 _logger.LogInformation("Calculating top files for repository ID: {RepositoryId}", request.RepositoryId);
                 try
@@ -263,19 +295,21 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                 }
 
                 // Update LastAnalyzedCommitDate to the latest commit date so the UI shows "Analyzed"
-                if (commitStats.Any())
+                if (commitStatsList.Any())
                 {
-                    var latestCommitDate = commitStats.Max(c => c.CommitDate);
+                    var latestCommitDate = commitStatsList.Max(c => c.CommitDate);
                     repository.LastAnalyzedCommitDate = latestCommitDate;
                     await _repositoryDataService.UpdateRepositoryAsync(repository);
                     _logger.LogInformation("Updated LastAnalyzedCommitDate to {Date} for repository {RepositoryId}", latestCommitDate, request.RepositoryId);
                 }
 
+                _progressService.ReportComplete(request.RepositoryId);
                 _logger.LogInformation("Completed analysis for repository ID: {RepositoryId}", request.RepositoryId);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error analyzing repository {RepositoryId}", request.RepositoryId);
+                _progressService.ReportError(request.RepositoryId, ex.Message);
                 throw; // Re-throw to let the API handle the error
             }
 
