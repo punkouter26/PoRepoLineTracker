@@ -13,8 +13,6 @@ var logAnalyticsName = 'PoShared-LogAnalytics'  // Shared Log Analytics in PoSha
 var webAppName = 'app-porepolinetracker'  // App Service in PoRepoLineTracker RG
 var appServicePlanName = 'asp-poshared-linux'  // Shared Linux App Service Plan in PoShared RG
 var keyVaultName = 'kv-poshared'  // Existing Key Vault in PoShared RG
-// ACR name: 5-50 alphanumeric lowercase, globally unique via uniqueString scoped to the RG
-var containerRegistryName = 'crporepo${uniqueString(subscription().subscriptionId)}'
 
 // Reference the app resource group (must already exist or be created separately)
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -35,7 +33,6 @@ module resources 'resources.bicep' = {
     appServicePlanName: appServicePlanName
     keyVaultName: keyVaultName
     sharedResourceGroupName: sharedResourceGroupName
-    containerRegistryName: containerRegistryName
   }
 }
 
@@ -54,6 +51,3 @@ output APPLICATIONINSIGHTS_CONNECTION_STRING string = resources.outputs.appInsig
 
 @description('Public URL of the deployed application')
 output SERVICE_API_URL string = resources.outputs.webAppUrl
-
-@description('Azure Container Registry login server for Docker image pushes')
-output AZURE_CONTAINER_REGISTRY_ENDPOINT string = resources.outputs.containerRegistryLoginServer

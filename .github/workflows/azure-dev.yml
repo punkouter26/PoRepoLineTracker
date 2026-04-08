@@ -26,9 +26,16 @@ jobs:
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
       APP_RESOURCE_GROUP: PoRepoLineTracker
       APP_SERVICE_NAME: app-porepolinetracker
+      PUBLISH_OUTPUT_DIR: ${{ github.workspace }}/publish-output
+      PUBLISH_PACKAGE_PATH: ${{ github.workspace }}/appservice-package.zip
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
 
       - name: Install azd
         uses: Azure/setup-azd@v2
@@ -51,20 +58,25 @@ jobs:
       - name: Provision Infrastructure (creates ACR, App Service, etc.)
         run: azd provision --no-prompt
 
-      - name: Build and Push Docker Image to ACR
-        # az acr build runs the Docker build in the cloud (no local Docker daemon needed).
-        # The ACR name is derived from the uniqueString-generated name in resources.bicep.
-        run: |
-          $acrName = az acr list --resource-group "$Env:APP_RESOURCE_GROUP" --query "[0].name" -o tsv
-          Write-Host "Building image in ACR: $acrName" -ForegroundColor Cyan
-          az acr build `
-            --registry $acrName `
-            --image api:latest `
-            --file src/PoRepoLineTracker.Api/Dockerfile `
-            .
-        shell: pwsh
+      - name: Restore dependencies
+        run: dotnet restore ./PoRepoLineTracker.sln
 
-      - name: Restart App Service to pull new image
+      - name: Publish App Service package
+        run: dotnet publish ./src/PoRepoLineTracker.Api/PoRepoLineTracker.Api.csproj --configuration Release --output "$PUBLISH_OUTPUT_DIR"
+
+      - name: Create deployment zip package
+        shell: pwsh
+        run: |
+          if (Test-Path "$Env:PUBLISH_PACKAGE_PATH") {
+            Remove-Item "$Env:PUBLISH_PACKAGE_PATH" -Force
+          }
+
+          Compress-Archive -Path "$Env:PUBLISH_OUTPUT_DIR/*" -DestinationPath "$Env:PUBLISH_PACKAGE_PATH"
+
+      - name: Deploy published app to App Service
+        run: az webapp deploy --resource-group "$APP_RESOURCE_GROUP" --name "$APP_SERVICE_NAME" --src-path "$PUBLISH_PACKAGE_PATH" --type zip --clean true --restart false
+
+      - name: Restart App Service after code deployment
         run: az webapp restart --name "$APP_SERVICE_NAME" --resource-group "$APP_RESOURCE_GROUP"
 
       - name: Verify deployed health endpoint
