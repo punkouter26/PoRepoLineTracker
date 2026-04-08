@@ -90,7 +90,11 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
-      appCommandLine: 'bash /home/site/wwwroot/startup.sh'
+      // startup.sh is deployed in the code package and installs git before starting the app.
+      // The workflow sets this AFTER code deployment to avoid a race condition where
+      // provision restarts the app before startup.sh exists in wwwroot.
+      // DO NOT rely on azd provision alone to set this — run the CI/CD pipeline.
+      appCommandLine: 'dotnet PoRepoLineTracker.Api.dll'
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       appSettings: [

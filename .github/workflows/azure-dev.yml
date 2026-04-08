@@ -77,7 +77,15 @@ jobs:
           Compress-Archive -Path "$Env:PUBLISH_OUTPUT_DIR/*" -DestinationPath "$Env:PUBLISH_PACKAGE_PATH"
 
       - name: Deploy published app to App Service
-        run: az webapp deploy --resource-group "$APP_RESOURCE_GROUP" --name "$APP_SERVICE_NAME" --src-path "$PUBLISH_PACKAGE_PATH" --type zip --clean true --restart true --async true
+        run: az webapp deploy --resource-group "$APP_RESOURCE_GROUP" --name "$APP_SERVICE_NAME" --src-path "$PUBLISH_PACKAGE_PATH" --type zip --clean true --restart false
+
+      - name: Set startup command and restart app
+        run: |
+          az webapp config set \
+            --name "$APP_SERVICE_NAME" \
+            --resource-group "$APP_RESOURCE_GROUP" \
+            --startup-file "bash /home/site/wwwroot/startup.sh"
+          az webapp restart --name "$APP_SERVICE_NAME" --resource-group "$APP_RESOURCE_GROUP"
 
       - name: Verify deployed health endpoint
         shell: pwsh
