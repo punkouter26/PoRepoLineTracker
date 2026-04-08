@@ -1,0 +1,35 @@
+flowchart LR
+    subgraph Ingestion["Ingestion"]
+        UserInput["Login + Repo Selection + Preferences"]
+    end
+
+    subgraph Processing["Processing"]
+        ApiAccept["API Accepts Request"]
+        Analyzer["Background Analyzer"]
+        Recovery["Failure Capture"]
+    end
+
+    subgraph Persistence["Persistence"]
+        Tables["Azure Table Storage"]
+    end
+
+    subgraph Egress["Egress and UI Update"]
+        Query["Client Reads Derived Metrics"]
+        Ui["Dashboard Refresh"]
+    end
+
+    UserInput --> ApiAccept
+    ApiAccept --> Analyzer
+    Analyzer --> Tables
+    Analyzer -. "error" .-> Recovery
+    Recovery --> Tables
+    Tables --> Query
+    Query --> Ui
+
+    style UserInput fill:#111827,stroke:#60a5fa,color:#fff
+    style ApiAccept fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Analyzer fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Recovery fill:#b91c1c,stroke:#fca5a5,color:#fff
+    style Tables fill:#166534,stroke:#86efac,color:#fff
+    style Query fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style Ui fill:#7c3aed,stroke:#c4b5fd,color:#fff

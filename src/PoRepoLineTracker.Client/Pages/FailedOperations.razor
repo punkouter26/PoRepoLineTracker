@@ -17,6 +17,8 @@
         </RadzenStack>
     </div>
 
+    @if (_repositories?.Any() == true || failedOperations.Any())
+    {
     <RadzenCard>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="1rem" Wrap="FlexWrap.Wrap">
             <RadzenStack Gap="0.25rem">
@@ -27,11 +29,11 @@
                                 ValueProperty="@nameof(GitHubRepository.Id)"
                                 Placeholder="All repositories"
                                 Style="width: 300px;"
-                                AllowClear="true"
-                                Change="@(() => StateHasChanged())" />
+                                AllowClear="true" />
             </RadzenStack>
         </RadzenStack>
     </RadzenCard>
+    }
 
     @if (!string.IsNullOrEmpty(errorMessage))
     {

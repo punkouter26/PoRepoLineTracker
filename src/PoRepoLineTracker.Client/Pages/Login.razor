@@ -4,25 +4,48 @@
 @using Radzen
 @using Radzen.Blazor
 
-<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--rz-base-100);">
-    <RadzenCard Style="max-width: 420px; width: 100%; text-align: center; padding: 2.5rem;">
+<div class="login-canvas">
+    <!-- Animated mesh gradient blobs -->
+    <div class="login-blob login-blob-1" aria-hidden="true"></div>
+    <div class="login-blob login-blob-2" aria-hidden="true"></div>
+    <div class="login-blob login-blob-3" aria-hidden="true"></div>
+
+    <RadzenCard class="login-card" Style="max-width: 420px; width: 100%; padding: 2.75rem 2.5rem;">
         <RadzenStack Gap="1.5rem" AlignItems="AlignItems.Center">
-            <span class="brand-icon-wrap">
-                <RadzenIcon Icon="code" Style="font-size: 1.2rem; color: var(--rz-primary);" />
-                <RadzenIcon Icon="trending_up" class="brand-icon-trend" Style="font-size: 0.55rem; color: white;" />
-            </span>
-            <RadzenStack Gap="0.25rem" AlignItems="AlignItems.Center">
-                <RadzenText TextStyle="TextStyle.H4" Style="font-weight: 700; margin: 0;">PoRepoLineTracker</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); max-width: 300px; text-align: center;">
+            <!-- Logomark -->
+            <div class="login-logomark" aria-hidden="true">
+                <span class="login-logomark-icon">
+                    <RadzenIcon Icon="code" Style="font-size: 1.6rem; color: var(--rz-primary);" />
+                </span>
+                <span class="login-logomark-badge">
+                    <RadzenIcon Icon="trending_up" Style="font-size: 0.75rem; color: white;" />
+                </span>
+            </div>
+
+            <RadzenStack Gap="0.35rem" AlignItems="AlignItems.Center">
+                <RadzenText TextStyle="TextStyle.H4" Style="font-weight: 800; margin: 0; letter-spacing: -0.03em;">PoRepoLineTracker</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); text-align: center; max-width: 280px; line-height: 1.5;">
                     Track lines of code across all your GitHub repositories
                 </RadzenText>
             </RadzenStack>
-            <hr style="border: none; border-top: 1px solid var(--rz-border-disabled-color); width: 100%; margin: 0.25rem 0;" />
+
+            <!-- Feature pills -->
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.4rem" Wrap="FlexWrap.Wrap" JustifyContent="JustifyContent.Center">
+                <span class="login-feature-pill"><RadzenIcon Icon="analytics" Style="font-size: 0.8rem;" /> Line trends</span>
+                <span class="login-feature-pill"><RadzenIcon Icon="extension" Style="font-size: 0.8rem;" /> By extension</span>
+                <span class="login-feature-pill"><RadzenIcon Icon="lock" Style="font-size: 0.8rem;" /> Your storage</span>
+            </RadzenStack>
+
+            <hr style="border: none; border-top: 1px solid var(--rz-border-disabled-color); width: 100%; margin: 0;" />
+
             <RadzenButton Text="Sign in with GitHub"
                           Icon="login"
+                          aria-label="Sign in with GitHub"
                           ButtonStyle="ButtonStyle.Primary"
-                          Style="width: 100%; font-size: 1rem; padding: 0.75rem 1.5rem;"
+                          class="login-cta-btn"
+                          Style="width: 100%; font-size: 1rem; padding: 0.8rem 1.5rem; font-weight: 600;"
                           Click="@(() => Navigation.NavigateTo("api/auth/login", forceLoad: true))" />
+
             <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">
                 Your data stays in your own Azure Table Storage
             </RadzenText>

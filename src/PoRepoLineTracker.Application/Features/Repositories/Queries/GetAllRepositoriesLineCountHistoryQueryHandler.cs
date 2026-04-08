@@ -21,14 +21,18 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Queries
 
         public async Task<IEnumerable<RepositoryLineCountHistoryDto>> Handle(GetAllRepositoriesLineCountHistoryQuery request, CancellationToken cancellationToken)
         {
-            var allRepositories = await _repositoryDataService.GetAllRepositoriesAsync(request.UserId);
-            var result = new List<RepositoryLineCountHistoryDto>();
+            var allRepositories = (await _repositoryDataService.GetAllRepositoriesAsync(request.UserId)).ToList();
 
-            foreach (var repo in allRepositories)
+            // Fetch all repos' commit data in parallel — eliminates N sequential Azure Table round-trips
+            var fetchTasks = allRepositories.Select(repo =>
+                _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(repo.Id)
+                    .ContinueWith(t => (repo, commits: t.Result), TaskContinuationOptions.OnlyOnRanToCompletion));
+
+            var results = await Task.WhenAll(fetchTasks);
+
+            return results.Select(r =>
             {
-                var commitLineCounts = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(repo.Id);
-
-                var dailyLineCounts = commitLineCounts
+                var dailyLineCounts = r.commits
                     .Where(clc => clc.CommitDate >= DateTimeOffset.UtcNow.AddDays(-request.Days))
                     .GroupBy(clc => clc.CommitDate.Date)
                     .Select(g => new DailyLineCountDto
@@ -43,16 +47,14 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Queries
                     .OrderBy(dlc => dlc.Date)
                     .ToList();
 
-                result.Add(new RepositoryLineCountHistoryDto
+                return new RepositoryLineCountHistoryDto
                 {
-                    RepositoryId = repo.Id,
-                    RepositoryName = repo.Name,
-                    Owner = repo.Owner,
+                    RepositoryId = r.repo.Id,
+                    RepositoryName = r.repo.Name,
+                    Owner = r.repo.Owner,
                     DailyLineCounts = dailyLineCounts
-                });
-            }
-
-            return result;
+                };
+            });
         }
     }
 }

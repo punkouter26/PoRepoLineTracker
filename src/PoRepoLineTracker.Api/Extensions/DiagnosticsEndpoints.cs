@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
 using Serilog;
-using System.ComponentModel.DataAnnotations;
 
 namespace PoRepoLineTracker.Api.Extensions;
 
@@ -12,41 +12,8 @@ internal static class DiagnosticsEndpoints
 {
     internal static void MapDiagnosticsEndpoints(this WebApplication app)
     {
-        app.MapGet("/health", async (IRepositoryDataService repoDataService, IGitHubService githubService) =>
-        {
-            var checks = new List<object>();
-            var isHealthy = true;
-
-            try
-            {
-                await repoDataService.CheckConnectionAsync();
-                checks.Add(new { Name = "Azure Table Storage", Status = "Healthy" });
-            }
-            catch (Exception ex)
-            {
-                checks.Add(new { Name = "Azure Table Storage", Status = $"Unhealthy: {ex.Message}" });
-                isHealthy = false;
-            }
-
-            try
-            {
-                await githubService.CheckConnectionAsync();
-                checks.Add(new { Name = "GitHub API", Status = "Healthy" });
-            }
-            catch (Exception ex)
-            {
-                checks.Add(new { Name = "GitHub API", Status = $"Unhealthy: {ex.Message}" });
-                isHealthy = false;
-            }
-
-            return Results.Json(new
-            {
-                Status = isHealthy ? "Healthy" : "Unhealthy",
-                Timestamp = DateTime.UtcNow,
-                Checks = checks.ToArray()
-            });
-        })
-        .WithName("HealthCheckSimple");
+        // /health is served by the registered IHealthCheck pipeline via app.MapHealthChecks("/health")
+        // in Program.cs — no custom implementation needed here.
 
         app.MapGet("/diag", (IConfiguration configuration, IWebHostEnvironment env) =>
         {
@@ -80,7 +47,7 @@ internal static class DiagnosticsEndpoints
             });
         })
         .WithName("Diagnostics")
-        .AllowAnonymous();
+        .RequireAuthorization();
     }
 
     internal static void MapDevOnlyEndpoints(this WebApplication app)

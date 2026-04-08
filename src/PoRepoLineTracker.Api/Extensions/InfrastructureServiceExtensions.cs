@@ -77,7 +77,6 @@ public static class InfrastructureServiceExtensions
         // Domain services
         services.AddScoped<PoRepoLineTracker.Infrastructure.Interfaces.IGitClient, PoRepoLineTracker.Infrastructure.Services.GitClient>();
         services.AddScoped<ILineCounter, DefaultLineCounter>();
-        services.AddScoped<ILineCounter, CSharpLineCounter>();
         services.AddScoped<PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter, PoRepoLineTracker.Infrastructure.FileFilters.FileIgnoreFilter>();
         services.AddScoped<IFailedOperationService, PoRepoLineTracker.Infrastructure.Services.FailedOperationService>();
         services.AddHostedService<PoRepoLineTracker.Infrastructure.Services.FailedOperationBackgroundService>();

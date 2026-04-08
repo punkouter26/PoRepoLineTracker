@@ -1,42 +1,50 @@
-@page "/settings/extensions-counted"
 @attribute [Authorize]
 @inject HttpClient Http
 @inject Radzen.NotificationService NotificationService
 @inject Radzen.DialogService DialogService
 @inject ILogger<ExtensionsCounted> Logger
+@inject UserPreferencesClient PreferencesClient
 @using Microsoft.AspNetCore.Authorization
 @using PoRepoLineTracker.Domain.Models
 @using Radzen
 @using Radzen.Blazor
 
 <RadzenStack Gap="1rem">
+    @if (ShowPageHeader)
+    {
     <div class="repo-hero">
     <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
         <RadzenColumn Size="12" SizeMD="6">
             <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">File Extension Settings</RadzenText>
             <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); margin: 0;">Configure which file extensions are counted in line analysis</RadzenText>
         </RadzenColumn>
-        <RadzenColumn Size="12" SizeMD="6" class="rz-text-align-end">
-            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
-                <RadzenButton Text="Reset to Defaults" 
-                              Icon="restore" 
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Outlined"
-                              Size="ButtonSize.Small"
-                              Click="@ResetToDefaults"
-                              Disabled="@(isLoading || isSaving)" />
-                <RadzenButton Text="Save Changes" 
-                              Icon="save" 
-                              ButtonStyle="ButtonStyle.Success"
-                              Size="ButtonSize.Small"
-                              Click="@SavePreferences"
-                              IsBusy="@isSaving"
-                              BusyText="Saving..."
-                              Disabled="@(!hasChanges || isLoading)" />
-            </RadzenStack>
-        </RadzenColumn>
     </RadzenRow>
     </div>
+    }
+
+    @if (ShowChartDisplaySettings)
+    {
+        <ChartDisplayModeCard Title="Chart Display"
+                              Description="Choose whether charts show raw totals or a smoothed moving average across the app." />
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End" Wrap="FlexWrap.Wrap">
+        <RadzenButton Text="Reset to Defaults" 
+                      Icon="restore" 
+                      ButtonStyle="ButtonStyle.Light"
+                      Variant="Variant.Outlined"
+                      Size="ButtonSize.Small"
+                      Click="@ResetToDefaults"
+                      Disabled="@(isLoading || isSaving)" />
+        <RadzenButton Text="Save Changes" 
+                      Icon="save" 
+                      ButtonStyle="ButtonStyle.Success"
+                      Size="ButtonSize.Small"
+                      Click="@SavePreferences"
+                      IsBusy="@isSaving"
+                      BusyText="Saving..."
+                      Disabled="@(!hasChanges || isLoading)" />
+    </RadzenStack>
 
     @if (!string.IsNullOrEmpty(errorMessage))
     {
@@ -129,6 +137,10 @@
 </RadzenStack>
 
 @code {
+    /// <summary>When false (default for inline/tab use), the hero header is hidden.</summary>
+    [Parameter] public bool ShowPageHeader { get; set; } = true;
+    [Parameter] public bool ShowChartDisplaySettings { get; set; }
+
     private RadzenDataGrid<ExtensionItem>? extensionGrid;
     private List<ExtensionItem>? extensionItems;
     private List<ExtensionItem>? originalExtensionItems;
@@ -138,7 +150,6 @@
     private bool hasChanges = false;
     private UserPreferences? preferences;
     private string newExtensionValue = string.Empty;
-
     private static readonly Dictionary<string, string[]> categoryMap = new()
     {
         { ".NET", [".cs", ".vb", ".fs", ".razor", ".cshtml", ".xaml", ".csproj", ".fsproj"] },
@@ -161,7 +172,7 @@
         
         try
         {
-            preferences = await Http.GetFromJsonAsync<UserPreferences>("/api/settings/user-preferences");
+            preferences = await PreferencesClient.GetAsync();
             var extensions = preferences?.FileExtensions?.ToList() ?? [];
             extensionItems = extensions.Select(ext => new ExtensionItem { Extension = ext, Category = GetCategory(ext) }).ToList();
             originalExtensionItems = extensionItems.Select(e => new ExtensionItem { Extension = e.Extension, Category = e.Category }).ToList();
@@ -269,7 +280,7 @@
     {
         extensionItems = UserPreferences.DefaultFileExtensions.Select(ext => new ExtensionItem { Extension = ext, Category = GetCategory(ext) }).ToList();
         CheckForChanges();
-        NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Info, Summary = "Reset", Detail = "Extension list reset. Save to apply.", Duration = 3000 });
+        NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Info, Summary = "Reset", Detail = "Preferences reset. Save to apply.", Duration = 3000 });
     }
 
     private void CheckForChanges()
@@ -288,21 +299,17 @@
 
         try
         {
-            var updatedPrefs = new UserPreferences { UserId = preferences?.UserId ?? Guid.Empty, FileExtensions = extensionItems.Select(e => e.Extension).ToList(), LastUpdated = DateTime.UtcNow };
-            var response = await Http.PutAsJsonAsync("/api/settings/user-preferences", updatedPrefs);
-            
-            if (response.IsSuccessStatusCode)
+            var updatedPrefs = new UserPreferences
             {
-                preferences = await response.Content.ReadFromJsonAsync<UserPreferences>();
-                originalExtensionItems = extensionItems.Select(e => new ExtensionItem { Extension = e.Extension, Category = e.Category }).ToList();
-                hasChanges = false;
-                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Saved", Detail = "Re-analyze repositories to apply.", Duration = 4000 });
-            }
-            else
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                throw new Exception($"Server returned {response.StatusCode}: {error}");
-            }
+                UserId = preferences?.UserId ?? Guid.Empty,
+                FileExtensions = extensionItems.Select(e => e.Extension).ToList(),
+                ChartDisplayMode = preferences?.ChartDisplayMode ?? ChartDisplayMode.TrueData,
+                LastUpdated = DateTime.UtcNow
+            };
+            preferences = await PreferencesClient.SaveAsync(updatedPrefs);
+            originalExtensionItems = extensionItems.Select(e => new ExtensionItem { Extension = e.Extension, Category = e.Category }).ToList();
+            hasChanges = false;
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Saved", Detail = "Preferences saved. Re-analyze repositories only if you changed extensions.", Duration = 4000 });
         }
         catch (Exception ex)
         {

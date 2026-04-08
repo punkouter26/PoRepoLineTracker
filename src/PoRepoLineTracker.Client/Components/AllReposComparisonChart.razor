@@ -1,0 +1,197 @@
+@inject HttpClient Http
+@inject ILogger<AllReposComparisonChart> Logger
+@using PoRepoLineTracker.Application.Models
+@using PoRepoLineTracker.Domain.Models
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard Style="padding: 1.25rem 1.5rem;">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" Style="margin-bottom: 1rem;">
+        <RadzenStack Gap="0.15rem">
+            <RadzenText TextStyle="TextStyle.H6" Style="margin: 0; font-weight: 700;">All Repositories — Growth Overview</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">@ChartDescription</RadzenText>
+        </RadzenStack>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">Range:</RadzenText>
+            <RadzenSelectBar @bind-Value="_days" TValue="int" Change="@OnRangeChanged" Size="ButtonSize.Small">
+                <Items>
+                    <RadzenSelectBarItem Text="30d" Value="30" />
+                    <RadzenSelectBarItem Text="90d" Value="90" />
+                    <RadzenSelectBarItem Text="180d" Value="180" />
+                    <RadzenSelectBarItem Text="1yr" Value="365" />
+                </Items>
+            </RadzenSelectBar>
+        </RadzenStack>
+    </RadzenStack>
+
+    @if (_isLoading)
+    {
+        <RadzenStack Gap="0.5rem">
+            <RadzenSkeleton Width="100%" Height="280px" />
+        </RadzenStack>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" AllowClose="false">
+            @_errorMessage
+            <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
+                          Click="@(() => LoadData(_days))" Style="margin-left: 0.5rem;" />
+        </RadzenAlert>
+    }
+    else if (_historyData == null || !_historyData.Any(r => r.DailyLineCounts.Any()))
+    {
+        <RadzenStack AlignItems="AlignItems.Center" Style="padding: 3rem 0;">
+            <RadzenIcon Icon="show_chart" Style="font-size: 3rem; color: var(--rz-text-disabled-color);" />
+            <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color);">No history data yet — analysis is needed for at least one repository.</RadzenText>
+        </RadzenStack>
+    }
+    else
+    {
+        var plottedRepos = GetDisplayedHistoryData().Where(r => r.DailyLineCounts.Any()).ToList();
+
+        <RadzenChart Style="height: 340px; width: 100%;">
+            @for (var index = 0; index < plottedRepos.Count; index++)
+            {
+                var repo = plottedRepos[index];
+                var seriesColor = GetSeriesColor(index);
+
+                <RadzenLineSeries Data="@repo.DailyLineCounts.ToList()"
+                                  CategoryProperty="Date"
+                                  ValueProperty="TotalLines"
+                                  Title="@($"{repo.Owner}/{repo.RepositoryName}")"
+                                  Stroke="@seriesColor"
+                                  StrokeWidth="2">
+                    <TooltipTemplate Context="point">
+                        @if (point is DailyLineCountDto day)
+                        {
+                            <div style="padding: 0.35rem 0.45rem; min-width: 170px;">
+                                <div style="font-weight: 700; color: var(--rz-text-color); margin-bottom: 0.15rem;">
+                                    @($"{repo.Owner}/{repo.RepositoryName}")
+                                </div>
+                                <div style="font-size: 0.8rem; color: var(--rz-text-secondary-color);">
+                                    @day.Date.ToString("MMM dd, yyyy")
+                                </div>
+                                <div style="margin-top: 0.2rem; font-size: 0.85rem; color: var(--rz-text-color);">
+                                    <span style="font-weight: 600;">@($"{TooltipValueLabel}:")</span> @day.TotalLines.ToString("N0")
+                                </div>
+                            </div>
+                        }
+                    </TooltipTemplate>
+                    <ChildContent>
+                        <RadzenMarkers MarkerType="MarkerType.None" />
+                    </ChildContent>
+                </RadzenLineSeries>
+            }
+            <RadzenCategoryAxis FormatString="{0:MM/dd}">
+                <RadzenGridLines Visible="true" />
+            </RadzenCategoryAxis>
+            <RadzenValueAxis Min="0" Max="100000" Formatter="@FormatLines">
+                <RadzenGridLines Visible="true" />
+            </RadzenValueAxis>
+            <RadzenLegend Visible="false" />
+            <RadzenChartTooltipOptions Shared="false" Style="background: rgba(21, 21, 24, 0.96); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); color: white;" />
+        </RadzenChart>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.45rem 0.9rem; margin-top: 0.9rem; max-height: 112px; overflow-y: auto; align-items: start; padding-right: 0.25rem;">
+            @for (var index = 0; index < plottedRepos.Count; index++)
+            {
+                var repo = plottedRepos[index];
+                var seriesColor = GetSeriesColor(index);
+
+                <div style="display: flex; align-items: flex-start; gap: 0.45rem; font-size: 0.76rem; color: var(--rz-text-secondary-color); line-height: 1.25; min-width: 0;">
+                    <span style="width: 10px; height: 10px; border-radius: 999px; background: @seriesColor; flex: 0 0 auto; margin-top: 0.18rem;"></span>
+                    <span style="overflow-wrap: anywhere; word-break: break-word; min-width: 0;">@($"{repo.Owner}/{repo.RepositoryName}")</span>
+                </div>
+            }
+        </div>
+    }
+</RadzenCard>
+
+@code {
+    [Parameter] public ChartDisplayMode ChartDisplayMode { get; set; } = ChartDisplayMode.TrueData;
+
+    private int _days = 90;
+    private bool _isLoading = false;
+    private string? _errorMessage;
+    private List<RepositoryLineCountHistoryDto>? _historyData;
+    private static readonly string[] _seriesPalette =
+    [
+        "#5b3df5",
+        "#d46ae8",
+        "#ff7a59",
+        "#ffb84d",
+        "#f95d9b",
+        "#34c3b3",
+        "#5aa9ff",
+        "#9b7bff",
+        "#8bc34a",
+        "#ffd54f",
+        "#ec407a",
+        "#26a69a"
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData(_days);
+    }
+
+    private async Task OnRangeChanged(int days)
+    {
+        _days = days;
+        await LoadData(days);
+    }
+
+    private async Task LoadData(int days)
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<RepositoryLineCountHistoryDto>>($"/api/repositories/allcharts/{days}");
+            _historyData = result ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "AllReposComparisonChart: failed to load data for {Days} days", days);
+            _errorMessage = "Could not load chart data. Please try again.";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string ChartDescription => ChartDisplayMode == ChartDisplayMode.MovingAverage
+        ? "Rolling 90-day moving average of lines of code across every tracked repo"
+        : "Lines of code over time across every tracked repo";
+
+    private string TooltipValueLabel => ChartDisplayMode == ChartDisplayMode.MovingAverage ? "90d avg" : "Lines";
+
+    private List<RepositoryLineCountHistoryDto> GetDisplayedHistoryData()
+    {
+        return (_historyData ?? [])
+            .Select(repo => new RepositoryLineCountHistoryDto
+            {
+                RepositoryId = repo.RepositoryId,
+                RepositoryName = repo.RepositoryName,
+                Owner = repo.Owner,
+                DailyLineCounts = DailyLineCountChartTransformations.TransformForDisplay(repo.DailyLineCounts, ChartDisplayMode)
+            })
+            .ToList();
+    }
+
+    private string FormatLines(object value)
+    {
+        if (value is double d)
+        {
+            if (d >= 1_000_000) return $"{d / 1_000_000:F1}M";
+            if (d >= 1_000) return $"{d / 1_000:F0}k";
+            return d.ToString("N0");
+        }
+        return value?.ToString() ?? string.Empty;
+    }
+
+    private static string GetSeriesColor(int index) => _seriesPalette[index % _seriesPalette.Length];
+}

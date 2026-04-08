@@ -4,11 +4,11 @@
   "description": "E2E tests for PoRepoLineTracker using Playwright and TypeScript",
   "main": "index.js",
   "scripts": {
-    "test": "playwright test",
-    "test:headed": "playwright test --headed",
-    "test:debug": "playwright test --debug",
-    "test:ui": "playwright test --ui",
-    "test:report": "playwright show-report",
+    "test": "node_modules\.bin\playwright test",
+    "test:headed": "node_modules\.bin\playwright test --headed",
+    "test:debug": "node_modules\.bin\playwright test --debug",
+    "test:ui": "node_modules\.bin\playwright test --ui",
+    "test:report": "node_modules\.bin\playwright show-report",
     "test:e2e": "npm run pretest && npm run test"
   },
   "keywords": [],

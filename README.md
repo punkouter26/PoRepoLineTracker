@@ -1,160 +1,76 @@
 # PoRepoLineTracker
 
-[![Deploy to Azure](https://github.com/YOUR-USERNAME/PoRepoLineTracker/actions/workflows/azure-dev.yml/badge.svg)](https://github.com/YOUR-USERNAME/PoRepoLineTracker/actions/workflows/azure-dev.yml)
-
-Track lines of code across all your GitHub repositories — commit by commit, extension by extension. Self-hosted on Azure, data stays in your own Azure Table Storage.
+PoRepoLineTracker is a self-hosted GitHub repository analytics app built with Blazor WebAssembly and an ASP.NET Core API. It authenticates with GitHub, tracks user-owned repositories, clones and analyzes commit history, persists derived metrics in Azure Table Storage, and surfaces line-count trends, extension breakdowns, top files, and failure diagnostics.
 
 ![Login page](docs/screenshots/login.png)
 
----
+## Architecture overview
 
-## What it does
+- Edge delivery: a Blazor WebAssembly client is served from the same App Service as the API.
+- Compute tier: minimal APIs handle auth, settings, repository CRUD, GitHub lookups, diagnostics, and failure management; MediatR handlers and background tasks coordinate analysis and retries.
+- Data tier: Azure Table Storage holds users, repositories, commit aggregates, failed operations, top-file snapshots, and user preferences.
+- External dependencies: GitHub provides OAuth identity, repository metadata, and clone/pull access; Azure Key Vault provides secrets; Application Insights and Log Analytics collect telemetry.
 
-- **GitHub OAuth login** — sign in in 2 clicks, no username/password stored.
-- **Add repositories** — select from your GitHub repo list, bulk or single.
-- **Commit analysis pipeline** — clones via LibGit2Sharp, counts added/removed/total lines per commit, filtered by configurable file extensions.
-- **LOC trend charts** — Radzen line chart showing historic total lines over up to 365 days.
-- **File extension breakdown** — % share per extension (`.cs`, `.ts`, `.razor`, …).
-- **Failed operations view** — every analysis failure is recorded with full stack trace and retry count.
-- **User preferences** — configure which file extensions to count.
+## Documentation suite
 
----
+| Document | Purpose |
+| --- | --- |
+| [docs/Architecture_MASTER.mmd](docs/Architecture_MASTER.mmd) | Full context/container view across edge, compute, and persistence tiers |
+| [docs/Architecture_MASTER_SIMPLE.mmd](docs/Architecture_MASTER_SIMPLE.mmd) | Executive-summary version of the architecture |
+| [docs/DataLifecycle_MASTER.mmd](docs/DataLifecycle_MASTER.mmd) | End-to-end ingestion, processing, persistence, and UI refresh flow |
+| [docs/DataLifecycle_MASTER_SIMPLE.mmd](docs/DataLifecycle_MASTER_SIMPLE.mmd) | High-level data lifecycle snapshot |
+| [docs/DataModel.mmd](docs/DataModel.mmd) | Storage-oriented ERD with derived lifecycle/state fields |
+| [docs/DataModel_SIMPLE.mmd](docs/DataModel_SIMPLE.mmd) | Reduced ERD for stakeholder review |
+| [docs/SystemFlow_MASTER.mmd](docs/SystemFlow_MASTER.mmd) | Combined user journey, auth path, CRUD path, and analysis pipeline |
+| [docs/SystemFlow_MASTER_SIMPLE.mmd](docs/SystemFlow_MASTER_SIMPLE.mmd) | High-level system flow |
+| [docs/MultiplayerFlow.mmd](docs/MultiplayerFlow.mmd) | Concurrent-session sequence showing isolation and conflict handling |
+| [docs/MultiplayerFlow_SIMPLE.mmd](docs/MultiplayerFlow_SIMPLE.mmd) | Simplified concurrent-session sequence |
+| [docs/RefactorBlastRadius.md](docs/RefactorBlastRadius.md) | Impact assessment for the documentation consolidation refactor |
+| [tests/README.md](tests/README.md) | Test scopes and local execution commands |
 
-## Quick start (local dev)
+## Runtime summary
+
+- Auth: GitHub OAuth issues an application cookie; user metadata and tokens are upserted to storage on sign-in.
+- Repository management: users add repositories individually or in bulk, then queue background analysis or full re-analysis.
+- Analysis pipeline: the app clones or pulls repositories locally, filters files by user-selected extensions, computes commit-level totals, and writes derived records back to Azure Table Storage.
+- Presentation: the client reads repository history, top files, extension percentages, failed operations, and user preferences from the same API host.
+- Operations: Serilog writes console and file logs in development; Application Insights and Log Analytics receive cloud telemetry.
+
+## Local development
 
 ### Prerequisites
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for Azurite — local Table Storage)
 
-### 1. Start Azurite
+- .NET 10 SDK
+- Docker Desktop for Azurite
+
+### Start dependencies
+
 ```powershell
 docker compose up -d
 ```
 
-### 2. Run the app
+### Run the app
+
 ```powershell
 dotnet run --project src/PoRepoLineTracker.Api
-# http://localhost:5000
-# http://localhost:5000/health  → 200 OK when ready
 ```
 
-### 3. Dev login bypass
-```
+### Optional dev login shortcut
+
+```text
 GET http://localhost:5000/test-login-redirect?email=you@example.com
 ```
-Sets an auth cookie without a real GitHub OAuth round-trip.
-> Requires Azurite running (user record is written to Table Storage).
 
-For real GitHub OAuth in dev, register a GitHub OAuth App with callback URL `http://localhost:5000/signin-github` and set secrets via `dotnet user-secrets`.
+## Azure deployment
 
----
-
-## Deploy to Azure
+The app is deployed with `azd` using Bicep in [infra/main.bicep](infra/main.bicep) and [infra/resources.bicep](infra/resources.bicep). The deployed topology is a Linux App Service running the combined API + WASM host, backed by Azure Table Storage, Key Vault, Container Registry, and Application Insights.
 
 ```powershell
-# First time only
 azd env new prod
 azd env set AZURE_LOCATION eastus
-
-# Provision + deploy (idempotent)
 azd up
 ```
 
-After provisioning, add the three required Key Vault secrets:
-```powershell
-az keyvault secret set --vault-name <kv-name> --name "GitHub--ClientId"     --value "<value>"
-az keyvault secret set --vault-name <kv-name> --name "GitHub--ClientSecret" --value "<value>"
-az keyvault secret set --vault-name <kv-name> --name "GitHub--PAT"          --value "<value>"
-```
+## Screenshots
 
-See [docs/DevOps.md](docs/DevOps.md) for the full CI/CD setup (OIDC, GitHub Actions, shared Azure resources).
-
----
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [docs/ProductSpec.md](docs/ProductSpec.md) | Goals, features, personas, NFRs |
-| [docs/DevOps.md](docs/DevOps.md) | CI/CD, Azure infra, local dev, secrets setup |
-| [docs/Architecture.mmd](docs/Architecture.mmd) | C4 Context diagram (Mermaid) |
-| [docs/Architecture_SIMPLE.mmd](docs/Architecture_SIMPLE.mmd) | Simplified 4-node context (Mermaid) |
-| [docs/SystemFlow.mmd](docs/SystemFlow.mmd) | Auth + pipeline + CRUD sequence (Mermaid) |
-| [docs/SystemFlow_SIMPLE.mmd](docs/SystemFlow_SIMPLE.mmd) | Happy-path 6-node flowchart (Mermaid) |
-| [docs/DataModel.mmd](docs/DataModel.mmd) | Full ER diagram with all fields (Mermaid) |
-| [docs/DataModel_SIMPLE.mmd](docs/DataModel_SIMPLE.mmd) | 4-entity ER overview (Mermaid) |
-
----
-
-## Architecture overview
-
-```
-┌─────────────────────────────────────────────────────┐
-│                  Azure App Service                  │
-│  ┌──────────────────┐   ┌────────────────────────┐  │
-│  │  Blazor WASM     │   │  ASP.NET Core API       │  │
-│  │  (static files)  │◄──│  .NET 10 / MediatR      │  │
-│  └──────────────────┘   └────────────┬───────────┘  │
-└───────────────────────────────────────┼─────────────┘
-                                        │
-          ┌─────────────────────────────┼────────────────────┐
-          ▼                             ▼                     ▼
-  GitHub OAuth              Azure Table Storage         Key Vault
-  (login + repos)           (4 tables, user-owned)      (secrets via MI)
-```
-
-See [docs/Architecture.mmd](docs/Architecture.mmd) for the full C4 L1 diagram.
-
----
-
-## Project structure
-
-```
-src/
-  PoRepoLineTracker.Api/          ASP.NET Core API + Blazor WASM host
-  PoRepoLineTracker.Client/       Blazor WASM frontend (Radzen Material3 theme)
-  PoRepoLineTracker.Application/  MediatR commands/queries, service interfaces
-  PoRepoLineTracker.Domain/       Core entities (User, GitHubRepository, CommitLineCount, …)
-  PoRepoLineTracker.Infrastructure/ Azure Table Storage, LibGit2Sharp, GitHub client
-tests/
-  PoRepoLineTracker.UnitTests/
-  PoRepoLineTracker.IntegrationTests/
-  PoRepoLineTracker.E2ETests.TS/  Playwright / TypeScript
-infra/
-  main.bicep                      azd entry point
-  resources.bicep                 App Service, Storage, Key Vault, App Insights
-docs/
-  Architecture.mmd / _SIMPLE.mmd
-  SystemFlow.mmd / _SIMPLE.mmd
-  DataModel.mmd / _SIMPLE.mmd
-  ProductSpec.md
-  DevOps.md
-  screenshots/
-```
-
----
-
-## Running tests
-
-```powershell
-# Unit
-dotnet test tests/PoRepoLineTracker.UnitTests
-
-# Integration (requires Azurite)
-docker compose up -d
-dotnet test tests/PoRepoLineTracker.IntegrationTests
-
-# E2E (Playwright)
-cd tests/PoRepoLineTracker.E2ETests.TS
-npm install
-npx playwright test
-```
-
----
-
-## Security notes
-
-- Auth cookie: HttpOnly, Secure, SameSite=Lax, 7-day sliding expiry.
-- Managed Identity (SystemAssigned) used for Key Vault — no credentials in config.
-- HTTPS enforced at App Service level + HSTS middleware.
-- All secrets in Key Vault — never in source control.
+Application screenshots are intentionally reserved under [docs/screenshots](docs/screenshots) so product context stays colocated with the documentation suite without mixing runtime assets into source folders.

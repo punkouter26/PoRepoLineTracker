@@ -1,0 +1,62 @@
+sequenceDiagram
+    autonumber
+    actor UserA as "User A"
+    actor UserB as "User B"
+    participant BrowserA as "User A Browser"
+    participant BrowserB as "User B Browser"
+    participant API as "ASP.NET Core API"
+    participant Prefs as "Preference Endpoints"
+    participant Repo as "Repository Endpoints"
+    participant Worker as "Background Analyzer"
+    participant Storage as "Azure Table Storage"
+    participant GitHub as "GitHub + Local Repo Cache"
+    participant Failures as "Failed Operation Queue"
+
+    UserA->>BrowserA: Open repositories page
+    UserB->>BrowserB: Open repositories page
+    BrowserA->>API: GET /api/repositories
+    BrowserB->>API: GET /api/repositories
+    API->>Storage: Read repositories by UserId partition
+    Storage-->>API: User-scoped repository list
+    API-->>BrowserA: Repository list
+    API-->>BrowserB: Repository list
+
+    par "Independent preference changes"
+        UserA->>BrowserA: Save chart mode + file extensions
+        BrowserA->>Prefs: PUT /api/settings/user-preferences
+        Prefs->>Storage: Upsert preferences for User A
+        Storage-->>Prefs: Preferences saved
+        Prefs-->>BrowserA: 200 OK
+    and
+        UserB->>BrowserB: Save chart mode + file extensions
+        BrowserB->>Prefs: PUT /api/settings/user-preferences
+        Prefs->>Storage: Upsert preferences for User B
+        Storage-->>Prefs: Preferences saved
+        Prefs-->>BrowserB: 200 OK
+    end
+
+    par "Concurrent analysis requests"
+        UserA->>BrowserA: Re-analyze repository
+        BrowserA->>Repo: POST /api/repositories/{id}/reanalyze
+        Repo-->>BrowserA: 202 Accepted
+        Repo->>Worker: Queue user-scoped re-analysis
+    and
+        UserB->>BrowserB: Analyze repository
+        BrowserB->>Repo: POST /api/repositories/{id}/analyses?force=false
+        Repo-->>BrowserB: 202 Accepted
+        Repo->>Worker: Queue user-scoped analysis
+    end
+
+    Worker->>GitHub: Clone or pull target repository
+    GitHub-->>Worker: Repository snapshot
+    Worker->>Storage: Write repository, commit, top-file, and failure-safe metrics
+    alt "Processing error occurs"
+        Worker->>Failures: Record failed operation context
+        Failures->>Storage: Persist retry metadata
+    else "Processing succeeds"
+        Storage-->>Worker: Derived metrics committed
+    end
+
+    Note over API,Storage: Conflict boundary is the authenticated UserId partition.\nCross-user writes are blocked by ownership checks.
+    Note over Worker,Storage: For repeated requests on the same repository, writes are idempotent at repository scope and the latest successful derivation becomes the visible state.
+    Note over BrowserA,BrowserB: The client uses request-response refresh and polling; there is no real-time push channel in the current architecture.

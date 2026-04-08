@@ -1,7 +1,7 @@
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
-using PoRepoLineTracker.Api.Telemetry;
+using PoRepoLineTracker.Application.Telemetry;
 
 namespace PoRepoLineTracker.Api.Extensions;
 

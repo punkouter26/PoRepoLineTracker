@@ -1,0 +1,24 @@
+@page "/settings"
+@page "/settings/extensions-counted"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenStack Gap="1rem">
+    <div class="repo-hero">
+        <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+            <RadzenColumn Size="12">
+                <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">Settings</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); margin: 0;">
+                    Configure PoRepoLineTracker to match your workflow
+                </RadzenText>
+            </RadzenColumn>
+        </RadzenRow>
+    </div>
+
+    <ExtensionsCounted ShowPageHeader="false" ShowChartDisplaySettings="true" />
+
+</RadzenStack>
+
+

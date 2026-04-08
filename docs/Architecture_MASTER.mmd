@@ -1,0 +1,53 @@
+flowchart TB
+    subgraph Edge["Edge Delivery"]
+        Browser["Authenticated Browser\nBlazor WebAssembly + Radzen"]
+        StaticHost["Static Asset Host\nindex.html + WASM + manifest"]
+    end
+
+    subgraph Compute["Compute Tier"]
+        WebApp["Azure App Service\nCombined API + WASM Host"]
+        Auth["Authentication Layer\nGitHub OAuth + Cookie Auth"]
+        Api["Minimal API Surface\nAuth, Repositories, Settings, GitHub, Failed Ops, Diagnostics"]
+        AppLayer["Application Layer\nMediatR Commands + Queries"]
+        Background["Background Execution\nAnalysis, Re-analysis, Retry Loop"]
+    end
+
+    subgraph Data["Data Persistence"]
+        Tables["Azure Table Storage\nUsers, Repositories, Commits, Failed Ops, Preferences, Top Files"]
+        RepoCache["Repository Cache\n/home/LocalRepos or dev temp path"]
+        Vault["Azure Key Vault\nGitHub client secrets + PAT"]
+        Telemetry["Observability\nApplication Insights + Log Analytics"]
+    end
+
+    subgraph External["External Systems"]
+        GitHub["GitHub\nOAuth, repo metadata, clone/pull"]
+    end
+
+    Browser --> StaticHost
+    Browser --> WebApp
+    StaticHost --> WebApp
+    WebApp --> Auth
+    WebApp --> Api
+    Api --> AppLayer
+    AppLayer --> Tables
+    AppLayer --> Background
+    Background --> RepoCache
+    Background --> Tables
+    Auth --> Vault
+    Auth --> GitHub
+    Api --> GitHub
+    Background --> GitHub
+    WebApp --> Telemetry
+
+    style Browser fill:#0f172a,stroke:#38bdf8,color:#fff
+    style StaticHost fill:#0f172a,stroke:#38bdf8,color:#fff
+    style WebApp fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Auth fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Api fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style AppLayer fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Background fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Tables fill:#14532d,stroke:#86efac,color:#fff
+    style RepoCache fill:#14532d,stroke:#86efac,color:#fff
+    style Vault fill:#14532d,stroke:#86efac,color:#fff
+    style Telemetry fill:#14532d,stroke:#86efac,color:#fff
+    style GitHub fill:#7c2d12,stroke:#fdba74,color:#fff

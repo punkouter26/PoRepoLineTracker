@@ -1,0 +1,106 @@
+@using PoRepoLineTracker.Application.Models
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-bottom: 1rem;">
+        <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">Select Repositories from Your GitHub Account</RadzenText>
+        <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Click="@(() => OnCancel.InvokeAsync())" />
+    </RadzenStack>
+
+    @if (IsLoading)
+    {
+        <RadzenStack AlignItems="AlignItems.Center" class="rz-p-4">
+            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+            <RadzenText TextStyle="TextStyle.Body2"><em>Loading your GitHub repositories...</em></RadzenText>
+        </RadzenStack>
+    }
+    else if (Repositories.Any())
+    {
+        <RadzenStack Style="margin-bottom: 1rem;">
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-bottom: 0.5rem;">
+                <RadzenText TextStyle="TextStyle.Caption">Found @Repositories.Count() repositories</RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                    <RadzenButton Text="Select All" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => OnSelectAll.InvokeAsync())" />
+                    <RadzenButton Text="Clear All" ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => OnClearAll.InvokeAsync())" />
+                </RadzenStack>
+            </RadzenStack>
+
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin-bottom: 0.5rem;">
+                <RadzenIcon Icon="search" Style="color: var(--rz-text-secondary-color);" />
+                <RadzenTextBox @bind-Value="_filterText" Placeholder="Filter repositories..." Style="width: 100%;" />
+                @if (!string.IsNullOrEmpty(_filterText))
+                {
+                    <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
+                                  Click="@(() => _filterText = string.Empty)" title="Clear filter" />
+                }
+            </RadzenStack>
+
+            <RadzenListBox Value="SelectedRepositories"
+                           ValueChanged="OnSelectionChanged"
+                           Multiple="true"
+                           Data="FilteredRepositories"
+                           TValue="IEnumerable<GitHubUserRepositoryDto>"
+                           TextProperty="FullName"
+                           Style="height: 360px; width: 100%;" />
+        </RadzenStack>
+
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-top: 1rem;">
+            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">
+                @(SelectedRepositories.Count()) selected
+            </RadzenText>
+            <RadzenButton Text="Add Selected Repositories"
+                          Icon="add_circle"
+                          ButtonStyle="ButtonStyle.Primary"
+                          Click="@(() => OnAddSelected.InvokeAsync())"
+                          IsBusy="@IsSubmitting"
+                          BusyText="Adding..."
+                          Disabled="@(!SelectedRepositories.Any() || IsSubmitting)" />
+        </RadzenStack>
+    }
+    else
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" Variant="Variant.Flat">
+            <RadzenText TextStyle="TextStyle.Subtitle2">No Repositories Found</RadzenText>
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <RadzenText>@ErrorMessage</RadzenText>
+            }
+            else
+            {
+                <RadzenText>No repositories were found in your GitHub account.</RadzenText>
+            }
+            <RadzenText TextStyle="TextStyle.Body2">
+                <strong>Please ensure:</strong><br />
+                * Your GitHub Personal Access Token is properly configured in Settings<br />
+                * The token has the required permissions (repo scope)<br />
+                * You have at least one repository in your GitHub account
+            </RadzenText>
+        </RadzenAlert>
+    }
+</RadzenCard>
+
+@code {
+    [Parameter] public IEnumerable<GitHubUserRepositoryDto> Repositories { get; set; } = [];
+    [Parameter] public IEnumerable<GitHubUserRepositoryDto> SelectedRepositories { get; set; } = [];
+    [Parameter] public EventCallback<IEnumerable<GitHubUserRepositoryDto>> SelectedRepositoriesChanged { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public EventCallback OnAddSelected { get; set; }
+    [Parameter] public EventCallback OnSelectAll { get; set; }
+    [Parameter] public EventCallback OnClearAll { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _filterText = string.Empty;
+
+    private IEnumerable<GitHubUserRepositoryDto> FilteredRepositories =>
+        string.IsNullOrWhiteSpace(_filterText)
+            ? Repositories
+            : Repositories.Where(repository => repository.FullName.Contains(_filterText, StringComparison.OrdinalIgnoreCase));
+
+    private async Task OnSelectionChanged(IEnumerable<GitHubUserRepositoryDto> repositories)
+    {
+        await SelectedRepositoriesChanged.InvokeAsync(repositories);
+    }
+}

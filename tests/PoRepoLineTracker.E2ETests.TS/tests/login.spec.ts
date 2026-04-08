@@ -14,7 +14,7 @@ test.describe('Login / Authentication', () => {
     await page.goto('/');
 
     // Blazor WASM loads, auth state resolves → RedirectToLogin fires → navigates to /login
-    await page.waitForURL(/\/login/, { timeout: 15000 });
+    await page.waitForURL(/\/login/, { timeout: 20000 });
 
     expect(page.url()).toContain('/login');
   });

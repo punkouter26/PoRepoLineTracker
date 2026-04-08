@@ -1,7 +1,7 @@
 using Serilog;
 using PoRepoLineTracker.Api.Extensions;
 using PoRepoLineTracker.Api.Middleware;
-using PoRepoLineTracker.Api.Telemetry;
+using PoRepoLineTracker.Application.Telemetry;
 using Scalar.AspNetCore;
 using Azure.Identity;
 
@@ -108,12 +108,19 @@ namespace PoRepoLineTracker.Api
                 });
             }
 
-            app.UseHttpsRedirection();
+            // Only redirect to HTTPS in non-Development environments.
+            // In Development the http profile runs without an HTTPS URL, so the
+            // middleware can't determine the redirect port and logs a WRN on every request.
+            if (!app.Environment.IsDevelopment())
+            {
+                app.UseHttpsRedirection();
+            }
             app.UseAuthentication();
             app.UseAuthorization();
             app.UseBlazorFrameworkFiles();
             app.UseStaticFiles();
             app.MapFallbackToFile("index.html");
+            app.MapHealthChecks("/health");
 
             // All API route mappings
             app.MapApiEndpoints();

@@ -431,6 +431,8 @@ $RECYCLE.BIN/
 
 # Project-specific exclusions
 LocalRepos/
+.potune-state.json
+TESTRESULTS/
 __azurite_db_*.json
 AzuriteConfig
 __blobstorage__/
@@ -439,6 +441,13 @@ log*.txt
 *.http
 apphost_resources.json
 tmp_*.html
+*.lscache
+e2e-raw.txt
+**/*.staticwebassets.endpoints.json
+tests/PoRepoLineTracker.E2ETests.TS/playwright-results-raw.json
+tests/PoRepoLineTracker.E2ETests.TS/playwright-report/
+tests/PoRepoLineTracker.E2ETests.TS/test-results/
+tests/PoRepoLineTracker.E2ETests.TS/screenshots_viewer.html
 
 # Deployment artifacts & logs
 deploy.zip

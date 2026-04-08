@@ -17,6 +17,11 @@ public record UserPreferences
     public List<string> FileExtensions { get; init; } = DefaultFileExtensions;
 
     /// <summary>
+    /// Controls how charts render line history data.
+    /// </summary>
+    public ChartDisplayMode ChartDisplayMode { get; init; } = ChartDisplayMode.TrueData;
+
+    /// <summary>
     /// Default file extensions for new users.
     /// </summary>
     public static List<string> DefaultFileExtensions =>

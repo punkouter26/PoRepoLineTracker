@@ -24,6 +24,22 @@ internal static class FailedOperationEndpoints
         .RequireAuthorization()
         .WithName("GetAllFailedOperations");
 
+        app.MapGet("/api/failed-operations/count", async (IFailedOperationService failedOperationService) =>
+        {
+            try
+            {
+                var count = await failedOperationService.GetCountAsync();
+                return Results.Ok(count);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error retrieving failed operations count");
+                return Results.Problem($"Error retrieving failed operations count: {ex.Message}", statusCode: 500);
+            }
+        })
+        .RequireAuthorization()
+        .WithName("GetFailedOperationsCount");
+
         app.MapGet("/api/failed-operations/{repositoryId}", async (Guid repositoryId, IFailedOperationService failedOperationService) =>
         {
             try

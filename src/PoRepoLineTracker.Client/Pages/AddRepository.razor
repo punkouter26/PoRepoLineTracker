@@ -1,5 +1,4 @@
-﻿@page "/add-repository"
-@attribute [Authorize]
+﻿@attribute [Authorize]
 @inject HttpClient Http
 @inject ILogger<AddRepository> Logger
 @inject NavigationManager Navigation
@@ -9,9 +8,12 @@
 @using PoRepoLineTracker.Application.Models
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
-
+@using Radzen
 <RadzenStack Gap="1rem">
-    <RadzenText TextStyle="TextStyle.H4" Style="margin: 0 0 0.5rem 0;">Add Repositories</RadzenText>
+    @if (!IsInline)
+    {
+        <RadzenText TextStyle="TextStyle.H4" Style="margin: 0 0 0.5rem 0;">Add Repositories</RadzenText>
+    }
 
     @if (!string.IsNullOrEmpty(pageState.ErrorMessage) && !pageState.ShowRepositorySelector)
     {
@@ -31,82 +33,16 @@
 
     @if (pageState.ShowRepositorySelector)
     {
-        <RadzenCard>
-            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-bottom: 1rem;">
-                <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">Select Repositories from Your GitHub Account</RadzenText>
-                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Click="HideRepositorySelection" />
-            </RadzenStack>
-            @if (pageState.IsLoadingGitHubRepos)
-            {
-                <RadzenStack AlignItems="AlignItems.Center" class="rz-p-4">
-                    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
-                    <RadzenText TextStyle="TextStyle.Body2"><em>Loading your GitHub repositories...</em></RadzenText>
-                </RadzenStack>
-            }
-            else if (pageState.GitHubUserRepositories.Any())
-            {
-                <RadzenStack Style="margin-bottom: 1rem;">
-                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-bottom: 0.5rem;">
-                        <RadzenText TextStyle="TextStyle.Caption">Found @pageState.GitHubUserRepositories.Count repositories</RadzenText>
-                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
-                            <RadzenButton Text="Select All" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="SelectAllRepositories" />
-                            <RadzenButton Text="Clear All" ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="ClearAllSelections" />
-                        </RadzenStack>
-                    </RadzenStack>
-
-                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin-bottom: 0.5rem;">
-                            <RadzenIcon Icon="search" Style="color: var(--rz-text-secondary-color);" />
-                            <RadzenTextBox @bind-Value="_repoFilterText" Placeholder="Filter repositories..." Style="width: 100%;" />
-                            @if (!string.IsNullOrEmpty(_repoFilterText))
-                            {
-                                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
-                                              Click="@(() => _repoFilterText = string.Empty)" title="Clear filter" />
-                            }
-                        </RadzenStack>
-
-                        <RadzenListBox Value="@_selected"
-                                       ValueChanged="@((IEnumerable<GitHubUserRepositoryDto> v) => { _selected = v; StateHasChanged(); })"
-                                       Multiple="true"
-                                       Data="@FilteredGitHubRepos"
-                                       TValue="IEnumerable<GitHubUserRepositoryDto>"
-                                       TextProperty="FullName"
-                                       Style="height: 360px; width: 100%;" />
-                    </RadzenStack>
-
-                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-top: 1rem;">
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">
-                            @(_selected.Count()) selected
-                        </RadzenText>
-                        <RadzenButton Text="Add Selected Repositories"
-                                      Icon="add_circle"
-                                      ButtonStyle="ButtonStyle.Primary"
-                                      Click="AddSelectedRepositories"
-                                      IsBusy="@pageState.IsAddingRepository"
-                                      BusyText="Adding..."
-                                      Disabled="@(!_selected.Any() || pageState.IsAddingRepository)" />
-                    </RadzenStack>
-            }
-            else
-            {
-                <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" Variant="Variant.Flat">
-                    <RadzenText TextStyle="TextStyle.Subtitle2">No Repositories Found</RadzenText>
-                    @if (!string.IsNullOrEmpty(pageState.ErrorMessage))
-                    {
-                        <RadzenText>@pageState.ErrorMessage</RadzenText>
-                    }
-                    else
-                    {
-                        <RadzenText>No repositories were found in your GitHub account.</RadzenText>
-                    }
-                    <RadzenText TextStyle="TextStyle.Body2">
-                        <strong>Please ensure:</strong><br />
-                        * Your GitHub Personal Access Token is properly configured in Settings<br />
-                        * The token has the required permissions (repo scope)<br />
-                        * You have at least one repository in your GitHub account
-                    </RadzenText>
-                </RadzenAlert>
-            }
-        </RadzenCard>
+        <GitHubRepositorySelector Repositories="pageState.GitHubUserRepositories"
+                                  SelectedRepositories="_selected"
+                                  SelectedRepositoriesChanged="OnSelectedRepositoriesChanged"
+                                  IsLoading="pageState.IsLoadingGitHubRepos"
+                                  ErrorMessage="pageState.ErrorMessage"
+                                  IsSubmitting="pageState.IsAddingRepository"
+                                  OnAddSelected="AddSelectedRepositories"
+                                  OnSelectAll="SelectAllRepositories"
+                                  OnClearAll="ClearAllSelections"
+                                  OnCancel="HideRepositorySelection" />
     }
 
     @* Single repository mode removed as requested *@
@@ -120,10 +56,10 @@
     }
 </RadzenStack>
 @code {
-    private RepositoryPageState pageState = new();
-    // #7 fix: removed duplicate @inject Http and @inject Logger that were here inside @code —
-    // they are already declared at the top of the file (lines 3-4)
+    [Parameter] public bool IsInline { get; set; } = false;
+    [Parameter] public EventCallback OnInlineCompleted { get; set; }
 
+    private RepositoryPageState pageState = new();
     protected override async Task OnInitializedAsync()
     {
         pageState.ShowRepositorySelector = true;
@@ -169,13 +105,13 @@
     }
 
     private IEnumerable<GitHubUserRepositoryDto> _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
-    private string _repoFilterText = string.Empty;
 
-    private IEnumerable<GitHubUserRepositoryDto> FilteredGitHubRepos =>
-        string.IsNullOrWhiteSpace(_repoFilterText)
-            ? pageState.GitHubUserRepositories
-            : pageState.GitHubUserRepositories
-                .Where(r => r.FullName.Contains(_repoFilterText, StringComparison.OrdinalIgnoreCase));
+    private Task OnSelectedRepositoriesChanged(IEnumerable<GitHubUserRepositoryDto> repositories)
+    {
+        _selected = repositories;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
 
     private void SelectAllRepositories()
     {
@@ -217,7 +153,6 @@
 
             var repositoriesToAdd = _selected.Select(repo =>
             {
-                // #9 fix: guard against FullName missing '/' to avoid IndexOutOfRangeException
                 var fullNameParts = repo.FullName.Split('/', 2);
                 if (fullNameParts.Length < 2)
                 {
@@ -262,37 +197,48 @@
                 await Task.Delay(500);
 
                 Logger.LogInformation("Reading response content as JSON...");
-                var addedRepos = await response.Content.ReadFromJsonAsync<List<GitHubRepository>>();
-                
-                Logger.LogInformation("API returned {Count} repositories", addedRepos?.Count ?? 0);
-                
-                if (addedRepos != null && addedRepos.Any())
-                {
-                    for (int i = 0; i < addedRepos.Count; i++)
-                    {
-                        var repo = addedRepos[i];
-                        Logger.LogInformation("Returned Repo [{Index}]: {Owner}/{Name} (ID: {Id})",
-                            i, repo.Owner, repo.Name, repo.Id);
-                    }
-                }
-                else
-                {
-                    Logger.LogWarning("API returned ZERO repositories! This is the problem!");
-                }
-                
+                var bulkResult = await response.Content.ReadFromJsonAsync<BulkAddResult>();
+
+                var addedCount = bulkResult?.Added.Count ?? 0;
+                var alreadyTrackedCount = bulkResult?.AlreadyTracked.Count ?? 0;
+
+                Logger.LogInformation("Bulk result: Added={Added}, AlreadyTracked={AlreadyTracked}", addedCount, alreadyTrackedCount);
+
                 // Step 4: Complete (100%)
-                pageState.SetProgress("Complete! Repositories are now being analyzed.", 100);
+                pageState.SetProgress("Complete!", 100);
                 StateHasChanged();
                 await Task.Delay(1000);
 
-                pageState.AddRepoMessage = $"{addedRepos?.Count ?? _selected.Count()} repositories added successfully! Analysis will begin automatically.";
+                if (addedCount > 0 && alreadyTrackedCount == 0)
+                {
+                    pageState.AddRepoMessage = $"{addedCount} {(addedCount == 1 ? "repository" : "repositories")} added successfully! Analysis will begin automatically.";
+                }
+                else if (addedCount > 0 && alreadyTrackedCount > 0)
+                {
+                    var alreadyNames = bulkResult!.AlreadyTracked.Select(r => $"{r.Owner}/{r.Name}");
+                    pageState.AddRepoMessage = $"{addedCount} {(addedCount == 1 ? "repository" : "repositories")} added. " +
+                        $"{alreadyTrackedCount} already tracked ({string.Join(", ", alreadyNames)}) — no changes made to those.";
+                }
+                else
+                {
+                    // All were already tracked
+                    var alreadyNames = bulkResult?.AlreadyTracked.Select(r => $"{r.Owner}/{r.Name}") ?? [];
+                    pageState.AddRepoMessage = $"All {alreadyTrackedCount} selected {(alreadyTrackedCount == 1 ? "repository is" : "repositories are")} already tracked: {string.Join(", ", alreadyNames)}. No new repositories were added.";
+                }
+
                 _selected = Enumerable.Empty<GitHubUserRepositoryDto>(); // Clear selections
-                
-                // Close dialog (if open) or navigate back to repositories page
+
                 Logger.LogInformation("Closing dialog / navigating to repositories page...");
                 await Task.Delay(1500); // Brief delay to show success message
-                DialogService.Close(true); // closes dialog when opened as dialog
-                Navigation.NavigateTo("/repositories");
+                if (IsInline)
+                {
+                    await OnInlineCompleted.InvokeAsync();
+                }
+                else
+                {
+                    DialogService.Close(true);
+                    Navigation.NavigateTo("/repositories");
+                }
             }
             else
             {
@@ -335,8 +281,15 @@
 
     private void HideRepositorySelection()
     {
+        _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
+        if (IsInline)
+        {
+            _ = OnInlineCompleted.InvokeAsync();
+            return;
+        }
+
         pageState.ShowRepositorySelector = false;
-        pageState.ClearSelection();
+        DialogService.Close(false);
         StateHasChanged();
     }
 }

@@ -38,8 +38,20 @@ internal static class RepositoryEndpoints
         .WithName("GetAllRepositories");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        app.MapGet("/api/repositories/{repositoryId}/linehistory/{days}", async (Guid repositoryId, int days, IMediator mediator) =>
+        app.MapGet("/api/repositories/{repositoryId}/linehistory/{days}", async (Guid repositoryId, int days, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
         {
+            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                return Results.Unauthorized();
+
+            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
+            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
+            if (existing.UserId != userId)
+            {
+                Log.Warning("IDOR attempt: user {UserId} tried to read linehistory for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
+                return Results.Forbid();
+            }
+
             try
             {
                 var lineHistory = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetLineCountHistoryQuery(repositoryId, days));
@@ -157,23 +169,16 @@ internal static class RepositoryEndpoints
                 }
 
                 Log.Information("Sending AddMultipleRepositoriesCommand to MediatR with {Count} repositories for user {UserId}", repoList.Count, userId);
-                var addedRepositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddMultipleRepositoriesCommand(
+                var result = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddMultipleRepositoriesCommand(
                     repoList, userId));
 
-                var addedList = addedRepositories.ToList();
-                Log.Information("MediatR returned {Count} repositories: {Repos}", addedList.Count,
-                    string.Join(", ", addedList.Select(r => $"{r.Owner}/{r.Name}")));
+                Log.Information("Bulk add: Added={Added}, AlreadyTracked={AlreadyTracked}",
+                    result.Added.Count, result.AlreadyTracked.Count);
 
-                // Fire analysis in the background so the HTTP response returns immediately.
-                // Cloning + line-counting can take several minutes — doing it synchronously
-                // causes Blazor WASM's 100 s HttpClient timeout to fire.
-                var newRepoIds = addedList
-                    .Where(r => r.LastAnalyzedCommitDate == null)
-                    .Select(r => r.Id)
-                    .ToList();
-
-                if (newRepoIds.Count > 0)
+                // Fire analysis only for truly NEW repositories — already-tracked repos are already analyzed
+                if (result.Added.Count > 0)
                 {
+                    var newRepoIds = result.Added.Select(r => r.Id).ToList();
                     _ = Task.Run(async () =>
                     {
                         using var scope = scopeFactory.CreateScope();
@@ -182,7 +187,7 @@ internal static class RepositoryEndpoints
                         {
                             try
                             {
-                                Log.Information("Background: starting analysis for repo {RepoId}", repoId);
+                                Log.Information("Background: starting analysis for new repo {RepoId}", repoId);
                                 await bgMediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AnalyzeRepositoryCommitsCommand(repoId));
                                 Log.Information("Background: analysis complete for repo {RepoId}", repoId);
                             }
@@ -194,7 +199,7 @@ internal static class RepositoryEndpoints
                     });
                 }
 
-                return Results.Ok(addedList);
+                return Results.Ok(result);
             }
             catch (Exception ex)
             {
@@ -206,11 +211,19 @@ internal static class RepositoryEndpoints
         .WithName("AddMultipleRepositories");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        app.MapPost("/api/repositories/{repositoryId}/analyses", async (Guid repositoryId, [FromQuery] bool force, HttpContext ctx, IServiceScopeFactory scopeFactory) =>
+        app.MapPost("/api/repositories/{repositoryId}/analyses", async (Guid repositoryId, [FromQuery] bool force, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
         {
             var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out _))
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
                 return Results.Unauthorized();
+
+            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
+            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
+            if (existing.UserId != userId)
+            {
+                Log.Warning("IDOR attempt: user {UserId} tried to trigger analysis for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
+                return Results.Forbid();
+            }
 
             Log.Information("Background analysis queued for repository {RepositoryId} (force={Force})", repositoryId, force);
             _ = Task.Run(async () =>
@@ -232,11 +245,19 @@ internal static class RepositoryEndpoints
         .RequireAuthorization()
         .WithName("CreateRepositoryAnalysis");
 
-        app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, HttpContext ctx, IServiceScopeFactory scopeFactory) =>
+        app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
         {
             var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
                 return Results.Unauthorized();
+
+            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
+            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
+            if (existing.UserId != userId)
+            {
+                Log.Warning("IDOR attempt: user {UserId} tried to reanalyze repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
+                return Results.Forbid();
+            }
 
             Log.Information("Background re-analysis queued for repository {RepositoryId} by user {UserId}", repositoryId, userId);
             _ = Task.Run(async () =>
@@ -260,8 +281,20 @@ internal static class RepositoryEndpoints
         .WithName("ReanalyzeRepository");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        app.MapGet("/api/repositories/{repositoryId}/file-extension-percentages", async (Guid repositoryId, IMediator mediator) =>
+        app.MapGet("/api/repositories/{repositoryId}/file-extension-percentages", async (Guid repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
         {
+            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                return Results.Unauthorized();
+
+            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
+            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
+            if (existing.UserId != userId)
+            {
+                Log.Warning("IDOR attempt: user {UserId} tried to read file-extension-percentages for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
+                return Results.Forbid();
+            }
+
             try
             {
                 var percentages = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetFileExtensionPercentagesQuery(repositoryId));
@@ -277,8 +310,20 @@ internal static class RepositoryEndpoints
         .WithName("GetFileExtensionPercentages");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        app.MapGet("/api/repositories/{repositoryId}/top-files", async (Guid repositoryId, IMediator mediator, int count = 5) =>
+        app.MapGet("/api/repositories/{repositoryId}/top-files", async (Guid repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService, int count = 5) =>
         {
+            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                return Results.Unauthorized();
+
+            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
+            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
+            if (existing.UserId != userId)
+            {
+                Log.Warning("IDOR attempt: user {UserId} tried to read top-files for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
+                return Results.Forbid();
+            }
+
             try
             {
                 var topFiles = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetTopFilesQuery(repositoryId, count));

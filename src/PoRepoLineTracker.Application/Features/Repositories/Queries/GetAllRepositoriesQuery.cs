@@ -1,8 +1,18 @@
 using MediatR;
+using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
-using System.Collections.Generic;
 
-namespace PoRepoLineTracker.Application.Features.Repositories.Queries
+namespace PoRepoLineTracker.Application.Features.Repositories.Queries;
+
+public record GetAllRepositoriesQuery(Guid UserId) : IRequest<IEnumerable<GitHubRepository>>;
+
+public class GetAllRepositoriesQueryHandler : IRequestHandler<GetAllRepositoriesQuery, IEnumerable<GitHubRepository>>
 {
-    public record GetAllRepositoriesQuery(Guid UserId) : IRequest<IEnumerable<GitHubRepository>>;
+    private readonly IRepositoryDataService _repositoryDataService;
+
+    public GetAllRepositoriesQueryHandler(IRepositoryDataService repositoryDataService)
+        => _repositoryDataService = repositoryDataService;
+
+    public Task<IEnumerable<GitHubRepository>> Handle(GetAllRepositoriesQuery request, CancellationToken cancellationToken)
+        => _repositoryDataService.GetAllRepositoriesAsync(request.UserId);
 }

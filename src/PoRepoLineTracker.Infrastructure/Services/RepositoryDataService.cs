@@ -17,7 +17,9 @@ public class RepositoryDataService : IRepositoryDataService
     private readonly TableClient _topFilesTableClient;
     private readonly ILogger<RepositoryDataService> _logger;
 
-    private bool _tablesInitialized = false;
+    // SemaphoreSlim(1,1) prevents concurrent background tasks from double-initializing tables
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private volatile bool _tablesInitialized = false;
 
     public RepositoryDataService(TableServiceClient tableServiceClient, IConfiguration configuration, ILogger<RepositoryDataService> logger)
     {
@@ -33,20 +35,24 @@ public class RepositoryDataService : IRepositoryDataService
 
     private async Task EnsureTablesExistAsync()
     {
-        if (!_tablesInitialized)
+        if (_tablesInitialized) return;
+        await _initLock.WaitAsync();
+        try
         {
-            try
-            {
-                await _repositoryTableClient.CreateIfNotExistsAsync();
-                await _commitLineCountTableClient.CreateIfNotExistsAsync();
-                await _topFilesTableClient.CreateIfNotExistsAsync();
-                _tablesInitialized = true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error ensuring tables exist: {ErrorMessage}", ex.Message);
-                throw;
-            }
+            if (_tablesInitialized) return; // double-check after acquiring lock
+            await _repositoryTableClient.CreateIfNotExistsAsync();
+            await _commitLineCountTableClient.CreateIfNotExistsAsync();
+            await _topFilesTableClient.CreateIfNotExistsAsync();
+            _tablesInitialized = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error ensuring tables exist: {ErrorMessage}", ex.Message);
+            throw;
+        }
+        finally
+        {
+            _initLock.Release();
         }
     }
 

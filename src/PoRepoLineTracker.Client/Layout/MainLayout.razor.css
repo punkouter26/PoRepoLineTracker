@@ -1,25 +1,147 @@
 /* MainLayout Styles for Radzen Layout Components */
 
-/* Header customization */
+/* ─── Layout Grid: header full-width top row, sidebar + body in second row ── */
+/* Radzen renders rz-layout as flex-column by default. Override to CSS Grid     */
+/* so the sidebar is beside the body, not stacked above it.                     */
+::deep .rz-layout {
+    display: grid !important;
+    grid-template-columns: 220px 1fr !important;
+    grid-template-rows: 60px 1fr !important;
+    min-height: 100vh;
+    height: 100vh;
+}
+
+/* ─── Glassmorphism Header ──────────────────────────────────────────────── */
 ::deep .rz-header {
-    background: var(--rz-base-background-color);
-    border-bottom: 1px solid var(--rz-base-200);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    grid-column: 1 / -1;
+    grid-row: 1;
+    background: rgba(103, 80, 164, 0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 1px 24px rgba(103, 80, 164, 0.25), 0 1px 4px rgba(0,0,0,0.18);
+    height: 60px;
+    position: sticky !important;
+    top: 0;
+    z-index: 100;
 }
 
-/* Sidebar customization */
+/* Header text and icon colour adaption */
+::deep .rz-header .rz-text,
+::deep .rz-header h5,
+::deep .rz-header .rz-button-box {
+    color: #fff !important;
+}
+
+::deep .rz-header .rz-button {
+    color: rgba(255,255,255,0.85) !important;
+}
+
+::deep .rz-header .rz-button:hover {
+    background: rgba(255,255,255,0.12) !important;
+    color: #fff !important;
+}
+
+/* ─── Sidebar Fix + Redesign ────────────────────────────────────────────── */
+/* Critical: override Radzen responsive mode that collapses sidebar height to 0 */
 ::deep .rz-sidebar {
-    background: var(--rz-base-background-color);
+    grid-column: 1;
+    grid-row: 2;
+    background: var(--rz-base-background-color) !important;
     border-right: 1px solid var(--rz-base-200);
+    height: 100% !important;
+    min-height: unset !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    box-shadow: 2px 0 12px rgba(103, 80, 164, 0.06);
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative !important;
+    width: 220px !important;
 }
 
-/* Body content area */
+::deep .rz-sidebar-content {
+    height: 100%;
+    overflow-y: auto;
+    padding: 0.5rem 0 1rem;
+}
+
+/* Active nav item — filled pill */
+::deep .rz-navigation-item-text,
+::deep .rz-panelmenu .rz-panelmenu-header {
+    border-radius: 10px;
+    margin: 0.15rem 0.75rem;
+    padding: 0.55rem 0.85rem;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+::deep .rz-navigation-item.rz-state-active .rz-navigation-item-text,
+::deep .rz-panelmenu .rz-panelmenu-header.rz-state-active {
+    background: linear-gradient(135deg, var(--rz-primary) 0%, rgba(103,80,164,0.75) 100%) !important;
+    color: #fff !important;
+    font-weight: 600;
+    box-shadow: 0 3px 10px rgba(103,80,164,0.3);
+}
+
+/* Hover state */
+::deep .rz-navigation-item:not(.rz-state-active) .rz-navigation-item-text:hover,
+::deep .rz-panelmenu .rz-panelmenu-header:not(.rz-state-active):hover {
+    background: rgba(103, 80, 164, 0.08) !important;
+    color: var(--rz-primary) !important;
+}
+
+/* Nav section label / divider */
+.nav-section-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--rz-text-disabled-color);
+    padding: 1rem 1.4rem 0.25rem;
+}
+
+/* ─── Body content area ─────────────────────────────────────────────────── */
 ::deep .rz-body {
+    grid-column: 2;
+    grid-row: 2;
     background: var(--rz-base-50);
-    min-height: calc(100vh - 80px);
+    overflow-y: auto;
+    min-height: unset !important;
+    margin-top: 0 !important;
 }
 
-/* Mobile menu button visibility */
+/* ─── Breadcrumb ────────────────────────────────────────────────────────── */
+.app-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--rz-text-secondary-color);
+    padding: 0.5rem 0 0.25rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--rz-base-200);
+}
+
+.app-breadcrumb a {
+    color: var(--rz-primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.app-breadcrumb a:hover {
+    text-decoration: underline;
+}
+
+.app-breadcrumb .bc-sep {
+    color: var(--rz-text-disabled-color);
+    font-size: 0.7rem;
+}
+
+.app-breadcrumb .bc-current {
+    color: var(--rz-text-color);
+    font-weight: 500;
+}
+
+/* ─── Mobile menu button visibility ─────────────────────────────────────── */
 .rz-display-none-lg {
     display: block;
 }
@@ -30,31 +152,25 @@
     }
 }
 
-/* Focus management for accessibility */
-::deep .rz-sidebar:focus-within {
-    outline: 2px solid var(--rz-primary);
-    outline-offset: -2px;
-}
-
-/* Smooth scrolling */
+/* ─── Smooth scrolling + focus ──────────────────────────────────────────── */
 ::deep .rz-sidebar,
 ::deep .rz-body {
     scroll-behavior: smooth;
 }
 
-/* Print styles */
+/* ─── Print styles ──────────────────────────────────────────────────────── */
 @media print {
     ::deep .rz-header,
     ::deep .rz-sidebar {
         display: none !important;
     }
-    
+
     ::deep .rz-body {
         padding: 0 !important;
     }
 }
 
-/* Gradient hero strip behind the Repositories page title */
+/* ─── Gradient hero strip behind page titles ────────────────────────────── */
 .repo-hero {
     background: linear-gradient(135deg, rgba(103, 80, 164, 0.07) 0%, transparent 70%);
     margin: -0.5rem -0.25rem 0 -0.25rem;
@@ -63,8 +179,101 @@
     border-radius: 8px 8px 0 0;
 }
 
-/* More breathing room in data grid rows (replaces Compact density squeeze) */
+/* ─── Data grid rows ────────────────────────────────────────────────────── */
 ::deep .rz-data-grid .rz-data-row td {
     padding-top: 10px !important;
     padding-bottom: 10px !important;
+}
+
+/* ─── Stats header cards ─────────────────────────────────────────────────── */
+.stat-card {
+    border-top: 3px solid var(--stat-accent, var(--rz-primary));
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(103,80,164,0.12);
+}
+
+.stat-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--stat-accent, var(--rz-primary));
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--rz-text-secondary-color);
+    margin-top: 0.2rem;
+}
+
+/* ─── Re-analysis progress bar ──────────────────────────────────────────── */
+.reanalysis-progress-wrap {
+    width: 100%;
+    margin-top: 0.35rem;
+}
+
+/* ─── Onboarding empty state ─────────────────────────────────────────────── */
+.onboarding-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 120px;
+    animation: fadeSlideUp 0.5s ease both;
+}
+
+.onboarding-step:nth-child(2) { animation-delay: 0.1s; }
+.onboarding-step:nth-child(3) { animation-delay: 0.2s; }
+
+.onboarding-step-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    background: rgba(103, 80, 164, 0.09);
+    color: var(--rz-primary);
+    border: 2px solid rgba(103, 80, 164, 0.18);
+}
+
+.onboarding-connector {
+    flex: 0 0 40px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(103,80,164,0.3), rgba(103,80,164,0.1));
+    margin-top: -1.5rem;
+    align-self: flex-start;
+    margin-top: 26px;
+}
+
+.onboarding-cta-pulse {
+    animation: ctaPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ctaPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(103,80,164,0); }
+    50%       { box-shadow: 0 0 0 8px rgba(103,80,164,0.15); }
+}
+
+/* ─── Session banner dismiss ─────────────────────────────────────────────── */
+.failed-ops-banner-enter {
+    animation: bannerSlideDown 0.3s ease both;
+}
+
+@keyframes bannerSlideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
 }

@@ -1,0 +1,37 @@
+flowchart LR
+    subgraph Access["Access and Session"]
+        Login["Login"]
+        Session["Authenticated Session"]
+    end
+
+    subgraph Workspace["Primary Workspace"]
+        Manage["Manage Repositories"]
+        Configure["Configure Preferences"]
+        Inspect["Inspect Analytics"]
+    end
+
+    subgraph Pipeline["Repository Pipeline"]
+        Analyze["Background Analysis"]
+        Persist["Persist Metrics"]
+        Recover["Capture Failures"]
+    end
+
+    Login --> Session
+    Session --> Manage
+    Session --> Configure
+    Session --> Inspect
+    Manage --> Analyze
+    Configure --> Analyze
+    Analyze --> Persist
+    Analyze -. "error" .-> Recover
+    Persist --> Inspect
+    Recover --> Inspect
+
+    style Login fill:#111827,stroke:#60a5fa,color:#fff
+    style Session fill:#111827,stroke:#60a5fa,color:#fff
+    style Manage fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style Configure fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style Inspect fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style Analyze fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Persist fill:#166534,stroke:#86efac,color:#fff
+    style Recover fill:#b91c1c,stroke:#fca5a5,color:#fff

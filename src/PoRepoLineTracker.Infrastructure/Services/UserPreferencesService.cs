@@ -58,6 +58,7 @@ public class UserPreferencesService : IUserPreferencesService
         {
             UserId = userId,
             FileExtensions = UserPreferences.DefaultFileExtensions,
+            ChartDisplayMode = ChartDisplayMode.TrueData,
             LastUpdated = DateTime.UtcNow
         };
     }
@@ -72,7 +73,11 @@ public class UserPreferencesService : IUserPreferencesService
             var updatedPrefs = preferences with { LastUpdated = DateTime.UtcNow };
             var entity = new UserPreferencesEntity(updatedPrefs);
             await _preferencesTableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
-            _logger.LogInformation("Saved preferences for user {UserId} with {Count} extensions", updatedPrefs.UserId, updatedPrefs.FileExtensions.Count);
+            _logger.LogInformation(
+                "Saved preferences for user {UserId} with {Count} extensions and chart mode {ChartDisplayMode}",
+                updatedPrefs.UserId,
+                updatedPrefs.FileExtensions.Count,
+                updatedPrefs.ChartDisplayMode);
         }
         catch (Exception ex)
         {

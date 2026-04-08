@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  coverlet.runsettings
+  Coverage thresholds enforced on every `dotnet test` run.
+  Fail the build if branch or method coverage falls below the minimum.
+  Excluded:
+    - Test projects themselves (*.UnitTests, *.IntegrationTests)
+    - Auto-generated Blazor infrastructure (Program partial class, _Imports)
+    - Migrations
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <!-- Output formats: consumed by ReportGenerator or CI dashboards -->
+          <Format>cobertura,lcov</Format>
+          <OutputPath>./TestResults/coverage</OutputPath>
+
+          <!-- Assemblies to include in coverage measurement -->
+          <Include>[PoRepoLineTracker.Application]*,[PoRepoLineTracker.Domain]*,[PoRepoLineTracker.Infrastructure]*</Include>
+
+          <!-- Exclude generated and test code -->
+          <Exclude>[*.UnitTests]*,[*.IntegrationTests]*,[*.E2ETests*]*</Exclude>
+          <ExcludeByFile>**/Migrations/**/*.cs,**/*.g.cs,**/*.Designer.cs,**/Program.cs</ExcludeByFile>
+          <ExcludeByAttribute>GeneratedCode,CompilerGenerated,ExcludeFromCodeCoverage</ExcludeByAttribute>
+
+          <!-- Gates: fail if coverage drops below these thresholds -->
+          <Threshold>70</Threshold>
+          <ThresholdType>line,branch,method</ThresholdType>
+          <ThresholdStat>minimum</ThresholdStat>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

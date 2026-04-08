@@ -1,0 +1,15 @@
+sequenceDiagram
+    autonumber
+    actor UserA as "User A"
+    actor UserB as "User B"
+    participant API as "API"
+    participant Worker as "Analyzer"
+    participant Storage as "Azure Table Storage"
+
+    UserA->>API: Update preferences and queue analysis
+    UserB->>API: Update preferences and queue analysis
+    API->>Storage: Persist each user partition separately
+    API->>Worker: Queue background work
+    Worker->>Storage: Write derived metrics
+    Note over API,Storage: Ownership checks prevent cross-user collisions.
+    Note over Worker,Storage: Latest successful repository derivation wins within one user scope.

@@ -128,38 +128,7 @@ html, body {
     }
 }
 
-/* Responsive utilities */
-.row {
-    display: flex;
-    flex-wrap: wrap;
-    margin: 0 calc(-1 * var(--space-sm));
-}
-
-.col {
-    flex: 1;
-    padding: 0 var(--space-sm);
-}
-
-.col-12 { flex: 0 0 100%; max-width: 100%; }
-.col-6 { flex: 0 0 50%; max-width: 50%; }
-.col-4 { flex: 0 0 33.333333%; max-width: 33.333333%; }
-.col-3 { flex: 0 0 25%; max-width: 25%; }
-
-/* Responsive columns */
-@media (max-width: 768px) {
-    .col-md-12 { flex: 0 0 100%; max-width: 100%; }
-    .col-lg-8, .col-lg-4 { flex: 0 0 100%; max-width: 100%; }
-}
-
-@media (min-width: 768px) {
-    .col-md-6 { flex: 0 0 50%; max-width: 50%; }
-    .col-md-4 { flex: 0 0 33.333333%; max-width: 33.333333%; }
-}
-
-@media (min-width: 1024px) {
-    .col-lg-8 { flex: 0 0 66.666667%; max-width: 66.666667%; }
-    .col-lg-4 { flex: 0 0 33.333333%; max-width: 33.333333%; }
-}
+/* Responsive grid columns removed — use RadzenRow/RadzenColumn instead */
 
 /* Modern Typography with Better Accessibility */
 h1, h2, h3, h4, h5, h6 {
@@ -1138,55 +1107,47 @@ body {
     margin: 0;
 }
 
+/* ─── App Shell Layout (CSS Grid) ──────────────────────────────────────────
+   Radzen's responsive mode removes position:fixed from the sidebar and sets
+   rz-layout to flex-column, which stacks body below sidebar. Override with
+   a CSS Grid so header spans the top row and sidebar+body share the second.
+──────────────────────────────────────────────────────────────────────────── */
 .rz-layout {
+    display: grid !important;
+    grid-template-columns: 220px 1fr !important;
+    grid-template-rows: 60px 1fr !important;
     min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+    height: 100vh;
 }
 
 .rz-header {
-    position: fixed;
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    position: sticky !important;
     top: 0;
-    left: 0;
-    right: 0;
     z-index: 1000;
-    background: var(--rz-primary);
-    color: var(--rz-on-primary);
-    padding: 1rem 2rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    height: 80px;
+    height: 60px;
     box-sizing: border-box;
 }
 
-.rz-sidebar {
-    position: fixed;
-    top: 80px;
-    left: 0;
-    bottom: 60px;
-    width: 280px;
-    background: var(--rz-base-100);
-    border-right: 1px solid var(--rz-base-300);
-    overflow-y: auto;
+.rz-sidebar,
+.rz-sidebar-responsive {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    position: relative !important;
+    width: 220px !important;
+    height: 100% !important;
+    min-height: unset !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
 }
 
 .rz-body {
-    margin-top: 80px;
-    margin-bottom: 60px;
-    margin-left: 280px;
-    min-height: calc(100vh - 140px);
-}
-
-.rz-footer {
-    position: fixed;
-    bottom: 0;
-    left: 280px;
-    right: 0;
-    z-index: 1000;
-    background: var(--rz-base-200);
-    padding: 1rem 2rem;
-    border-top: 1px solid var(--rz-base-300);
-    height: 60px;
-    box-sizing: border-box;
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    margin: 0 !important;
+    overflow-y: auto;
+    min-height: unset !important;
 }
 
 .rz-button {
@@ -1247,4 +1208,135 @@ body {
     font-size: 0.55rem !important;
     line-height: 1;
     color: white !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOGIN PAGE  –  Mesh Gradient Canvas + Frosted Card
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.login-canvas {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at 20% 50%, #ede9fe 0%, transparent 55%),
+                radial-gradient(ellipse at 80% 20%, #ddd6fe 0%, transparent 50%),
+                radial-gradient(ellipse at 60% 80%, #c4b5fd 0%, transparent 45%),
+                #f5f3ff;
+    position: relative;
+    overflow: hidden;
+    padding: 2rem;
+}
+
+/* Animated floating blobs */
+.login-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.35;
+    animation: blobFloat 8s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+
+.login-blob-1 {
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, #7c3aed, #6d28d9);
+    top: -120px; left: -100px;
+    animation-duration: 9s;
+}
+
+.login-blob-2 {
+    width: 380px; height: 380px;
+    background: radial-gradient(circle, #8b5cf6, #a78bfa);
+    bottom: -80px; right: -60px;
+    animation-duration: 11s;
+    animation-delay: -3s;
+}
+
+.login-blob-3 {
+    width: 260px; height: 260px;
+    background: radial-gradient(circle, #c4b5fd, #ddd6fe);
+    top: 40%; left: 55%;
+    animation-duration: 7s;
+    animation-delay: -5s;
+}
+
+@keyframes blobFloat {
+    from { transform: translate(0, 0) scale(1); }
+    to   { transform: translate(30px, -20px) scale(1.08); }
+}
+
+/* Login card — elevated glass */
+.login-card {
+    position: relative;
+    z-index: 1;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.88) !important;
+    border: 1px solid rgba(255, 255, 255, 0.7) !important;
+    box-shadow: 0 24px 64px rgba(109, 40, 217, 0.15), 0 4px 16px rgba(0,0,0,0.08) !important;
+    border-radius: 20px !important;
+}
+
+/* Logomark */
+.login-logomark {
+    position: relative;
+    width: 64px; height: 64px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(103,80,164,0.1), rgba(124,58,237,0.05));
+    border: 1.5px solid rgba(103,80,164,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-logomark-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-logomark-badge {
+    position: absolute;
+    bottom: -4px; right: -4px;
+    width: 22px; height: 22px;
+    background: #059669;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+}
+
+/* Feature pills */
+.login-feature-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+    background: rgba(103, 80, 164, 0.08);
+    color: var(--primary-color);
+    border: 1px solid rgba(103, 80, 164, 0.15);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* CTA button — idle pulse */
+.login-cta-btn {
+    animation: ctaIdlePulse 3s ease-in-out infinite;
+    border-radius: 12px !important;
+}
+
+.login-cta-btn:hover {
+    animation: none;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(103, 80, 164, 0.35) !important;
+}
+
+@keyframes ctaIdlePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(103,80,164,0.0); }
+    50%       { box-shadow: 0 0 0 6px rgba(103,80,164,0.12); }
 }

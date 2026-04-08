@@ -1,9 +1,18 @@
 using MediatR;
+using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Application.Models;
-using System;
-using System.Collections.Generic;
 
-namespace PoRepoLineTracker.Application.Features.Repositories.Queries
+namespace PoRepoLineTracker.Application.Features.Repositories.Queries;
+
+public record GetLineCountHistoryQuery(Guid RepositoryId, int Days) : IRequest<IEnumerable<DailyLineCountDto>>;
+
+public class GetLineCountHistoryQueryHandler : IRequestHandler<GetLineCountHistoryQuery, IEnumerable<DailyLineCountDto>>
 {
-    public record GetLineCountHistoryQuery(Guid RepositoryId, int Days) : IRequest<IEnumerable<DailyLineCountDto>>;
+    private readonly IRepositoryDataService _repositoryDataService;
+
+    public GetLineCountHistoryQueryHandler(IRepositoryDataService repositoryDataService)
+        => _repositoryDataService = repositoryDataService;
+
+    public Task<IEnumerable<DailyLineCountDto>> Handle(GetLineCountHistoryQuery request, CancellationToken cancellationToken)
+        => _repositoryDataService.GetLineCountHistoryAsync(request.RepositoryId, request.Days);
 }

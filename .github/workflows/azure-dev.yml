@@ -6,6 +6,10 @@ on:
     branches:
       - master
 
+concurrency:
+  group: azure-dev-master
+  cancel-in-progress: true
+
 permissions:
   id-token: write
   contents: read
@@ -13,12 +17,15 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      APP_RESOURCE_GROUP: PoRepoLineTracker
+      APP_SERVICE_NAME: app-porepolinetracker
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,7 +55,7 @@ jobs:
         # az acr build runs the Docker build in the cloud (no local Docker daemon needed).
         # The ACR name is derived from the uniqueString-generated name in resources.bicep.
         run: |
-          $acrName = az acr list --resource-group PoRepoLineTracker --query "[0].name" -o tsv
+          $acrName = az acr list --resource-group "$Env:APP_RESOURCE_GROUP" --query "[0].name" -o tsv
           Write-Host "Building image in ACR: $acrName" -ForegroundColor Cyan
           az acr build `
             --registry $acrName `
@@ -58,5 +65,41 @@ jobs:
         shell: pwsh
 
       - name: Restart App Service to pull new image
-        run: az webapp restart --name app-porepolinetracker --resource-group PoRepoLineTracker
+        run: az webapp restart --name "$APP_SERVICE_NAME" --resource-group "$APP_RESOURCE_GROUP"
+
+      - name: Verify deployed health endpoint
+        shell: pwsh
+        run: |
+          $hostName = az webapp show `
+            --name "$Env:APP_SERVICE_NAME" `
+            --resource-group "$Env:APP_RESOURCE_GROUP" `
+            --query defaultHostName `
+            -o tsv
+
+          if ([string]::IsNullOrWhiteSpace($hostName)) {
+            throw "Unable to resolve App Service host name."
+          }
+
+          $healthUrl = "https://$hostName/health"
+
+          for ($attempt = 1; $attempt -le 12; $attempt++) {
+            try {
+              $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 30
+              Write-Host "Health response: $($response.Content)"
+
+              if ($response.StatusCode -eq 200 -and $response.Content -match '"status":"Healthy"') {
+                Write-Host "Health check passed on attempt $attempt" -ForegroundColor Green
+                exit 0
+              }
+            }
+            catch {
+              Write-Host "Health check attempt $attempt failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+
+            if ($attempt -lt 12) {
+              Start-Sleep -Seconds 10
+            }
+          }
+
+          throw "Health endpoint did not report Healthy after deployment: $healthUrl"
         

@@ -5,7 +5,7 @@ End-to-end tests for PoRepoLineTracker using Playwright and TypeScript.
 ## Prerequisites
 
 - Node.js (v18 or higher)
-- .NET 9 SDK
+- .NET 10 SDK
 - GitHub Personal Access Token configured in API user secrets
 
 ## Setup
@@ -55,7 +55,7 @@ npm run test:report
 ## Test Structure
 
 - `tests/basic-functionality.spec.ts` - Basic page navigation and health check tests
-- `tests/add-repository.spec.ts` - Tests for adding repositories and viewing charts
+- `tests/login.spec.ts` - Authentication redirect and auth endpoint behavior tests
 
 ## Configuration
 
@@ -78,5 +78,5 @@ Test configuration is in `playwright.config.ts`:
 
 - The API server starts automatically using the `webServer` configuration
 - Tests wait for the health check endpoint before starting
-- GitHub PAT is required for adding private repositories
-- Tests expect PoDebateRap repository to be available in the GitHub account
+- Run `npm install` before the first test run so `@playwright/test` is available locally
+- GitHub PAT is only needed for flows that enumerate or analyze user repositories

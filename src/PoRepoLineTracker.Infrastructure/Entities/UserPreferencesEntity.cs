@@ -26,6 +26,11 @@ public class UserPreferencesEntity : ITableEntity
     public string FileExtensions { get; set; } = string.Empty;
 
     /// <summary>
+    /// Preferred chart rendering mode.
+    /// </summary>
+    public string ChartDisplayMode { get; set; } = Domain.Models.ChartDisplayMode.TrueData.ToString();
+
+    /// <summary>
     /// When preferences were last updated.
     /// </summary>
     public DateTime LastUpdated { get; set; }
@@ -38,17 +43,23 @@ public class UserPreferencesEntity : ITableEntity
         RowKey = prefs.UserId.ToString();
         UserId = prefs.UserId;
         FileExtensions = string.Join(",", prefs.FileExtensions);
+        ChartDisplayMode = prefs.ChartDisplayMode.ToString();
         LastUpdated = prefs.LastUpdated;
     }
 
     public PoRepoLineTracker.Domain.Models.UserPreferences ToDomainModel()
     {
+        var chartDisplayMode = Enum.TryParse<PoRepoLineTracker.Domain.Models.ChartDisplayMode>(ChartDisplayMode, true, out var parsedChartDisplayMode)
+            ? parsedChartDisplayMode
+            : PoRepoLineTracker.Domain.Models.ChartDisplayMode.TrueData;
+
         return new PoRepoLineTracker.Domain.Models.UserPreferences
         {
             UserId = UserId,
             FileExtensions = string.IsNullOrEmpty(FileExtensions) 
                 ? PoRepoLineTracker.Domain.Models.UserPreferences.DefaultFileExtensions 
                 : FileExtensions.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
+            ChartDisplayMode = chartDisplayMode,
             LastUpdated = LastUpdated
         };
     }

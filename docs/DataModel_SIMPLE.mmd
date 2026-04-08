@@ -1,0 +1,38 @@
+erDiagram
+    USER {
+        guid Id PK
+        string GitHubId
+    }
+
+    USER_PREFERENCES {
+        guid UserId PK
+        string ChartDisplayModeEnum
+    }
+
+    GITHUB_REPOSITORY {
+        guid Id PK
+        guid UserId FK
+        string AnalysisState
+    }
+
+    COMMIT_LINE_COUNT {
+        guid Id PK
+        guid RepositoryId FK
+    }
+
+    TOP_FILE {
+        guid RepositoryId PK
+        string Rank PK
+    }
+
+    FAILED_OPERATION {
+        guid Id PK
+        guid RepositoryId FK
+        string RecoveryState
+    }
+
+    USER ||--|| USER_PREFERENCES : "configures"
+    USER ||--o{ GITHUB_REPOSITORY : "tracks"
+    GITHUB_REPOSITORY ||--o{ COMMIT_LINE_COUNT : "stores"
+    GITHUB_REPOSITORY ||--o{ TOP_FILE : "summarizes"
+    GITHUB_REPOSITORY ||--o{ FAILED_OPERATION : "fails_with"

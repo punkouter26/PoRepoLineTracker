@@ -17,8 +17,16 @@ public class FileIgnoreFilter : IFileIgnoreFilter
     private readonly HashSet<string> _exactFileNames;
     private readonly HashSet<string> _extensionSuffixes;
     private readonly HashSet<string> _filePatterns;
+    private readonly HashSet<string> _bundledAssetPrefixes;
     private readonly HashSet<string> _directoryPatterns;
     private const string MigrationFolder = "migrations/";
+    private static readonly string[] GeneratedPathFragments =
+    [
+        "/_framework/",
+        "/_content/",
+        "/wwwroot/wwwroot/",
+        "/site/wwwroot/"
+    ];
 
     public FileIgnoreFilter(ILogger<FileIgnoreFilter> logger)
     {
@@ -54,12 +62,23 @@ public class FileIgnoreFilter : IFileIgnoreFilter
             "reference.cs", "temporarygeneratedfile", "assemblyinfo", "jquery", "bootstrap"
         ];
 
+        // Known third-party bundle file prefixes that are commonly committed into repos.
+        _bundledAssetPrefixes =
+        [
+            "socket.io",
+            "socket_io",
+            "socket-io",
+            "socket.io-client",
+            "socket_io_client",
+            "socket-io-client"
+        ];
+
         // Directory patterns to ignore
         _directoryPatterns =
         [
             "bin/", "obj/", "debug/", "release/", "node_modules/", "bower_components/",
             "jspm_packages/", "typings/", ".vs/", ".vscode/", ".idea/", "wwwroot/lib/",
-            ".git/", "packages/"
+            "vendor/", "vendors/", "third_party/", "third-party/", ".git/", "packages/"
         ];
     }
 
@@ -67,6 +86,7 @@ public class FileIgnoreFilter : IFileIgnoreFilter
     public bool ShouldIgnoreFile(string fileName, string filePath)
     {
         var nameLower = fileName.ToLowerInvariant();
+        var normalizedPath = NormalizePath(filePath);
 
         // Fast exact match
         if (_exactFileNames.Contains(nameLower))
@@ -89,8 +109,20 @@ public class FileIgnoreFilter : IFileIgnoreFilter
             return true;
         }
 
+        if (IsBundledAssetFile(nameLower))
+        {
+            _logger.LogDebug("Ignoring bundled asset file: {FileName}", fileName);
+            return true;
+        }
+
+        if (GeneratedPathFragments.Any(normalizedPath.Contains))
+        {
+            _logger.LogDebug("Ignoring generated asset file: {FilePath}", filePath);
+            return true;
+        }
+
         // Migration folder check
-        if (filePath.Contains(MigrationFolder, StringComparison.OrdinalIgnoreCase))
+        if (normalizedPath.Contains(MigrationFolder, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogDebug("Ignoring migration file: {FileName}", fileName);
             return true;
@@ -102,14 +134,29 @@ public class FileIgnoreFilter : IFileIgnoreFilter
     /// <inheritdoc />
     public bool ShouldIgnoreDirectory(string directoryPath)
     {
-        var normalized = directoryPath.Replace("\\", "/").ToLowerInvariant() + "/";
+        var normalized = NormalizePath(directoryPath) + "/";
 
         var shouldIgnore = _directoryPatterns.Any(p =>
             normalized.EndsWith(p) || normalized.Contains("/" + p) || normalized.StartsWith(p));
+
+        shouldIgnore = shouldIgnore || GeneratedPathFragments.Any(normalized.Contains);
 
         if (shouldIgnore)
             _logger.LogDebug("Ignoring directory: {DirectoryPath}", directoryPath);
 
         return shouldIgnore;
+    }
+
+    private static string NormalizePath(string path) => path.Replace("\\", "/").ToLowerInvariant();
+
+    private bool IsBundledAssetFile(string normalizedFileName)
+    {
+        var extension = Path.GetExtension(normalizedFileName);
+        if (extension is not ".js" and not ".css")
+        {
+            return false;
+        }
+
+        return _bundledAssetPrefixes.Any(normalizedFileName.StartsWith);
     }
 }

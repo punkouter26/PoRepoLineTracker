@@ -61,4 +61,45 @@ public static class AppTelemetry
         "commit.processing_duration",
         unit: "ms",
         description: "Duration of individual commit processing");
+
+    public static readonly Histogram<double> GitHubApiLatency = Meter.CreateHistogram<double>(
+        "github_api.latency",
+        unit: "ms",
+        description: "GitHub API response latency for performance monitoring");
+
+    public static readonly Counter<long> GitHubApiCalls = Meter.CreateCounter<long>(
+        "github_api.calls",
+        unit: "{request}",
+        description: "Total GitHub API calls made by the application");
+
+    // Observable gauges — initialized at startup via InitializeGauges()
+    public static ObservableGauge<int>? TotalRepositories { get; private set; }
+    public static ObservableGauge<int>? PendingAnalysis { get; private set; }
+    public static ObservableGauge<int>? GitHubRateLimitRemaining { get; private set; }
+    public static ObservableGauge<long>? TotalLinesOfCode { get; private set; }
+
+    public static void InitializeGauges(
+        Func<int> getTotalRepositories,
+        Func<int> getPendingAnalysis,
+        Func<int>? getGitHubRateLimit = null,
+        Func<long>? getTotalLinesOfCode = null)
+    {
+        TotalRepositories = Meter.CreateObservableGauge(
+            "repositories.total", getTotalRepositories,
+            unit: "{repository}", description: "Total number of repositories in the system");
+
+        PendingAnalysis = Meter.CreateObservableGauge(
+            "repositories.pending_analysis", getPendingAnalysis,
+            unit: "{repository}", description: "Number of repositories pending analysis");
+
+        if (getGitHubRateLimit != null)
+            GitHubRateLimitRemaining = Meter.CreateObservableGauge(
+                "github_api.rate_limit_remaining", getGitHubRateLimit,
+                unit: "{requests}", description: "Remaining GitHub API calls before hitting rate limit");
+
+        if (getTotalLinesOfCode != null)
+            TotalLinesOfCode = Meter.CreateObservableGauge(
+                "code.total_lines", getTotalLinesOfCode,
+                unit: "{lines}", description: "Total lines of code across all repositories");
+    }
 }

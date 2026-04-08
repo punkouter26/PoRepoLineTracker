@@ -8,43 +8,67 @@
 <RadzenLayout>
     <RadzenHeader>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Gap="1rem" class="rz-p-4">
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem"
+                         Style="cursor: pointer;" @onclick="@(() => Navigation.NavigateTo("/"))">
                 <span class="brand-icon-wrap">
-                    <RadzenIcon Icon="code" Style="font-size: 1.2rem; color: var(--rz-primary);" />
+                    <RadzenIcon Icon="code" Style="font-size: 1.2rem; color: #fff;" />
                     <RadzenIcon Icon="trending_up" class="brand-icon-trend" Style="font-size: 0.55rem; color: white;" />
                 </span>
-                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; font-weight: 600;">PoRepoLineTracker</RadzenText>
+                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; font-weight: 700; color: #fff; letter-spacing: -0.01em;">PoRepoLineTracker</RadzenText>
             </RadzenStack>
             
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
                 <RadzenButton Icon="@(_isDarkMode ? "light_mode" : "dark_mode")"
                               ButtonStyle="ButtonStyle.Light"
                               Variant="Variant.Text"
+                              Style="color: rgba(255,255,255,0.85);"
                               title="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")"
                               Click="@ToggleDarkMode" />
-                <RadzenButton Icon="settings" 
-                              ButtonStyle="ButtonStyle.Light" 
-                              Variant="Variant.Text"
-                              Click="@(() => Navigation.NavigateTo("/settings/extensions-counted"))"
-                              title="Settings" />
                 <LoginDisplay />
                 <RadzenButton Icon="@(sidebarExpanded ? "menu_open" : "menu")" 
                               ButtonStyle="ButtonStyle.Light" 
                               Variant="Variant.Text"
-                              Click="@ToggleSidebar"
-                              class="rz-display-none-lg" />
+                              Style="color: rgba(255,255,255,0.85);"
+                              Click="@ToggleSidebar" />
             </RadzenStack>
         </RadzenStack>
     </RadzenHeader>
-    
-    <RadzenSidebar @bind-Expanded="@sidebarExpanded" Style="width: 280px; background: var(--rz-sidebar-background-color);">
-        <RadzenPanelMenu>
-            <NavMenu />
-        </RadzenPanelMenu>
+
+    <RadzenSidebar @bind-Expanded="@sidebarExpanded" Style="width: 220px; min-height: 100vh;">
+        <div style="padding: 1rem 0 0.5rem;">
+            <ErrorBoundary>
+                <ChildContent>
+                    <NavMenu />
+                </ChildContent>
+                <ErrorContent>
+                    <!-- nav recovered silently -->
+                </ErrorContent>
+            </ErrorBoundary>
+        </div>
     </RadzenSidebar>
     
     <RadzenBody>
         <div class="rz-p-4">
+            @if (!string.IsNullOrEmpty(_breadcrumbCurrent))
+            {
+                <nav class="app-breadcrumb" aria-label="breadcrumb">
+                    <a href="/">Home</a>
+                    @if (!string.IsNullOrEmpty(_breadcrumbParent))
+                    {
+                        <span class="bc-sep">›</span>
+                        @if (!string.IsNullOrEmpty(_breadcrumbParentPath))
+                        {
+                            <a href="@_breadcrumbParentPath">@_breadcrumbParent</a>
+                        }
+                        else
+                        {
+                            <span>@_breadcrumbParent</span>
+                        }
+                    }
+                    <span class="bc-sep">›</span>
+                    <span class="bc-current" aria-current="page">@_breadcrumbCurrent</span>
+                </nav>
+            }
             @Body
         </div>
     </RadzenBody>
@@ -58,6 +82,15 @@
 @code {
     private bool sidebarExpanded = true;
     private bool _isDarkMode = false;
+    private string? _breadcrumbCurrent;
+    private string? _breadcrumbParent;
+    private string? _breadcrumbParentPath;
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        UpdateBreadcrumb(Navigation.Uri);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -69,9 +102,30 @@
         }
     }
 
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        UpdateBreadcrumb(e.Location);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateBreadcrumb(string uri)
+    {
+        var path = new Uri(uri).AbsolutePath.TrimEnd('/');
+        (_breadcrumbCurrent, _breadcrumbParent, _breadcrumbParentPath) = path switch
+        {
+            "" or "/" => (null, null, null),
+            "/settings" => ("Settings", null, null),
+            "/settings/extensions-counted" => ("Settings", null, null),
+            _ when path.StartsWith("/repositories/") && path.Length > "/repositories/".Length
+                => ("Repository Detail", "Repositories", "/"),
+            _ => (null, null, null)
+        };
+    }
+
     private void ToggleSidebar()
     {
         sidebarExpanded = !sidebarExpanded;
+        StateHasChanged();
     }
 
     private async Task ToggleDarkMode()
@@ -79,5 +133,10 @@
         _isDarkMode = !_isDarkMode;
         await JSRuntime.InvokeVoidAsync("setTheme", _isDarkMode ? "dark" : "light");
         StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }

@@ -1,0 +1,36 @@
+flowchart LR
+    subgraph Edge["Edge Delivery"]
+        Client["Blazor WebAssembly Client"]
+    end
+
+    subgraph Compute["Compute Tier"]
+        Host["ASP.NET Core API + WASM Host"]
+        Workers["Background Analysis"]
+    end
+
+    subgraph Data["Data Persistence"]
+        Storage["Azure Table Storage"]
+        Secrets["Azure Key Vault"]
+        Monitoring["App Insights"]
+    end
+
+    subgraph External["External Systems"]
+        GitHub["GitHub"]
+    end
+
+    Client --> Host
+    Host --> Workers
+    Host --> Storage
+    Host --> Secrets
+    Host --> Monitoring
+    Host --> GitHub
+    Workers --> Storage
+    Workers --> GitHub
+
+    style Client fill:#111827,stroke:#60a5fa,color:#fff
+    style Host fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Workers fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Storage fill:#166534,stroke:#86efac,color:#fff
+    style Secrets fill:#166534,stroke:#86efac,color:#fff
+    style Monitoring fill:#166534,stroke:#86efac,color:#fff
+    style GitHub fill:#9a3412,stroke:#fdba74,color:#fff

@@ -1,57 +1,77 @@
 erDiagram
-  USER {
-    guid Id PK
-    string GitHubId UK
-    string Username
-    string DisplayName
-    string Email
-    string AvatarUrl
-    string AccessToken
-    datetime CreatedAt
-    datetime LastLoginAt
-  }
+    USER {
+        guid Id PK
+        string GitHubId
+        string Username
+        string DisplayName
+        string Email
+        string AvatarUrl
+        string AccessTokenEncrypted
+        datetime CreatedAt
+        datetime LastLoginAt
+        datetime TokenExpiresAt
+    }
 
-  USER_PREFERENCES {
-    guid UserId PK_FK
-    json FileExtensions
-    datetime UpdatedAt
-  }
+    USER_PREFERENCES {
+        guid UserId PK
+        string FileExtensionsCsv
+        string ChartDisplayModeEnum
+        datetime LastUpdated
+        string PreferenceState "Derived: Default|Customized"
+    }
 
-  GITHUB_REPOSITORY {
-    guid Id PK
-    guid UserId FK
-    string Owner
-    string Name
-    string CloneUrl
-    string LocalPath
-    datetime LastAnalyzedCommitDate
-  }
+    GITHUB_REPOSITORY {
+        guid Id PK
+        guid UserId FK
+        string Owner
+        string Name
+        string CloneUrl
+        string LocalPath
+        datetime LastAnalyzedCommitDate
+        string AnalysisState "Derived: New|Queued|Analyzed"
+    }
 
-  COMMIT_LINE_COUNT {
-    guid Id PK
-    guid RepositoryId FK
-    string CommitSha
-    datetime CommitDate
-    int TotalLines
-    int LinesAdded
-    int LinesRemoved
-    json LinesByFileType
-  }
+    COMMIT_LINE_COUNT {
+        guid Id PK
+        guid RepositoryId FK
+        string CommitSha
+        datetime CommitDate
+        int TotalLines
+        int LinesAdded
+        int LinesRemoved
+        string LinesByFileTypeJson
+    }
 
-  FAILED_OPERATION {
-    guid Id PK
-    guid RepositoryId FK
-    string OperationType
-    string EntityId
-    string ErrorMessage
-    string StackTrace
-    datetime FailedAt
-    int RetryCount
-    datetime LastRetryAttempt
-    json ContextData
-  }
+    TOP_FILE {
+        guid RepositoryId PK
+        string Rank PK
+        string FileName
+        int LineCount
+        datetime SnapshotAt
+    }
 
-  USER ||--o| USER_PREFERENCES : "has preferences"
-  USER ||--o{ GITHUB_REPOSITORY : "tracks"
-  GITHUB_REPOSITORY ||--o{ COMMIT_LINE_COUNT : "has history"
-  GITHUB_REPOSITORY ||--o{ FAILED_OPERATION : "generates errors"
+    FAILED_OPERATION {
+        guid Id PK
+        guid RepositoryId FK
+        string OperationType
+        string EntityId
+        string ErrorMessage
+        string StackTrace
+        datetime FailedAt
+        int RetryCount
+        datetime LastRetryAttempt
+        string ContextDataJson
+        string RecoveryState "Derived: PendingRetry|Retrying|Escalated|Cleared"
+    }
+
+    CHART_DISPLAY_MODE {
+        string Value PK
+        string Meaning
+    }
+
+    USER ||--|| USER_PREFERENCES : "configures"
+    USER ||--o{ GITHUB_REPOSITORY : "tracks"
+    GITHUB_REPOSITORY ||--o{ COMMIT_LINE_COUNT : "produces"
+    GITHUB_REPOSITORY ||--o{ TOP_FILE : "summarizes"
+    GITHUB_REPOSITORY ||--o{ FAILED_OPERATION : "can_record"
+    CHART_DISPLAY_MODE ||--o{ USER_PREFERENCES : "selected_by"

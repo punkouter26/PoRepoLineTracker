@@ -48,7 +48,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
                     Owner = request.Owner,
                     Name = request.RepoName,
                     CloneUrl = request.CloneUrl,
-                    LastAnalyzedCommitDate = DateTime.MinValue // Default value indicating not analyzed yet
+                    LastAnalyzedCommitDate = null // null = not yet analyzed; guards HasValue checks in UI
                 };
 
                 await _repositoryDataService.AddRepositoryAsync(repository);

@@ -34,6 +34,11 @@ public interface IFailedOperationService
     Task DeleteFailedOperationAsync(Guid id);
 
     /// <summary>
+    /// Gets the total count of failed operations without deserializing full payloads
+    /// </summary>
+    Task<int> GetCountAsync();
+
+    /// <summary>
     /// Gets all failed operations across all repositories
     /// </summary>
     Task<IEnumerable<FailedOperation>> GetAllFailedOperationsAsync();

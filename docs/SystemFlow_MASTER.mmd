@@ -1,0 +1,71 @@
+flowchart TD
+    subgraph Access["Access and Session"]
+        Visit["User Opens App"]
+        Challenge["Unauthenticated Request\nRedirect to GitHub login"]
+        Cookie["Authenticated Session Cookie\nUserId claim available"]
+    end
+
+    subgraph Workspace["Primary Workspace"]
+        RepoList["Repositories Page\nList tracked repositories"]
+        AddRepo["Add Repository Flow\nSingle or bulk add"]
+        Settings["Settings Flow\nExtensions counted + chart mode"]
+        FailedView["Failed Operations View\nOperational diagnostics"]
+        Detail["Repository Detail View\nHistory, top files, percentages"]
+    end
+
+    subgraph Pipeline["Repository Pipeline"]
+        PersistRepo["Persist Repository Record"]
+        QueueAnalysis["Queue Analysis or Re-analysis"]
+        ClonePull["Clone or Pull Repository"]
+        Count["Compute Metrics\nCommit totals + extension mix + top files"]
+        SaveMetrics["Write Derived Records\nCommits, top files, repo metadata"]
+        SaveFailure["Record Failed Operation\nRetry metadata + context"]
+    end
+
+    subgraph Feedback["Feedback Loop"]
+        QueryData["Client Queries API"]
+        RefreshUi["Dashboards and Detail Views Refresh"]
+        RetryLoop["Background Retry Service\nPoll and reprocess failures"]
+    end
+
+    Visit --> Challenge
+    Challenge --> Cookie
+    Cookie --> RepoList
+    Cookie --> Settings
+    Cookie --> FailedView
+    RepoList --> AddRepo
+    RepoList --> Detail
+    AddRepo --> PersistRepo
+    PersistRepo --> QueueAnalysis
+    Settings --> QueueAnalysis
+    Detail --> QueueAnalysis
+    QueueAnalysis --> ClonePull
+    ClonePull --> Count
+    Count --> SaveMetrics
+    ClonePull -. "exception" .-> SaveFailure
+    Count -. "exception" .-> SaveFailure
+    SaveMetrics --> QueryData
+    SaveFailure --> FailedView
+    SaveFailure --> RetryLoop
+    RetryLoop --> QueueAnalysis
+    QueryData --> RefreshUi
+    RefreshUi --> RepoList
+    RefreshUi --> Detail
+
+    style Visit fill:#0f172a,stroke:#38bdf8,color:#fff
+    style Challenge fill:#0f172a,stroke:#38bdf8,color:#fff
+    style Cookie fill:#0f172a,stroke:#38bdf8,color:#fff
+    style RepoList fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style AddRepo fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style Settings fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style FailedView fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style Detail fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style PersistRepo fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style QueueAnalysis fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style ClonePull fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Count fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style SaveMetrics fill:#166534,stroke:#86efac,color:#fff
+    style SaveFailure fill:#b91c1c,stroke:#fca5a5,color:#fff
+    style QueryData fill:#166534,stroke:#86efac,color:#fff
+    style RefreshUi fill:#166534,stroke:#86efac,color:#fff
+    style RetryLoop fill:#166534,stroke:#86efac,color:#fff

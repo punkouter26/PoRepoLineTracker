@@ -16,7 +16,9 @@ public class FailedOperationService : IFailedOperationService
 {
     private readonly TableClient _failedOperationTableClient;
     private readonly ILogger<FailedOperationService> _logger;
-    private bool _tablesInitialized = false;
+    // SemaphoreSlim(1,1) prevents concurrent tasks from double-initializing the table
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private volatile bool _tablesInitialized = false;
 
     public FailedOperationService(TableServiceClient tableServiceClient, IConfiguration configuration, ILogger<FailedOperationService> logger)
     {
@@ -28,19 +30,23 @@ public class FailedOperationService : IFailedOperationService
 
     private async Task EnsureTablesExistAsync()
     {
-        if (!_tablesInitialized)
+        if (_tablesInitialized) return;
+        await _initLock.WaitAsync();
+        try
         {
-            try
-            {
-                await _failedOperationTableClient.CreateIfNotExistsAsync();
-                _tablesInitialized = true;
-                _logger.LogInformation("Failed operations table created/verified successfully.");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error ensuring failed operations table exists: {ErrorMessage}", ex.Message);
-                throw;
-            }
+            if (_tablesInitialized) return; // double-check after acquiring lock
+            await _failedOperationTableClient.CreateIfNotExistsAsync();
+            _tablesInitialized = true;
+            _logger.LogInformation("Failed operations table created/verified successfully.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error ensuring failed operations table exists: {ErrorMessage}", ex.Message);
+            throw;
+        }
+        finally
+        {
+            _initLock.Release();
         }
     }
 
@@ -150,6 +156,21 @@ public class FailedOperationService : IFailedOperationService
             _logger.LogError(ex, "Error deleting failed operation {FailedOperationId}: {ErrorMessage}", id, ex.Message);
             throw;
         }
+    }
+
+    public async Task<int> GetCountAsync()
+    {
+        await EnsureTablesExistAsync();
+        _logger.LogDebug("Getting failed operations count from Table Storage.");
+        var count = 0;
+        // Select only PartitionKey to minimise data transfer — no payload deserialization needed
+        await foreach (var _ in _failedOperationTableClient.QueryAsync<TableEntity>(
+            select: ["PartitionKey"]))
+        {
+            count++;
+        }
+        _logger.LogDebug("Failed operations count: {Count}", count);
+        return count;
     }
 
     public async Task<IEnumerable<FailedOperation>> GetAllFailedOperationsAsync()

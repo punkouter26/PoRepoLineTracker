@@ -1,0 +1,74 @@
+flowchart LR
+    subgraph Ingestion["Ingestion"]
+        SignIn["User Signs In\nGitHub OAuth challenge"]
+        RepoPick["User Picks Repositories\nSingle add or bulk add"]
+        Prefs["User Saves Preferences\nExtensions + chart mode"]
+    end
+
+    subgraph Processing["Processing"]
+        Claims["API Resolves User Claims\nCookie to UserId"]
+        Queue["Repository Command Accepted\nAdd, analyze, or re-analyze"]
+        ClonePull["Git Worker Clones or Pulls\nUser-scoped local repo cache"]
+        Filter["File Filter Applies\nSelected extensions only"]
+        Count["Line Counters Aggregate\nAdded, removed, total, by extension"]
+        Retry["Failure Handler Records\nRetry metadata + context"]
+    end
+
+    subgraph Persistence["Persistence"]
+        UserTable["User + Preference Tables\nIdentity and settings"]
+        RepoTable["Repository Table\nTracked repositories"]
+        CommitTable["Commit Metrics Table\nPer-commit derived totals"]
+        TopFileTable["Top File Table\nLargest-file snapshots"]
+        FailureTable["Failed Operation Table\nOperational recovery queue"]
+    end
+
+    subgraph Egress["Egress and UI Update"]
+        Query["Client Queries API\nRepos, charts, percentages, top files, failures"]
+        Render["Blazor UI Refreshes\nDashboards, detail views, settings"]
+        Observe["Telemetry Captured\nSerilog + App Insights"]
+    end
+
+    SignIn --> Claims
+    Prefs --> Claims
+    RepoPick --> Claims
+    Claims --> UserTable
+    Claims --> Queue
+    Queue --> RepoTable
+    Queue --> ClonePull
+    ClonePull --> Filter
+    Filter --> Count
+    Count --> CommitTable
+    Count --> TopFileTable
+    Count --> RepoTable
+    Count --> Observe
+    ClonePull --> Observe
+    Count --> Query
+    RepoTable --> Query
+    CommitTable --> Query
+    TopFileTable --> Query
+    UserTable --> Query
+    FailureTable --> Query
+    Query --> Render
+    ClonePull -. "exception" .-> Retry
+    Filter -. "exception" .-> Retry
+    Count -. "exception" .-> Retry
+    Retry --> FailureTable
+    Retry --> Observe
+
+    style SignIn fill:#0f172a,stroke:#38bdf8,color:#fff
+    style RepoPick fill:#0f172a,stroke:#38bdf8,color:#fff
+    style Prefs fill:#0f172a,stroke:#38bdf8,color:#fff
+    style Claims fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Queue fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style ClonePull fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Filter fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Count fill:#1d4ed8,stroke:#93c5fd,color:#fff
+    style Retry fill:#b91c1c,stroke:#fca5a5,color:#fff
+    style UserTable fill:#14532d,stroke:#86efac,color:#fff
+    style RepoTable fill:#14532d,stroke:#86efac,color:#fff
+    style CommitTable fill:#14532d,stroke:#86efac,color:#fff
+    style TopFileTable fill:#14532d,stroke:#86efac,color:#fff
+    style FailureTable fill:#14532d,stroke:#86efac,color:#fff
+    style Query fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style Render fill:#7c3aed,stroke:#c4b5fd,color:#fff
+    style Observe fill:#7c3aed,stroke:#c4b5fd,color:#fff

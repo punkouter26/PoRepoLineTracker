@@ -1,0 +1,94 @@
+@inject UserPreferencesClient PreferencesClient
+@inject NotificationService NotificationService
+@inject ILogger<ChartDisplayModeCard> Logger
+@using PoRepoLineTracker.Client.Services
+@using PoRepoLineTracker.Domain.Models
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard Style="padding: 1rem 1.25rem;">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.75rem">
+        <RadzenStack Gap="0.15rem">
+            <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0; font-weight: 700;">@Title</RadzenText>
+            @if (!string.IsNullOrWhiteSpace(Description))
+            {
+                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">@Description</RadzenText>
+            }
+        </RadzenStack>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">Mode:</RadzenText>
+            <RadzenSelectBar TValue="ChartDisplayMode" Value="@_value" Change="OnChange" Size="ButtonSize.Small" Disabled="@_isSaving">
+                <Items>
+                    <RadzenSelectBarItem Text="True Data" Value="ChartDisplayMode.TrueData" />
+                    <RadzenSelectBarItem Text="Moving Average" Value="ChartDisplayMode.MovingAverage" />
+                </Items>
+            </RadzenSelectBar>
+            @if (_isSaving)
+            {
+                <RadzenProgressBarCircular Mode="ProgressBarMode.Indeterminate" ShowValue="false" Size="ProgressBarCircularSize.ExtraSmall" />
+            }
+        </RadzenStack>
+    </RadzenStack>
+</RadzenCard>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Chart Display";
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public EventCallback<ChartDisplayMode> ValueChanged { get; set; }
+
+    private UserPreferences _preferences = new();
+    private ChartDisplayMode _value = ChartDisplayMode.TrueData;
+    private bool _isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _preferences = await PreferencesClient.GetAsync();
+            _value = _preferences.ChartDisplayMode;
+            await ValueChanged.InvokeAsync(_value);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load chart display mode preference. Using true data.");
+            _value = ChartDisplayMode.TrueData;
+            await ValueChanged.InvokeAsync(_value);
+        }
+    }
+
+    private async Task OnChange(ChartDisplayMode chartDisplayMode)
+    {
+        var previousValue = _value;
+        _value = chartDisplayMode;
+        _isSaving = true;
+        await ValueChanged.InvokeAsync(_value);
+        StateHasChanged();
+
+        try
+        {
+            _preferences = await PreferencesClient.SaveAsync(_preferences with
+            {
+                ChartDisplayMode = chartDisplayMode,
+                LastUpdated = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            _value = previousValue;
+            await ValueChanged.InvokeAsync(_value);
+            Logger.LogError(ex, "Failed to save chart display mode preference {ChartDisplayMode}", chartDisplayMode);
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Preference Not Saved",
+                Detail = "Could not save chart display mode. Reverting to the previous option.",
+                Duration = 5000
+            });
+        }
+        finally
+        {
+            _isSaving = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}
