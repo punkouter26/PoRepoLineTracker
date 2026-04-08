@@ -147,19 +147,19 @@
 
         @* ─── Stats cards ──────────────────────────────────────────────────────── *@
         <RadzenRow Gap="0.75rem" Style="margin-bottom: 0.25rem;">
-            <RadzenColumn Size="6" SizeMD="4">
+            <RadzenColumn Size="12" SizeMD="4">
                 <RadzenCard class="stat-card" Style="--stat-accent: var(--rz-primary); padding: 1rem;">
                     <div class="stat-value">@pageState.Repositories.Count</div>
                     <div class="stat-label">Repositories</div>
                 </RadzenCard>
             </RadzenColumn>
-            <RadzenColumn Size="6" SizeMD="4">
+            <RadzenColumn Size="12" SizeMD="4">
                 <RadzenCard class="stat-card" Style="--stat-accent: #0891b2; padding: 1rem;">
                     <div class="stat-value">@(_repoLatestLineCounts.Values.Sum().ToString("N0"))</div>
                     <div class="stat-label">Total Lines</div>
                 </RadzenCard>
             </RadzenColumn>
-            <RadzenColumn Size="6" SizeMD="4">
+            <RadzenColumn Size="12" SizeMD="4">
                 <RadzenCard class="stat-card" Style="--stat-accent: #059669; padding: 1rem;">
                     <div class="stat-value">@(pageState.Repositories.Count(r => r.LastAnalyzedCommitDate.HasValue))</div>
                     <div class="stat-label">Analyzed</div>
@@ -208,7 +208,7 @@
                             </RadzenStack>
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="90px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false">
+                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="110px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false">
                         <Template Context="row">
                             @if (row.TotalLinesSortValue.HasValue)
                             {
@@ -323,6 +323,9 @@
     private bool _showAddPanel = false;
     private bool isRemovingAll = false;
     private string searchText = string.Empty;
+    // Tracks the last Q value we wrote to the URL ourselves, so OnParametersSet
+    // does not overwrite searchText after our own NavigateTo call.
+    private string? _lastSyncedQ;
     private Dictionary<Guid, DateTime> _reanalysisStartTimes = new();
     private Dictionary<Guid, int> _repoLatestLineCounts = new();
     private readonly CancellationTokenSource _disposeCts = new();
@@ -342,7 +345,16 @@
 
     protected override void OnParametersSet()
     {
-        searchText = Q ?? string.Empty;
+        // Only sync searchText from the URL query param when the value genuinely
+        // changed from outside (e.g., the user typed a URL directly or the browser
+        // navigated back/forward).  When we call NavigateTo ourselves inside
+        // OnSearchTextChanged we pre-set _lastSyncedQ so this guard fires and we
+        // do NOT overwrite the value the user is actively typing.
+        if (Q != _lastSyncedQ)
+        {
+            _lastSyncedQ = Q;
+            searchText = Q ?? string.Empty;
+        }
     }
 
     protected override async Task OnInitializedAsync()
@@ -383,6 +395,9 @@
     private void OnSearchTextChanged(string value)
     {
         searchText = value;
+        // Pre-sync _lastSyncedQ so that the OnParametersSet triggered by NavigateTo
+        // does not overwrite the value the user just typed.
+        _lastSyncedQ = string.IsNullOrEmpty(value) ? null : value;
         var uri = Navigation.GetUriWithQueryParameter("q", string.IsNullOrEmpty(value) ? null : value);
         Navigation.NavigateTo(uri, replace: true);
     }

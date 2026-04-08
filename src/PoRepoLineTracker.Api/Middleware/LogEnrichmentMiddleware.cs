@@ -6,7 +6,7 @@ namespace PoRepoLineTracker.Api.Middleware;
 /// <summary>
 /// Middleware that enriches logs with correlation IDs and session IDs.
 /// Each HTTP request gets a unique correlation ID for distributed tracing,
-/// and authenticated requests are tagged with their session ID (user-based).
+/// and authenticated requests are tagged with their UserId and SessionId.
 /// </summary>
 public class LogEnrichmentMiddleware
 {
@@ -24,11 +24,15 @@ public class LogEnrichmentMiddleware
             ? correlationIdHeader.ToString()
             : Guid.NewGuid().ToString("N");
 
-        // Extract session ID from authenticated user (UserId claim)
-        var sessionId = context.User?.FindFirst("UserId")?.Value ?? "anonymous";
+        // UserId from the custom claim — distinct from session
+        var userId = context.User?.FindFirst("UserId")?.Value ?? "anonymous";
 
-        // Push correlation and session IDs to Serilog context
+        // SessionId from the standard NameIdentifier claim (OAuth subject / GUID)
+        var sessionId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "anonymous";
+
+        // Push all three properties to Serilog context for every log line in this request
         using (LogContext.PushProperty("CorrelationId", correlationId))
+        using (LogContext.PushProperty("UserId", userId))
         using (LogContext.PushProperty("SessionId", sessionId))
         {
             // Add correlation ID to response headers for client-side tracing

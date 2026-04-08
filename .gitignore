@@ -298,6 +298,40 @@ __pycache__/
 *.odx.cs
 *.xsd.cs
 
+# ─────────────────────────────────────────────
+# Project-specific exclusions
+# ─────────────────────────────────────────────
+
+# Temporary/session Playwright smoke test files (run-only, delete after use)
+tests/**/temp-smoke-run-*.spec.ts
+
+# Azure Developer CLI local environment state
+.azure/
+
+# Local log files (structured logs captured by app)
+src/**/*.txt
+webapp-logs-live/
+webapp-logs-native/
+
+# Data protection keys (sensitive, machine-specific)
+src/dataprotection-keys/
+
+# Local appsettings overrides with secrets
+src/**/appsettings.Development.local.json
+
+# Publish output and zip packages
+publish-output/
+appservice-package.zip
+artifacts/appservice-publish/
+
+# TESTRESULTS directory
+TESTRESULTS/
+
+# Playwright local reports and results
+playwright-report/
+test-results/
+tests/**/.playwright/
+
 # OpenCover UI analysis results
 OpenCover/
 

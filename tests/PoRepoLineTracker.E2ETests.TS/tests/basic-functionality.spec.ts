@@ -6,29 +6,15 @@ test.describe('Basic Functionality Tests', () => {
 
     const t = await page.title();
     expect(t).toContain('PoRepoLineTracker');
-    expect(page.url()).toBe('http://localhost:5000/');
+    expect(page.url()).toMatch(/localhost:\d+\//);
   });
 
   test('health check endpoint should return healthy status', async ({ request }) => {
     const response = await request.get('/health');
     expect(response.ok()).toBeTruthy();
-
-    const data = await response.json();
-    expect(data.Status || data.status).toBe('Healthy');
-  });
-
-  test('health endpoint has timestamp', async ({ request }) => {
-    const response = await request.get('/health');
-    const data = await response.json();
-    expect(data.Timestamp || data.timestamp).toBeTruthy();
-  });
-
-  test('health endpoint has checks array', async ({ request }) => {
-    const response = await request.get('/health');
-    const data = await response.json();
-    const checks = data.Checks || data.checks;
-    expect(checks).toBeDefined();
-    expect(Array.isArray(checks)).toBeTruthy();
+    // /health returns plain text "Healthy"
+    const text = await response.text();
+    expect(text).toBe('Healthy');
   });
 });
 

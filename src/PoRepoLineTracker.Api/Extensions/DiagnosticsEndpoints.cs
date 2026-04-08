@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.ComponentModel.DataAnnotations;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
@@ -15,7 +16,7 @@ internal static class DiagnosticsEndpoints
         // /health is served by the registered IHealthCheck pipeline via app.MapHealthChecks("/health")
         // in Program.cs — no custom implementation needed here.
 
-        app.MapGet("/diag", (IConfiguration configuration, IWebHostEnvironment env) =>
+        app.MapGet("/diag", async (IConfiguration configuration, IWebHostEnvironment env, HealthCheckService healthChecks) =>
         {
             static string Mask(string? value)
             {
@@ -25,25 +26,58 @@ internal static class DiagnosticsEndpoints
                 return string.Concat(value.AsSpan(0, visible), "***", value.AsSpan(value.Length - visible));
             }
 
+            // Run all registered health checks to surface live connectivity status
+            HealthReport report;
+            try
+            {
+                report = await healthChecks.CheckHealthAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Health check execution failed during /diag request");
+                report = new HealthReport(
+                    new Dictionary<string, HealthReportEntry>
+                    {
+                        ["health_check_error"] = new HealthReportEntry(
+                            HealthStatus.Unhealthy, ex.Message, TimeSpan.Zero, ex, null)
+                    },
+                    HealthStatus.Unhealthy,
+                    TimeSpan.Zero);
+            }
+
             return Results.Json(new
             {
                 Environment = env.EnvironmentName,
                 Timestamp = DateTime.UtcNow,
-                KeyVault = new { Url = configuration["KeyVault:Url"] ?? "(not set)" },
-                AzureTableStorage = new
+                OverallHealth = report.Status.ToString(),
+                // Live connectivity probes — each entry is the result of a real IHealthCheck call
+                HealthChecks = report.Entries.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => new
+                    {
+                        Status = kvp.Value.Status.ToString(),
+                        Description = kvp.Value.Description,
+                        DurationMs = kvp.Value.Duration.TotalMilliseconds,
+                        Error = kvp.Value.Exception?.Message
+                    }),
+                Configuration = new
                 {
-                    ServiceUrl = Mask(configuration["AzureTableStorage:ServiceUrl"]),
-                    ConnectionString = Mask(configuration["AzureTableStorage:ConnectionString"])
-                },
-                GitHub = new
-                {
-                    ClientId = Mask(configuration["GitHub:ClientId"]),
-                    ClientSecret = Mask(configuration["GitHub:ClientSecret"]),
-                    PAT = Mask(configuration["GitHub:PAT"]),
-                    CallbackPath = configuration["GitHub:CallbackPath"]
-                },
-                ApplicationInsights = new { ConnectionString = Mask(configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]) },
-                OpenTelemetry = new { OtlpEndpoint = Mask(configuration["OpenTelemetry:OtlpEndpoint"]) }
+                    KeyVault = new { Url = configuration["KeyVault:Url"] ?? "(not set)" },
+                    AzureTableStorage = new
+                    {
+                        ServiceUrl = Mask(configuration["AzureTableStorage:ServiceUrl"]),
+                        ConnectionString = Mask(configuration["AzureTableStorage:ConnectionString"])
+                    },
+                    GitHub = new
+                    {
+                        ClientId = Mask(configuration["GitHub:ClientId"]),
+                        ClientSecret = Mask(configuration["GitHub:ClientSecret"]),
+                        PAT = Mask(configuration["GitHub:PAT"]),
+                        CallbackPath = configuration["GitHub:CallbackPath"]
+                    },
+                    ApplicationInsights = new { ConnectionString = Mask(configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]) },
+                    OpenTelemetry = new { OtlpEndpoint = Mask(configuration["OpenTelemetry:OtlpEndpoint"]) }
+                }
             });
         })
         .WithName("Diagnostics")

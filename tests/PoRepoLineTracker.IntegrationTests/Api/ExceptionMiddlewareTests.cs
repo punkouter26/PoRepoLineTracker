@@ -9,14 +9,18 @@ using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using PoRepoLineTracker.Application.Features.Repositories.Queries;
+using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Domain.Models;
 
 namespace PoRepoLineTracker.IntegrationTests;
 
 /// <summary>
-/// Verifies that the ExceptionHandlingMiddleware returns ProblemDetails JSON
-/// when an unhandled exception is thrown in the pipeline.
-/// Uses a custom factory that configures the mediator to throw on a specific query.
+/// Verifies that unhandled exceptions in the repository line-history pipeline
+/// return ProblemDetails JSON (via the endpoint's own try/catch which calls Results.Problem).
+/// Uses a custom factory that:
+///   1. Mocks IRepositoryDataService so ThrowingRepoId is owned by the test user (passes IDOR check).
+///   2. Mocks IMediator so the query throws, triggering Results.Problem(500).
 /// </summary>
 public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory>
 {
@@ -76,16 +80,17 @@ public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory
 }
 
 /// <summary>
-/// Custom factory that overrides the MediatR mediator to throw an exception
-/// for a specific repository ID, triggering the ExceptionHandlingMiddleware.
-/// Inherits from <see cref="CustomWebApplicationFactory"/> to keep all other
-/// service mocks and test auth active.
+/// Custom factory that:
+///   1. Overrides IRepositoryDataService so ThrowingRepoId is "found" and owned by the test user,
+///      allowing the endpoint to proceed past the repo-existence / IDOR checks.
+///   2. Overrides IMediator so the GetLineCountHistoryQuery throws for ThrowingRepoId,
+///      exercising the endpoint's try/catch which returns Results.Problem (500).
+/// Inherits from <see cref="CustomWebApplicationFactory"/> to keep all other service mocks
+/// and test authentication active.
 /// </summary>
 public class ExceptionMiddlewareFactory : CustomWebApplicationFactory
 {
-    /// <summary>
-    /// The repository ID that will cause the mediator to throw.
-    /// </summary>
+    /// <summary>The repository ID that causes the mediator to throw.</summary>
     public static readonly Guid ThrowingRepoId = new("DEADBEEF-DEAD-BEEF-DEAD-BEEFDEADBEEF");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -94,7 +99,24 @@ public class ExceptionMiddlewareFactory : CustomWebApplicationFactory
 
         builder.ConfigureServices(services =>
         {
-            // Replace the mediator with one that throws for our specific query
+            // Mock IRepositoryDataService: return a fake repo owned by the test user for ThrowingRepoId
+            // so the endpoint passes its repo-existence and IDOR ownership checks.
+            var mockRepoDataService = Substitute.For<IRepositoryDataService>();
+            var fakeRepo = new GitHubRepository
+            {
+                Id = ThrowingRepoId,
+                UserId = Guid.Parse(TestAuthHandler.TestUserId),
+                Owner = "testowner",
+                Name = "testrepo",
+                CloneUrl = "https://github.com/testowner/testrepo.git"
+            };
+            mockRepoDataService
+                .GetRepositoryByIdAsync(ThrowingRepoId)
+                .Returns(Task.FromResult<GitHubRepository?>(fakeRepo));
+
+            services.AddScoped<IRepositoryDataService>(_ => mockRepoDataService);
+
+            // Mock IMediator: throw for GetLineCountHistoryQuery so Results.Problem(500) is returned.
             var mockMediator = Substitute.For<IMediator>();
             mockMediator
                 .Send(Arg.Is<GetLineCountHistoryQuery>(q => q.RepositoryId == ThrowingRepoId), Arg.Any<CancellationToken>())

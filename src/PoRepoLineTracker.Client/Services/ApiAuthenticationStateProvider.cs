@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
-using PoRepoLineTracker.Client.Models;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Client.Services;
 

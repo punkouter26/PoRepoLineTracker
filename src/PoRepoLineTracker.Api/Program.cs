@@ -49,9 +49,11 @@ namespace PoRepoLineTracker.Api
                 Log.Warning("KeyVault:Url not configured — secrets must come from user-secrets or environment variables");
             }
 
-            // Local developer override (not committed)
-            if (builder.Environment.IsDevelopment())
-                builder.Configuration.AddJsonFile("appsettings.Development.local.json", optional: true, reloadOnChange: true);
+            // Local developer override (not committed).
+            // Loaded unconditionally (optional: true) so that secrets are available
+            // regardless of ASPNETCORE_ENVIRONMENT — prevents the "GitHub:ClientId is
+            // not configured" 500 when the env var is accidentally omitted at startup.
+            builder.Configuration.AddJsonFile("appsettings.Development.local.json", optional: true, reloadOnChange: true);
 
             // Structured logging via Serilog
             builder.Host.UseSerilog((context, services, cfg) =>
