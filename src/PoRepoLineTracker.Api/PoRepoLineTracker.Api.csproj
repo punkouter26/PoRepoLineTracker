@@ -44,4 +44,9 @@
     <ProjectReference Include="..\PoRepoLineTracker.Client\PoRepoLineTracker.Client.csproj" />
   </ItemGroup>
 
+  <!-- Include startup.sh in publish output for Azure App Service git installation -->
+  <ItemGroup>
+    <None Include="startup.sh" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

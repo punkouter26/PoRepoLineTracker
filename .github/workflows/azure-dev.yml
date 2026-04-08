@@ -64,6 +64,9 @@ jobs:
       - name: Publish App Service package
         run: dotnet publish ./src/PoRepoLineTracker.Api/PoRepoLineTracker.Api.csproj --configuration Release --output "$PUBLISH_OUTPUT_DIR"
 
+      - name: Make startup script executable
+        run: chmod +x "$PUBLISH_OUTPUT_DIR/startup.sh"
+
       - name: Create deployment zip package
         shell: pwsh
         run: |

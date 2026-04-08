@@ -90,7 +90,7 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
-      appCommandLine: 'dotnet PoRepoLineTracker.Api.dll'
+      appCommandLine: 'bash /home/site/wwwroot/startup.sh'
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       appSettings: [
