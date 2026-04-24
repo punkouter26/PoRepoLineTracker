@@ -29,7 +29,10 @@ public static class AuthServiceExtensions
             options.Cookie.Name = "PoRepoLineTracker.Auth";
             options.Cookie.HttpOnly = true;
             options.Cookie.SameSite = SameSiteMode.Lax;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            // Use SameAsRequest so cookies work over plain HTTP on localhost
+            options.Cookie.SecurePolicy = environment.IsDevelopment()
+                ? CookieSecurePolicy.SameAsRequest
+                : CookieSecurePolicy.Always;
             options.ExpireTimeSpan = TimeSpan.FromDays(7);
             options.SlidingExpiration = true;
             options.LoginPath = "/auth/login";
@@ -53,7 +56,10 @@ public static class AuthServiceExtensions
                 ?? throw new InvalidOperationException("GitHub:ClientSecret is not configured");
             options.CallbackPath = configuration["GitHub:CallbackPath"] ?? "/signin-github";
 
-            options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+            // Use SameAsRequest so cookies work over plain HTTP on localhost
+            options.CorrelationCookie.SecurePolicy = environment.IsDevelopment()
+                ? CookieSecurePolicy.SameAsRequest
+                : CookieSecurePolicy.Always;
             options.CorrelationCookie.SameSite = SameSiteMode.Lax;
             options.CorrelationCookie.HttpOnly = true;
 
@@ -96,18 +102,32 @@ public static class AuthServiceExtensions
 
                 if (gitHubId != null && username != null && accessToken != null)
                 {
-                    var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
-                    var savedUser = await userService.UpsertUserAsync(new User
+                    try
                     {
-                        GitHubId = gitHubId,
-                        Username = username,
-                        DisplayName = displayName ?? username,
-                        Email = email,
-                        AvatarUrl = avatarUrl ?? string.Empty,
-                        AccessToken = accessToken
-                    });
-                    (context.Principal?.Identity as ClaimsIdentity)?.AddClaim(
-                        new Claim("UserId", savedUser.Id.ToString()));
+                        var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
+                        var savedUser = await userService.UpsertUserAsync(new User
+                        {
+                            GitHubId = gitHubId,
+                            Username = username,
+                            DisplayName = displayName ?? username,
+                            Email = email,
+                            AvatarUrl = avatarUrl ?? string.Empty,
+                            AccessToken = accessToken
+                        });
+                        (context.Principal?.Identity as ClaimsIdentity)?.AddClaim(
+                            new Claim("UserId", savedUser.Id.ToString()));
+                    }
+                    catch (Exception ex)
+                    {
+                        // Storage not available (e.g. no Azurite locally).
+                        // Log the error but don't fail the OAuth flow — user can still
+                        // log in with basic claims and a temporary UserId for this session.
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                        logger.LogWarning(ex, "Failed to upsert user during GitHub OAuth callback — storage may not be available. User {GitHubId}/{Username} will use in-memory claims.", gitHubId, username);
+                        // Add a temporary UserId claim so /api/auth/me recognizes the authenticated user
+                        (context.Principal?.Identity as ClaimsIdentity)?.AddClaim(
+                            new Claim("UserId", Guid.NewGuid().ToString()));
+                    }
                 }
             };
         });

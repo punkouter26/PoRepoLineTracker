@@ -1,8 +1,12 @@
 namespace PoRepoLineTracker.Api.Extensions;
 
 /// <summary>
-/// Entry point that wires all VSA-grouped endpoint modules.
-/// Each group lives in its own file (AuthEndpoints, RepositoryEndpoints, etc.)
+/// GoF Facade Pattern: Provides a unified interface to register all API endpoint groups.
+/// Each endpoint group (Auth, Repositories, GitHub, Settings, FailedOperations, Diagnostics)
+/// lives in its own file following the VSA (Vertical Slice Architecture) principle.
+/// 
+/// SOLID — Interface Segregation Principle: Each endpoint module has its own mapping method,
+/// keeping the API surface organized and testable.
 /// </summary>
 public static class ApiEndpointExtensions
 {

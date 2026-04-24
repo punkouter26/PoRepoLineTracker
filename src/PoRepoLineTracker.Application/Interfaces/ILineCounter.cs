@@ -1,5 +1,8 @@
 namespace PoRepoLineTracker.Application.Interfaces
 {
+    // GoF Strategy Pattern: Abstract strategy for line-counting algorithms.
+    // Each file extension can have its own counting logic (e.g., ignore comments in .cs files).
+    // DefaultLineCounter serves as the default concrete strategy for extensions without a specialized counter.
     public interface ILineCounter
     {
         /// <summary>

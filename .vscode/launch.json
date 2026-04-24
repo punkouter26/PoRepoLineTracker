@@ -13,7 +13,16 @@
       "serverReadyAction": {
         "action": "openExternally",
         "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-        "uriFormat": "%s"
+        "uriFormat": "%s",
+        "killServerOnStop": true
+      },
+      "launchBrowser": {
+        "enabled": true,
+        "args": "",
+        "windows": {
+          "command": "cmd.exe",
+          "args": "/c start msedge %s"
+        }
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",

@@ -8,6 +8,14 @@ using Azure.Identity;
 
 namespace PoRepoLineTracker.Api.Extensions;
 
+/// <summary>
+/// SOLID — Composition Root: Centralizes all DI registrations as required by the
+/// Composition Root pattern (Mark Seemann). All service lifetimes, decorators,
+/// and interceptor configurations are defined in one place.
+/// 
+/// SOLID — Dependency Inversion Principle: Services are registered by their
+/// application-layer interfaces (I*) and resolved to infrastructure implementations.
+/// </summary>
 public static class InfrastructureServiceExtensions
 {
     public static IServiceCollection AddInfrastructure(

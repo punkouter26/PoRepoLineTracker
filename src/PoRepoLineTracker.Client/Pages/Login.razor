@@ -1,8 +1,10 @@
 @page "/login"
 @layout PoRepoLineTracker.Client.Layout.LoginLayout
 @inject NavigationManager Navigation
+@inject HttpClient Http
 @using Radzen
 @using Radzen.Blazor
+@using System.Net.Http.Json
 
 <div class="login-canvas">
     <!-- Animated mesh gradient blobs -->
@@ -49,6 +51,38 @@
             <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">
                 Your data stays in your own Azure Table Storage
             </RadzenText>
+
+            @* ANON button — bypasses GitHub OAuth during local development for e2e testing *@
+            <hr style="border: none; border-top: 1px dashed var(--rz-border-disabled-color); width: 100%; margin: 0;" />
+            <RadzenButton Text="ANON (Dev Bypass)"
+                          Icon="account_circle"
+                          ButtonStyle="ButtonStyle.Secondary"
+                          Size="ButtonSize.Small"
+                          Style="width: 100%; opacity: 0.7;"
+                          Click="@AnonLogin" />
         </RadzenStack>
     </RadzenCard>
 </div>
+
+@code {
+    private async Task AnonLogin()
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync("/test-login", new { Email = "anon@dev.local", UserAgent = "BlazorWasm-Anon" });
+            if (response.IsSuccessStatusCode)
+            {
+                Navigation.NavigateTo("/", forceLoad: true);
+            }
+            else
+            {
+                // Fallback: try the redirect-based endpoint
+                Navigation.NavigateTo($"/test-login-redirect?email=anon@dev.local", forceLoad: true);
+            }
+        }
+        catch
+        {
+            Navigation.NavigateTo("/test-login-redirect?email=anon@dev.local", forceLoad: true);
+        }
+    }
+}

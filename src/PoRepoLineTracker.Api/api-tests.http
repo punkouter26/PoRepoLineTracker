@@ -1,0 +1,128 @@
+### PoRepoLineTracker API Test Suite
+### Base URL: https://localhost:5001 (or http://localhost:5000)
+### Requires: Azurite running (docker compose up -d)
+
+@baseUrl = https://localhost:5001
+
+# ============================================================
+# Health & Diagnostics
+# ============================================================
+
+### Health Check (unauthenticated)
+GET {{baseUrl}}/health
+Accept: application/json
+
+### Diagnostics (requires auth — obtain cookie first via /test-login)
+GET {{baseUrl}}/diag
+Accept: application/json
+
+# ============================================================
+# Dev Authentication (Development Only)
+# ============================================================
+
+### Test Login (returns auth cookie)
+POST {{baseUrl}}/test-login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "",
+  "userAgent": "HttpClient"
+}
+
+### Dev Login by UserId
+GET {{baseUrl}}/dev-login/00000000-0000-0000-0000-000000000001
+
+# ============================================================
+# Authentication (requires cookie from /test-login first)
+# ============================================================
+
+### Get Current User
+GET {{baseUrl}}/api/auth/me
+Accept: application/json
+
+### GitHub OAuth Login (browser-only, redirects)
+# GET {{baseUrl}}/api/auth/login
+
+### Logout
+GET {{baseUrl}}/api/auth/logout
+
+# ============================================================
+# Repositories
+# ============================================================
+
+### List My Repositories
+GET {{baseUrl}}/api/repositories
+Accept: application/json
+
+### Add a Repository
+POST {{baseUrl}}/api/repositories
+Content-Type: application/json
+
+{
+  "owner": "dotnet",
+  "name": "roslyn"
+}
+
+### Get Repository by ID (replace {id} with actual GUID)
+# GET {{baseUrl}}/api/repositories/{id}
+# Accept: application/json
+
+### Get Repository Line Count History
+# GET {{baseUrl}}/api/repositories/{id}/linecounts
+# Accept: application/json
+
+### Get Repository Top Files
+# GET {{baseUrl}}/api/repositories/{id}/topfiles?limit=10
+# Accept: application/json
+
+### Get Repository Extensions
+# GET {{baseUrl}}/api/repositories/{id}/extensions
+# Accept: application/json
+
+### Trigger Repository Refresh
+# POST {{baseUrl}}/api/repositories/{id}/refresh
+
+### Delete Repository
+# DELETE {{baseUrl}}/api/repositories/{id}
+
+# ============================================================
+# GitHub API
+# ============================================================
+
+### List GitHub Repositories
+GET {{baseUrl}}/api/github/repositories
+Accept: application/json
+
+### Get GitHub Repository Stats
+# GET {{baseUrl}}/api/github/repositories/{owner}/{repo}/statistics
+# Accept: application/json
+
+# ============================================================
+# Settings
+# ============================================================
+
+### Get User Preferences
+GET {{baseUrl}}/api/settings
+Accept: application/json
+
+### Update User Preferences
+PUT {{baseUrl}}/api/settings
+Content-Type: application/json
+
+{
+  "theme": "dark",
+  "defaultBranch": "main",
+  "maxRepositories": 50
+}
+
+# ============================================================
+# Failed Operations
+# ============================================================
+
+### List Failed Operations
+GET {{baseUrl}}/api/failed-operations
+Accept: application/json
+
+### Retry Failed Operation
+# POST {{baseUrl}}/api/failed-operations/{id}/retry

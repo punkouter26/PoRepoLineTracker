@@ -2,6 +2,9 @@ using LibGit2Sharp;
 
 namespace PoRepoLineTracker.Infrastructure.Interfaces
 {
+    // SOLID — Dependency Inversion Principle: Abstracts LibGit2Sharp behind an interface
+    // so Application-layer services never depend on concrete Git implementations.
+    // Enables unit testing via mock Git clients and swapping implementations (e.g., Git CLI vs LibGit2Sharp).
     public interface IGitClient
     {
         /// <summary>

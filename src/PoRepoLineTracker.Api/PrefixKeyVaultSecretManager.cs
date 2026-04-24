@@ -3,9 +3,10 @@ using Azure.Security.KeyVault.Secrets;
 
 namespace PoRepoLineTracker.Api;
 
-/// <summary>
-/// Custom Key Vault secret manager that loads secrets for this application.
-/// 
+/// GoF Template Method Pattern: Overrides KeyVaultSecretManager.Load() and GetKey()
+/// to implement a prefix-based secret-naming convention. The base class defines the
+/// algorithm skeleton; this subclass customizes the filtering and mapping steps.
+///
 /// Key Vault naming convention (using "--" as hierarchy separator):
 ///   App-specific secrets are prefixed:  PoRepoLineTracker--GitHub--ClientId  → GitHub:ClientId
 ///   Shared secrets have no prefix:      APPLICATIONINSIGHTS-CONNECTION-STRING → APPLICATIONINSIGHTS_CONNECTION_STRING
