@@ -41,6 +41,12 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing 
   name: storageAccountName
 }
 
+resource storageTableDataContributorRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+  // Built-in role: Storage Table Data Contributor
+  name: '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
+  scope: subscription()
+}
+
 // Shared resources in PoShared RG
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = {
   name: logAnalyticsName
@@ -150,17 +156,23 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   }
 }
 
+resource webAppStorageTableDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, webApp.id, storageTableDataContributorRole.id)
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: storageTableDataContributorRole.id
+    principalId: webApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // ─────────────────────────────────────────────
-// RBAC: Managed externally (already assigned)
-// Web App managed identity has Storage Table Data Contributor on the storage account
-// and Key Vault Secrets User on kv-poshared in PoShared RG.
-// If the identity is recreated, re-run:
-//   az role assignment create --role "Storage Table Data Contributor" \
-//     --assignee <webApp-principalId> \
-//     --scope /subscriptions/.../resourceGroups/PoRepoLineTracker/providers/Microsoft.Storage/storageAccounts/stporepolinetracker
-//   az role assignment create --role "Key Vault Secrets User" \
-//     --assignee <webApp-principalId> \
-//     --scope /subscriptions/.../resourceGroups/PoShared/providers/Microsoft.KeyVault/vaults/kv-poshared
+// Access notes:
+// - Storage Table data-plane access is managed here with Azure RBAC.
+// - kv-poshared currently uses Key Vault access policy mode, not RBAC
+//   (enableRbacAuthorization=false). Grant the Web App identity secret get/list
+//   permissions on kv-poshared, or migrate the vault to RBAC mode and assign
+//   Key Vault Secrets User at the vault scope.
 // ─────────────────────────────────────────────
 
 // Outputs
