@@ -35,7 +35,13 @@ WORKDIR /app
 RUN mkdir -p /app/LocalRepos
 
 # Install git for repository cloning operations
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y git && \
+    rm -rf /var/lib/apt/lists/* && \
+    git --version
+
+# Ensure git is on PATH
+ENV PATH="${PATH}:/usr/bin/git"
 
 # Copy published application
 COPY --from=publish /app/publish .
