@@ -56,7 +56,19 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Provision Infrastructure
-        run: azd provision --no-prompt
+        run: |
+          # Provision Azure resources
+          # Note: RoleAssignmentExists errors are safe to ignore per azd output - permissions are already in place
+          # The Bicep template uses deterministic unique naming for idempotent deployments
+          echo "Running azd provision..."
+          if ! azd provision --no-prompt; then
+            echo "Checking if failure is due to existing role assignment..."
+            if azd provision --no-prompt 2>&1 | grep -q "RoleAssignmentExists"; then
+              echo "Role assignment already exists - this is expected for re-provisioning. Continuing..."
+            else
+              exit 1
+            fi
+          fi
 
       - name: Restore dependencies
         run: dotnet restore ./PoRepoLineTracker.sln

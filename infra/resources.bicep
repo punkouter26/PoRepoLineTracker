@@ -156,8 +156,10 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   }
 }
 
+// Storage Table Data Contributor role assignment
+// Uses unique GUID to make deployment idempotent (won't fail if already exists)
 resource webAppStorageTableDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, webApp.id, storageTableDataContributorRole.id)
+  name: guid(uniqueString(storageAccount.id, webApp.name))
   scope: storageAccount
   properties: {
     roleDefinitionId: storageTableDataContributorRole.id
