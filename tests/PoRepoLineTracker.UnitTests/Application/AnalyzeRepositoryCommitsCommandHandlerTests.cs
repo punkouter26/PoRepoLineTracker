@@ -18,6 +18,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IUserPreferencesService _prefsService = Substitute.For<IUserPreferencesService>();
     private readonly IAnalysisProgressService _progressService = Substitute.For<IAnalysisProgressService>();
+    private readonly IAiDetectionService _aiDetectionService = Substitute.For<IAiDetectionService>();
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger = Substitute.For<ILogger<AnalyzeRepositoryCommitsCommandHandler>>();
     private readonly AnalyzeRepositoryCommitsCommandHandler _sut;
 
@@ -25,7 +26,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     {
         _sut = new AnalyzeRepositoryCommitsCommandHandler(
             _gitHubService, _dataService, _failedOpService,
-            _userService, _prefsService, _progressService, _logger);
+            _userService, _prefsService, _progressService, _aiDetectionService, _logger);
     }
 
     [Fact]

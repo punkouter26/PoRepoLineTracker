@@ -362,5 +362,32 @@ internal static class RepositoryEndpoints
         })
         .RequireAuthorization()
         .WithName("GetRepositoryAnalysisProgress");
+
+        // DEV-ONLY: Patch the LocalPath for a local-upload repository whose LocalPath was lost
+        // before GitHubRepositoryEntity.LocalPath was added. Remove after data is fixed.
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapPost("/api/dev/repositories/{repositoryId}/fix-local-path", async (
+                Guid repositoryId,
+                [FromQuery] string localPath,
+                HttpContext ctx,
+                IRepositoryDataService repoDataService) =>
+            {
+                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                    return Results.Unauthorized();
+
+                var repo = await repoDataService.GetRepositoryByIdAsync(repositoryId);
+                if (repo == null) return Results.NotFound($"Repository {repositoryId} not found.");
+                if (repo.UserId != userId) return Results.Forbid();
+
+                repo.LocalPath = localPath;
+                await repoDataService.UpdateRepositoryAsync(repo);
+                Log.Information("DEV: Patched LocalPath for repository {RepositoryId} to {LocalPath}", repositoryId, localPath);
+                return Results.Ok(new { repositoryId, localPath });
+            })
+            .RequireAuthorization()
+            .WithName("DevFixLocalPath");
+        }
     }
 }

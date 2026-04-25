@@ -1,0 +1,199 @@
+@page "/external-connections"
+@attribute [Authorize]
+@inject HttpClient Http
+@inject ILogger<ExternalConnections> Logger
+@using Radzen
+@using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
+
+<RadzenStack Gap="1.5rem">
+    <div class="page-header">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+            <RadzenIcon Icon="cloud" Style="font-size: 1.5rem;" />
+            <RadzenText TextStyle="TextStyle.H4" Style="margin: 0; font-weight: 700;">External Connections</RadzenText>
+        </RadzenStack>
+        <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color); margin: 0;">
+            APIs, databases, and external services that this application connects to
+        </RadzenText>
+    </div>
+
+    @if (_isLoading)
+    {
+        <RadzenCard>
+            <RadzenSkeleton Width="100%" Height="400px" />
+        </RadzenCard>
+    }
+    else if (!string.IsNullOrEmpty(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+            @_error
+            <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
+                          Click="@LoadDiagnostics" Style="margin-left: 0.5rem;" />
+        </RadzenAlert>
+    }
+    else if (_diagnostics != null)
+    {
+        @* Summary Card *@
+        <RadzenCard Style="border-left: 4px solid var(--rz-primary);">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="1rem">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">@_diagnostics.Environment Environment</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">
+                        Last updated: @_diagnostics.Timestamp.ToLocalTime().ToString("g")
+                    </RadzenText>
+                </RadzenStack>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@($"{_diagnostics.Summary.ConfiguredCount}/{_diagnostics.Summary.TotalConnections} Configured")" />
+                </RadzenStack>
+            </RadzenStack>
+        </RadzenCard>
+
+        @* Azure Services *@
+        <RadzenCard>
+            <RadzenStack Gap="1rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenIcon Icon="cloud" Style="color: #0078d4;" />
+                    <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">Azure Services</RadzenText>
+                </RadzenStack>
+
+                <RadzenDataGrid Data="@_diagnostics.ExternalConnections.Azure" TItem="ConnectionInfo" Style="font-size: 0.9rem;">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Name" Title="Service" Width="25%" />
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Type" Title="Type" Width="15%" />
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Status" Title="Status" Width="15%">
+                            <Template Context="data">
+                                <RadzenBadge BadgeStyle="@(data.Status == "Configured" ? BadgeStyle.Success : BadgeStyle.Warning)" 
+                                            Text="@data.Status" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Purpose" Title="Purpose" Width="45%" />
+                    </Columns>
+                </RadzenDataGrid>
+            </RadzenStack>
+        </RadzenCard>
+
+        @* GitHub Integrations *@
+        <RadzenCard>
+            <RadzenStack Gap="1rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenIcon Icon="code" Style="color: #333;" />
+                    <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">GitHub Integrations</RadzenText>
+                </RadzenStack>
+
+                <RadzenDataGrid Data="@_diagnostics.ExternalConnections.GitHub" TItem="ConnectionInfo" Style="font-size: 0.9rem;">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Name" Title="Service" Width="25%" />
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Type" Title="Type" Width="15%" />
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Status" Title="Status" Width="15%">
+                            <Template Context="data">
+                                <RadzenBadge BadgeStyle="@(data.Status.Contains("Configured") || data.Status.Contains("PAT") ? BadgeStyle.Success : BadgeStyle.Warning)" 
+                                            Text="@data.Status" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Purpose" Title="Purpose" Width="45%" />
+                    </Columns>
+                </RadzenDataGrid>
+            </RadzenStack>
+        </RadzenCard>
+
+        @* OpenTelemetry *@
+        <RadzenCard>
+            <RadzenStack Gap="1rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenIcon Icon="analytics" Style="color: #6b4fbb;" />
+                    <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">Observability</RadzenText>
+                </RadzenStack>
+
+                <RadzenDataGrid Data="@_diagnostics.ExternalConnections.OpenTelemetry" TItem="ConnectionInfo" Style="font-size: 0.9rem;">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Name" Title="Service" Width="25%" />
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Type" Title="Type" Width="15%" />
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Status" Title="Status" Width="15%">
+                            <Template Context="data">
+                                <RadzenBadge BadgeStyle="@(data.Status == "Configured" ? BadgeStyle.Success : BadgeStyle.Warning)" 
+                                            Text="@data.Status" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Purpose" Title="Purpose" Width="45%" />
+                    </Columns>
+                </RadzenDataGrid>
+            </RadzenStack>
+        </RadzenCard>
+
+        @* Purpose *@
+        <RadzenCard Style="background: var(--rz-base-100);">
+            <RadzenStack Gap="0.5rem">
+                <RadzenText TextStyle="TextStyle.Subtitle2">Application Purpose</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">@_diagnostics.Summary.ApplicationPurpose</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    private DiagnosticsResponse? _diagnostics;
+    private bool _isLoading = false;
+    private string _error = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDiagnostics();
+    }
+
+    private async Task LoadDiagnostics()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            _diagnostics = await Http.GetFromJsonAsync<DiagnosticsResponse>("/api/diagnostics");
+            if (_diagnostics == null)
+            {
+                _error = "Failed to load diagnostics data.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading diagnostics");
+            _error = $"Error loading diagnostics: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    public class DiagnosticsResponse
+    {
+        public string Environment { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
+        public string OverallHealth { get; set; } = string.Empty;
+        public ExternalConnectionsData ExternalConnections { get; set; } = new();
+        public SummaryData Summary { get; set; } = new();
+    }
+
+    public class ExternalConnectionsData
+    {
+        public List<ConnectionInfo> Azure { get; set; } = new();
+        public List<ConnectionInfo> GitHub { get; set; } = new();
+        public List<ConnectionInfo> OpenTelemetry { get; set; } = new();
+    }
+
+    public class ConnectionInfo
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Purpose { get; set; } = string.Empty;
+    }
+
+    public class SummaryData
+    {
+        public int TotalConnections { get; set; }
+        public int ConfiguredCount { get; set; }
+        public string ApplicationPurpose { get; set; } = string.Empty;
+    }
+}

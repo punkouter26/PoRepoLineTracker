@@ -35,6 +35,11 @@
         </RadzenColumn>
         <RadzenColumn Size="12" SizeMD="4" class="rz-text-align-end">
             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+                <RadzenButton Text="Upload Local"
+                              Icon="upload_file"
+                              ButtonStyle="ButtonStyle.Secondary"
+                              Variant="Variant.Outlined"
+                              Click="@ShowUploadDialog" />
                 <RadzenButton Text="@(_showAddPanel ? "Cancel" : "Add Repository")"
                               Icon="@(_showAddPanel ? "close" : "add_circle")"
                               ButtonStyle="@(_showAddPanel ? ButtonStyle.Light : ButtonStyle.Primary)"
@@ -489,6 +494,19 @@
     private void ToggleAddPanel()
     {
         _showAddPanel = !_showAddPanel;
+    }
+
+    private async Task ShowUploadDialog()
+    {
+        await DialogService.OpenAsync<UploadRepository>("Upload Local Repository",
+            new Dictionary<string, object> { },
+            new DialogOptions
+            {
+                Width = "500px",
+                Height = "auto",
+                Resizable = true,
+                Draggable = true
+            });
     }
 
     private async Task HandleAddCompleted()

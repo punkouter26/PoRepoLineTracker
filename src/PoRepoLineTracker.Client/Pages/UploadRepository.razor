@@ -1,0 +1,478 @@
+@attribute [Authorize]
+@inject HttpClient Http
+@inject ILogger<UploadRepository> Logger
+@inject NavigationManager Navigation
+@inject DialogService DialogService
+@using System.Net
+@using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
+
+<RadzenStack Gap="1.5rem">
+    <RadzenText TextStyle="TextStyle.H4" Style="margin: 0;">Upload Local Repository</RadzenText>
+    
+    <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">
+        Upload a zipped folder containing your code and .git folder for analysis.
+        The zip must contain a complete repository with a .git folder.
+    </RadzenText>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Flat"
+                     Close="@(() => errorMessage = string.Empty)">
+            @errorMessage
+        </RadzenAlert>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Success" ShowIcon="true" Variant="Variant.Flat"
+                     Close="@(() => successMessage = string.Empty)">
+            @successMessage
+        </RadzenAlert>
+    }
+
+    <RadzenCard>
+        <RadzenStack Gap="1rem">
+            <div>
+                <RadzenLabel Text="Repository Name (optional)" Component="RepoName" />
+                <RadzenTextBox @bind-Value="repoName" Name="RepoName" Placeholder="Leave empty to use filename" Style="width: 100%;" />
+                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color); margin-top: 0.25rem;">
+                    If not provided, the zip filename will be used.
+                </RadzenText>
+            </div>
+
+            <div>
+                <RadzenLabel Text="Select ZIP File" Component="FileUpload" />
+                <label for="zipFileInput" style="border: 2px dashed var(--rz-border-color); border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; display: block;">
+                    <InputFile id="zipFileInput" OnChange="OnFileSelected" accept=".zip" style="display: none;" />
+                    @if (selectedFile != null)
+                    {
+                        <RadzenIcon Icon="check_circle" Style="color: var(--rz-success); font-size: 2rem;" />
+                        <div style="margin-top: 0.5rem; font-weight: 500;">@selectedFile.Name</div>
+                        <div style="color: var(--rz-text-secondary-color); font-size: 0.875rem;">@(FormatFileSize(selectedFile.Size))</div>
+                    }
+                    else
+                    {
+                        <RadzenIcon Icon="upload_file" Style="font-size: 2rem;" />
+                        <div style="margin-top: 0.5rem;">Click to select a ZIP file</div>
+                        <div style="color: var(--rz-text-secondary-color); font-size: 0.875rem;">Must contain .git folder</div>
+                    }
+                </label>
+            </div>
+
+            <RadzenButton Text="Upload & Analyze"
+                          Icon="upload"
+                          ButtonStyle="ButtonStyle.Primary"
+                          Click="@UploadFileAsync"
+                          Disabled="@(!CanUpload)"
+                          Style="width: 100%;" />
+        </RadzenStack>
+    </RadzenCard>
+
+    @if (isUploading)
+    {
+        <RadzenCard>
+            <RadzenProgressBar Value="@uploadProgress" ShowValue="true" />
+            <RadzenText TextStyle="TextStyle.Caption" Style="text-align: center; margin-top: 0.5rem;">
+                @progressMessage
+            </RadzenText>
+        </RadzenCard>
+    }
+
+    @if (selectedFile != null || isUploading || uploadDiagnostics.Count > 0)
+    {
+        <RadzenCard>
+            <RadzenStack Gap="0.5rem">
+                <RadzenText TextStyle="TextStyle.Subtitle2">Upload Diagnostics</RadzenText>
+
+                @if (selectedFile != null)
+                {
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem 1rem;">
+                        <RadzenText TextStyle="TextStyle.Caption"><b>File:</b> @selectedFile.Name</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption"><b>Size:</b> @FormatFileSize(selectedFile.Size)</RadzenText>
+                        @if (totalBytesToUpload > 0)
+                        {
+                            <RadzenText TextStyle="TextStyle.Caption"><b>Sent:</b> @FormatFileSize(bytesUploaded) / @FormatFileSize(totalBytesToUpload)</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption"><b>Progress:</b> @uploadProgress%</RadzenText>
+                        }
+                        @if (uploadSpeedBytesPerSec > 0)
+                        {
+                            <RadzenText TextStyle="TextStyle.Caption"><b>Speed:</b> @FormatFileSize((long)uploadSpeedBytesPerSec)/s</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption"><b>ETA:</b> @etaDisplay</RadzenText>
+                        }
+                        @if (uploadStartedAt.HasValue && isUploading)
+                        {
+                            <RadzenText TextStyle="TextStyle.Caption"><b>Elapsed:</b> @elapsedDisplay</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption"><b>Phase:</b> <span style="color: var(--rz-info);">@currentPhase</span></RadzenText>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(uploadRequestId))
+                        {
+                            <RadzenText TextStyle="TextStyle.Caption" Style="grid-column: span 2;"><b>Request Id:</b> @uploadRequestId</RadzenText>
+                        }
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(uploadVerification))
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" ShowIcon="true">
+                        @uploadVerification
+                    </RadzenAlert>
+                }
+
+                @if (uploadDiagnostics.Count > 0)
+                {
+                    <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--rz-border-color); border-radius: 6px; padding: 0.5rem; font-family: monospace; font-size: 0.78rem;">
+                        @foreach (var item in uploadDiagnostics)
+                        {
+                            var color = item.Contains("ERR") || item.Contains("Exception") || item.Contains("failed") ? "var(--rz-danger)" 
+                                       : item.Contains("100%") || item.Contains("Complete") || item.Contains("Verification passed") ? "var(--rz-success)"
+                                       : item.Contains("Waiting") || item.Contains("server") ? "var(--rz-warning)"
+                                       : "inherit";
+                            <div style="margin-bottom: 0.2rem; color: @color;">@item</div>
+                        }
+                    </div>
+                }
+            </RadzenStack>
+        </RadzenCard>
+    }
+
+    <RadzenButton Text="Back to Repositories"
+                  Icon="arrow_back"
+                  Click="@(() => Navigation.NavigateTo("/repositories"))"
+                  Variant="Variant.Outlined"
+                  ButtonStyle="ButtonStyle.Secondary" />
+</RadzenStack>
+
+@code {
+    private const long MaxUploadBytes = 500 * 1024 * 1024;
+    private string? selectedFileName;
+    private long selectedFileSize;
+    private string repoName = string.Empty;
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isUploading;
+    private int uploadProgress;
+    private string progressMessage = string.Empty;
+    private IBrowserFile? selectedFile;
+    private readonly List<string> uploadDiagnostics = new();
+    private readonly HashSet<int> progressMilestonesReached = new();
+    private string uploadRequestId = string.Empty;
+    private string uploadVerification = string.Empty;
+    private long bytesUploaded;
+    private long totalBytesToUpload;
+    private DateTimeOffset? uploadStartedAt;
+    private double uploadSpeedBytesPerSec;
+    private string etaDisplay = string.Empty;
+    private string elapsedDisplay = string.Empty;
+    private string currentPhase = "Idle";
+    private System.Threading.Timer? _elapsedTimer;
+
+    private bool CanUpload => selectedFile != null && !isUploading;
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        errorMessage = null;
+        successMessage = null;
+        
+        var file = e.File;
+        if (file == null)
+        {
+            selectedFile = null;
+            selectedFileName = null;
+            selectedFileSize = 0;
+            ResetUploadDiagnostics();
+            return;
+        }
+
+        if (!file.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            errorMessage = "Please select a .zip file.";
+            selectedFile = null;
+            selectedFileName = null;
+            selectedFileSize = 0;
+            ResetUploadDiagnostics();
+            return;
+        }
+
+        selectedFile = file;
+        selectedFileName = file.Name;
+        selectedFileSize = file.Size;
+        ResetUploadDiagnostics();
+        AddDiagnostic($"Selected ZIP '{selectedFileName}' ({FormatFileSize(selectedFileSize)}).");
+    }
+
+    private async Task UploadFileAsync()
+    {
+        if (selectedFile == null) return;
+
+        ResetUploadDiagnostics();
+        errorMessage = null;
+        successMessage = null;
+        isUploading = true;
+        uploadRequestId = Guid.NewGuid().ToString("N");
+        uploadStartedAt = DateTimeOffset.UtcNow;
+        totalBytesToUpload = selectedFile.Size;
+        bytesUploaded = 0;
+        uploadProgress = 1;
+        uploadSpeedBytesPerSec = 0;
+        etaDisplay = "calculating...";
+        elapsedDisplay = "0s";
+        currentPhase = "Preparing";
+        progressMessage = "Preparing upload...";
+        AddDiagnostic($"Starting upload request {uploadRequestId}.");
+        AddDiagnostic($"File: {selectedFile.Name}, Size: {FormatFileSize(selectedFile.Size)}");
+        Logger.LogInformation("Starting ZIP upload {RequestId} for file {FileName} ({FileSize} bytes)", uploadRequestId, selectedFile.Name, selectedFile.Size);
+        // Start elapsed timer
+        _elapsedTimer = new System.Threading.Timer(async _ =>
+        {
+            if (uploadStartedAt.HasValue)
+            {
+                var elapsed = DateTimeOffset.UtcNow - uploadStartedAt.Value;
+                elapsedDisplay = elapsed.TotalSeconds < 60
+                    ? $"{(int)elapsed.TotalSeconds}s"
+                    : $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s";
+            }
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        StateHasChanged();
+
+        try
+        {
+            // Prepare multipart form content
+            using var content = new MultipartFormDataContent();
+            await using var fileStream = selectedFile.OpenReadStream(maxAllowedSize: MaxUploadBytes);
+            using var fileContent = new ProgressStreamContent(fileStream, selectedFile.Size, ReportUploadProgressAsync, 64 * 1024);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+            content.Add(fileContent, "file", selectedFile.Name);
+
+            if (!string.IsNullOrWhiteSpace(repoName))
+            {
+                content.Add(new StringContent(repoName), "repoName");
+                AddDiagnostic($"Repository name override provided: '{repoName}'.");
+            }
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/repositories/upload-zip")
+            {
+                Content = content
+            };
+            request.Headers.Add("X-Upload-Client-Request-Id", uploadRequestId);
+
+            uploadProgress = Math.Max(uploadProgress, 2);
+            currentPhase = "Streaming to server";
+            progressMessage = "Uploading...";
+            AddDiagnostic("Upload stream started — bytes flowing to server.");
+            StateHasChanged();
+
+            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            var elapsed = DateTimeOffset.UtcNow - uploadStartedAt.GetValueOrDefault(DateTimeOffset.UtcNow);
+
+            currentPhase = "Waiting for server response";
+            uploadProgress = 96;
+            progressMessage = "Waiting for server to process ZIP...";
+            AddDiagnostic($"All bytes sent in {elapsed.TotalSeconds:F2}s. Waiting for server to extract & process ZIP...");
+            StateHasChanged();
+
+            var responseText = await response.Content.ReadAsStringAsync();
+            currentPhase = "Parsing response";
+            uploadProgress = 97;
+            progressMessage = "Upload complete. Verifying server response...";
+            AddDiagnostic($"Server responded {(int)response.StatusCode} ({response.StatusCode}) in {elapsed.TotalSeconds:F2}s.");
+            Logger.LogInformation("Upload request {RequestId} completed with status {StatusCode} in {ElapsedMs} ms", uploadRequestId, response.StatusCode, elapsed.TotalMilliseconds);
+            StateHasChanged();
+
+            if (response.IsSuccessStatusCode)
+            {
+                uploadProgress = 99;
+                progressMessage = "Validating upload results...";
+
+                UploadResult? result = null;
+                if (!string.IsNullOrWhiteSpace(responseText))
+                {
+                    result = System.Text.Json.JsonSerializer.Deserialize<UploadResult>(responseText);
+                }
+
+                var bytesMatched = bytesUploaded >= totalBytesToUpload && totalBytesToUpload > 0;
+                var hasRepositoryIdentity = result is not null && result.Id != Guid.Empty && !string.IsNullOrWhiteSpace(result.Name);
+                uploadVerification = bytesMatched && hasRepositoryIdentity
+                    ? "Verification passed: streamed bytes matched selected file size and API returned repository identity."
+                    : "Verification warning: upload finished but one or more validation checks failed. See diagnostics below.";
+                AddDiagnostic($"Verification - Bytes matched: {bytesMatched}, Repository identity returned: {hasRepositoryIdentity}.");
+                if (!string.IsNullOrWhiteSpace(responseText))
+                {
+                    AddDiagnostic($"Response payload length: {responseText.Length} chars.");
+                }
+
+                uploadProgress = 100;
+                progressMessage = "Complete!";
+                successMessage = $"Repository '{result?.Name}' uploaded successfully! Analysis is starting in the background. You will be redirected to the repositories page.";
+                
+                // Navigate after a brief delay to show success message
+                await Task.Delay(2000);
+                DialogService.Close(true);
+                Navigation.NavigateTo("/repositories");
+            }
+            else
+            {
+                Logger.LogError("Upload request {RequestId} failed: {StatusCode} - {Error}", uploadRequestId, response.StatusCode, responseText);
+                errorMessage = $"Upload failed: {response.StatusCode}";
+                AddDiagnostic($"Upload failed with {(int)response.StatusCode} ({response.StatusCode}).");
+                if (!string.IsNullOrWhiteSpace(responseText))
+                {
+                    var snippet = responseText.Length > 300 ? responseText[..300] + "..." : responseText;
+                    AddDiagnostic($"Error payload: {snippet}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(responseText) && responseText.Contains("error", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        var errorObj = System.Text.Json.JsonSerializer.Deserialize<UploadError>(responseText);
+                        errorMessage = errorObj?.Error ?? errorMessage;
+                    }
+                    catch { /* ignore */ }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error uploading repository for request {RequestId}", uploadRequestId);
+            AddDiagnostic($"Exception: {ex.GetType().Name}: {ex.Message}");
+            errorMessage = $"Error uploading repository: {ex.Message}";
+        }
+        finally
+        {
+            _elapsedTimer?.Dispose();
+            _elapsedTimer = null;
+            isUploading = false;
+            currentPhase = "Done";
+            StateHasChanged();
+        }
+    }
+
+    private void ResetUploadDiagnostics()
+    {
+        _elapsedTimer?.Dispose();
+        _elapsedTimer = null;
+        uploadDiagnostics.Clear();
+        progressMilestonesReached.Clear();
+        uploadRequestId = string.Empty;
+        uploadVerification = string.Empty;
+        bytesUploaded = 0;
+        totalBytesToUpload = 0;
+        uploadStartedAt = null;
+        uploadProgress = 0;
+        progressMessage = string.Empty;
+        uploadSpeedBytesPerSec = 0;
+        etaDisplay = string.Empty;
+        elapsedDisplay = string.Empty;
+        currentPhase = "Idle";
+    }
+
+    private void AddDiagnostic(string message)
+    {
+        uploadDiagnostics.Insert(0, $"[{DateTimeOffset.Now:HH:mm:ss}] {message}");
+        if (uploadDiagnostics.Count > 50)
+        {
+            uploadDiagnostics.RemoveAt(uploadDiagnostics.Count - 1);
+        }
+    }
+
+    private async Task ReportUploadProgressAsync(long bytesSent, long totalBytes)
+    {
+        bytesUploaded = bytesSent;
+        totalBytesToUpload = totalBytes;
+        currentPhase = "Streaming to server";
+
+        if (totalBytes > 0)
+        {
+            var percent = (int)Math.Clamp(Math.Round(bytesSent * 95d / totalBytes), 1d, 95d);
+            uploadProgress = percent;
+
+            // Calculate speed and ETA
+            if (uploadStartedAt.HasValue && bytesSent > 0)
+            {
+                var elapsedSec = (DateTimeOffset.UtcNow - uploadStartedAt.Value).TotalSeconds;
+                if (elapsedSec > 0.5)
+                {
+                    uploadSpeedBytesPerSec = bytesSent / elapsedSec;
+                    var remaining = totalBytes - bytesSent;
+                    var etaSec = uploadSpeedBytesPerSec > 0 ? remaining / uploadSpeedBytesPerSec : 0;
+                    etaDisplay = etaSec < 60 ? $"{(int)etaSec}s" : $"{(int)(etaSec / 60)}m {(int)(etaSec % 60)}s";
+                }
+            }
+
+            progressMessage = $"Uploading... {FormatFileSize(bytesSent)} / {FormatFileSize(totalBytes)} @ {FormatFileSize((long)uploadSpeedBytesPerSec)}/s";
+
+            var rawPercent = (int)Math.Clamp(Math.Round(bytesSent * 100d / totalBytes), 0d, 100d);
+            foreach (var milestone in new[] { 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100 })
+            {
+                if (rawPercent >= milestone && progressMilestonesReached.Add(milestone))
+                {
+                    AddDiagnostic($"{milestone}% — {FormatFileSize(bytesSent)} / {FormatFileSize(totalBytes)} @ {FormatFileSize((long)uploadSpeedBytesPerSec)}/s");
+                    Logger.LogInformation("Upload {RequestId} reached {Milestone}% ({BytesSent}/{TotalBytes} bytes)", uploadRequestId, milestone, bytesSent, totalBytes);
+                }
+            }
+        }
+        else
+        {
+            uploadProgress = Math.Max(uploadProgress, 2);
+            progressMessage = $"Uploading... {FormatFileSize(bytesSent)} sent";
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double size = bytes;
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+        return $"{size:0.##} {sizes[order]}";
+    }
+
+    private class UploadResult
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Owner { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+    }
+
+    private class UploadError
+    {
+        public string? Error { get; set; }
+    }
+
+    private sealed class ProgressStreamContent(Stream source, long totalBytes, Func<long, long, Task> onProgress, int bufferSize) : HttpContent
+    {
+        private readonly Stream _source = source;
+        private readonly long _totalBytes = totalBytes;
+        private readonly Func<long, long, Task> _onProgress = onProgress;
+        private readonly int _bufferSize = Math.Max(16 * 1024, bufferSize);
+
+        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        {
+            var buffer = new byte[_bufferSize];
+            long uploaded = 0;
+
+            int bytesRead;
+            while ((bytesRead = await _source.ReadAsync(buffer)) > 0)
+            {
+                await stream.WriteAsync(buffer.AsMemory(0, bytesRead));
+                uploaded += bytesRead;
+                await _onProgress(uploaded, _totalBytes);
+            }
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = _totalBytes;
+            return _totalBytes > 0;
+        }
+    }
+}

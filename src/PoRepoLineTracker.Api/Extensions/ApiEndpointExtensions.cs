@@ -18,6 +18,8 @@ public static class ApiEndpointExtensions
         app.MapGitHubEndpoints();
         app.MapFailedOperationEndpoints();
         app.MapDiagnosticsEndpoints();
+        app.MapUploadEndpoints();
+        app.MapAiDetectionEndpoints();
 
         if (app.Environment.IsDevelopment())
         {

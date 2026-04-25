@@ -2,6 +2,7 @@ using Polly;
 using Polly.CircuitBreaker;
 using System.Net;
 using PoRepoLineTracker.Application.Interfaces;
+using PoRepoLineTracker.Application.Services;
 using PoRepoLineTracker.Application.Services.LineCounters;
 using Microsoft.AspNetCore.HttpOverrides;
 using Azure.Identity;
@@ -103,6 +104,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IRepositoryDataService, PoRepoLineTracker.Infrastructure.Services.RepositoryDataService>();
         services.AddScoped<IUserService, PoRepoLineTracker.Infrastructure.Services.UserService>();
         services.AddScoped<IUserPreferencesService, PoRepoLineTracker.Infrastructure.Services.UserPreferencesService>();
+        services.AddScoped<IAiDetectionService, PoRepoLineTracker.Application.Services.AiDetectionService>();
 
         // MediatR — register all handlers from the Application assembly
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(

@@ -45,6 +45,96 @@ internal static class DiagnosticsEndpoints
                     TimeSpan.Zero);
             }
 
+            // Gather all external connections information
+            var externalConnections = new
+            {
+                Azure = new
+                {
+                    KeyVault = new
+                    {
+                        Name = "Azure Key Vault",
+                        Type = "Secret Storage",
+                        Url = configuration["KeyVault:Url"] ?? "(not configured)",
+                        Status = string.IsNullOrEmpty(configuration["KeyVault:Url"]) ? "Not configured" : "Configured",
+                        Purpose = "Securely stores secrets like GitHub PAT, connection strings"
+                    },
+                    TableStorage = new
+                    {
+                        Name = "Azure Table Storage",
+                        Type = "Data Storage",
+                        ServiceUrl = configuration["AzureTableStorage:ServiceUrl"] ?? "(not set)",
+                        ConnectionString = Mask(configuration["AzureTableStorage:ConnectionString"]),
+                        Status = !string.IsNullOrEmpty(configuration["AzureTableStorage:ServiceUrl"]) || 
+                                 !string.IsNullOrEmpty(configuration["AzureTableStorage:ConnectionString"]) ? "Configured" : "Not configured",
+                        Purpose = "Stores repository analysis data, commit line counts, user preferences"
+                    },
+                    AppInsights = new
+                    {
+                        Name = "Azure Application Insights",
+                        Type = "Telemetry & Monitoring",
+                        ConnectionString = Mask(configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]),
+                        Status = string.IsNullOrEmpty(configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]) ? "Not configured" : "Configured",
+                        Purpose = "Application performance monitoring, crash reporting, usage analytics"
+                    }
+                },
+                GitHub = new
+                {
+                    OAuth = new
+                    {
+                        Name = "GitHub OAuth",
+                        Type = "Authentication",
+                        ClientId = Mask(configuration["GitHub:ClientId"]),
+                        Status = string.IsNullOrEmpty(configuration["GitHub:ClientId"]) ? "Not configured" : "Configured",
+                        Purpose = "User authentication via GitHub login"
+                    },
+                    API = new
+                    {
+                        Name = "GitHub REST API",
+                        Type = "External API",
+                        BaseUrl = "https://api.github.com/",
+                        PAT = Mask(configuration["GitHub:PAT"]),
+                        Status = string.IsNullOrEmpty(configuration["GitHub:PAT"]) ? "PAT not configured (rate limited)" : "PAT configured",
+                        Purpose = "Repository metadata, commit history, file contents"
+                    },
+                    Webhooks = new
+                    {
+                        Name = "GitHub Webhooks",
+                        Type = "Event Subscription",
+                        Status = "N/A",
+                        Purpose = "Real-time repository event notifications (future enhancement)"
+                    }
+                },
+                OpenTelemetry = new
+                {
+                    OTLP = new
+                    {
+                        Name = "OpenTelemetry Protocol (OTLP)",
+                        Type = "Telemetry Export",
+                        Endpoint = Mask(configuration["OpenTelemetry:OtlpEndpoint"]),
+                        Status = string.IsNullOrEmpty(configuration["OpenTelemetry:OtlpEndpoint"]) ? "Not configured" : "Configured",
+                        Purpose = "Distributed tracing and metrics export to observability platforms"
+                    }
+                },
+                LocalDevelopment = new
+                {
+                    Azurite = new
+                    {
+                        Name = "Azurite (Local Emulator)",
+                        Type = "Local Emulation",
+                        ConnectionString = configuration["AzureTableStorage:ConnectionString"]?.Contains("UseDevelopmentStorage") == true ? "UseDevelopmentStorage=true" : "(not using emulator)",
+                        Status = configuration["AzureTableStorage:ConnectionString"]?.Contains("UseDevelopmentStorage") == true ? "Active" : "Not active",
+                        Purpose = "Local Azure Table Storage emulation for development"
+                    },
+                    UserSecrets = new
+                    {
+                        Name = "ASP.NET Core User Secrets",
+                        Type = "Local Configuration",
+                        Status = "Active (Development)",
+                        Purpose = "Local development secrets override"
+                    }
+                }
+            };
+
             return Results.Json(new
             {
                 Environment = env.EnvironmentName,
@@ -60,28 +150,88 @@ internal static class DiagnosticsEndpoints
                         DurationMs = kvp.Value.Duration.TotalMilliseconds,
                         Error = kvp.Value.Exception?.Message
                     }),
-                Configuration = new
+                ExternalConnections = externalConnections,
+                Summary = new
                 {
-                    KeyVault = new { Url = configuration["KeyVault:Url"] ?? "(not set)" },
-                    AzureTableStorage = new
-                    {
-                        ServiceUrl = Mask(configuration["AzureTableStorage:ServiceUrl"]),
-                        ConnectionString = Mask(configuration["AzureTableStorage:ConnectionString"])
-                    },
-                    GitHub = new
-                    {
-                        ClientId = Mask(configuration["GitHub:ClientId"]),
-                        ClientSecret = Mask(configuration["GitHub:ClientSecret"]),
-                        PAT = Mask(configuration["GitHub:PAT"]),
-                        CallbackPath = configuration["GitHub:CallbackPath"]
-                    },
-                    ApplicationInsights = new { ConnectionString = Mask(configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]) },
-                    OpenTelemetry = new { OtlpEndpoint = Mask(configuration["OpenTelemetry:OtlpEndpoint"]) }
+                    TotalAzureServices = 3,
+                    TotalGitHubIntegrations = 3,
+                    TotalLocalServices = 2,
+                    Purpose = "Repository analysis, commit tracking, line counting, AI detection, contributor statistics"
                 }
             });
         })
         .WithName("Diagnostics")
         .RequireAuthorization();
+
+        // Also expose as /api/diagnostics for consistency
+        app.MapGet("/api/diagnostics", async (IConfiguration configuration, IWebHostEnvironment env, HealthCheckService healthChecks) =>
+        {
+            return await MapDiagnosticsData(configuration, env, healthChecks);
+        })
+        .WithName("ApiDiagnostics")
+        .RequireAuthorization();
+    }
+
+    private static async Task<IResult> MapDiagnosticsData(IConfiguration configuration, IWebHostEnvironment env, HealthCheckService healthChecks)
+    {
+        HealthReport report;
+        try
+        {
+            report = await healthChecks.CheckHealthAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Health check execution failed during diagnostics request");
+            report = new HealthReport(
+                new Dictionary<string, HealthReportEntry>
+                {
+                    ["health_check_error"] = new HealthReportEntry(
+                        HealthStatus.Unhealthy, ex.Message, TimeSpan.Zero, ex, null)
+                },
+                HealthStatus.Unhealthy,
+                TimeSpan.Zero);
+        }
+
+        int configuredCount = 0;
+        if (!string.IsNullOrEmpty(configuration["KeyVault:Url"])) configuredCount++;
+        if (!string.IsNullOrEmpty(configuration["AzureTableStorage:ServiceUrl"]) || !string.IsNullOrEmpty(configuration["AzureTableStorage:ConnectionString"])) configuredCount++;
+        if (!string.IsNullOrEmpty(configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"])) configuredCount++;
+        if (!string.IsNullOrEmpty(configuration["GitHub:ClientId"])) configuredCount++;
+        if (!string.IsNullOrEmpty(configuration["GitHub:PAT"])) configuredCount++;
+        if (!string.IsNullOrEmpty(configuration["OpenTelemetry:OtlpEndpoint"])) configuredCount++;
+
+        var externalConnections = new
+        {
+            Azure = new[]
+            {
+                new { Name = "Azure Key Vault", Type = "Secret Storage", Status = !string.IsNullOrEmpty(configuration["KeyVault:Url"]) ? "Configured" : "Not configured", Purpose = "Securely stores secrets" },
+                new { Name = "Azure Table Storage", Type = "Data Storage", Status = !string.IsNullOrEmpty(configuration["AzureTableStorage:ServiceUrl"]) || !string.IsNullOrEmpty(configuration["AzureTableStorage:ConnectionString"]) ? "Configured" : "Not configured", Purpose = "Stores repository analysis data" },
+                new { Name = "Azure Application Insights", Type = "Telemetry", Status = !string.IsNullOrEmpty(configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]) ? "Configured" : "Not configured", Purpose = "Performance monitoring" }
+            },
+            GitHub = new[]
+            {
+                new { Name = "GitHub OAuth", Type = "Authentication", Status = !string.IsNullOrEmpty(configuration["GitHub:ClientId"]) ? "Configured" : "Not configured", Purpose = "User authentication" },
+                new { Name = "GitHub REST API", Type = "External API", Status = !string.IsNullOrEmpty(configuration["GitHub:PAT"]) ? "PAT Configured" : "Rate Limited", Purpose = "Repository data access" }
+            },
+            OpenTelemetry = new[]
+            {
+                new { Name = "OTLP Exporter", Type = "Telemetry Export", Status = !string.IsNullOrEmpty(configuration["OpenTelemetry:OtlpEndpoint"]) ? "Configured" : "Not configured", Purpose = "Distributed tracing" }
+            }
+        };
+
+        return Results.Ok(new
+        {
+            Environment = env.EnvironmentName,
+            Timestamp = DateTime.UtcNow,
+            OverallHealth = report.Status.ToString(),
+            ExternalConnections = externalConnections,
+            Summary = new
+            {
+                TotalConnections = 6,
+                ConfiguredCount = configuredCount,
+                ApplicationPurpose = "Repository line tracking, AI code detection, contributor statistics"
+            }
+        });
     }
 
     internal static void MapDevOnlyEndpoints(this WebApplication app)

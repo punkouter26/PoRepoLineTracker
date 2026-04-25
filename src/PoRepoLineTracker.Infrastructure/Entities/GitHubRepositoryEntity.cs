@@ -21,6 +21,7 @@ public class GitHubRepositoryEntity : ITableEntity
     public string Owner { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string CloneUrl { get; set; } = string.Empty;
+    public string LocalPath { get; set; } = string.Empty;
     public DateTime? LastAnalyzedCommitDate { get; set; } // Nullable to avoid Azure Table Storage DateTime.MinValue issue
 
     public GitHubRepository ToDomainModel()
@@ -32,6 +33,7 @@ public class GitHubRepositoryEntity : ITableEntity
             Owner = Owner,
             Name = Name,
             CloneUrl = CloneUrl,
+            LocalPath = LocalPath,
             LastAnalyzedCommitDate = LastAnalyzedCommitDate
         };
     }
@@ -47,6 +49,7 @@ public class GitHubRepositoryEntity : ITableEntity
             Owner = model.Owner,
             Name = model.Name,
             CloneUrl = model.CloneUrl,
+            LocalPath = model.LocalPath,
             LastAnalyzedCommitDate = model.LastAnalyzedCommitDate.HasValue && model.LastAnalyzedCommitDate.Value.Kind == DateTimeKind.Unspecified
                 ? DateTime.SpecifyKind(model.LastAnalyzedCommitDate.Value, DateTimeKind.Utc)
                 : model.LastAnalyzedCommitDate?.ToUniversalTime()

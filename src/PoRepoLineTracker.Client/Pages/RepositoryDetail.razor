@@ -237,6 +237,12 @@
                 </RadzenCard>
             </RadzenColumn>
         </RadzenRow>
+
+        @* ─── AI Detection Chart ──────────────────────────────────────────────────── *@
+        <AiDetectionChart RepositoryId="@RepositoryId" />
+
+        @* ─── Top Contributors Chart ──────────────────────────────────────────────── *@
+        <ContributorChart RepositoryId="@RepositoryId" />
     }
 </RadzenStack>
 

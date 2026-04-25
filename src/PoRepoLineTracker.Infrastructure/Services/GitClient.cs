@@ -96,6 +96,17 @@ namespace PoRepoLineTracker.Infrastructure.Services
             Commands.Checkout(repo, commit);
         }
 
+        public IEnumerable<(string Sha, DateTimeOffset CommitDate)> GetCommitsFromPath(string fullPath, DateTime? sinceDate = null)
+        {
+            // Just use the full path directly
+            return GetCommits(fullPath, sinceDate);
+        }
+
+        public Repository OpenRepositoryFromPath(string fullPath)
+        {
+            return new Repository(fullPath);
+        }
+
         // ── Private helpers ─────────────────────────────────────────────────────────
 
         private static string BuildAuthUrl(string repoUrl, string? accessToken)

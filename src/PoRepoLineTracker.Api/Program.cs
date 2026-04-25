@@ -82,6 +82,12 @@ namespace PoRepoLineTracker.Api
                     cfg.WriteTo.ApplicationInsights(appInsightsConn, TelemetryConverter.Traces);
             });
 
+            // Raise Kestrel body-size limit to 600 MB to allow large ZIP uploads
+            builder.WebHost.ConfigureKestrel(options =>
+            {
+                options.Limits.MaxRequestBodySize = 600 * 1024 * 1024; // 600 MB
+            });
+
             // Service registrations via extension methods
             builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
             builder.Services.AddAuth(builder.Configuration, builder.Environment);

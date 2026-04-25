@@ -20,6 +20,13 @@ public class CommitLineCountEntity : ITableEntity
     public int LinesAdded { get; set; }
     public int LinesRemoved { get; set; }
     public string LinesByFileTypeJson { get; set; } = string.Empty; // Stored as JSON string
+    
+    // Author information
+    public string AuthorName { get; set; } = string.Empty;
+    public string AuthorEmail { get; set; } = string.Empty;
+    
+    // AI detection result
+    public double AiPercentage { get; set; }
 
     public CommitLineCount ToDomainModel()
     {
@@ -34,7 +41,10 @@ public class CommitLineCountEntity : ITableEntity
             LinesRemoved = LinesRemoved,
             LinesByFileType = string.IsNullOrEmpty(LinesByFileTypeJson)
                 ? new Dictionary<string, int>()
-                : JsonSerializer.Deserialize<Dictionary<string, int>>(LinesByFileTypeJson) ?? new Dictionary<string, int>()
+                : JsonSerializer.Deserialize<Dictionary<string, int>>(LinesByFileTypeJson) ?? new Dictionary<string, int>(),
+            AuthorName = AuthorName,
+            AuthorEmail = AuthorEmail,
+            AiPercentage = AiPercentage
         };
     }
 
@@ -53,7 +63,10 @@ public class CommitLineCountEntity : ITableEntity
             TotalLines = model.TotalLines,
             LinesAdded = model.LinesAdded,
             LinesRemoved = model.LinesRemoved,
-            LinesByFileTypeJson = JsonSerializer.Serialize(model.LinesByFileType)
+            LinesByFileTypeJson = JsonSerializer.Serialize(model.LinesByFileType),
+            AuthorName = model.AuthorName,
+            AuthorEmail = model.AuthorEmail,
+            AiPercentage = model.AiPercentage
         };
     }
 }

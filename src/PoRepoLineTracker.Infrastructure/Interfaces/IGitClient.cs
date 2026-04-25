@@ -44,5 +44,16 @@ namespace PoRepoLineTracker.Infrastructure.Interfaces
         /// <param name="repo">The repository instance.</param>
         /// <param name="commit">The commit to checkout.</param>
         void Checkout(Repository repo, Commit commit);
+
+        /// <summary>
+        /// Gets all commits from a local repository at a full path, optionally since a specific date.
+        /// Used for locally uploaded repositories that don't use the standard _localReposPath.
+        /// </summary>
+        IEnumerable<(string Sha, DateTimeOffset CommitDate)> GetCommitsFromPath(string fullPath, DateTime? sinceDate = null);
+
+        /// <summary>
+        /// Opens an existing local repository using its full path.
+        /// </summary>
+        Repository OpenRepositoryFromPath(string fullPath);
     }
 }
