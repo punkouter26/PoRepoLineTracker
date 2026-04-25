@@ -121,11 +121,11 @@ namespace PoRepoLineTracker.Api
             app.UseAuthorization();
             app.UseBlazorFrameworkFiles();
             app.UseStaticFiles();
-            app.MapFallbackToFile("index.html");
-            app.MapHealthChecks("/health");
-
-            // All API route mappings
+            // All API route mappings - MUST come BEFORE fallback file
             app.MapApiEndpoints();
+            
+            app.MapHealthChecks("/health");
+            app.MapFallbackToFile("index.html");
 
             return app;
         }
