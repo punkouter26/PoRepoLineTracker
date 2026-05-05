@@ -22,11 +22,11 @@ public class GetContributorStatsQueryHandler : IRequestHandler<GetContributorSta
 
     public async Task<IEnumerable<ContributorStatsDto>> Handle(GetContributorStatsQuery request, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Getting contributor stats for repository {RepositoryId} for last {Days} days", 
+        _logger.LogInformation("Getting contributor stats for repository {RepositoryId} for last {Days} days",
             request.RepositoryId, request.Days);
 
         var commits = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(request.RepositoryId);
-        
+
         var cutoffDate = DateTime.UtcNow.AddDays(-request.Days);
         var filteredCommits = commits
             .Where(c => c.CommitDate >= cutoffDate)
@@ -37,7 +37,7 @@ public class GetContributorStatsQueryHandler : IRequestHandler<GetContributorSta
 
         // Get total lines for percentage calculation
         var totalLines = filteredCommits.Sum(c => c.LinesAdded);
-        
+
         // Group by author
         var groupedByAuthor = filteredCommits
             .GroupBy(c => new { AuthorName = string.IsNullOrEmpty(c.AuthorName) ? c.AuthorEmail : c.AuthorName, AuthorEmail = c.AuthorEmail })
@@ -45,7 +45,7 @@ public class GetContributorStatsQueryHandler : IRequestHandler<GetContributorSta
             {
                 var authorTotalLines = g.Sum(c => c.LinesAdded);
                 var authorTotalRemoved = g.Sum(c => c.LinesRemoved);
-                
+
                 // Daily breakdown for chart
                 var dailyHistory = g
                     .GroupBy(c => c.CommitDate.Date)

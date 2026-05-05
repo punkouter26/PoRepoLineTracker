@@ -85,7 +85,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         {
             _logger.LogInformation("Clearing existing commit data for repository {RepositoryId} for full re-analysis", request.RepositoryId);
             await _repositoryDataService.DeleteCommitLineCountsForRepositoryAsync(request.RepositoryId);
-            
+
             // Reset the last analyzed date so all commits are processed
             repository.LastAnalyzedCommitDate = null;
             await _repositoryDataService.UpdateRepositoryAsync(repository);
@@ -102,23 +102,23 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         {
             // Determine if this is a locally uploaded repository
             bool isLocalUpload = string.IsNullOrWhiteSpace(repository.CloneUrl);
-            
+
             // ── Step 1: Clone/pull OR validate local repository ───────────────────────
             _progressService.ReportStep(request.RepositoryId, 1, "Cloning",
-                isLocalUpload 
+                isLocalUpload
                     ? $"Step 1/4 — Validating local repository {repository.Owner}/{repository.Name}"
                     : $"Step 1/4 — Cloning/pulling {repository.Owner}/{repository.Name}");
-            _logger.LogInformation("[Step 1/4] {Status} for repository {RepositoryId}", 
+            _logger.LogInformation("[Step 1/4] {Status} for repository {RepositoryId}",
                 isLocalUpload ? "Validating local repo" : "Clone/pull", request.RepositoryId);
 
             string localPath;
             string fullRepoPath;
-            
+
             if (isLocalUpload)
             {
                 // For locally uploaded repos, the LocalPath contains the full path to the .git folder's parent
                 fullRepoPath = repository.LocalPath;
-                
+
                 // Validate the local repository
                 bool isValid = await _gitHubService.IsLocalRepositoryValidAsync(fullRepoPath);
                 if (!isValid)
@@ -127,7 +127,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                     _progressService.ReportError(request.RepositoryId, "Local repository is not valid or does not exist.");
                     return Unit.Value;
                 }
-                
+
                 _logger.LogInformation("Local repository validated at {FullPath}", fullRepoPath);
                 localPath = fullRepoPath; // Use full path for local repos
             }
@@ -166,7 +166,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                 // Update repository with local path
                 repository.LocalPath = localPath;
                 await _repositoryDataService.UpdateRepositoryAsync(repository);
-                
+
                 // Get the full path for later use
                 var homePath = Environment.GetEnvironmentVariable("HOME");
                 fullRepoPath = !string.IsNullOrEmpty(homePath)
@@ -187,7 +187,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             // Get commit stats from all time (use a date far in the past to get all commits)
             var sinceDate = DateTime.UtcNow.AddYears(-50); // Get all commits from the repository's entire history
             _logger.LogInformation("Fetching all commit stats for repository {RepositoryId} (since {SinceDate})", request.RepositoryId, sinceDate);
-            
+
             IEnumerable<CommitStatsDto> commitStats;
             if (isLocalUpload)
             {
@@ -197,7 +197,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             {
                 commitStats = await _gitHubService.GetCommitStatsAsync(localPath, sinceDate);
             }
-            
+
             var commitStatsList = commitStats.ToList();
             _logger.LogInformation("Found {CommitCount} commits to analyze for repository {RepositoryId}", commitStatsList.Count, request.RepositoryId);
             _progressService.ReportCommitsFound(request.RepositoryId, commitStatsList.Count);

@@ -56,8 +56,8 @@ public class UserPreferencesEntity : ITableEntity
         return new PoRepoLineTracker.Domain.Models.UserPreferences
         {
             UserId = UserId,
-            FileExtensions = string.IsNullOrEmpty(FileExtensions) 
-                ? PoRepoLineTracker.Domain.Models.UserPreferences.DefaultFileExtensions 
+            FileExtensions = string.IsNullOrEmpty(FileExtensions)
+                ? PoRepoLineTracker.Domain.Models.UserPreferences.DefaultFileExtensions
                 : FileExtensions.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
             ChartDisplayMode = chartDisplayMode,
             LastUpdated = LastUpdated

@@ -28,11 +28,11 @@ public sealed class ApiAuthenticationStateProvider : AuthenticationStateProvider
         try
         {
             var response = await _httpClient.GetAsync("api/auth/me");
-            
+
             if (response.IsSuccessStatusCode)
             {
                 _cachedUser = await response.Content.ReadFromJsonAsync<AuthResponse>();
-                
+
                 if (_cachedUser?.IsAuthenticated == true && !string.IsNullOrEmpty(_cachedUser.UserId))
                 {
                     var claims = new List<Claim>
@@ -43,16 +43,16 @@ public sealed class ApiAuthenticationStateProvider : AuthenticationStateProvider
 
                     if (!string.IsNullOrEmpty(_cachedUser.DisplayName))
                         claims.Add(new Claim("DisplayName", _cachedUser.DisplayName));
-                    
+
                     if (!string.IsNullOrEmpty(_cachedUser.Email))
                         claims.Add(new Claim(ClaimTypes.Email, _cachedUser.Email));
-                    
+
                     if (!string.IsNullOrEmpty(_cachedUser.AvatarUrl))
                         claims.Add(new Claim("AvatarUrl", _cachedUser.AvatarUrl));
 
                     var identity = new ClaimsIdentity(claims, "GitHub");
                     var user = new ClaimsPrincipal(identity);
-                    
+
                     return new AuthenticationState(user);
                 }
             }

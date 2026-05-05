@@ -64,7 +64,7 @@ internal static class DiagnosticsEndpoints
                         Type = "Data Storage",
                         ServiceUrl = configuration["AzureTableStorage:ServiceUrl"] ?? "(not set)",
                         ConnectionString = Mask(configuration["AzureTableStorage:ConnectionString"]),
-                        Status = !string.IsNullOrEmpty(configuration["AzureTableStorage:ServiceUrl"]) || 
+                        Status = !string.IsNullOrEmpty(configuration["AzureTableStorage:ServiceUrl"]) ||
                                  !string.IsNullOrEmpty(configuration["AzureTableStorage:ConnectionString"]) ? "Configured" : "Not configured",
                         Purpose = "Stores repository analysis data, commit line counts, user preferences"
                     },
@@ -355,11 +355,14 @@ internal static class DiagnosticsEndpoints
             var message = $"[CLIENT] {logEntry.Message}";
             switch (logEntry.Level.ToUpperInvariant())
             {
-                case "ERROR": case "FATAL":
+                case "ERROR":
+                case "FATAL":
                     logger.LogError(logEntry.Exception, message, logEntry.Properties); break;
-                case "WARNING": case "WARN":
+                case "WARNING":
+                case "WARN":
                     logger.LogWarning(message, logEntry.Properties); break;
-                case "INFO": case "INFORMATION":
+                case "INFO":
+                case "INFORMATION":
                     logger.LogInformation(message, logEntry.Properties); break;
                 case "DEBUG":
                     logger.LogDebug(message, logEntry.Properties); break;

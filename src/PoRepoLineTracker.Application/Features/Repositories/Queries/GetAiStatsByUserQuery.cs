@@ -22,11 +22,11 @@ public class GetAiStatsByUserQueryHandler : IRequestHandler<GetAiStatsByUserQuer
 
     public async Task<IEnumerable<AiStatsByUserDto>> Handle(GetAiStatsByUserQuery request, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Getting AI stats by user for repository {RepositoryId} for last {Days} days", 
+        _logger.LogInformation("Getting AI stats by user for repository {RepositoryId} for last {Days} days",
             request.RepositoryId, request.Days);
 
         var commits = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(request.RepositoryId);
-        
+
         var cutoffDate = DateTime.UtcNow.AddDays(-request.Days);
         var filteredCommits = commits
             .Where(c => c.CommitDate >= cutoffDate)
@@ -41,9 +41,9 @@ public class GetAiStatsByUserQueryHandler : IRequestHandler<GetAiStatsByUserQuer
             .Select(g =>
             {
                 var commitsWithAiData = g.Where(c => c.AiPercentage > 0).ToList();
-                
+
                 // For commits without AI data, estimate based on historical patterns
-                var avgAiPercentage = commitsWithAiData.Any() 
+                var avgAiPercentage = commitsWithAiData.Any()
                     ? commitsWithAiData.Average(c => c.AiPercentage)
                     : 0.0;
 

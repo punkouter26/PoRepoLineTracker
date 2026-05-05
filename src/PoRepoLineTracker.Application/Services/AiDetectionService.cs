@@ -11,7 +11,7 @@ namespace PoRepoLineTracker.Application.Services;
 public class AiDetectionService : IAiDetectionService
 {
     private readonly ILogger<AiDetectionService> _logger;
-    
+
     // Patterns that are more common in AI-generated code
     private static readonly List<AiPattern> AiPatterns = new()
     {
@@ -111,7 +111,7 @@ public class AiDetectionService : IAiDetectionService
                     {
                         aiScore += pattern.Weight * Math.Min(matches.Count, 3); // Cap at 3 matches per pattern
                         aiMatches += matches.Count;
-                        _logger.LogDebug("AI pattern '{Pattern}' matched {Count} times (weight: {Weight})", 
+                        _logger.LogDebug("AI pattern '{Pattern}' matched {Count} times (weight: {Weight})",
                             pattern.Description, matches.Count, pattern.Weight);
                     }
                 }
@@ -140,21 +140,21 @@ public class AiDetectionService : IAiDetectionService
             // Additional heuristics based on code characteristics
             var lines = content.Split('\n');
             var codeLines = lines.Where(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith("//") && !l.TrimStart().StartsWith("#")).ToList();
-            
+
             // Check for excessive uniformity (AI tends to be very consistent)
             if (codeLines.Count > 5)
             {
                 var avgLineLength = codeLines.Average(l => l.Trim().Length);
                 var lineLengthVariance = codeLines.Select(l => Math.Pow(l.Trim().Length - avgLineLength, 2)).Average();
-                
+
                 // Very low variance suggests AI (too uniform)
                 if (lineLengthVariance < 5 && avgLineLength > 30)
                 {
                     aiScore += 3.0;
-                    _logger.LogDebug("High uniformity detected (variance: {Variance}, avg length: {AvgLength})", 
+                    _logger.LogDebug("High uniformity detected (variance: {Variance}, avg length: {AvgLength})",
                         lineLengthVariance, avgLineLength);
                 }
-                
+
                 // Very high average line length suggests AI verbosity
                 if (avgLineLength > 100)
                 {
@@ -166,7 +166,7 @@ public class AiDetectionService : IAiDetectionService
             // Check comment density
             var commentLines = lines.Count(l => l.TrimStart().StartsWith("//") || l.TrimStart().StartsWith("#"));
             var commentRatio = (double)commentLines / Math.Max(lines.Length, 1);
-            
+
             // Very high comment ratio might indicate AI over-explaining
             if (commentRatio > 0.3 && commentRatio < 0.7)
             {
@@ -185,13 +185,13 @@ public class AiDetectionService : IAiDetectionService
 
             // Normalize score based on content length and factors
             var baseScore = aiScore;
-            
+
             // Reduce score if human patterns found
             baseScore -= humanMatches * 1.5;
-            
+
             // Normalize to 0-100 scale
             var normalizedScore = Math.Max(0, Math.Min(100, baseScore));
-            
+
             _logger.LogDebug("AI detection result for {Extension}: {Score}/100 (AI matches: {AiMatches}, Human matches: {HumanMatches})",
                 fileExtension, normalizedScore, aiMatches, humanMatches);
 
@@ -205,7 +205,7 @@ public class AiDetectionService : IAiDetectionService
             return 0.0;
 
         var scores = new List<double>();
-        
+
         foreach (var file in files)
         {
             var extension = Path.GetExtension(file.Key).ToLowerInvariant();
@@ -215,9 +215,9 @@ public class AiDetectionService : IAiDetectionService
 
         // Return average score
         var averageScore = scores.Count > 0 ? scores.Average() : 0.0;
-        _logger.LogDebug("Multi-file AI detection: {Count} files analyzed, average score: {Score}/100", 
+        _logger.LogDebug("Multi-file AI detection: {Count} files analyzed, average score: {Score}/100",
             files.Count, averageScore);
-        
+
         return Math.Round(averageScore, 2);
     }
 

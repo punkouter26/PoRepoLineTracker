@@ -7,7 +7,7 @@ public interface IGitHubService
     Task<string> CloneRepositoryAsync(string repoUrl, string localPath, string? accessToken = null);
     Task<string> PullRepositoryAsync(string localPath, string? accessToken = null);
     Task<bool> IsRepositoryValidAsync(string localPath);
-    
+
     /// <summary>
     /// Checks if a repository is valid using its full path (for locally uploaded repositories).
     /// </summary>

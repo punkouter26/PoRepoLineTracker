@@ -80,11 +80,11 @@ public class RepositoryDataService : IRepositoryDataService
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Updating repository {RepoName} in Table Storage.", repository.Name);
-        
+
         // Use UserId as partition key and Owner_Name as row key
         var partitionKey = repository.UserId.ToString();
         var rowKey = $"{repository.Owner}_{repository.Name}";
-        
+
         // Retrieve the existing entity to get its ETag for optimistic concurrency
         var existingEntity = await _repositoryTableClient.GetEntityAsync<GitHubRepositoryEntity>(partitionKey, rowKey);
         var entityToUpdate = GitHubRepositoryEntity.FromDomainModel(repository);
@@ -383,7 +383,7 @@ public class RepositoryDataService : IRepositoryDataService
         {
             // Step 1: Get all repositories for this user
             var repositories = await GetAllRepositoriesAsync(userId);
-            
+
             // Step 2: Remove commit line counts for each repository
             foreach (var repo in repositories)
             {
@@ -507,7 +507,7 @@ public class RepositoryDataService : IRepositoryDataService
             var result = topFiles
                 .OrderBy(f => f.LineCount) // Will be re-sorted by actual line count descending
                 .ToList();
-            
+
             // Re-sort by line count descending and take the requested count
             result = topFiles
                 .OrderByDescending(f => f.LineCount)

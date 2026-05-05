@@ -10,7 +10,7 @@ namespace PoRepoLineTracker.Application.Features.Repositories.Commands
     /// <param name="ForceReanalysis">If true, re-analyze commits that have missing diff data</param>
     /// <param name="ClearExistingData">If true, delete all existing commit data and re-analyze from scratch</param>
     public record AnalyzeRepositoryCommitsCommand(
-        Guid RepositoryId, 
+        Guid RepositoryId,
         bool ForceReanalysis = false,
         bool ClearExistingData = false) : IRequest<Unit>;
 }

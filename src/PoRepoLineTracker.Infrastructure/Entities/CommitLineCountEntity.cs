@@ -20,11 +20,11 @@ public class CommitLineCountEntity : ITableEntity
     public int LinesAdded { get; set; }
     public int LinesRemoved { get; set; }
     public string LinesByFileTypeJson { get; set; } = string.Empty; // Stored as JSON string
-    
+
     // Author information
     public string AuthorName { get; set; } = string.Empty;
     public string AuthorEmail { get; set; } = string.Empty;
-    
+
     // AI detection result
     public double AiPercentage { get; set; }
 

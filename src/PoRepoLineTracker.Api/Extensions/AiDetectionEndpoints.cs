@@ -23,7 +23,7 @@ internal static class AiDetectionEndpoints
             if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
             if (existing.UserId != userId)
             {
-                Log.Warning("IDOR attempt: user {UserId} tried to read ai-stats for repo {RepositoryId} owned by {OwnerId}", 
+                Log.Warning("IDOR attempt: user {UserId} tried to read ai-stats for repo {RepositoryId} owned by {OwnerId}",
                     userId, repositoryId, existing.UserId);
                 return Results.Forbid();
             }
@@ -53,7 +53,7 @@ internal static class AiDetectionEndpoints
             if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
             if (existing.UserId != userId)
             {
-                Log.Warning("IDOR attempt: user {UserId} tried to read ai-daily for repo {RepositoryId} owned by {OwnerId}", 
+                Log.Warning("IDOR attempt: user {UserId} tried to read ai-daily for repo {RepositoryId} owned by {OwnerId}",
                     userId, repositoryId, existing.UserId);
                 return Results.Forbid();
             }
@@ -62,7 +62,7 @@ internal static class AiDetectionEndpoints
             {
                 var commits = await repoDataService.GetCommitLineCountsByRepositoryIdAsync(repositoryId);
                 var cutoffDate = DateTime.UtcNow.AddDays(-days);
-                
+
                 var dailyStats = commits
                     .Where(c => c.CommitDate >= cutoffDate)
                     .GroupBy(c => c.CommitDate.Date)
@@ -70,7 +70,7 @@ internal static class AiDetectionEndpoints
                     {
                         Date = g.Key,
                         CommitCount = g.Count(),
-                        AverageAiPercentage = g.Any(c => c.AiPercentage > 0) 
+                        AverageAiPercentage = g.Any(c => c.AiPercentage > 0)
                             ? Math.Round(g.Where(c => c.AiPercentage > 0).Average(c => c.AiPercentage), 2)
                             : 0,
                         AuthorBreakdown = g
@@ -78,7 +78,7 @@ internal static class AiDetectionEndpoints
                             .ToDictionary(
                                 authorGroup => authorGroup.Key,
                                 authorGroup => Math.Round(
-                                    authorGroup.Where(c => c.AiPercentage > 0).Any() 
+                                    authorGroup.Where(c => c.AiPercentage > 0).Any()
                                         ? authorGroup.Where(c => c.AiPercentage > 0).Average(c => c.AiPercentage)
                                         : 0, 2))
                     })
@@ -107,7 +107,7 @@ internal static class AiDetectionEndpoints
             if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
             if (existing.UserId != userId)
             {
-                Log.Warning("IDOR attempt: user {UserId} tried to read contributors for repo {RepositoryId} owned by {OwnerId}", 
+                Log.Warning("IDOR attempt: user {UserId} tried to read contributors for repo {RepositoryId} owned by {OwnerId}",
                     userId, repositoryId, existing.UserId);
                 return Results.Forbid();
             }

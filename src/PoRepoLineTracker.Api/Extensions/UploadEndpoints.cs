@@ -66,7 +66,7 @@ internal static class UploadEndpoints
                     form.Keys.Count);
 
                 var file = form.Files.FirstOrDefault();
-                
+
                 if (file == null || file.Length == 0)
                 {
                     uploadLog.Warning("Upload rejected: no file sent or file length is zero.");
@@ -100,7 +100,7 @@ internal static class UploadEndpoints
                 // Create a unique temp directory for extraction
                 var tempPath = Path.Combine(Path.GetTempPath(), $"repo_upload_{Guid.NewGuid()}");
                 uploadLog.Information("Using temp extraction path {TempPath}", tempPath);
-                
+
                 try
                 {
                     // Extract zip to temp directory
@@ -109,7 +109,7 @@ internal static class UploadEndpoints
                     var extractTimer = Stopwatch.StartNew();
                     int entryCount;
                     long estimatedUncompressedBytes;
-                    
+
                     using (var zipStream = file.OpenReadStream())
                     using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Read))
                     {
@@ -134,7 +134,7 @@ internal static class UploadEndpoints
 
                     // Find the .git folder (could be at root or in a subdirectory)
                     var (gitPath, repoRoot) = FindGitFolder(tempPath);
-                    
+
                     if (string.IsNullOrEmpty(gitPath))
                     {
                         var immediateDirs = Directory.GetDirectories(tempPath).Select(Path.GetFileName).ToArray();

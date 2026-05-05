@@ -129,7 +129,7 @@ namespace PoRepoLineTracker.Api
             app.UseStaticFiles();
             // All API route mappings - MUST come BEFORE fallback file
             app.MapApiEndpoints();
-            
+
             app.MapHealthChecks("/health");
             app.MapFallbackToFile("index.html");
 

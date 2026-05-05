@@ -48,7 +48,9 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var repoId = Guid.NewGuid();
         var repo = new GitHubRepository
         {
-            Id = repoId, Owner = "testowner", Name = "testrepo",
+            Id = repoId,
+            Owner = "testowner",
+            Name = "testrepo",
             CloneUrl = "https://github.com/testowner/testrepo.git",
             LocalPath = "" // Empty — triggers clone
         };
@@ -73,7 +75,9 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var repoId = Guid.NewGuid();
         var repo = new GitHubRepository
         {
-            Id = repoId, Owner = "testowner", Name = "testrepo",
+            Id = repoId,
+            Owner = "testowner",
+            Name = "testrepo",
             CloneUrl = "https://github.com/testowner/testrepo.git",
             LocalPath = "/existing/path" // Has local path — triggers pull
         };
@@ -99,7 +103,10 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var repoId = Guid.NewGuid();
         var repo = new GitHubRepository
         {
-            Id = repoId, Owner = "o", Name = "n", CloneUrl = "url",
+            Id = repoId,
+            Owner = "o",
+            Name = "n",
+            CloneUrl = "url",
             LocalPath = "/path",
             LastAnalyzedCommitDate = DateTime.UtcNow
         };
@@ -127,7 +134,11 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var repoId = Guid.NewGuid();
         var repo = new GitHubRepository
         {
-            Id = repoId, Owner = "o", Name = "n", CloneUrl = "url", LocalPath = "/path"
+            Id = repoId,
+            Owner = "o",
+            Name = "n",
+            CloneUrl = "url",
+            LocalPath = "/path"
         };
         var commitStats = new List<CommitStatsDto>
         {
@@ -161,7 +172,11 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var repoId = Guid.NewGuid();
         var repo = new GitHubRepository
         {
-            Id = repoId, Owner = "o", Name = "n", CloneUrl = "url", LocalPath = "/path"
+            Id = repoId,
+            Owner = "o",
+            Name = "n",
+            CloneUrl = "url",
+            LocalPath = "/path"
         };
         var commitStats = new List<CommitStatsDto>
         {
@@ -189,7 +204,11 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var repoId = Guid.NewGuid();
         var repo = new GitHubRepository
         {
-            Id = repoId, Owner = "o", Name = "n", CloneUrl = "url", LocalPath = "/path"
+            Id = repoId,
+            Owner = "o",
+            Name = "n",
+            CloneUrl = "url",
+            LocalPath = "/path"
         };
         var commitStats = new List<CommitStatsDto>
         {
@@ -222,7 +241,11 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var repoId = Guid.NewGuid();
         var repo = new GitHubRepository
         {
-            Id = repoId, Owner = "o", Name = "n", CloneUrl = "url", LocalPath = "/path"
+            Id = repoId,
+            Owner = "o",
+            Name = "n",
+            CloneUrl = "url",
+            LocalPath = "/path"
         };
         var commitStats = new List<CommitStatsDto>
         {
@@ -257,8 +280,12 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var userId = Guid.NewGuid();
         var repo = new GitHubRepository
         {
-            Id = repoId, Owner = "o", Name = "n", CloneUrl = "url",
-            LocalPath = "/path", UserId = userId
+            Id = repoId,
+            Owner = "o",
+            Name = "n",
+            CloneUrl = "url",
+            LocalPath = "/path",
+            UserId = userId
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
@@ -284,7 +311,11 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var repoId = Guid.NewGuid();
         var repo = new GitHubRepository
         {
-            Id = repoId, Owner = "o", Name = "n", CloneUrl = "url", LocalPath = "/path"
+            Id = repoId,
+            Owner = "o",
+            Name = "n",
+            CloneUrl = "url",
+            LocalPath = "/path"
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
@@ -306,7 +337,11 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var repoId = Guid.NewGuid();
         var repo = new GitHubRepository
         {
-            Id = repoId, Owner = "o", Name = "n", CloneUrl = "url", LocalPath = ""
+            Id = repoId,
+            Owner = "o",
+            Name = "n",
+            CloneUrl = "url",
+            LocalPath = ""
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
