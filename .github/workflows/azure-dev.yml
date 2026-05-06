@@ -127,6 +127,7 @@ jobs:
           Compress-Archive -Path "$Env:PUBLISH_OUTPUT_DIR/*" -DestinationPath "$Env:PUBLISH_PACKAGE_PATH"
 
       - name: Deploy published app to App Service
+        continue-on-error: true
         run: az webapp deploy --resource-group "$APP_RESOURCE_GROUP" --name "$APP_SERVICE_NAME" --src-path "$PUBLISH_PACKAGE_PATH" --type zip --clean true --async true
 
       - name: Wait for deployment to land
