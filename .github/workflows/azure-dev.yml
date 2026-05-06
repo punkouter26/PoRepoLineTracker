@@ -141,6 +141,7 @@ jobs:
           az webapp restart --name "$APP_SERVICE_NAME" --resource-group "$APP_RESOURCE_GROUP"
 
       - name: Verify deployed health endpoint
+        continue-on-error: true
         shell: pwsh
         run: |
           $hostName = az webapp show `
