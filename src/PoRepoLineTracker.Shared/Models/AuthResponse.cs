@@ -10,4 +10,5 @@ public sealed record AuthResponse(
     string? Username = null,
     string? DisplayName = null,
     string? Email = null,
-    string? AvatarUrl = null);
+    string? AvatarUrl = null,
+    bool IsAnon = false);

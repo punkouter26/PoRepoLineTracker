@@ -88,5 +88,22 @@ internal static class SettingsEndpoints
         })
         .RequireAuthorization()
         .WithName("GetUserFileExtensions");
+
+        // Public endpoint: exposes client-visible feature flags so the Blazor WASM app
+        // can adapt its UI without requiring additional auth (e.g. MockDataBanner).
+        // Strategy Pattern (GoF): flags act as runtime strategy selectors.
+        app.MapGet("/api/feature-flags", (IConfiguration configuration) =>
+        {
+            var flags = new
+            {
+                EnableMockDataForTesting  = configuration.GetValue<bool>("FeatureFlags:EnableMockDataForTesting"),
+                EnableGitHubApi           = configuration.GetValue<bool>("FeatureFlags:EnableGitHubApi"),
+                EnableBackgroundAnalysis  = configuration.GetValue<bool>("FeatureFlags:EnableBackgroundAnalysis"),
+                EnableOpenTelemetryExport = configuration.GetValue<bool>("FeatureFlags:EnableOpenTelemetryExport")
+            };
+            return Results.Ok(flags);
+        })
+        .AllowAnonymous()
+        .WithName("GetFeatureFlags");
     }
 }

@@ -37,7 +37,7 @@
                                   SelectedRepositories="_selected"
                                   SelectedRepositoriesChanged="OnSelectedRepositoriesChanged"
                                   IsLoading="pageState.IsLoadingGitHubRepos"
-                                  ErrorMessage="pageState.ErrorMessage"
+                                  ErrorMessage="@pageState.ErrorMessage"
                                   IsSubmitting="pageState.IsAddingRepository"
                                   OnAddSelected="AddSelectedRepositories"
                                   OnSelectAll="SelectAllRepositories"

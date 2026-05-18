@@ -1,3 +1,10 @@
+# IDE / Editor Directories
+.vs/
+.vscode/
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
 # .NET Build Outputs
 bin/
 obj/

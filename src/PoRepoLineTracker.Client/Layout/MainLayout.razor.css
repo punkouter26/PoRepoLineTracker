@@ -218,41 +218,7 @@
     margin-top: 0.35rem;
 }
 
-/* ─── Onboarding empty state ─────────────────────────────────────────────── */
-.onboarding-step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.35rem;
-    flex: 1;
-    min-width: 120px;
-    animation: fadeSlideUp 0.5s ease both;
-}
-
-.onboarding-step:nth-child(2) { animation-delay: 0.1s; }
-.onboarding-step:nth-child(3) { animation-delay: 0.2s; }
-
-.onboarding-step-icon {
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    background: rgba(103, 80, 164, 0.09);
-    color: var(--rz-primary);
-    border: 2px solid rgba(103, 80, 164, 0.18);
-}
-
-.onboarding-connector {
-    flex: 0 0 40px;
-    height: 2px;
-    background: linear-gradient(90deg, rgba(103,80,164,0.3), rgba(103,80,164,0.1));
-    margin-top: -1.5rem;
-    align-self: flex-start;
-    margin-top: 26px;
-}
+/* ─── Onboarding empty state (styles moved to global app.css for cross-component use) ─ */
 
 .onboarding-cta-pulse {
     animation: ctaPulse 2.5s ease-in-out infinite;

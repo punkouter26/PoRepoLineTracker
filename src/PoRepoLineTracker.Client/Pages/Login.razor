@@ -67,22 +67,28 @@
 @code {
     private async Task AnonLogin()
     {
+        // Generate a unique ANON identity with random 6-digit suffix so concurrent
+        // users/tests have distinct identities (e.g. ANON463443).
+        var suffix = Random.Shared.Next(100000, 999999);
+        var anonName = $"ANON{suffix}";
+        var anonEmail = $"{anonName}@anon.dev";
+
         try
         {
-            var response = await Http.PostAsJsonAsync("/test-login", new { Email = "anon@dev.local", UserAgent = "BlazorWasm-Anon" });
+            var response = await Http.PostAsJsonAsync("/test-login", new { Email = anonEmail, UserAgent = "BlazorWasm-Anon", IsAnon = true });
             if (response.IsSuccessStatusCode)
             {
                 Navigation.NavigateTo("/", forceLoad: true);
             }
             else
             {
-                // Fallback: try the redirect-based endpoint
-                Navigation.NavigateTo($"/test-login-redirect?email=anon@dev.local", forceLoad: true);
+                // Fallback: redirect-based endpoint
+                Navigation.NavigateTo($"/test-login-redirect?email={Uri.EscapeDataString(anonEmail)}&isAnon=true", forceLoad: true);
             }
         }
         catch
         {
-            Navigation.NavigateTo("/test-login-redirect?email=anon@dev.local", forceLoad: true);
+            Navigation.NavigateTo($"/test-login-redirect?email={Uri.EscapeDataString(anonEmail)}&isAnon=true", forceLoad: true);
         }
     }
 }
