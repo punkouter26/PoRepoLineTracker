@@ -1,3 +1,4 @@
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
@@ -12,8 +13,7 @@ public static class TelemetryServiceExtensions
         IConfiguration configuration,
         IWebHostEnvironment environment)
     {
-        services.AddApplicationInsightsTelemetry(options =>
-            options.ConnectionString = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
+        var aiCs = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"] ?? configuration["ApplicationInsights:ConnectionString"];
 
         services.AddOpenTelemetry()
             .ConfigureResource(r => r.AddService(
@@ -52,7 +52,8 @@ public static class TelemetryServiceExtensions
                 var otlpEndpoint = configuration["OpenTelemetry:OtlpEndpoint"];
                 if (!string.IsNullOrWhiteSpace(otlpEndpoint))
                     metrics.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
-            });
+            })
+            .UseAzureMonitor(o => { if (!string.IsNullOrWhiteSpace(aiCs)) o.ConnectionString = aiCs; });
 
         return services;
     }

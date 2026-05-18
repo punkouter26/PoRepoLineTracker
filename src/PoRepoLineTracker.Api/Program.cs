@@ -35,7 +35,7 @@ namespace PoRepoLineTracker.Api
             var builder = WebApplication.CreateBuilder(args);
 
             // Azure Key Vault — managed identity in production; DefaultAzureCredential locally
-            var keyVaultUrl = builder.Configuration["KeyVault:Url"];
+            var keyVaultUrl = builder.Configuration["KeyVault:Uri"] ?? builder.Configuration["KeyVault:Url"];
             if (!string.IsNullOrEmpty(keyVaultUrl))
             {
                 builder.Configuration.AddAzureKeyVault(
@@ -78,8 +78,7 @@ namespace PoRepoLineTracker.Api
                 }
 
                 var appInsightsConn = context.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-                if (!string.IsNullOrWhiteSpace(appInsightsConn))
-                    cfg.WriteTo.ApplicationInsights(appInsightsConn, TelemetryConverter.Traces);
+                // AppInsights telemetry handled by AddApplicationInsightsTelemetry() in AddTelemetry().
             });
 
             // Raise Kestrel body-size limit to 600 MB to allow large ZIP uploads
