@@ -420,11 +420,20 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
-# Azure log downloads (Kudu diagnostics)
+# Azure log downloads (Kudu diagnostics — both underscore and dash naming)
 app_logs.zip
 app_logs_out/
+app-logs*.zip
+app-logs*/
+app-logs-fix*/
 docker_logs.zip
 docker_logs_out/
+
+# LLM-generated documentation (ephemeral, not source-controlled)
+LLMDOCS/
+
+# Visual Studio language server cache
+*.lscache
 
 # ASP.NET Data Protection keys (runtime-generated, must not be in source control)
 src/dataprotection-keys/

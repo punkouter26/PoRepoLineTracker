@@ -96,9 +96,9 @@ internal static class SettingsEndpoints
         {
             var flags = new
             {
-                EnableMockDataForTesting  = configuration.GetValue<bool>("FeatureFlags:EnableMockDataForTesting"),
-                EnableGitHubApi           = configuration.GetValue<bool>("FeatureFlags:EnableGitHubApi"),
-                EnableBackgroundAnalysis  = configuration.GetValue<bool>("FeatureFlags:EnableBackgroundAnalysis"),
+                EnableMockDataForTesting = configuration.GetValue<bool>("FeatureFlags:EnableMockDataForTesting"),
+                EnableGitHubApi = configuration.GetValue<bool>("FeatureFlags:EnableGitHubApi"),
+                EnableBackgroundAnalysis = configuration.GetValue<bool>("FeatureFlags:EnableBackgroundAnalysis"),
                 EnableOpenTelemetryExport = configuration.GetValue<bool>("FeatureFlags:EnableOpenTelemetryExport")
             };
             return Results.Ok(flags);
