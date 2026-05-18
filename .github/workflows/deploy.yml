@@ -77,7 +77,17 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Provision Infrastructure
-        run: azd provision --no-prompt
+        shell: bash
+        run: |
+          azd provision --no-prompt 2>&1 | tee /tmp/provision.log
+          exit_code=${PIPESTATUS[0]}
+          if [ $exit_code -ne 0 ]; then
+            if grep -q "RoleAssignmentExists" /tmp/provision.log; then
+              echo "Role assignment already exists — permissions are in place, continuing."
+            else
+              exit $exit_code
+            fi
+          fi
 
       # ── Integration tests (require Azurite storage emulator) ─────────────
       - name: Start Azurite (Azure Storage Emulator)
