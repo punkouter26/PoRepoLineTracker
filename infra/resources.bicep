@@ -157,9 +157,9 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
 }
 
 // Storage Table Data Contributor role assignment
-// Uses unique GUID to make deployment idempotent (won't fail if already exists)
+// GUID matches the existing assignment in Azure (idempotent: ARM re-uses same ID)
 resource webAppStorageTableDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(uniqueString(storageAccount.id, webApp.name))
+  name: '671a4bb5-eb20-4862-beca-13ee459d991c'
   scope: storageAccount
   properties: {
     roleDefinitionId: storageTableDataContributorRole.id
