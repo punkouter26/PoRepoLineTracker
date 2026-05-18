@@ -155,20 +155,35 @@
         <RadzenRow Gap="0.75rem" Style="margin-bottom: 0.25rem;">
             <RadzenColumn Size="12" SizeMD="4">
                 <RadzenCard class="stat-card" Style="--stat-accent: var(--rz-primary); padding: 1rem;">
-                    <div class="stat-value">@pageState.Repositories.Count</div>
-                    <div class="stat-label">Repositories</div>
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="folder" Style="font-size: 1.6rem; color: var(--rz-primary); opacity: 0.7;" />
+                        <div>
+                            <div class="stat-value">@pageState.Repositories.Count</div>
+                            <div class="stat-label">Repositories</div>
+                        </div>
+                    </RadzenStack>
                 </RadzenCard>
             </RadzenColumn>
             <RadzenColumn Size="12" SizeMD="4">
                 <RadzenCard class="stat-card" Style="--stat-accent: #0891b2; padding: 1rem;">
-                    <div class="stat-value">@(_repoLatestLineCounts.Values.Sum().ToString("N0"))</div>
-                    <div class="stat-label">Total Lines</div>
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="code" Style="font-size: 1.6rem; color: #0891b2; opacity: 0.7;" />
+                        <div>
+                            <div class="stat-value">@(_repoLatestLineCounts.Values.Sum().ToString("N0"))</div>
+                            <div class="stat-label">Total Lines</div>
+                        </div>
+                    </RadzenStack>
                 </RadzenCard>
             </RadzenColumn>
             <RadzenColumn Size="12" SizeMD="4">
                 <RadzenCard class="stat-card" Style="--stat-accent: #059669; padding: 1rem;">
-                    <div class="stat-value">@(pageState.Repositories.Count(r => r.LastAnalyzedCommitDate.HasValue))</div>
-                    <div class="stat-label">Analyzed</div>
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="check_circle" Style="font-size: 1.6rem; color: #059669; opacity: 0.7;" />
+                        <div>
+                            <div class="stat-value">@(pageState.Repositories.Count(r => r.LastAnalyzedCommitDate.HasValue))</div>
+                            <div class="stat-label">Analyzed</div>
+                        </div>
+                    </RadzenStack>
                 </RadzenCard>
             </RadzenColumn>
         </RadzenRow>
@@ -214,7 +229,7 @@
                             </RadzenStack>
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="110px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false">
+                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="130px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false">
                         <Template Context="row">
                             @if (row.TotalLinesSortValue.HasValue)
                             {

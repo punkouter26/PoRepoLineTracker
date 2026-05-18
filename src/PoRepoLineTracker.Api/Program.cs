@@ -64,6 +64,7 @@ namespace PoRepoLineTracker.Api
                     .Enrich.FromLogContext()
                     .Enrich.WithProperty("Application", "PoRepoLineTracker")
                     .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
+                    .Filter.ByExcluding(e => e.MessageTemplate.Text.Contains("license key") || e.MessageTemplate.Text.Contains("Lucky Penny"))
                     .WriteTo.Console(
                         outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
                     .MinimumLevel.Information();

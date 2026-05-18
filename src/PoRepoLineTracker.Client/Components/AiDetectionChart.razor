@@ -50,9 +50,10 @@
             @foreach (var author in _aiStats.OrderByDescending(a => a.TotalCommits).Take(5))
             {
                 var color = GetColorForAuthor(author.AuthorName);
+                var displayName = string.IsNullOrWhiteSpace(author.AuthorName) ? "(Unknown)" : author.AuthorName;
                 <div style="display: flex; align-items: center; gap: 0.35rem;">
                     <div style="width: 12px; height: 12px; border-radius: 2px; background: @color;"></div>
-                    <span style="font-size: 0.85rem;">@author.AuthorName (@author.AverageAiPercentage.ToString("F1")%)</span>
+                    <span style="font-size: 0.85rem;">@displayName (@author.AverageAiPercentage.ToString("F1")%)</span>
                 </div>
             }
         </div>
@@ -62,13 +63,15 @@
             @foreach (var author in _aiStats.OrderByDescending(a => a.TotalCommits).Take(5))
             {
                 var color = GetColorForAuthor(author.AuthorName);
+                var displayName = string.IsNullOrWhiteSpace(author.AuthorName) ? "(Unknown)" : author.AuthorName;
                 <RadzenLineSeries Data="@author.CommitHistory"
                                   CategoryProperty="Date"
                                   ValueProperty="AiPercentage"
-                                  Title="@author.AuthorName"
+                                  Title="@displayName"
                                   Stroke="@color"
-                                  StrokeWidth="2"
-                                  MarkerType="MarkerType.Circle" />
+                                  StrokeWidth="2">
+                    <RadzenMarkers MarkerType="MarkerType.Circle" />
+                </RadzenLineSeries>
             }
             <RadzenCategoryAxis FormatString="{0:MM/dd/yy}">
                 <RadzenGridLines Visible="true" />
@@ -84,7 +87,11 @@
             <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0 0 0.75rem 0; font-weight: 600;">Summary by Author</RadzenText>
             <RadzenDataGrid Data="@_aiStats.OrderByDescending(a => a.TotalCommits)" TItem="AiStatsByUserDto" Style="font-size: 0.85rem;">
                 <Columns>
-                    <RadzenDataGridColumn TItem="AiStatsByUserDto" Property="AuthorName" Title="Author" Width="40%" />
+                    <RadzenDataGridColumn TItem="AiStatsByUserDto" Title="Author" Width="40%">
+                        <Template Context="data">
+                            @(string.IsNullOrWhiteSpace(data.AuthorName) ? "(Unknown)" : data.AuthorName)
+                        </Template>
+                    </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="AiStatsByUserDto" Property="TotalCommits" Title="Commits" Width="20%" />
                     <RadzenDataGridColumn TItem="AiStatsByUserDto" Property="AverageAiPercentage" Title="Avg AI %" Width="20%">
                         <Template Context="data">

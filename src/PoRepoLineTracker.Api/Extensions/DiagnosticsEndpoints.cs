@@ -278,92 +278,6 @@ internal static class DiagnosticsEndpoints
         .AllowAnonymous()
         .WithSummary("Development-only endpoint to bypass GitHub OAuth");
 
-        app.MapPost("/test-login", async (TestLoginRequest request, HttpContext context) =>
-        {
-            try
-            {
-                var userId = Guid.NewGuid();
-                // #9 fix: guard against missing '@' in email rather than IndexOutOfRange
-                var atIndex = request.Email.IndexOf('@');
-                var username = atIndex > 0 ? request.Email[..atIndex] : request.Email;
-
-                var claims = new List<System.Security.Claims.Claim>
-                {
-                    new(System.Security.Claims.ClaimTypes.NameIdentifier, userId.ToString()),
-                    new("UserId", userId.ToString()),
-                    new(System.Security.Claims.ClaimTypes.Name, username),
-                    new(System.Security.Claims.ClaimTypes.Email, request.Email),
-                    new("DisplayName", username),
-                    new("AvatarUrl", ""),
-                    new("UserAgent", request.UserAgent ?? "TestClient")
-                };
-
-                // Tag ANON users so the UI can show "ANON LOGGED IN" instead of email
-                if (request.IsAnon == true)
-                    claims.Add(new("IsAnon", "true"));
-
-                var identity = new System.Security.Claims.ClaimsIdentity(
-                    claims, CookieAuthenticationDefaults.AuthenticationScheme);
-
-                await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
-                    new System.Security.Claims.ClaimsPrincipal(identity));
-
-                Log.Information("Test login successful for {Username} (IsAnon={IsAnon})", username, request.IsAnon);
-                return Results.Ok(new { success = true, message = "Login successful", userId });
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Test login failed for email {Email}", request.Email);
-                return Results.Problem($"Test login failed: {ex.Message}", statusCode: 500);
-            }
-        })
-        .WithName("TestLogin")
-        .AllowAnonymous()
-        .WithSummary("Quick test login endpoint (Development only)");
-
-        app.MapGet("/test-login-redirect", async (string email, string? password, bool? isAnon, HttpContext context) =>
-        {
-            try
-            {
-                var userId = Guid.NewGuid();
-                // #9 fix: guard against missing '@' in email query parameter
-                var atIndex = email.IndexOf('@');
-                var username = atIndex > 0 ? email[..atIndex] : email;
-
-                var claims = new List<System.Security.Claims.Claim>
-                {
-                    new(System.Security.Claims.ClaimTypes.NameIdentifier, userId.ToString()),
-                    new("UserId", userId.ToString()),
-                    new(System.Security.Claims.ClaimTypes.Name, username),
-                    new(System.Security.Claims.ClaimTypes.Email, email),
-                    new("DisplayName", username),
-                    new("AvatarUrl", ""),
-                    new("UserAgent", "BrowserTest")
-                };
-
-                // Tag ANON users so the UI can show "ANON LOGGED IN" instead of email
-                if (isAnon == true)
-                    claims.Add(new("IsAnon", "true"));
-
-                var identity = new System.Security.Claims.ClaimsIdentity(
-                    claims, CookieAuthenticationDefaults.AuthenticationScheme);
-
-                await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
-                    new System.Security.Claims.ClaimsPrincipal(identity));
-
-                Log.Information("Test login redirect successful for {Username} (IsAnon={IsAnon})", username, isAnon);
-                return Results.Redirect("/");
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Test login redirect failed for email {Email}", email);
-                return Results.Problem($"Test login redirect failed: {ex.Message}", statusCode: 500);
-            }
-        })
-        .WithName("TestLoginRedirect")
-        .AllowAnonymous()
-        .WithSummary("Browser-based test login (Development only)");
-
         app.MapPost("/api/log/client", ([FromBody] ClientLogEntry logEntry, ILogger<Program> logger) =>
         {
             var message = $"[CLIENT] {logEntry.Message}";
@@ -398,10 +312,4 @@ public record ClientLogEntry(
     Dictionary<string, object>? Properties = null
 );
 
-// #9 fix: [Required][EmailAddress] prevents null/non-email crash in username derivation
-public record TestLoginRequest(
-    [Required][EmailAddress] string Email,
-    string? Password = null,
-    string? UserAgent = null,
-    bool? IsAnon = null
-);
+

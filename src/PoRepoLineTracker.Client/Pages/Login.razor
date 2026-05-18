@@ -1,10 +1,8 @@
 @page "/login"
 @layout PoRepoLineTracker.Client.Layout.LoginLayout
 @inject NavigationManager Navigation
-@inject HttpClient Http
 @using Radzen
 @using Radzen.Blazor
-@using System.Net.Http.Json
 
 <div class="login-canvas">
     <!-- Animated mesh gradient blobs -->
@@ -51,44 +49,6 @@
             <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">
                 Your data stays in your own Azure Table Storage
             </RadzenText>
-
-            @* ANON button — bypasses GitHub OAuth during local development for e2e testing *@
-            <hr style="border: none; border-top: 1px dashed var(--rz-border-disabled-color); width: 100%; margin: 0;" />
-            <RadzenButton Text="ANON (Dev Bypass)"
-                          Icon="account_circle"
-                          ButtonStyle="ButtonStyle.Secondary"
-                          Size="ButtonSize.Small"
-                          Style="width: 100%; opacity: 0.7;"
-                          Click="@AnonLogin" />
         </RadzenStack>
     </RadzenCard>
 </div>
-
-@code {
-    private async Task AnonLogin()
-    {
-        // Generate a unique ANON identity with random 6-digit suffix so concurrent
-        // users/tests have distinct identities (e.g. ANON463443).
-        var suffix = Random.Shared.Next(100000, 999999);
-        var anonName = $"ANON{suffix}";
-        var anonEmail = $"{anonName}@anon.dev";
-
-        try
-        {
-            var response = await Http.PostAsJsonAsync("/test-login", new { Email = anonEmail, UserAgent = "BlazorWasm-Anon", IsAnon = true });
-            if (response.IsSuccessStatusCode)
-            {
-                Navigation.NavigateTo("/", forceLoad: true);
-            }
-            else
-            {
-                // Fallback: redirect-based endpoint
-                Navigation.NavigateTo($"/test-login-redirect?email={Uri.EscapeDataString(anonEmail)}&isAnon=true", forceLoad: true);
-            }
-        }
-        catch
-        {
-            Navigation.NavigateTo($"/test-login-redirect?email={Uri.EscapeDataString(anonEmail)}&isAnon=true", forceLoad: true);
-        }
-    }
-}

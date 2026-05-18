@@ -50,9 +50,10 @@
             @foreach (var contributor in _contributors.OrderByDescending(c => c.TotalLinesAdded).Take(5))
             {
                 var color = GetColorForAuthor(contributor.AuthorName);
+                var displayName = string.IsNullOrWhiteSpace(contributor.AuthorName) ? "(Unknown)" : contributor.AuthorName;
                 <div style="display: flex; align-items: center; gap: 0.35rem;">
                     <div style="width: 12px; height: 12px; border-radius: 2px; background: @color;"></div>
-                    <span style="font-size: 0.85rem;">@contributor.AuthorName (@contributor.TotalLinesAdded.ToString("N0") lines)</span>
+                    <span style="font-size: 0.85rem;">@displayName (@contributor.TotalLinesAdded.ToString("N0") lines)</span>
                 </div>
             }
         </div>
@@ -62,13 +63,15 @@
             @foreach (var contributor in _contributors.OrderByDescending(c => c.TotalLinesAdded).Take(5))
             {
                 var color = GetColorForAuthor(contributor.AuthorName);
+                var displayName = string.IsNullOrWhiteSpace(contributor.AuthorName) ? "(Unknown)" : contributor.AuthorName;
                 <RadzenLineSeries Data="@contributor.DailyHistory"
                                   CategoryProperty="Date"
                                   ValueProperty="LinesAdded"
-                                  Title="@contributor.AuthorName"
+                                  Title="@displayName"
                                   Stroke="@color"
-                                  StrokeWidth="2"
-                                  MarkerType="MarkerType.Circle" />
+                                  StrokeWidth="2">
+                    <RadzenMarkers MarkerType="MarkerType.Circle" />
+                </RadzenLineSeries>
             }
             <RadzenCategoryAxis FormatString="{0:MM/dd/yy}">
                 <RadzenGridLines Visible="true" />
