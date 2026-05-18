@@ -34,11 +34,28 @@ internal static class AuthEndpoints
             if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
                 return Results.Ok(new AuthResponse(IsAuthenticated: false));
 
+            // Detect ANON logins created by the dev bypass — these have an "IsAnon" claim set to "true"
+            var isAnon = string.Equals(
+                context.User.FindFirst("IsAnon")?.Value, "true",
+                StringComparison.OrdinalIgnoreCase);
+
             try
             {
                 var user = await userService.GetUserByIdAsync(userId);
                 if (user == null)
-                    return Results.Ok(new AuthResponse(IsAuthenticated: false));
+                {
+                    // ANON users and dev-bypass users are not persisted in the database.
+                    // Fall back to claims so the session stays authenticated.
+                    Log.Debug("User {UserId} not found in storage; falling back to claims (IsAnon={IsAnon})", userId, isAnon);
+                    return Results.Ok(new AuthResponse(
+                        IsAuthenticated: true,
+                        UserId: userId.ToString(),
+                        Username: context.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "User",
+                        DisplayName: context.User.FindFirst("DisplayName")?.Value,
+                        Email: context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value,
+                        AvatarUrl: context.User.FindFirst("AvatarUrl")?.Value ?? "",
+                        IsAnon: isAnon));
+                }
 
                 return Results.Ok(new AuthResponse(
                     IsAuthenticated: true,
@@ -46,7 +63,8 @@ internal static class AuthEndpoints
                     Username: user.Username,
                     DisplayName: user.DisplayName,
                     Email: user.Email,
-                    AvatarUrl: user.AvatarUrl));
+                    AvatarUrl: user.AvatarUrl,
+                    IsAnon: isAnon));
             }
             catch (Exception ex)
             {
@@ -57,7 +75,8 @@ internal static class AuthEndpoints
                     Username: context.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "User",
                     DisplayName: context.User.FindFirst("DisplayName")?.Value,
                     Email: context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value,
-                    AvatarUrl: context.User.FindFirst("AvatarUrl")?.Value ?? ""));
+                    AvatarUrl: context.User.FindFirst("AvatarUrl")?.Value ?? "",
+                    IsAnon: isAnon));
             }
         })
         .WithName("GetCurrentUser")

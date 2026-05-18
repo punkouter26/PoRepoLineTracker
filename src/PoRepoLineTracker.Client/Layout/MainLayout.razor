@@ -1,9 +1,11 @@
 ﻿@inherits LayoutComponentBase
 @using PoRepoLineTracker.Client.Layout
+@using PoRepoLineTracker.Client.Components
 @using Radzen
 @using Radzen.Blazor
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject HttpClient Http
 
 <RadzenLayout>
     <RadzenHeader>
@@ -49,6 +51,7 @@
     
     <RadzenBody>
         <div class="rz-p-4">
+            <MockDataBanner IsMockData="@_isMockData" />
             @if (!string.IsNullOrEmpty(_breadcrumbCurrent))
             {
                 <nav class="app-breadcrumb" aria-label="breadcrumb">
@@ -82,6 +85,7 @@
 @code {
     private bool sidebarExpanded = true;
     private bool _isDarkMode = false;
+    private bool _isMockData = false;
     private string? _breadcrumbCurrent;
     private string? _breadcrumbParent;
     private string? _breadcrumbParentPath;
@@ -90,6 +94,22 @@
     {
         Navigation.LocationChanged += OnLocationChanged;
         UpdateBreadcrumb(Navigation.Uri);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Fetch feature flags from the API to determine whether mock data is active.
+            // This drives the MockDataBanner shown at the top of every page.
+            var response = await Http.GetFromJsonAsync<FeatureFlagsDto>("api/feature-flags");
+            _isMockData = response?.EnableMockDataForTesting == true;
+        }
+        catch
+        {
+            // Non-critical — silently ignore if the endpoint is unreachable.
+            _isMockData = false;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -139,4 +159,12 @@
     {
         Navigation.LocationChanged -= OnLocationChanged;
     }
+
+    // DTO for deserializing /api/feature-flags — co-located with consumer to avoid a shared model
+    // for a non-domain concern.
+    private sealed record FeatureFlagsDto(
+        bool EnableMockDataForTesting,
+        bool EnableGitHubApi,
+        bool EnableBackgroundAnalysis,
+        bool EnableOpenTelemetryExport);
 }

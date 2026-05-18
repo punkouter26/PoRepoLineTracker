@@ -287,8 +287,8 @@ internal static class DiagnosticsEndpoints
                 var atIndex = request.Email.IndexOf('@');
                 var username = atIndex > 0 ? request.Email[..atIndex] : request.Email;
 
-                var identity = new System.Security.Claims.ClaimsIdentity(
-                [
+                var claims = new List<System.Security.Claims.Claim>
+                {
                     new(System.Security.Claims.ClaimTypes.NameIdentifier, userId.ToString()),
                     new("UserId", userId.ToString()),
                     new(System.Security.Claims.ClaimTypes.Name, username),
@@ -296,12 +296,19 @@ internal static class DiagnosticsEndpoints
                     new("DisplayName", username),
                     new("AvatarUrl", ""),
                     new("UserAgent", request.UserAgent ?? "TestClient")
-                ], CookieAuthenticationDefaults.AuthenticationScheme);
+                };
+
+                // Tag ANON users so the UI can show "ANON LOGGED IN" instead of email
+                if (request.IsAnon == true)
+                    claims.Add(new("IsAnon", "true"));
+
+                var identity = new System.Security.Claims.ClaimsIdentity(
+                    claims, CookieAuthenticationDefaults.AuthenticationScheme);
 
                 await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
                     new System.Security.Claims.ClaimsPrincipal(identity));
 
-                Log.Information("Test login successful for email {Email}", request.Email);
+                Log.Information("Test login successful for {Username} (IsAnon={IsAnon})", username, request.IsAnon);
                 return Results.Ok(new { success = true, message = "Login successful", userId });
             }
             catch (Exception ex)
@@ -314,7 +321,7 @@ internal static class DiagnosticsEndpoints
         .AllowAnonymous()
         .WithSummary("Quick test login endpoint (Development only)");
 
-        app.MapGet("/test-login-redirect", async (string email, string? password, HttpContext context) =>
+        app.MapGet("/test-login-redirect", async (string email, string? password, bool? isAnon, HttpContext context) =>
         {
             try
             {
@@ -323,8 +330,8 @@ internal static class DiagnosticsEndpoints
                 var atIndex = email.IndexOf('@');
                 var username = atIndex > 0 ? email[..atIndex] : email;
 
-                var identity = new System.Security.Claims.ClaimsIdentity(
-                [
+                var claims = new List<System.Security.Claims.Claim>
+                {
                     new(System.Security.Claims.ClaimTypes.NameIdentifier, userId.ToString()),
                     new("UserId", userId.ToString()),
                     new(System.Security.Claims.ClaimTypes.Name, username),
@@ -332,12 +339,19 @@ internal static class DiagnosticsEndpoints
                     new("DisplayName", username),
                     new("AvatarUrl", ""),
                     new("UserAgent", "BrowserTest")
-                ], CookieAuthenticationDefaults.AuthenticationScheme);
+                };
+
+                // Tag ANON users so the UI can show "ANON LOGGED IN" instead of email
+                if (isAnon == true)
+                    claims.Add(new("IsAnon", "true"));
+
+                var identity = new System.Security.Claims.ClaimsIdentity(
+                    claims, CookieAuthenticationDefaults.AuthenticationScheme);
 
                 await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
                     new System.Security.Claims.ClaimsPrincipal(identity));
 
-                Log.Information("Test login redirect successful for email {Email}", email);
+                Log.Information("Test login redirect successful for {Username} (IsAnon={IsAnon})", username, isAnon);
                 return Results.Redirect("/");
             }
             catch (Exception ex)
@@ -388,5 +402,6 @@ public record ClientLogEntry(
 public record TestLoginRequest(
     [Required][EmailAddress] string Email,
     string? Password = null,
-    string? UserAgent = null
+    string? UserAgent = null,
+    bool? IsAnon = null
 );

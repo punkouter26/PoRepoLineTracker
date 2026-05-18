@@ -52,8 +52,15 @@ public static class TelemetryServiceExtensions
                 var otlpEndpoint = configuration["OpenTelemetry:OtlpEndpoint"];
                 if (!string.IsNullOrWhiteSpace(otlpEndpoint))
                     metrics.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
-            })
-            .UseAzureMonitor(o => { if (!string.IsNullOrWhiteSpace(aiCs)) o.ConnectionString = aiCs; });
+            });
+
+        // Only register Azure Monitor when a connection string is configured.
+        // Calling UseAzureMonitor() without a connection string throws at host startup.
+        if (!string.IsNullOrWhiteSpace(aiCs))
+        {
+            services.AddOpenTelemetry()
+                .UseAzureMonitor(o => o.ConnectionString = aiCs);
+        }
 
         return services;
     }
