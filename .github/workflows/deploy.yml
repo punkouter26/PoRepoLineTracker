@@ -119,8 +119,7 @@ jobs:
             --resource-group "$APP_RESOURCE_GROUP" \
             --name "$APP_SERVICE_NAME" \
             --src-path "$PUBLISH_PACKAGE_PATH" \
-            --type zip \
-            --async true
+            --type zip
 
       - name: Set startup command and restart app
         run: |
