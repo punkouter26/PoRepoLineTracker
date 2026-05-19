@@ -120,7 +120,7 @@ jobs:
             --name "$APP_SERVICE_NAME" \
             --src-path "$PUBLISH_PACKAGE_PATH" \
             --type zip \
-            --clean true
+            --async true
 
       - name: Set startup command and restart app
         run: |
