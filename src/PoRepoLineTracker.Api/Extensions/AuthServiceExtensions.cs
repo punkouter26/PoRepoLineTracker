@@ -132,6 +132,97 @@ public static class AuthServiceExtensions
             };
         });
 
+        // Microsoft OAuth — available in both dev and prod (personal & work Microsoft accounts).
+        // Uses the generic OAuth2 handler pointing at the Microsoft identity platform v2 endpoints.
+        // Requires Microsoft:ClientId and Microsoft:ClientSecret in configuration / Key Vault.
+        // SOLID — OCP: extending auth without modifying GitHub provider configuration.
+        var msClientId = configuration["Microsoft:ClientId"];
+        var msClientSecret = configuration["Microsoft:ClientSecret"];
+        if (!string.IsNullOrEmpty(msClientId) && !string.IsNullOrEmpty(msClientSecret))
+        {
+            services.AddAuthentication()
+                .AddOAuth("Microsoft", "Microsoft Account", options =>
+                {
+                    options.ClientId = msClientId;
+                    options.ClientSecret = msClientSecret;
+                    options.CallbackPath = "/signin-microsoft";
+                    options.AuthorizationEndpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
+                    options.TokenEndpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+                    options.UserInformationEndpoint = "https://graph.microsoft.com/v1.0/me";
+                    options.Scope.Add("openid");
+                    options.Scope.Add("profile");
+                    options.Scope.Add("email");
+                    options.Scope.Add("User.Read");
+                    options.SaveTokens = true;
+
+                    options.CorrelationCookie.SecurePolicy = environment.IsDevelopment()
+                        ? CookieSecurePolicy.SameAsRequest
+                        : CookieSecurePolicy.Always;
+                    options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+                    options.CorrelationCookie.HttpOnly = true;
+
+                    options.Events.OnRemoteFailure = context =>
+                    {
+                        context.Response.Redirect("/?error=ms_auth_failed");
+                        context.HandleResponse();
+                        return Task.CompletedTask;
+                    };
+
+                    // Fetch user info from Microsoft Graph after token exchange, map claims,
+                    // then upsert the user in our storage.
+                    // SOLID — DIP: resolve IUserService from the DI container at runtime
+                    options.Events.OnCreatingTicket = async context =>
+                    {
+                        using var request = new HttpRequestMessage(HttpMethod.Get, context.Options.UserInformationEndpoint);
+                        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", context.AccessToken);
+                        using var httpResponse = await context.Backchannel.SendAsync(request, context.HttpContext.RequestAborted);
+                        httpResponse.EnsureSuccessStatusCode();
+
+                        using var graphDoc = System.Text.Json.JsonDocument.Parse(await httpResponse.Content.ReadAsStringAsync(context.HttpContext.RequestAborted));
+                        var root = graphDoc.RootElement;
+
+                        var nameId = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
+                        var displayName = root.TryGetProperty("displayName", out var dnProp) ? dnProp.GetString() : null;
+                        var mail = root.TryGetProperty("mail", out var mailProp) ? mailProp.GetString() : null;
+                        var upn = root.TryGetProperty("userPrincipalName", out var upnProp) ? upnProp.GetString() : null;
+                        var email = mail ?? upn;
+
+                        // Add standard claims to the identity
+                        var identity = (ClaimsIdentity?)context.Principal?.Identity;
+                        if (identity != null)
+                        {
+                            if (nameId != null) identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, nameId));
+                            if (displayName != null) identity.AddClaim(new Claim(ClaimTypes.Name, displayName));
+                            if (email != null) identity.AddClaim(new Claim(ClaimTypes.Email, email));
+                        }
+
+                        if (!string.IsNullOrEmpty(nameId))
+                        {
+                            try
+                            {
+                                var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
+                                var savedUser = await userService.UpsertUserAsync(new User
+                                {
+                                    GitHubId = $"ms:{nameId}",
+                                    Username = email ?? displayName ?? nameId,
+                                    DisplayName = displayName ?? email ?? nameId,
+                                    Email = email,
+                                    AvatarUrl = string.Empty,
+                                    AccessToken = context.AccessToken ?? string.Empty
+                                });
+                                identity?.AddClaim(new Claim("UserId", savedUser.Id.ToString()));
+                            }
+                            catch (Exception ex)
+                            {
+                                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                                logger.LogWarning(ex, "Failed to upsert user during Microsoft OAuth. NameId: {NameId}", nameId);
+                                identity?.AddClaim(new Claim("UserId", Guid.NewGuid().ToString()));
+                            }
+                        }
+                    };
+                });
+        }
+
         services.AddAuthorization();
         return services;
     }

@@ -3,6 +3,7 @@
 @using PoRepoLineTracker.Client.Components
 @using Radzen
 @using Radzen.Blazor
+@using System.Net.Http.Json
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @inject HttpClient Http
@@ -18,7 +19,15 @@
                 </span>
                 <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; font-weight: 700; color: #fff; letter-spacing: -0.01em;">PoRepoLineTracker</RadzenText>
             </RadzenStack>
-            
+
+            @* USING MOCK DATA warning shown prominently in the nav when feature flag is enabled *@
+            @if (_usingMockData)
+            {
+                <RadzenBadge BadgeStyle="BadgeStyle.Warning"
+                             Text="⚠ USING MOCK DATA"
+                             Style="font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; padding: 0.3rem 0.75rem;" />
+            }
+
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
                 <RadzenButton Icon="@(_isDarkMode ? "light_mode" : "dark_mode")"
                               ButtonStyle="ButtonStyle.Light"
@@ -86,6 +95,7 @@
     private bool sidebarExpanded = true;
     private bool _isDarkMode = false;
     private bool _isMockData = false;
+    private bool _usingMockData = false;
     private string? _breadcrumbCurrent;
     private string? _breadcrumbParent;
     private string? _breadcrumbParentPath;
@@ -101,14 +111,16 @@
         try
         {
             // Fetch feature flags from the API to determine whether mock data is active.
-            // This drives the MockDataBanner shown at the top of every page.
+            // This drives both the MockDataBanner and the nav warning badge.
             var response = await Http.GetFromJsonAsync<FeatureFlagsDto>("api/feature-flags");
             _isMockData = response?.EnableMockDataForTesting == true;
+            _usingMockData = _isMockData;
         }
         catch
         {
             // Non-critical — silently ignore if the endpoint is unreachable.
             _isMockData = false;
+            _usingMockData = false;
         }
     }
 

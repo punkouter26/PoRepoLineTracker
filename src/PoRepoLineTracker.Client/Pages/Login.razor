@@ -46,6 +46,14 @@
                           Style="width: 100%; font-size: 1rem; padding: 0.8rem 1.5rem; font-weight: 600;"
                           Click="@(() => Navigation.NavigateTo("api/auth/login", forceLoad: true))" />
 
+            <RadzenButton Text="Sign in with Microsoft"
+                          Icon="account_circle"
+                          aria-label="Sign in with Microsoft"
+                          ButtonStyle="ButtonStyle.Secondary"
+                          class="login-cta-btn"
+                          Style="width: 100%; font-size: 1rem; padding: 0.8rem 1.5rem; font-weight: 600;"
+                          Click="@(() => Navigation.NavigateTo("api/auth/login-microsoft", forceLoad: true))" />
+
             <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">
                 Your data stays in your own Azure Table Storage
             </RadzenText>

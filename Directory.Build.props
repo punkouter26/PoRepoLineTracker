@@ -2,5 +2,7 @@
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
+    <!-- C# 14 features (requires .NET 10 SDK) -->
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 </Project>

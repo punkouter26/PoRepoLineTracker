@@ -57,7 +57,26 @@ jobs:
       - name: Run unit tests
         run: dotnet test ./tests/PoRepoLineTracker.UnitTests/PoRepoLineTracker.UnitTests.csproj --configuration Release --logger "trx;LogFileName=unit-tests.trx"
 
-      # ── Azure auth & infra ────────────────────────────────────────────────
+      # ── Integration tests (require Azurite storage emulator) ─────────────
+      - name: Start Azurite (Azure Storage Emulator)
+        run: |
+          docker run -d \
+            -p 10000:10000 -p 10001:10001 -p 10002:10002 \
+            --name azurite \
+            mcr.microsoft.com/azure-storage/azurite
+          sleep 3
+
+      - name: Run integration tests
+        run: dotnet test ./tests/PoRepoLineTracker.IntegrationTests/PoRepoLineTracker.IntegrationTests.csproj --configuration Release --logger "trx;LogFileName=integration-tests.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: "**/*.trx"
+
+      # ── Azure auth & infra (only reached when all tests pass) ─────────────
       - name: Install azd
         uses: Azure/setup-azd@v2
 
@@ -78,25 +97,6 @@ jobs:
 
       - name: Provision Infrastructure
         run: azd provision --no-prompt
-
-      # ── Integration tests (require Azurite storage emulator) ─────────────
-      - name: Start Azurite (Azure Storage Emulator)
-        run: |
-          docker run -d \
-            -p 10000:10000 -p 10001:10001 -p 10002:10002 \
-            --name azurite \
-            mcr.microsoft.com/azure-storage/azurite
-          sleep 3
-
-      - name: Run integration tests
-        run: dotnet test ./tests/PoRepoLineTracker.IntegrationTests/PoRepoLineTracker.IntegrationTests.csproj --configuration Release --logger "trx;LogFileName=integration-tests.trx"
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: "**/*.trx"
 
       # ── Build & deploy ────────────────────────────────────────────────────
       - name: Publish App Service package

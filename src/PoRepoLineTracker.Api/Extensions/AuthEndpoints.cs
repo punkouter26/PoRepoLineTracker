@@ -18,6 +18,15 @@ internal static class AuthEndpoints
             .WithName("Login")
             .AllowAnonymous();
 
+        // Microsoft OAuth login — challenges Microsoft account provider
+        // "Microsoft" is MicrosoftAccountDefaults.AuthenticationScheme (scheme name string)
+        app.MapGet("/api/auth/login-microsoft", (string? returnUrl) =>
+            Results.Challenge(
+                new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },
+                ["Microsoft"]))
+            .WithName("LoginMicrosoft")
+            .AllowAnonymous();
+
         app.MapGet("/api/auth/logout", async (HttpContext context) =>
         {
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);

@@ -326,6 +326,22 @@ src/dataprotection-keys/
 # Local appsettings overrides with secrets
 src/**/appsettings.Development.local.json
 
+# Language server cache files (VS Code OmniSharp / Roslyn)
+*.lscache
+
+# AI tuning / agent state files
+.potune-state.json
+
+# Azure Kudu diagnostic log downloads (never commit)
+app-logs/
+app-logs-fix/
+app-logs*.zip
+docker_logs.zip
+docker_logs_out/
+
+# LLM context / AI generated docs (transient, not source of truth)
+LLMDOCS/
+
 # Publish output and zip packages
 publish-output/
 appservice-package.zip
