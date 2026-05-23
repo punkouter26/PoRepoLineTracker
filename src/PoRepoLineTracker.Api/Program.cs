@@ -12,15 +12,17 @@ namespace PoRepoLineTracker.Api
         public static void Main(string[] args)
         {
             Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+                .Enrich.FromLogContext()
                 .WriteTo.Console()
-                .CreateLogger();
+                .CreateBootstrapLogger();
 
             try
             {
                 var app = CreateWebApplication(args);
                 app.Run();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not HostAbortedException)
             {
                 Log.Fatal(ex, "Application terminated unexpectedly");
             }
@@ -35,7 +37,7 @@ namespace PoRepoLineTracker.Api
             var builder = WebApplication.CreateBuilder(args);
 
             // Azure Key Vault — managed identity in production; DefaultAzureCredential locally
-            var keyVaultUrl = builder.Configuration["KeyVault:Uri"] ?? builder.Configuration["KeyVault:Url"];
+            var keyVaultUrl = builder.Configuration["KeyVault:Uri"];
             if (!string.IsNullOrEmpty(keyVaultUrl))
             {
                 builder.Configuration.AddAzureKeyVault(

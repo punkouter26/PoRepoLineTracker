@@ -54,8 +54,8 @@ internal static class DiagnosticsEndpoints
                     {
                         Name = "Azure Key Vault",
                         Type = "Secret Storage",
-                        Url = configuration["KeyVault:Url"] ?? "(not configured)",
-                        Status = string.IsNullOrEmpty(configuration["KeyVault:Url"]) ? "Not configured" : "Configured",
+                        Url = configuration["KeyVault:Uri"] ?? "(not configured)",
+                        Status = string.IsNullOrEmpty(configuration["KeyVault:Uri"]) ? "Not configured" : "Configured",
                         Purpose = "Securely stores secrets like GitHub PAT, connection strings"
                     },
                     TableStorage = new
@@ -193,7 +193,7 @@ internal static class DiagnosticsEndpoints
         }
 
         int configuredCount = 0;
-        if (!string.IsNullOrEmpty(configuration["KeyVault:Url"])) configuredCount++;
+        if (!string.IsNullOrEmpty(configuration["KeyVault:Uri"])) configuredCount++;
         if (!string.IsNullOrEmpty(configuration["AzureTableStorage:ServiceUrl"]) || !string.IsNullOrEmpty(configuration["AzureTableStorage:ConnectionString"])) configuredCount++;
         if (!string.IsNullOrEmpty(configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"])) configuredCount++;
         if (!string.IsNullOrEmpty(configuration["GitHub:ClientId"])) configuredCount++;
@@ -204,7 +204,7 @@ internal static class DiagnosticsEndpoints
         {
             Azure = new[]
             {
-                new { Name = "Azure Key Vault", Type = "Secret Storage", Status = !string.IsNullOrEmpty(configuration["KeyVault:Url"]) ? "Configured" : "Not configured", Purpose = "Securely stores secrets" },
+                new { Name = "Azure Key Vault", Type = "Secret Storage", Status = !string.IsNullOrEmpty(configuration["KeyVault:Uri"]) ? "Configured" : "Not configured", Purpose = "Securely stores secrets" },
                 new { Name = "Azure Table Storage", Type = "Data Storage", Status = !string.IsNullOrEmpty(configuration["AzureTableStorage:ServiceUrl"]) || !string.IsNullOrEmpty(configuration["AzureTableStorage:ConnectionString"]) ? "Configured" : "Not configured", Purpose = "Stores repository analysis data" },
                 new { Name = "Azure Application Insights", Type = "Telemetry", Status = !string.IsNullOrEmpty(configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]) ? "Configured" : "Not configured", Purpose = "Performance monitoring" }
             },
