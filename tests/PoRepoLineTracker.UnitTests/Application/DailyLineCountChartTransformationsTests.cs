@@ -1,5 +1,5 @@
 using FluentAssertions;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Domain.Models;
 
 namespace PoRepoLineTracker.UnitTests;

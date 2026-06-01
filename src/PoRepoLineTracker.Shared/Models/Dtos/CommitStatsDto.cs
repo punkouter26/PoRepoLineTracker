@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.Application.Models;
+namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 public class CommitStatsDto
 {
@@ -12,4 +12,9 @@ public class CommitStatsDto
     public string CommitMessage { get; set; } = string.Empty;
     public string AuthorName { get; set; } = string.Empty;
     public string AuthorEmail { get; set; } = string.Empty;
+
+    /// <summary>
+    /// CommitTagger: Auto-generated tags classifying this commit.
+    /// </summary>
+    public List<string> Tags { get; set; } = new();
 }

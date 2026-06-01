@@ -1,7 +1,12 @@
 using PoRepoLineTracker.Domain.Models;
 
-namespace PoRepoLineTracker.Application.Models;
+namespace PoRepoLineTracker.Shared.Models.Dtos;
 
+/// <summary>
+/// GoF Strategy Pattern: Transforms raw daily line-count data for chart display.
+/// Supports TrueData (raw) and MovingAverage (rolling window) display modes.
+/// Shared between the Blazor WASM client and unit tests.
+/// </summary>
 public static class DailyLineCountChartTransformations
 {
     public static IReadOnlyList<DailyLineCountDto> TransformForDisplay(

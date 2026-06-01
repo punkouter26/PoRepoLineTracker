@@ -1,6 +1,6 @@
 using MediatR;
 using PoRepoLineTracker.Application.Interfaces;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 
 namespace PoRepoLineTracker.Application.Features.Repositories.Queries;
 

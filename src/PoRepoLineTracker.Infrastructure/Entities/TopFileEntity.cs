@@ -1,6 +1,6 @@
 using Azure;
 using Azure.Data.Tables;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 
 namespace PoRepoLineTracker.Infrastructure.Entities;
 

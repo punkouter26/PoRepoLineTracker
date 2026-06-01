@@ -20,6 +20,7 @@ public static class ApiEndpointExtensions
         app.MapDiagnosticsEndpoints();
         app.MapUploadEndpoints();
         app.MapAiDetectionEndpoints();
+        app.MapAlertEndpoints();
 
         if (app.Environment.IsDevelopment())
         {

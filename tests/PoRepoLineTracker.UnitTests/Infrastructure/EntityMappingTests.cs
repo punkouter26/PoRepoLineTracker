@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using PoRepoLineTracker.Domain.Models;
 using PoRepoLineTracker.Infrastructure.Entities;
+using PoRepoLineTracker.Shared.Models.Dtos;
 
 namespace PoRepoLineTracker.UnitTests;
 
@@ -160,7 +161,7 @@ public class TopFileEntityTests
     [Fact]
     public void FromDto_ToDto_RoundTrip()
     {
-        var dto = new Application.Models.TopFileDto { FileName = "src/Program.cs", LineCount = 1500 };
+        var dto = new TopFileDto { FileName = "src/Program.cs", LineCount = 1500 };
         var repoId = Guid.NewGuid();
 
         var entity = TopFileEntity.FromDto(repoId, dto, 1);
@@ -173,7 +174,7 @@ public class TopFileEntityTests
     [Fact]
     public void FromDto_RowKey_IsPaddedRank()
     {
-        var dto = new Application.Models.TopFileDto { FileName = "test.cs", LineCount = 100 };
+        var dto = new TopFileDto { FileName = "test.cs", LineCount = 100 };
         var entity = TopFileEntity.FromDto(Guid.NewGuid(), dto, 5);
 
         entity.RowKey.Should().Be("005");

@@ -1,6 +1,6 @@
 using PoRepoLineTracker.Domain.Models;
 
-namespace PoRepoLineTracker.Application.Models;
+namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
 /// Returned by the bulk-add endpoint so the caller can show distinct banners
@@ -8,9 +8,6 @@ namespace PoRepoLineTracker.Application.Models;
 /// </summary>
 public class BulkAddResult
 {
-    /// <summary>Repositories that were created during this call.</summary>
     public List<GitHubRepository> Added { get; init; } = [];
-
-    /// <summary>Repositories that already existed and were not re-created.</summary>
     public List<GitHubRepository> AlreadyTracked { get; init; } = [];
 }

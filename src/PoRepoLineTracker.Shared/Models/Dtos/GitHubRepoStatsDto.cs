@@ -1,6 +1,6 @@
 using PoRepoLineTracker.Domain.Models;
 
-namespace PoRepoLineTracker.Application.Models;
+namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 public class GitHubRepoStatsDto
 {

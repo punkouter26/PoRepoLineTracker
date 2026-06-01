@@ -1,0 +1,90 @@
+@using PoRepoLineTracker.Domain.Models
+@using Radzen
+@using Radzen.Blazor
+
+@* PocketView: Mobile-optimized repository summary card *@
+
+<div class="mobile-repo-card" @onclick="NavigateToDetail">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+        @* Repo icon *@
+        <div class="mobile-repo-icon">
+            <RadzenIcon Icon="code" Style="font-size: 1.2rem; color: var(--rz-primary);" />
+        </div>
+
+        @* Repo info *@
+        <RadzenStack Gap="0.1rem" Style="flex: 1; min-width: 0;">
+            <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                @Repo.Owner/@Repo.Name
+            </RadzenText>
+            @if (Repo.LastAnalyzedCommitDate.HasValue)
+            {
+                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">
+                    Analyzed @ToRelativeTime(Repo.LastAnalyzedCommitDate)
+                </RadzenText>
+            }
+            else
+            {
+                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color); margin: 0;">
+                    Not yet analyzed
+                </RadzenText>
+            }
+        </RadzenStack>
+
+        @* Key metrics *@
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+            @if (LineCount > 0)
+            {
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.1rem" Style="text-align: center;">
+                    <RadzenText Style="font-size: 1.1rem; font-weight: 700; color: var(--rz-primary); line-height: 1;">@FormatCompact(LineCount)</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color); line-height: 1;">lines</RadzenText>
+                </RadzenStack>
+            }
+            @if (AiPercentage > 0)
+            {
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.1rem" Style="text-align: center;">
+                    <RadzenText Style="@($"font-size: 1.1rem; font-weight: 700; color: {GetAiColor(AiPercentage)}; line-height: 1;")">@AiPercentage.ToString("F0")%</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color); line-height: 1;">AI</RadzenText>
+                </RadzenStack>
+            }
+            <RadzenIcon Icon="chevron_right" Style="color: var(--rz-text-disabled-color);" />
+        </RadzenStack>
+    </RadzenStack>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public GitHubRepository Repo { get; set; } = default!;
+    [Parameter] public int LineCount { get; set; }
+    [Parameter] public double AiPercentage { get; set; }
+    [Parameter] public EventCallback<GitHubRepository> OnClick { get; set; }
+
+    private async Task NavigateToDetail()
+    {
+        await OnClick.InvokeAsync(Repo);
+    }
+
+    private static string ToRelativeTime(DateTime? dt)
+    {
+        if (!dt.HasValue) return string.Empty;
+        var diff = DateTime.UtcNow - dt.Value.ToUniversalTime();
+        if (diff.TotalHours < 1) return "just now";
+        if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        if (diff.TotalDays < 30) return $"{(int)(diff.TotalDays / 7)}w ago";
+        return $"{(int)(diff.TotalDays / 30)}mo ago";
+    }
+
+    private static string FormatCompact(int count) => count switch
+    {
+        >= 1_000_000 => $"{count / 1_000_000.0:F1}M",
+        >= 1_000 => $"{count / 1_000.0:F1}k",
+        _ => count.ToString()
+    };
+
+    private static string GetAiColor(double aiPercentage) => aiPercentage switch
+    {
+        >= 50 => "#ef4444",
+        >= 25 => "#f97316",
+        >= 10 => "#eab308",
+        _ => "#22c55e"
+    };
+}

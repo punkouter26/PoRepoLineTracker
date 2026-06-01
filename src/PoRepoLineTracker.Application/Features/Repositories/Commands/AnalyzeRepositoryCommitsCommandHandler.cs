@@ -1,6 +1,6 @@
 using MediatR;
 using PoRepoLineTracker.Application.Interfaces;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Application.Services;
 using PoRepoLineTracker.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 using System.IO;
+using static PoRepoLineTracker.Application.Services.CommitTaggerService;
 
 namespace PoRepoLineTracker.Application.Features.Repositories.Commands;
 
@@ -282,8 +283,13 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                         TotalLines = totalLines,
                         LinesAdded = commitStat.LinesAdded,     // Now properly setting lines added from diff
                         LinesRemoved = commitStat.LinesRemoved, // Now properly setting lines removed from diff
-                        LinesByFileType = lineCounts.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
+                        LinesByFileType = lineCounts.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
+                        AuthorName = commitStat.AuthorName,
+                        AuthorEmail = commitStat.AuthorEmail
                     };
+
+                    // CommitTagger: classify the commit with algorithmic tags
+                    commitLineCount.Tags = ClassifyCommit(commitLineCount);
 
                     await _repositoryDataService.AddCommitLineCountAsync(commitLineCount);
                     _logger.LogDebug("Processed commit {CommitSha} with {TotalLines} lines (Added: {LinesAdded}, Removed: {LinesRemoved})",

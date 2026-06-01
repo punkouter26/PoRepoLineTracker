@@ -19,10 +19,18 @@ public static class AuthServiceExtensions
             .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(
                 environment.ContentRootPath, "..", "dataprotection-keys")));
 
+        // Rule 13 — In Production, default to Microsoft OAuth as the primary challenge.
+        // In Development, GitHub OAuth remains the default for backwards compatibility.
+        // SOLID — OCP: the production auth enforcement middleware handles the redirect,
+        // so this just sets the default challenge scheme.
+        var defaultChallengeScheme = environment.IsDevelopment()
+            ? GitHubAuthenticationDefaults.AuthenticationScheme
+            : "Microsoft";
+
         services.AddAuthentication(options =>
         {
             options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme = GitHubAuthenticationDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = defaultChallengeScheme;
         })
         .AddCookie(options =>
         {

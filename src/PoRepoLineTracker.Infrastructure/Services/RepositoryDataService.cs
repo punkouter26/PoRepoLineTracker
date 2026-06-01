@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.Domain.Models;
 using PoRepoLineTracker.Infrastructure.Entities;
 using PoRepoLineTracker.Application.Interfaces;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using System.IO;
 
 namespace PoRepoLineTracker.Infrastructure.Services;
@@ -361,7 +361,13 @@ public class RepositoryDataService : IRepositoryDataService
                 LinesByFileType = g
                     .SelectMany(c => c.LinesByFileType)
                     .GroupBy(kvp => kvp.Key)
-                    .ToDictionary(fileGroup => fileGroup.Key, fileGroup => fileGroup.Sum(kvp => kvp.Value))
+                    .ToDictionary(fileGroup => fileGroup.Key, fileGroup => fileGroup.Sum(kvp => kvp.Value)),
+                // CommitTagger: aggregate all tags from commits on this day
+                Tags = g.SelectMany(c => c.Tags).Distinct().ToList(),
+                // InstantReplay: average AI percentage across commits on this day
+                AverageAiPercentage = g.Any(c => c.AiPercentage > 0)
+                    ? Math.Round(g.Where(c => c.AiPercentage > 0).Average(c => c.AiPercentage), 2)
+                    : 0
             })
             .OrderBy(d => d.Date)
             .ToList();

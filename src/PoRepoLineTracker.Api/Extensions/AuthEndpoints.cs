@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using AspNet.Security.OAuth.GitHub;
@@ -33,6 +34,40 @@ internal static class AuthEndpoints
             return Results.Redirect("/");
         })
         .WithName("Logout");
+
+        // GUEST login — dev-only. Creates a session with username "GUEST{random 8 digits}".
+        // The button is programmatically hidden in production; this server-side guard prevents
+        // direct URL access.
+        // SOLID — OCP: adds a new auth path without modifying existing OAuth providers.
+        app.MapGet("/api/auth/login-guest", (IWebHostEnvironment env) =>
+        {
+            if (!env.IsDevelopment())
+                return Results.Forbid();
+
+            var randomSuffix = Random.Shared.Next(10000000, 99999999).ToString();
+            var guestUsername = $"GUEST{randomSuffix}";
+
+            var claims = new List<Claim>
+            {
+                new("UserId", Guid.NewGuid().ToString()),
+                new(ClaimTypes.Name, guestUsername),
+                new("DisplayName", guestUsername),
+                new("IsAnon", "true")
+            };
+
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            var principal = new ClaimsPrincipal(identity);
+
+            return Results.SignIn(principal,
+                new AuthenticationProperties
+                {
+                    IsPersistent = false,
+                    ExpiresUtc = DateTimeOffset.UtcNow.AddDays(1)
+                },
+                CookieAuthenticationDefaults.AuthenticationScheme);
+        })
+        .WithName("LoginGuest")
+        .AllowAnonymous();
 
         app.MapGet("/api/auth/me", async (HttpContext context, IUserService userService) =>
         {

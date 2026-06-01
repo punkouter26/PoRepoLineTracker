@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.JSInterop;
 using PoRepoLineTracker.Client;
 using PoRepoLineTracker.Client.Services;
 using Radzen;
@@ -14,7 +15,10 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddScoped<UserPreferencesClient>();
 
 // Add authentication services
-builder.Services.AddScoped<ApiAuthenticationStateProvider>();
+builder.Services.AddScoped<ApiAuthenticationStateProvider>(sp =>
+    new ApiAuthenticationStateProvider(
+        sp.GetRequiredService<HttpClient>(),
+        sp.GetRequiredService<IJSRuntime>()));
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<ApiAuthenticationStateProvider>());
 builder.Services.AddAuthorizationCore();
 

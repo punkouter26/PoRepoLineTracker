@@ -14,8 +14,8 @@
             @if (AuthStateProvider.CurrentUser?.IsAnon == true)
             {
                 <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-warning-light); font-weight: 600;"
-                            title="Anonymous dev bypass — data is stored under the ANON account">
-                    ANON LOGGED IN
+                            title="Guest session — data is stored under the GUEST account">
+                    @(AuthStateProvider.CurrentUser?.DisplayName ?? "GUEST") LOGGED IN
                 </RadzenText>
             }
             else

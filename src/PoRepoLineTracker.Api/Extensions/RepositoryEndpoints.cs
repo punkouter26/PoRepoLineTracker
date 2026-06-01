@@ -1,7 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using PoRepoLineTracker.Application.Interfaces;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Domain.Models;
 using System.Net;
 using Serilog;

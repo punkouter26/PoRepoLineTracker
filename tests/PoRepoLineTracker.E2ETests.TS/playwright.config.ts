@@ -2,17 +2,18 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: 'html',
   use: {
     baseURL: 'http://localhost:5010',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    // Headed in Dev (local), headless in CI
-    headless: !!process.env.CI,
+    video: 'retain-on-failure',
+    // Always headless to conserve MSI laptop resources (override with --headed)
+    headless: true,
   },
   projects: [
     {

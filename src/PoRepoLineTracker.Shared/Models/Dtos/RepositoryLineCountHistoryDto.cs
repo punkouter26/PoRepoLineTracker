@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.Application.Models;
+namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 public class RepositoryLineCountHistoryDto
 {

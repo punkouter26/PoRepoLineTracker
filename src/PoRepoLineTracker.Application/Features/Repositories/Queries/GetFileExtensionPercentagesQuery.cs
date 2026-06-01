@@ -1,5 +1,5 @@
 using MediatR;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using System;
 using System.Collections.Generic;
 

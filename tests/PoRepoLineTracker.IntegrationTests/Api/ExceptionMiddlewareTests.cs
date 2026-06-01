@@ -10,7 +10,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using PoRepoLineTracker.Application.Features.Repositories.Queries;
 using PoRepoLineTracker.Application.Interfaces;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Domain.Models;
 
 namespace PoRepoLineTracker.IntegrationTests;

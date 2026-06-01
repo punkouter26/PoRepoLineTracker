@@ -1,0 +1,74 @@
+@inject HttpClient Http
+@inject Radzen.DialogService DialogService
+@using PoRepoLineTracker.Domain.Models
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Gap="0.5rem">
+        <RadzenLabel Text="Rule Name" />
+        <RadzenTextBox @bind-Value="_name" Placeholder="e.g., High AI code alert" Style="width: 100%;" />
+    </RadzenStack>
+
+    <RadzenStack Gap="0.5rem">
+        <RadzenLabel Text="Metric" />
+        <RadzenDropDown @bind-Value="_metric" TValue="AlertMetric" Data="@_metrics" Style="width: 100%;" />
+    </RadzenStack>
+
+    <RadzenStack Gap="0.5rem">
+        <RadzenLabel Text="Condition" />
+        <RadzenDropDown @bind-Value="_operator" TValue="AlertOperator" Data="@_operators" Style="width: 100%;" />
+    </RadzenStack>
+
+    <RadzenStack Gap="0.5rem">
+        <RadzenLabel Text="Threshold Value" />
+        <RadzenNumeric @bind-Value="_threshold" TValue="double" Min="0" Max="1000000" Step="1" Style="width: 100%;" />
+    </RadzenStack>
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End" Style="margin-top: 1rem;">
+        <RadzenButton Text="Cancel" Variant="Variant.Outlined" Click="@Cancel" />
+        <RadzenButton Text="Create Rule" ButtonStyle="ButtonStyle.Primary" Click="@CreateRule" Disabled="@string.IsNullOrWhiteSpace(_name)" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private string _name = string.Empty;
+    private AlertMetric _metric = AlertMetric.AiPercentage;
+    private AlertOperator _operator = AlertOperator.GreaterThan;
+    private double _threshold = 30;
+
+    private readonly List<AlertMetric> _metrics = new() { AlertMetric.AiPercentage, AlertMetric.WeeklyLineChange, AlertMetric.TotalLines, AlertMetric.WeeklyCommitCount };
+    private readonly List<AlertOperator> _operators = new() { AlertOperator.GreaterThan, AlertOperator.LessThan, AlertOperator.GreaterThanOrEqual, AlertOperator.LessThanOrEqual };
+
+    private async Task CreateRule()
+    {
+        try
+        {
+            var request = new CreateAlertRuleRequest
+            {
+                Name = _name,
+                Metric = _metric,
+                Operator = _operator,
+                ThresholdValue = _threshold
+            };
+
+            var response = await Http.PostAsJsonAsync("/api/alerts/rules", request);
+            if (response.IsSuccessStatusCode)
+            {
+                var created = await response.Content.ReadFromJsonAsync<AlertRuleDto>();
+                DialogService.Close(created);
+            }
+            else
+            {
+                DialogService.Close();
+            }
+        }
+        catch
+        {
+            DialogService.Close();
+        }
+    }
+
+    private void Cancel() => DialogService.Close();
+}

@@ -106,6 +106,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IUserPreferencesService, PoRepoLineTracker.Infrastructure.Services.UserPreferencesService>();
         services.AddScoped<IAiDetectionService, PoRepoLineTracker.Application.Services.AiDetectionService>();
 
+        // SmartAlert: alert rule management and evaluation
+        services.AddScoped<IAlertService, PoRepoLineTracker.Infrastructure.Services.AlertService>();
+
         // MediatR — register all handlers from the Application assembly
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(
             typeof(PoRepoLineTracker.Application.Features.Repositories.Commands.AddRepositoryCommand).Assembly));

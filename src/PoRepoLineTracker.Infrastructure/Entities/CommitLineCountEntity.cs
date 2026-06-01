@@ -28,6 +28,9 @@ public class CommitLineCountEntity : ITableEntity
     // AI detection result
     public double AiPercentage { get; set; }
 
+    // CommitTagger: JSON-serialized list of tags
+    public string TagsJson { get; set; } = string.Empty;
+
     public CommitLineCount ToDomainModel()
     {
         return new CommitLineCount
@@ -44,7 +47,10 @@ public class CommitLineCountEntity : ITableEntity
                 : JsonSerializer.Deserialize<Dictionary<string, int>>(LinesByFileTypeJson) ?? new Dictionary<string, int>(),
             AuthorName = AuthorName,
             AuthorEmail = AuthorEmail,
-            AiPercentage = AiPercentage
+            AiPercentage = AiPercentage,
+            Tags = string.IsNullOrEmpty(TagsJson)
+                ? new List<string>()
+                : JsonSerializer.Deserialize<List<string>>(TagsJson) ?? new List<string>()
         };
     }
 
@@ -66,7 +72,8 @@ public class CommitLineCountEntity : ITableEntity
             LinesByFileTypeJson = JsonSerializer.Serialize(model.LinesByFileType),
             AuthorName = model.AuthorName,
             AuthorEmail = model.AuthorEmail,
-            AiPercentage = model.AiPercentage
+            AiPercentage = model.AiPercentage,
+            TagsJson = JsonSerializer.Serialize(model.Tags)
         };
     }
 }

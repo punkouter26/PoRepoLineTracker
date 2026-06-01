@@ -25,4 +25,10 @@ public class CommitLineCount
     /// AI detection percentage (0-100) for this commit.
     /// </summary>
     public double AiPercentage { get; set; }
+
+    /// <summary>
+    /// CommitTagger: Auto-generated tags classifying this commit.
+    /// Examples: "ai-burst", "hot-streak", "bug-fix", "refactor", "ai-heavy", "tiny"
+    /// </summary>
+    public List<string> Tags { get; set; } = new();
 }

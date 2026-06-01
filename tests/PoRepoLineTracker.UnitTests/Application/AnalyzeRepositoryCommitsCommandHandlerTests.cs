@@ -5,7 +5,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using PoRepoLineTracker.Application.Features.Repositories.Commands;
 using PoRepoLineTracker.Application.Interfaces;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Domain.Models;
 
 namespace PoRepoLineTracker.UnitTests;

@@ -1,6 +1,6 @@
 using MediatR;
 using PoRepoLineTracker.Application.Interfaces;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Domain.Models;
 using Microsoft.Extensions.Logging;
 

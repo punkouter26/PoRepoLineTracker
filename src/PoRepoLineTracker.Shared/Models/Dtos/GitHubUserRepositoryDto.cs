@@ -1,8 +1,8 @@
-namespace PoRepoLineTracker.Application.Models;
+namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
 /// Unified DTO for a GitHub repository returned to the client.
-/// Replaces the split Domain.GitHubUserRepository + Client.GitHubUserRepositoryDto models.
+/// Shared between API responses and Blazor WASM client deserialization.
 /// </summary>
 public class GitHubUserRepositoryDto
 {

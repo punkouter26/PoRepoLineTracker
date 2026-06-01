@@ -3,7 +3,7 @@ using LibGit2Sharp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
-using PoRepoLineTracker.Application.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO; // Added for Stream

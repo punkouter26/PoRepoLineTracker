@@ -1,6 +1,8 @@
 @page "/login"
 @layout PoRepoLineTracker.Client.Layout.LoginLayout
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IDisposable
 @using Radzen
 @using Radzen.Blazor
 
@@ -54,9 +56,43 @@
                           Style="width: 100%; font-size: 1rem; padding: 0.8rem 1.5rem; font-weight: 600;"
                           Click="@(() => Navigation.NavigateTo("api/auth/login-microsoft", forceLoad: true))" />
 
+            @* GUEST login — only visible in Development. Hidden in Production via CSS/JS gate. *@
+            @if (IsDevelopment)
+            {
+                <RadzenButton Text="Login as GUEST"
+                              Icon="person_outline"
+                              aria-label="Login as Guest (Development Only)"
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Outlined"
+                              class="login-cta-btn"
+                              Style="width: 100%; font-size: 1rem; padding: 0.8rem 1.5rem; font-weight: 600; border-style: dashed;"
+                              Click="@(() => Navigation.NavigateTo("api/auth/login-guest", forceLoad: true))" />
+            }
+
             <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">
                 Your data stays in your own Azure Table Storage
             </RadzenText>
         </RadzenStack>
     </RadzenCard>
 </div>
+
+@code {
+    private bool IsDevelopment { get; set; } = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if running in development by probing the API environment.
+        // In Production, the GUEST button is hidden both here and on the server.
+        try
+        {
+            var env = await JSRuntime.InvokeAsync<string>("eval", "window.location.hostname");
+            IsDevelopment = env == "localhost" || env == "127.0.0.1";
+        }
+        catch
+        {
+            IsDevelopment = false;
+        }
+    }
+
+    public void Dispose() { }
+}

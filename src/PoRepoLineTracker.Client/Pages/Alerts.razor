@@ -1,0 +1,338 @@
+@page "/alerts"
+@attribute [Authorize]
+@inject HttpClient Http
+@inject ILogger<Alerts> Logger
+@inject Radzen.NotificationService NotificationService
+@inject Radzen.DialogService DialogService
+@using Radzen
+@using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using PoRepoLineTracker.Domain.Models
+
+<RadzenStack Gap="1rem">
+    @* Hero *@
+    <div class="repo-hero">
+        <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+            <RadzenColumn Size="12" SizeMD="8">
+                <RadzenStack Gap="0.15rem">
+                    <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">Smart Alerts</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); margin: 0;">
+                        Get notified when repository metrics cross your thresholds
+                    </RadzenText>
+                </RadzenStack>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="4" class="rz-text-align-end">
+                <RadzenButton Text="New Rule" Icon="add_circle" ButtonStyle="ButtonStyle.Primary"
+                              Size="ButtonSize.Small" Click="@ShowCreateRuleDialog" />
+            </RadzenColumn>
+        </RadzenRow>
+    </div>
+
+    @* Alert Rules *@
+    <RadzenCard>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin-bottom: 1rem;">
+            <RadzenIcon Icon="rule" Style="color: var(--rz-primary);" />
+            <RadzenText TextStyle="TextStyle.H6" Style="margin: 0; font-weight: 700;">Alert Rules</RadzenText>
+        </RadzenStack>
+
+        @if (_isLoadingRules)
+        {
+            <RadzenSkeleton Width="100%" Height="200px" />
+        }
+        else if (!_alertRules.Any())
+        {
+            <RadzenStack AlignItems="AlignItems.Center" class="rz-p-8" Gap="1rem">
+                <RadzenIcon Icon="notifications_off" Style="font-size: 3rem; color: var(--rz-text-disabled-color);" />
+                <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color);">No alert rules configured yet.</RadzenText>
+                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">Create a rule to get notified when metrics cross thresholds.</RadzenText>
+            </RadzenStack>
+        }
+        else
+        {
+            <RadzenDataGrid Data="@_alertRules" TItem="AlertRuleDto" AllowSorting="true" Style="font-size: 0.85rem;">
+                <Columns>
+                    <RadzenDataGridColumn TItem="AlertRuleDto" Property="Name" Title="Rule" Width="25%">
+                        <Template Context="rule">
+                            <RadzenStack Gap="0.15rem">
+                                <RadzenText Style="font-weight: 600;">@rule.Name</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">
+                                    @GetMetricDisplayName(rule.Metric) @GetOperatorSymbol(rule.Operator) @rule.ThresholdValue.ToString("F1")
+                                </RadzenText>
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="AlertRuleDto" Title="Scope" Width="20%">
+                        <Template Context="rule">
+                            @(rule.RepositoryId.HasValue ? "Specific repo" : "All repositories")
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="AlertRuleDto" Property="IsActive" Title="Active" Width="10%">
+                        <Template Context="rule">
+                            <RadzenBadge BadgeStyle="@(rule.IsActive ? BadgeStyle.Success : BadgeStyle.Light)"
+                                         Text="@(rule.IsActive ? "On" : "Off")" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="AlertRuleDto" Title="Last Triggered" Width="20%">
+                        <Template Context="rule">
+                            @(rule.LastTriggeredAt.HasValue ? rule.LastTriggeredAt.Value.ToLocalTime().ToString("g") : "Never")
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="AlertRuleDto" Title="" Width="25%">
+                        <Template Context="rule">
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.35rem">
+                                <RadzenButton Icon="@(rule.IsActive ? "pause" : "play_arrow")"
+                                              Variant="Variant.Text" Size="ButtonSize.Small"
+                                              title="@(rule.IsActive ? "Pause" : "Resume")"
+                                              Click="@(() => ToggleRule(rule))" />
+                                <RadzenButton Icon="delete" Variant="Variant.Text"
+                                              ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                              title="Delete"
+                                              Click="@(() => DeleteRule(rule))" />
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        }
+    </RadzenCard>
+
+    @* Triggered Alerts *@
+    <RadzenCard>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Style="margin-bottom: 1rem;">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="notifications_active" Style="color: #d97706;" />
+                <RadzenText TextStyle="TextStyle.H6" Style="margin: 0; font-weight: 700;">Triggered Alerts</RadzenText>
+                @if (_unreadCount > 0)
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="@_unreadCount.ToString()" />
+                }
+            </RadzenStack>
+            @if (_unreadCount > 0)
+            {
+                <RadzenButton Text="Mark all read" Icon="done_all" Variant="Variant.Text"
+                              Size="ButtonSize.Small" Click="@MarkAllRead" />
+            }
+        </RadzenStack>
+
+        @if (_isLoadingTriggers)
+        {
+            <RadzenSkeleton Width="100%" Height="200px" />
+        }
+        else if (!_alertTriggers.Any())
+        {
+            <RadzenStack AlignItems="AlignItems.Center" class="rz-p-8" Gap="1rem">
+                <RadzenIcon Icon="check_circle" Style="font-size: 3rem; color: var(--rz-text-disabled-color);" />
+                <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color);">No triggered alerts.</RadzenText>
+                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">You are all clear! Alerts will appear here when rules are triggered.</RadzenText>
+            </RadzenStack>
+        }
+        else
+        {
+            <RadzenDataGrid Data="@_alertTriggers" TItem="AlertTriggerDto" AllowSorting="true" Style="font-size: 0.85rem;">
+                <Columns>
+                    <RadzenDataGridColumn TItem="AlertTriggerDto" Title="Alert" Width="50%">
+                        <Template Context="trigger">
+                            <RadzenStack Gap="0.15rem">
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.35rem" AlignItems="AlignItems.Center">
+                                    @if (!trigger.IsRead)
+                                    {
+                                        <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--rz-primary); flex-shrink: 0;"></div>
+                                    }
+                                    <RadzenText Style="@($"font-weight: {(trigger.IsRead ? "400" : "600")};")">@trigger.Message</RadzenText>
+                                </RadzenStack>
+                                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">
+                                    @trigger.RepositoryName - @trigger.TriggeredAt.ToLocalTime().ToString("g")
+                                </RadzenText>
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="AlertTriggerDto" Title="Actual" Width="12%">
+                        <Template Context="trigger">
+                            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="@trigger.ActualValue.ToString("F1")" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="AlertTriggerDto" Title="Threshold" Width="12%">
+                        <Template Context="trigger">
+                            <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@trigger.ThresholdValue.ToString("F1")" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="AlertTriggerDto" Title="" Width="26%">
+                        <Template Context="trigger">
+                            @if (!trigger.IsRead)
+                            {
+                                <RadzenButton Text="Mark read" Icon="check" Variant="Variant.Text"
+                                              Size="ButtonSize.Small" Click="@(() => MarkTriggerRead(trigger))" />
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        }
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    private bool _isLoadingRules = true;
+    private bool _isLoadingTriggers = false;
+    private List<AlertRuleDto> _alertRules = new();
+    private List<AlertTriggerDto> _alertTriggers = new();
+    private int _unreadCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadRules(), LoadTriggers(), LoadUnreadCount());
+    }
+
+    private async Task LoadRules()
+    {
+        _isLoadingRules = true;
+        try
+        {
+            _alertRules = await Http.GetFromJsonAsync<List<AlertRuleDto>>("/api/alerts/rules") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load alert rules");
+        }
+        finally
+        {
+            _isLoadingRules = false;
+        }
+    }
+
+    private async Task LoadTriggers()
+    {
+        _isLoadingTriggers = true;
+        try
+        {
+            _alertTriggers = await Http.GetFromJsonAsync<List<AlertTriggerDto>>("/api/alerts/triggers") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load alert triggers");
+        }
+        finally
+        {
+            _isLoadingTriggers = false;
+        }
+    }
+
+    private async Task LoadUnreadCount()
+    {
+        try
+        {
+            _unreadCount = await Http.GetFromJsonAsync<int>("/api/alerts/triggers/unread-count");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load unread alert count");
+        }
+    }
+
+    private async Task ToggleRule(AlertRuleDto rule)
+    {
+        try
+        {
+            await Http.PatchAsync($"/api/alerts/rules/{rule.Id}/toggle", null);
+            rule.IsActive = !rule.IsActive;
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Info,
+                Summary = rule.IsActive ? "Rule Activated" : "Rule Paused",
+                Detail = $"'{rule.Name}' is now {(rule.IsActive ? "active" : "paused")}.",
+                Duration = 3000
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to toggle alert rule {RuleId}", rule.Id);
+        }
+    }
+
+    private async Task DeleteRule(AlertRuleDto rule)
+    {
+        var confirmed = await DialogService.Confirm(
+            $"Delete alert rule '{rule.Name}'?",
+            "Delete Rule",
+            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await Http.DeleteAsync($"/api/alerts/rules/{rule.Id}");
+            _alertRules.Remove(rule);
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Summary = "Deleted",
+                Detail = $"'{rule.Name}' has been deleted.",
+                Duration = 3000
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete alert rule {RuleId}", rule.Id);
+        }
+    }
+
+    private async Task MarkTriggerRead(AlertTriggerDto trigger)
+    {
+        try
+        {
+            await Http.PostAsync($"/api/alerts/triggers/{trigger.Id}/read", null);
+            trigger.IsRead = true;
+            _unreadCount = Math.Max(0, _unreadCount - 1);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to mark trigger as read");
+        }
+    }
+
+    private async Task MarkAllRead()
+    {
+        try
+        {
+            await Http.PostAsync("/api/alerts/triggers/read-all", null);
+            foreach (var t in _alertTriggers) t.IsRead = true;
+            _unreadCount = 0;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to mark all triggers as read");
+        }
+    }
+
+    private async Task ShowCreateRuleDialog()
+    {
+        var result = await DialogService.OpenAsync<CreateAlertRuleDialog>(
+            "Create Alert Rule",
+            new Dictionary<string, object>(),
+            new DialogOptions { Width = "500px", CloseDialogOnOverlayClick = true, ShowClose = true });
+
+        if (result is AlertRuleDto newRule)
+        {
+            _alertRules.Add(newRule);
+        }
+    }
+
+    private static string GetMetricDisplayName(AlertMetric metric) => metric switch
+    {
+        AlertMetric.AiPercentage => "AI %",
+        AlertMetric.WeeklyLineChange => "Weekly line change %",
+        AlertMetric.TotalLines => "Total lines",
+        AlertMetric.WeeklyCommitCount => "Weekly commits",
+        _ => metric.ToString()
+    };
+
+    private static string GetOperatorSymbol(AlertOperator op) => op switch
+    {
+        AlertOperator.GreaterThan => ">",
+        AlertOperator.LessThan => "<",
+        AlertOperator.GreaterThanOrEqual => ">=",
+        AlertOperator.LessThanOrEqual => "<=",
+        _ => "?"
+    };
+}

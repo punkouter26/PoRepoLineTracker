@@ -9,7 +9,7 @@
 @inject UserPreferencesClient PreferencesClient
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Domain.Models
-@using PoRepoLineTracker.Application.Models
+@using PoRepoLineTracker.Shared.Models.Dtos
 @using Radzen
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
@@ -243,6 +243,9 @@
 
         @* ─── Top Contributors Chart ──────────────────────────────────────────────── *@
         <ContributorChart RepositoryId="@RepositoryId" />
+
+        @* ─── InstantReplay: Timeline Scrubber ────────────────────────────────────── *@
+        <TimelineScrubber DailyData="@_lineHistory" OnDateSelected="@OnTimelineDateSelected" />
     }
 </RadzenStack>
 
@@ -545,6 +548,17 @@
             return d.ToString("N0");
         }
         return value?.ToString() ?? string.Empty;
+    }
+
+    /// <summary>
+    /// InstantReplay: Handler for timeline scrubber date selection.
+    /// Could be used to highlight the selected date on charts or filter data.
+    /// </summary>
+    private Task OnTimelineDateSelected(DateTime? date)
+    {
+        // Future: highlight the selected date on the line history chart
+        // or filter contributor/AI data to that date range
+        return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()

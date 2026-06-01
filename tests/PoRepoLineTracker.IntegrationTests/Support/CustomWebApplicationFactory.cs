@@ -9,9 +9,12 @@ using PoRepoLineTracker.Api;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
 using PoRepoLineTracker.Infrastructure.Interfaces;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using NSubstitute;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
+using Azure.Data.Tables;
 using System.Text.Encodings.Web;
 using Microsoft.Extensions.Options;
 
@@ -60,12 +63,19 @@ namespace PoRepoLineTracker.IntegrationTests
             LastUpdated = DateTime.UtcNow
         };
 
+        // Set by ConfigureAppConfiguration, read by ConfigureServices
+        private bool _azuriteAvailable;
+        private string _azuriteConnectionString = "";
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            // Set content root to temp directory to prevent loading appsettings.Development.json
+            // from the API project output directory (which contains real Azure Key Vault URI)
+            builder.UseContentRoot(System.IO.Path.GetTempPath());
+
             // Configure app configuration FIRST - this must happen before services are registered
             builder.ConfigureAppConfiguration((context, config) =>
             {
-                // For integration tests prefer a local Azurite instance if available (faster & more deterministic than launching containers here)
                 var inMemorySettings = new Dictionary<string, string?>
                 {
                     {"AzureTableStorage:RepositoryTableName", "PoRepoLineTrackerRepositoriesTest"},
@@ -74,55 +84,52 @@ namespace PoRepoLineTracker.IntegrationTests
                     // Provide mock OAuth credentials for testing
                     {"GitHub:ClientId", "test-client-id"},
                     {"GitHub:ClientSecret", "test-client-secret"},
-                    {"GitHub:CallbackPath", "/signin-github"}
+                    {"GitHub:CallbackPath", "/signin-github"},
+                    // Disable Key Vault to prevent DefaultAzureCredential from throwing
+                    {"KeyVault:Uri", ""},
+                    // Disable OpenTelemetry export
+                    {"OpenTelemetry:OtlpEndpoint", ""},
+                    {"EnableConsoleExporters", "false"},
+                    // Disable App Insights
+                    {"APPLICATIONINSIGHTS_CONNECTION_STRING", ""},
+                    {"ApplicationInsights:ConnectionString", ""},
+                    // Disable Microsoft OAuth
+                    {"Microsoft:ClientId", ""},
+                    {"Microsoft:ClientSecret", ""}
                 };
+                config.AddInMemoryCollection(inMemorySettings);
 
                 // Detect local Azurite on default table port
-                bool azuriteAvailable = false;
+                _azuriteAvailable = false;
+                _azuriteConnectionString = "";
                 try
                 {
                     using (var tcp = new System.Net.Sockets.TcpClient())
                     {
                         var task = tcp.ConnectAsync("127.0.0.1", 10002);
-                        azuriteAvailable = task.Wait(1500) && tcp.Connected;
+                        _azuriteAvailable = task.Wait(1500) && tcp.Connected;
                     }
-                }
-                catch { /* ignore */ }
-
-                if (azuriteAvailable)
-                {
-                    var connectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;";
-                    try
+                    if (_azuriteAvailable)
                     {
-                        var serviceClient = new Azure.Data.Tables.TableServiceClient(connectionString);
+                        _azuriteConnectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;";
+                        var serviceClient = new Azure.Data.Tables.TableServiceClient(_azuriteConnectionString);
                         serviceClient.CreateTableIfNotExists("PoRepoLineTrackerRepositoriesTest");
                         serviceClient.CreateTableIfNotExists("PoRepoLineTrackerCommitLineCountsTest");
-
-                        // Clear entities to ensure clean state
-                        var repoTable = serviceClient.GetTableClient("PoRepoLineTrackerRepositoriesTest");
-                        foreach (var entity in repoTable.Query<Azure.Data.Tables.TableEntity>())
-                        {
-                            repoTable.DeleteEntity(entity.PartitionKey, entity.RowKey);
-                        }
-
-                        var lineTable = serviceClient.GetTableClient("PoRepoLineTrackerCommitLineCountsTest");
-                        foreach (var entity in lineTable.Query<Azure.Data.Tables.TableEntity>())
-                        {
-                            lineTable.DeleteEntity(entity.PartitionKey, entity.RowKey);
-                        }
-
-                        inMemorySettings["AzureTableStorage:ConnectionString"] = connectionString;
-                        inMemorySettings["ConnectionStrings:tables"] = connectionString;
+                        foreach (var entity in serviceClient.GetTableClient("PoRepoLineTrackerRepositoriesTest").Query<Azure.Data.Tables.TableEntity>())
+                            serviceClient.GetTableClient("PoRepoLineTrackerRepositoriesTest").DeleteEntity(entity.PartitionKey, entity.RowKey);
+                        foreach (var entity in serviceClient.GetTableClient("PoRepoLineTrackerCommitLineCountsTest").Query<Azure.Data.Tables.TableEntity>())
+                            serviceClient.GetTableClient("PoRepoLineTrackerCommitLineCountsTest").DeleteEntity(entity.PartitionKey, entity.RowKey);
                     }
-                    catch
-                    {
-                        inMemorySettings["AzureTableStorage:ConnectionString"] = "UseDevelopmentStorage=true";
-                        inMemorySettings["ConnectionStrings:tables"] = "UseDevelopmentStorage=true";
-                    }
+                }
+                catch { _azuriteAvailable = false; }
+
+                if (_azuriteAvailable)
+                {
+                    inMemorySettings["AzureTableStorage:ConnectionString"] = _azuriteConnectionString;
+                    inMemorySettings["ConnectionStrings:tables"] = _azuriteConnectionString;
                 }
                 else
                 {
-                    // Fall back to development storage emulator if Azurite not available
                     inMemorySettings["AzureTableStorage:ConnectionString"] = "UseDevelopmentStorage=true";
                     inMemorySettings["ConnectionStrings:tables"] = "UseDevelopmentStorage=true";
                 }
@@ -152,6 +159,25 @@ namespace PoRepoLineTracker.IntegrationTests
                 var mockGitClient = Substitute.For<IGitClient>();
                 var mockGitHubService = Substitute.For<IGitHubService>();
                 var mockUserPreferencesService = Substitute.For<IUserPreferencesService>();
+                var mockRepoDataService = Substitute.For<IRepositoryDataService>();
+
+                // Default: return empty collections for all repository data queries
+                mockRepoDataService.GetAllRepositoriesAsync(Arg.Any<Guid>())
+                    .Returns(Task.FromResult(Enumerable.Empty<GitHubRepository>()));
+                mockRepoDataService.GetRepositoryByIdAsync(Arg.Any<Guid>())
+                    .Returns(Task.FromResult<GitHubRepository?>(null));
+                mockRepoDataService.GetCommitLineCountsByRepositoryIdAsync(Arg.Any<Guid>())
+                    .Returns(Task.FromResult(Enumerable.Empty<CommitLineCount>()));
+                mockRepoDataService.GetTopFilesAsync(Arg.Any<Guid>(), Arg.Any<int>())
+                    .Returns(Task.FromResult(Enumerable.Empty<TopFileDto>()));
+                mockRepoDataService.SaveTopFilesAsync(Arg.Any<Guid>(), Arg.Any<IEnumerable<TopFileDto>>())
+                    .Returns(Task.CompletedTask);
+                mockRepoDataService.DeleteTopFilesForRepositoryAsync(Arg.Any<Guid>())
+                    .Returns(Task.CompletedTask);
+                mockRepoDataService.GetConfiguredFileExtensionsAsync()
+                    .Returns(Task.FromResult<IEnumerable<string>>(new[] { ".cs", ".razor", ".js", ".ts", ".py", ".html", ".css" }));
+                mockRepoDataService.CheckConnectionAsync()
+                    .Returns(Task.CompletedTask);
 
                 mockUserPreferencesService
                     .GetPreferencesAsync(Arg.Any<Guid>())
@@ -175,10 +201,53 @@ namespace PoRepoLineTracker.IntegrationTests
                 services.AddScoped(provider => mockGitClient);
                 services.AddScoped(provider => mockGitHubService);
 
-                // Replace Table-backed services with simple mocks so integration startup does not require a live table connection
-                services.AddScoped<PoRepoLineTracker.Application.Interfaces.IUserService>(provider => Substitute.For<PoRepoLineTracker.Application.Interfaces.IUserService>());
-                services.AddScoped<PoRepoLineTracker.Application.Interfaces.IFailedOperationService>(provider => Substitute.For<PoRepoLineTracker.Application.Interfaces.IFailedOperationService>());
-                services.AddScoped<PoRepoLineTracker.Application.Interfaces.IUserPreferencesService>(provider => mockUserPreferencesService);
+                if (_azuriteAvailable)
+                {
+                    // Azurite is running — replace the real TableServiceClient with one pointing to Azurite
+                    var tableServiceClientDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(TableServiceClient));
+                    if (tableServiceClientDescriptor != null)
+                    {
+                        services.Remove(tableServiceClientDescriptor);
+                    }
+                    try
+                    {
+                        var azuriteClient = new TableServiceClient(_azuriteConnectionString);
+                        services.AddSingleton(azuriteClient);
+                    }
+                    catch
+                    {
+                        // Azurite detected but connection failed — fall back to no-op
+                        _azuriteAvailable = false;
+                        services.AddSingleton(new TableServiceClient("AccountName=devstoreaccount1;AccountKey=dGVzdA==;DefaultEndpointsProtocol=https;BlobEndpoint=https://127.0.0.1:11000/devstoreaccount1;QueueEndpoint=https://127.0.0.1:11001/devstoreaccount1;TableEndpoint=https://127.0.0.1:11002/devstoreaccount1;"));
+                    }
+                }
+                else
+                {
+                    // No Azurite — use mocks to prevent connection attempts
+                    var tableServiceClientDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(TableServiceClient));
+                    if (tableServiceClientDescriptor != null)
+                    {
+                        services.Remove(tableServiceClientDescriptor);
+                    }
+                    services.AddSingleton(new TableServiceClient("AccountName=devstoreaccount1;AccountKey=dGVzdA==;DefaultEndpointsProtocol=https;BlobEndpoint=https://127.0.0.1:11000/devstoreaccount1;QueueEndpoint=https://127.0.0.1:11001/devstoreaccount1;TableEndpoint=https://127.0.0.1:11002/devstoreaccount1;"));
+
+                    // Remove the health check that queries Table Storage (would fail without Azurite)
+                    var allHealthChecks = services.Where(d => d.ServiceType == typeof(Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck)).ToList();
+                    foreach (var hc in allHealthChecks)
+                    {
+                        if (hc.ImplementationType?.Name == "AzureTableStorageHealthCheck" ||
+                            hc.ImplementationType?.FullName?.Contains("AzureTableStorageHealthCheck") == true)
+                        {
+                            services.Remove(hc);
+                        }
+                    }
+
+                    // Replace Table-backed services with mocks
+                    services.AddScoped<IRepositoryDataService>(provider => mockRepoDataService);
+                    services.AddScoped<PoRepoLineTracker.Application.Interfaces.IUserService>(provider => Substitute.For<PoRepoLineTracker.Application.Interfaces.IUserService>());
+                    services.AddScoped<PoRepoLineTracker.Application.Interfaces.IFailedOperationService>(provider => Substitute.For<PoRepoLineTracker.Application.Interfaces.IFailedOperationService>());
+                    services.AddScoped<PoRepoLineTracker.Application.Interfaces.IUserPreferencesService>(provider => mockUserPreferencesService);
+                }
 
                 // Remove the real background service that requires Azure Tables and replace with a no-op to keep startup deterministic
                 var descriptor = services.FirstOrDefault(d => d.ImplementationType?.FullName == "PoRepoLineTracker.Infrastructure.Services.FailedOperationBackgroundService");
@@ -196,7 +265,7 @@ namespace PoRepoLineTracker.IntegrationTests
                 services.AddSingleton<NoOpHostedService>();
             });
 
-            builder.UseEnvironment("Testing");
+            builder.UseEnvironment("Development");
         }
 
         // No-op hosted service used to replace real background services during tests

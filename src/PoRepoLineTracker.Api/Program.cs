@@ -40,11 +40,18 @@ namespace PoRepoLineTracker.Api
             var keyVaultUrl = builder.Configuration["KeyVault:Uri"];
             if (!string.IsNullOrEmpty(keyVaultUrl))
             {
-                builder.Configuration.AddAzureKeyVault(
-                    new Uri(keyVaultUrl),
-                    new DefaultAzureCredential(),
-                    new PrefixKeyVaultSecretManager());
-                Log.Information("Azure Key Vault configuration loaded from {KeyVaultUrl}", keyVaultUrl);
+                try
+                {
+                    builder.Configuration.AddAzureKeyVault(
+                        new Uri(keyVaultUrl),
+                        new DefaultAzureCredential(),
+                        new PrefixKeyVaultSecretManager());
+                    Log.Information("Azure Key Vault configuration loaded from {KeyVaultUrl}", keyVaultUrl);
+                }
+                catch (Exception ex) when (ex is Azure.Identity.CredentialUnavailableException or System.AggregateException)
+                {
+                    Log.Warning(ex, "Azure Key Vault unavailable — secrets must come from user-secrets, environment variables, or appsettings.Development.local.json. KeyVault:Uri={KeyVaultUrl}", keyVaultUrl);
+                }
             }
             else
             {
@@ -127,6 +134,11 @@ namespace PoRepoLineTracker.Api
             }
             app.UseAuthentication();
             app.UseAuthorization();
+
+            // Rule 13 — Production Auth Enforcement: require Microsoft/GitHub OAuth in Production.
+            // In Development this is a no-op (GUEST mode and local testing still work).
+            app.UseMiddleware<ProductionAuthEnforcementMiddleware>();
+
             app.UseBlazorFrameworkFiles();
             app.UseStaticFiles();
             // All API route mappings - MUST come BEFORE fallback file

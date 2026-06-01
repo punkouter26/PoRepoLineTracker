@@ -243,3 +243,68 @@
     from { opacity: 0; transform: translateY(-8px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ─── Mobile-First Responsive Design ────────────────────────────────────── */
+/* Using CSS clamp() for fluid typography and spacing without excessive media queries */
+
+/* Fluid brand title sizing */
+.brand-title-text {
+    font-size: clamp(0.85rem, 2.5vw, 1.1rem);
+}
+
+/* Fluid stat values */
+.stat-value {
+    font-size: clamp(1.2rem, 3vw, 1.6rem);
+}
+
+/* Fluid body padding */
+::deep .rz-body-content {
+    padding: clamp(0.5rem, 2vw, 1.5rem) !important;
+}
+
+/* Mobile-first grid: stack sidebar above body on small screens */
+@media (max-width: 768px) {
+    ::deep .rz-layout {
+        grid-template-columns: 1fr !important;
+        grid-template-rows: auto auto 1fr !important;
+    }
+
+    ::deep .rz-header {
+        grid-column: 1;
+        grid-row: 1;
+        height: auto;
+        min-height: 52px;
+    }
+
+    ::deep .rz-sidebar {
+        grid-column: 1;
+        grid-row: 2;
+        width: 100% !important;
+        border-right: none;
+        border-bottom: 1px solid var(--rz-base-200);
+    }
+
+    ::deep .rz-body {
+        grid-column: 1;
+        grid-row: 3;
+    }
+
+    /* Auto-fit grid for stat cards on mobile */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: clamp(0.5rem, 2vw, 1rem);
+    }
+}
+
+/* Portrait-ready touch targets */
+@media (max-width: 768px) {
+    ::deep .rz-button {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    ::deep .rz-navigation-item-text {
+        padding: 0.75rem 1rem;
+    }
+}
