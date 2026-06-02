@@ -12,12 +12,35 @@ internal static class AuthEndpoints
 {
     internal static void MapAuthEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/auth/login", (string? returnUrl) =>
-            Results.Challenge(
-                new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },
-                [GitHubAuthenticationDefaults.AuthenticationScheme]))
-            .WithName("Login")
-            .AllowAnonymous();
+        app.MapGet("/api/auth/login", (string? returnUrl, IConfiguration config) =>
+        {
+            var ghClientId = config["GitHub:ClientId"];
+            var msClientId = config["Microsoft:ClientId"];
+            var msClientSecret = config["Microsoft:ClientSecret"];
+
+            // Prefer GitHub OAuth when configured; fall back to Microsoft OAuth.
+            // If neither is configured, return 503 so the client can show a helpful message
+            // instead of a generic 500 "No authentication handler is registered".
+            if (!string.IsNullOrEmpty(ghClientId))
+            {
+                return Results.Challenge(
+                    new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },
+                    [GitHubAuthenticationDefaults.AuthenticationScheme]);
+            }
+            if (!string.IsNullOrEmpty(msClientId) && !string.IsNullOrEmpty(msClientSecret))
+            {
+                return Results.Challenge(
+                    new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },
+                    ["Microsoft"]);
+            }
+
+            return Results.Problem(
+                title: "No OAuth provider configured",
+                detail: "Neither GitHub nor Microsoft OAuth is configured. Set GitHub:ClientId (and GitHub:ClientSecret) or Microsoft:ClientId (and Microsoft:ClientSecret) in configuration.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        })
+        .WithName("Login")
+        .AllowAnonymous();
 
         // Microsoft OAuth login — challenges Microsoft account provider
         // "Microsoft" is MicrosoftAccountDefaults.AuthenticationScheme (scheme name string)
