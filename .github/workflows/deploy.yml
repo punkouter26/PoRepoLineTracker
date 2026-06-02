@@ -9,13 +9,10 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 env:
   DOTNET_VERSION: '10.0.x'
   AZURE_WEBAPP_NAME: app-porepolinetracker
-  AZURE_RESOURCE_GROUP: PoRepoLineTracker
-  SOLUTION_PATH: PoRepoLineTracker.sln
   API_PROJECT_PATH: src/PoRepoLineTracker.Api/PoRepoLineTracker.Api.csproj
   UNIT_TEST_PATH: tests/PoRepoLineTracker.UnitTests
 
@@ -38,9 +35,9 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
           restore-keys: nuget-${{ runner.os }}-
-      - run: dotnet restore ${{ env.SOLUTION_PATH }}
-      - run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore -c Release
-      - run: dotnet format ${{ env.SOLUTION_PATH }} --verify-no-changes --verbosity minimal
+      - run: dotnet restore
+      - run: dotnet build --no-restore -c Release
+      - run: dotnet format --verify-no-changes --verbosity minimal
       - run: dotnet test ${{ env.UNIT_TEST_PATH }} -c Release --no-build --logger trx --results-directory TestResults
       - if: always()
         uses: actions/upload-artifact@v4
@@ -62,7 +59,7 @@ jobs:
     timeout-minutes: 20
     environment:
       name: production
-      url: https://app-porepolinetracker.azurewebsites.net
+      url: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -70,14 +67,11 @@ jobs:
           path: publish
       - uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
       - run: cd publish && zip -r ../webapp.zip . && cd ..
       - uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          resource-group-name: ${{ env.AZURE_RESOURCE_GROUP }}
           package: webapp.zip
       - name: Verify deployment (health check)
         run: |
