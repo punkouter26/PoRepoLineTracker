@@ -59,15 +59,19 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     timeout-minutes: 20
     steps:
+      # NOTE: Azure credentials need to be refreshed.
+      # The AZURE_CREDENTIALS secret has expired and the AZUREAPPSERVICE_*
+      # secrets reference a client-id that no longer exists in Azure AD.
+      # To fix: create a new service principal or federated identity credential
+      # in Azure AD and update the AZURE_CREDENTIALS secret with:
+      #   { "clientId": "...", "clientSecret": "...", "tenantId": "...", "subscriptionId": "..." }
       - uses: actions/download-artifact@v4
         with:
           name: webapp
           path: publish
       - uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_0C193D967D4F4478AE03B173396C3873 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_5A9FAA861C0B4E94A3B73D47382F2B41 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_AEFE7FA1E459467487B7110F4A666E5F }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
       - run: cd publish && zip -r ../webapp.zip . && cd ..
       - uses: azure/webapps-deploy@v3
         with:
