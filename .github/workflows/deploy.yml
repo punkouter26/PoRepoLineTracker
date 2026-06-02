@@ -26,6 +26,8 @@ jobs:
     name: Build & Test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      publish-cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -45,7 +47,17 @@ jobs:
         with:
           name: unit-test-results
           path: TestResults/*.trx
-      - run: dotnet publish ${{ env.API_PROJECT_PATH }} -c Release --no-restore -o publish
+      # Cache publish output — skip publish when dependencies are unchanged
+      - id: cache-key
+        run: echo "key=publish-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.razor', '**/*.cshtml', '**/*.css', '**/*.js', 'Directory.Packages.props', 'Directory.Build.props') }}" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v4
+        id: publish-cache
+        with:
+          path: publish
+          key: ${{ steps.cache-key.outputs.key }}
+          restore-keys: publish-${{ runner.os }}-
+      - if: steps.publish-cache.outputs.cache-hit != 'true'
+        run: dotnet publish ${{ env.API_PROJECT_PATH }} -c Release --no-restore -o publish
       - uses: actions/upload-artifact@v4
         with:
           name: webapp
@@ -59,19 +71,20 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     timeout-minutes: 20
     steps:
-      # NOTE: Azure credentials need to be refreshed.
-      # The AZURE_CREDENTIALS secret has expired and the AZUREAPPSERVICE_*
-      # secrets reference a client-id that no longer exists in Azure AD.
-      # To fix: create a new service principal or federated identity credential
-      # in Azure AD and update the AZURE_CREDENTIALS secret with:
-      #   { "clientId": "...", "clientSecret": "...", "tenantId": "...", "subscriptionId": "..." }
       - uses: actions/download-artifact@v4
         with:
           name: webapp
           path: publish
+      # OIDC federated identity — no client secrets required
+      # Requires a federated identity credential in Azure AD matching:
+      #   subject: repo:punkouter26/PoRepoLineTracker:ref:refs/heads/master
+      #   issuer:  https://token.actions.githubusercontent.com
+      #   audience: api://AzureADTokenExchange
       - uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - run: cd publish && zip -r ../webapp.zip . && cd ..
       - uses: azure/webapps-deploy@v3
         with:
