@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -57,9 +58,6 @@ jobs:
     needs: build-and-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     timeout-minutes: 20
-    environment:
-      name: production
-      url: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -67,7 +65,9 @@ jobs:
           path: publish
       - uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_0C193D967D4F4478AE03B173396C3873 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_5A9FAA861C0B4E94A3B73D47382F2B41 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_AEFE7FA1E459467487B7110F4A666E5F }}
       - run: cd publish && zip -r ../webapp.zip . && cd ..
       - uses: azure/webapps-deploy@v3
         with:
