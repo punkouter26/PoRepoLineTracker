@@ -113,12 +113,19 @@ namespace PoRepoLineTracker.IntegrationTests
                     {
                         _azuriteConnectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;";
                         var serviceClient = new Azure.Data.Tables.TableServiceClient(_azuriteConnectionString);
-                        serviceClient.CreateTableIfNotExists("PoRepoLineTrackerRepositoriesTest");
-                        serviceClient.CreateTableIfNotExists("PoRepoLineTrackerCommitLineCountsTest");
-                        foreach (var entity in serviceClient.GetTableClient("PoRepoLineTrackerRepositoriesTest").Query<Azure.Data.Tables.TableEntity>())
-                            serviceClient.GetTableClient("PoRepoLineTrackerRepositoriesTest").DeleteEntity(entity.PartitionKey, entity.RowKey);
-                        foreach (var entity in serviceClient.GetTableClient("PoRepoLineTrackerCommitLineCountsTest").Query<Azure.Data.Tables.TableEntity>())
-                            serviceClient.GetTableClient("PoRepoLineTrackerCommitLineCountsTest").DeleteEntity(entity.PartitionKey, entity.RowKey);
+                        var testTables = new[] {
+                            "PoRepoLineTrackerRepositoriesTest",
+                            "PoRepoLineTrackerCommitLineCountsTest",
+                            "PoRepoLineTrackerUserPreferencesTest",
+                            "PoRepoLineTrackerUsersTest",
+                            "PoRepoLineTrackerFailedOperationsTest"
+                        };
+                        foreach (var tableName in testTables)
+                        {
+                            serviceClient.CreateTableIfNotExists(tableName);
+                            foreach (var entity in serviceClient.GetTableClient(tableName).Query<Azure.Data.Tables.TableEntity>())
+                                serviceClient.GetTableClient(tableName).DeleteEntity(entity.PartitionKey, entity.RowKey);
+                        }
                     }
                 }
                 catch { _azuriteAvailable = false; }

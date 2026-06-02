@@ -1533,9 +1533,9 @@ body {
 }
 
 .commit-tag-cleanup {
-    background: rgba(107, 114, 128, 0.12);
-    color: #6b7280;
-    border: 1px solid rgba(107, 114, 128, 0.2);
+    background: rgba(107, 114, 128, 0.15);
+    color: #4b5563;
+    border: 1px solid rgba(107, 114, 128, 0.25);
 }
 
 /* ─── SmartAlert: Notification badge pulse ─────────────────────────────────── */

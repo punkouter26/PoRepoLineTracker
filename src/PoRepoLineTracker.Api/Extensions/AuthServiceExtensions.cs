@@ -23,9 +23,19 @@ public static class AuthServiceExtensions
         // In Development, GitHub OAuth remains the default for backwards compatibility.
         // SOLID — OCP: the production auth enforcement middleware handles the redirect,
         // so this just sets the default challenge scheme.
-        var defaultChallengeScheme = environment.IsDevelopment()
-            ? GitHubAuthenticationDefaults.AuthenticationScheme
-            : "Microsoft";
+        // If neither provider is configured (e.g. local dev without secrets), fall back to
+        // the cookie scheme so GUEST mode and other non-OAuth flows still work.
+        var ghClientId = configuration["GitHub:ClientId"];
+        var msClientId = configuration["Microsoft:ClientId"];
+        var msClientSecret = configuration["Microsoft:ClientSecret"];
+
+        string defaultChallengeScheme;
+        if (environment.IsDevelopment() && !string.IsNullOrEmpty(ghClientId))
+            defaultChallengeScheme = GitHubAuthenticationDefaults.AuthenticationScheme;
+        else if (!string.IsNullOrEmpty(msClientId) && !string.IsNullOrEmpty(msClientSecret))
+            defaultChallengeScheme = "Microsoft";
+        else
+            defaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 
         services.AddAuthentication(options =>
         {
@@ -55,97 +65,100 @@ public static class AuthServiceExtensions
                 context.Response.Redirect(context.RedirectUri);
                 return Task.CompletedTask;
             };
-        })
-        .AddGitHub(options =>
-        {
-            options.ClientId = configuration["GitHub:ClientId"]
-                ?? throw new InvalidOperationException("GitHub:ClientId is not configured");
-            options.ClientSecret = configuration["GitHub:ClientSecret"]
-                ?? throw new InvalidOperationException("GitHub:ClientSecret is not configured");
-            options.CallbackPath = configuration["GitHub:CallbackPath"] ?? "/signin-github";
-
-            // Use SameAsRequest so cookies work over plain HTTP on localhost
-            options.CorrelationCookie.SecurePolicy = environment.IsDevelopment()
-                ? CookieSecurePolicy.SameAsRequest
-                : CookieSecurePolicy.Always;
-            options.CorrelationCookie.SameSite = SameSiteMode.Lax;
-            options.CorrelationCookie.HttpOnly = true;
-
-            options.Scope.Add("user:email");
-            options.Scope.Add("read:user");
-            options.Scope.Add("repo");
-            options.SaveTokens = true;
-
-            options.Events.OnRemoteFailure = context =>
-            {
-                context.Response.Redirect("/?error=auth_failed");
-                context.HandleResponse();
-                return Task.CompletedTask;
-            };
-
-            // Return 401 for API fetch calls instead of redirecting to GitHub OAuth,
-            // which would cause a browser CORS error on the cross-origin redirect.
-            // Exclude /api/auth/login — that endpoint intentionally challenges to GitHub.
-            options.Events.OnRedirectToAuthorizationEndpoint = context =>
-            {
-                if (context.Request.Path.StartsWithSegments("/api")
-                    && !context.Request.Path.StartsWithSegments("/api/auth/login"))
-                {
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    return Task.CompletedTask;
-                }
-                context.Response.Redirect(context.RedirectUri);
-                return Task.CompletedTask;
-            };
-
-            options.Events.OnCreatingTicket = async context =>
-            {
-                var gitHubId = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                var username = context.Principal?.FindFirst(ClaimTypes.Name)?.Value;
-                var displayName = context.Principal?.FindFirst(GitHubAuthenticationConstants.Claims.Name)?.Value
-                               ?? context.Principal?.FindFirst(ClaimTypes.GivenName)?.Value;
-                var email = context.Principal?.FindFirst(ClaimTypes.Email)?.Value;
-                var avatarUrl = context.User.GetProperty("avatar_url").GetString();
-                var accessToken = context.AccessToken;
-
-                if (gitHubId != null && username != null && accessToken != null)
-                {
-                    try
-                    {
-                        var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
-                        var savedUser = await userService.UpsertUserAsync(new User
-                        {
-                            GitHubId = gitHubId,
-                            Username = username,
-                            DisplayName = displayName ?? username,
-                            Email = email,
-                            AvatarUrl = avatarUrl ?? string.Empty,
-                            AccessToken = accessToken
-                        });
-                        (context.Principal?.Identity as ClaimsIdentity)?.AddClaim(
-                            new Claim("UserId", savedUser.Id.ToString()));
-                    }
-                    catch (Exception ex)
-                    {
-                        // Storage not available (e.g. no Azurite locally).
-                        // Log the error but don't fail the OAuth flow — user can still
-                        // log in with basic claims and a temporary UserId for this session.
-                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                        logger.LogWarning(ex, "Failed to upsert user during GitHub OAuth callback — storage may not be available. User {GitHubId}/{Username} will use in-memory claims.", gitHubId, username);
-                        // Add a temporary UserId claim so /api/auth/me recognizes the authenticated user
-                        (context.Principal?.Identity as ClaimsIdentity)?.AddClaim(
-                            new Claim("UserId", Guid.NewGuid().ToString()));
-                    }
-                }
-            };
         });
+
+        // GitHub OAuth — only registered when ClientId is configured.
+        // SOLID — OCP: conditional registration without modifying other providers.
+        if (!string.IsNullOrEmpty(ghClientId))
+        {
+            services.AddAuthentication().AddGitHub(options =>
+            {
+                options.ClientId = ghClientId;
+                options.ClientSecret = configuration["GitHub:ClientSecret"]
+                    ?? throw new InvalidOperationException("GitHub:ClientSecret is not configured");
+                options.CallbackPath = configuration["GitHub:CallbackPath"] ?? "/signin-github";
+
+                // Use SameAsRequest so cookies work over plain HTTP on localhost
+                options.CorrelationCookie.SecurePolicy = environment.IsDevelopment()
+                    ? CookieSecurePolicy.SameAsRequest
+                    : CookieSecurePolicy.Always;
+                options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+                options.CorrelationCookie.HttpOnly = true;
+
+                options.Scope.Add("user:email");
+                options.Scope.Add("read:user");
+                options.Scope.Add("repo");
+                options.SaveTokens = true;
+
+                options.Events.OnRemoteFailure = context =>
+                {
+                    context.Response.Redirect("/?error=auth_failed");
+                    context.HandleResponse();
+                    return Task.CompletedTask;
+                };
+
+                // Return 401 for API fetch calls instead of redirecting to GitHub OAuth,
+                // which would cause a browser CORS error on the cross-origin redirect.
+                // Exclude /api/auth/login — that endpoint intentionally challenges to GitHub.
+                options.Events.OnRedirectToAuthorizationEndpoint = context =>
+                {
+                    if (context.Request.Path.StartsWithSegments("/api")
+                        && !context.Request.Path.StartsWithSegments("/api/auth/login"))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        return Task.CompletedTask;
+                    }
+                    context.Response.Redirect(context.RedirectUri);
+                    return Task.CompletedTask;
+                };
+
+                options.Events.OnCreatingTicket = async context =>
+                {
+                    var gitHubId = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                    var username = context.Principal?.FindFirst(ClaimTypes.Name)?.Value;
+                    var displayName = context.Principal?.FindFirst(GitHubAuthenticationConstants.Claims.Name)?.Value
+                                   ?? context.Principal?.FindFirst(ClaimTypes.GivenName)?.Value;
+                    var email = context.Principal?.FindFirst(ClaimTypes.Email)?.Value;
+                    var avatarUrl = context.User.GetProperty("avatar_url").GetString();
+                    var accessToken = context.AccessToken;
+
+                    if (gitHubId != null && username != null && accessToken != null)
+                    {
+                        try
+                        {
+                            var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
+                            var savedUser = await userService.UpsertUserAsync(new User
+                            {
+                                GitHubId = gitHubId,
+                                Username = username,
+                                DisplayName = displayName ?? username,
+                                Email = email,
+                                AvatarUrl = avatarUrl ?? string.Empty,
+                                AccessToken = accessToken
+                            });
+                            (context.Principal?.Identity as ClaimsIdentity)?.AddClaim(
+                                new Claim("UserId", savedUser.Id.ToString()));
+                        }
+                        catch (Exception ex)
+                        {
+                            // Storage not available (e.g. no Azurite locally).
+                            // Log the error but don't fail the OAuth flow — user can still
+                            // log in with basic claims and a temporary UserId for this session.
+                            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                            logger.LogWarning(ex, "Failed to upsert user during GitHub OAuth callback — storage may not be available. User {GitHubId}/{Username} will use in-memory claims.", gitHubId, username);
+                            // Add a temporary UserId claim so /api/auth/me recognizes the authenticated user
+                            (context.Principal?.Identity as ClaimsIdentity)?.AddClaim(
+                                new Claim("UserId", Guid.NewGuid().ToString()));
+                        }
+                    }
+                };
+            });
+        }
 
         // Microsoft OAuth — available in both dev and prod (personal & work Microsoft accounts).
         // Uses the generic OAuth2 handler pointing at the Microsoft identity platform v2 endpoints.
         // Requires Microsoft:ClientId and Microsoft:ClientSecret in configuration / Key Vault.
         // SOLID — OCP: extending auth without modifying GitHub provider configuration.
-        var msClientId = configuration["Microsoft:ClientId"];
-        var msClientSecret = configuration["Microsoft:ClientSecret"];
         if (!string.IsNullOrEmpty(msClientId) && !string.IsNullOrEmpty(msClientSecret))
         {
             services.AddAuthentication()
