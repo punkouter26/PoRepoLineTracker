@@ -65,7 +65,7 @@ public class ProductionAuthEnforcementMiddleware
         }
 
         // In Production: check if the path is public
-        var path = context.Request.Path.Value ?? "/";
+        var path = context.Request.Path;
         if (IsPublicPath(path))
         {
             await _next(context);
@@ -80,7 +80,7 @@ public class ProductionAuthEnforcementMiddleware
                 path);
 
             // For API calls, return 401
-            if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
+            if (path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.Headers.WWWAuthenticate = "Bearer";
@@ -98,16 +98,13 @@ public class ProductionAuthEnforcementMiddleware
         await _next(context);
     }
 
-    private static bool IsPublicPath(string path)
+    private static bool IsPublicPath(PathString path)
     {
-        // Exact match
-        if (PublicPaths.Contains(path))
-            return true;
-
-        // Prefix match for static assets and framework files
+        // Segment-aware match: "/login" matches "/login" and "/login/x" but NOT "/loginfoo".
+        // Using raw string StartsWith here would let "/loginfoo" or "/cssfoo" bypass auth.
         foreach (var publicPath in PublicPaths)
         {
-            if (path.StartsWith(publicPath, StringComparison.OrdinalIgnoreCase))
+            if (path.StartsWithSegments(publicPath, StringComparison.OrdinalIgnoreCase))
                 return true;
         }
 

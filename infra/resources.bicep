@@ -183,6 +183,24 @@ resource webAppStorageTableDataContributor 'Microsoft.Authorization/roleAssignme
 //   Key Vault Secrets User at the vault scope.
 // ─────────────────────────────────────────────
 
+// ─────────────────────────────────────────────
+// Availability test — ping /health every 5 min from 3 US regions and report to the
+// shared App Insights, so an outage (like the recent home-page 5xx) is caught
+// proactively instead of via user reports. Deployed to PoShared (same RG + region as
+// the App Insights component, which the platform requires). Wire an action group later.
+// ─────────────────────────────────────────────
+
+module healthAvailabilityTest 'availability-test.bicep' = {
+  name: 'availability-test'
+  scope: resourceGroup(sharedResourceGroupName)
+  params: {
+    appInsightsId: appInsights.id
+    location: appInsights.location
+    webAppHostName: webApp.properties.defaultHostName
+    webAppName: webAppName
+  }
+}
+
 // Outputs
 @description('Name of the deployed Storage Account')
 output storageAccountName string = storageAccount.name
