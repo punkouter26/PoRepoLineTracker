@@ -30,10 +30,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // Kill any process listening on port 5000, then start the app.
+    // Kill any process listening on port 5010, then start the app in the Test environment
+    // (ASPNETCORE_ENVIRONMENT=Test) so E2E runs against non-AI mock data, not the live dev config.
     command: process.platform === 'win32'
-      ? 'powershell -NoProfile -Command "$p = Get-NetTCPConnection -LocalPort 5010 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }; $env:ASPNETCORE_URLS = \'http://localhost:5010\'; dotnet run --project ../../src/PoRepoLineTracker.Api"'
-      : 'bash -lc "fuser -k 5010/tcp || true; export ASPNETCORE_URLS=\"http://localhost:5010\"; dotnet run --project ../../src/PoRepoLineTracker.Api"',
+      ? 'powershell -NoProfile -Command "$p = Get-NetTCPConnection -LocalPort 5010 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }; $env:ASPNETCORE_ENVIRONMENT = \'Test\'; $env:ASPNETCORE_URLS = \'http://localhost:5010\'; dotnet run --project ../../src/PoRepoLineTracker.Api"'
+      : 'bash -lc "fuser -k 5010/tcp || true; export ASPNETCORE_ENVIRONMENT=Test; export ASPNETCORE_URLS=\"http://localhost:5010\"; dotnet run --project ../../src/PoRepoLineTracker.Api"',
     url: 'http://localhost:5010/health',
     reuseExistingServer: true,
     timeout: 300000,

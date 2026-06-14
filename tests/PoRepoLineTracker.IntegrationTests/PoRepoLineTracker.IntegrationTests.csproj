@@ -5,13 +5,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <!-- Shared coverage thresholds for coverlet.collector -->
-    <RunSettingsFilePath>$(MSBuildThisFileDirectory)..\.\coverlet.runsettings</RunSettingsFilePath>
+    <!-- Coverlet is intentionally NOT enabled here. Coverlet instruments referenced assemblies
+         (e.g. PoRepoLineTracker.Application) into %TEMP% and races WebApplicationFactory's host
+         build, intermittently causing "entry point exited without ever building an IHost"
+         (regression R2). Line-coverage is collected at the unit tier; the integration tier
+         validates API/Table-Storage contracts, not coverage. -->
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Azure.Data.Tables" />
-    <PackageReference Include="DotNet.Testcontainers" />
+    <PackageReference Include="Testcontainers.Azurite" />
     <PackageReference Include="coverlet.collector">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

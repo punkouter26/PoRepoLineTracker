@@ -1,82 +1,87 @@
 {
   "schema": "potune-state/v1",
-  "lastUpdated": "2026-06-01",
-  "run": "PoRun-Verification-001",
+  "lastUpdated": "2026-06-14",
+  "run": "PoRun-NetTest-002",
   "modernization_status": {
-    "phase": "Verified",
+    "phase": "Tested",
     "buildStatus": "Clean (0 errors, 0 warnings)",
-    "unitTests": "158/158 passed",
-    "integrationTests": "25/28 passed (2 flaky Coverlet infra, 1 logic bug)",
+    "unitTests": "158/158 passed (118 [Fact]/[Theory] methods)",
+    "integrationTests": "28/28 passed — deterministic across repeated runs after R2 fix",
+    "e2eTests": "OAuth-redirect + page-quality specs present; GUEST golden-path spec ADDED (not yet executed — run `npm run test:e2e`)",
     "serverStartup": "Functional with Key Vault graceful degradation",
-    "azuriteStatus": "Running via npx (Docker Desktop unavailable)",
-    "keyVaultStatus": "Graceful fallback — CredentialUnavailable caught, app continues"
+    "azuriteStatus": "Running via Docker 29.4.3 (container poredoimage-azurite-dev) on IPv4 127.0.0.1:10000-10002",
+    "keyVaultStatus": "Graceful fallback — CredentialUnavailable caught, app continues",
+    "aiCostGuardrail": "Zero token consumption — AiDetectionService is heuristic/regex only; no remote AI Foundry calls exist in the codebase"
+  },
+  "testTiers": {
+    "rule": "100/50/25",
+    "unit": { "count": 118, "cap": 100, "status": "OVER by 18 — consolidate overlapping Theory cases (AiDetection 19, CommitTagger 19)" },
+    "integration": { "count": 28, "cap": 50, "status": "OK" },
+    "e2e": { "count": 10, "cap": 25, "status": "OK (9 existing + 1 new GUEST spec)" }
   },
   "regressions": [
     {
       "id": "R1",
       "severity": "medium",
       "category": "correctness",
-      "title": "GetUserPreferences_Returns_DefaultChartDisplayMode expects TrueData but gets MovingAverage",
-      "detail": "Integration test asserts default ChartDisplayMode is TrueData (0) but the actual default is MovingAverage (1). Either the test expectation or the default value is wrong.",
-      "fix": "Update test expectation to MovingAverage OR change the default in UserPreferencesService"
+      "title": "GetUserPreferences default ChartDisplayMode mismatch (TrueData vs MovingAverage)",
+      "status": "NOT REPRODUCING — integration suite is 28/28 green; factory mock returns TrueData. Re-verify against a live-Azurite (non-mock) preferences read before closing.",
+      "fix": "If it resurfaces, align UserPreferencesService default with the test expectation (or vice-versa)"
     },
     {
       "id": "R2",
-      "severity": "low",
+      "severity": "medium",
       "category": "infra",
-      "title": "AzureTableIntegrationTests.Home_Page_Loads fails intermittently",
-      "detail": "Coverlet instrumentation race condition causes temp DLL lock conflicts. Not a code bug.",
-      "fix": "Exclude integration tests from Coverlet or add retry logic for instrumentation"
+      "title": "Integration tests intermittently fail: 'entry point exited without ever building an IHost'",
+      "status": "FIXED",
+      "detail": "Two root causes: (1) Coverlet instrumented referenced DLLs into %TEMP% and raced WebApplicationFactory host build; (2) ExceptionMiddlewareTests used IClassFixture OUTSIDE [Collection], so its factory ran in PARALLEL with the collection and raced the static HostFactoryResolver listener — a different test lost the race each run.",
+      "fix": "Removed RunSettingsFilePath (Coverlet) from the integration csproj + added [assembly: CollectionBehavior(DisableTestParallelization=true)]. Verified 28/28 across repeated runs."
     },
     {
       "id": "R3",
       "severity": "medium",
       "category": "config",
       "title": "Key Vault connection crashes server when no Azure credentials available",
-      "detail": "appsettings.Development.json has KeyVault:Uri set but no local Azure credentials. AddAzureKeyVault throws CredentialUnavailableException on startup.",
-      "fix": "Applied try-catch around AddAzureKeyVault in Program.cs — now logs warning and continues"
+      "status": "FIXED (prior run) — try/catch around AddAzureKeyVault logs warning and continues",
+      "fix": "Applied in Program.cs"
+    },
+    {
+      "id": "R4",
+      "severity": "low",
+      "category": "infra",
+      "title": "Testcontainers referenced but not used; Azurite lifecycle is manual",
+      "status": "OPEN",
+      "detail": "DotNet.Testcontainers is a PackageReference in the integration csproj, but CustomWebApplicationFactory probes a pre-started Azurite via TcpClient 127.0.0.1:10002 and falls back to NSubstitute mocks. The running container (poredoimage-azurite-dev) is not solution-named and is started outside the test process — violates 'manage the Azurite lifecycle strictly using Testcontainers, zero manual cleanup'.",
+      "fix": "Introduce a Testcontainers Azurite fixture in the collection that starts/stops the container per test session"
+    },
+    {
+      "id": "R5",
+      "severity": "low",
+      "category": "config",
+      "title": "Test-environment naming drift",
+      "status": "OPEN",
+      "detail": "Strategy references appsettings.Testing.json; repo uses appsettings.Test.json (ASPNETCORE_ENVIRONMENT=Test, wired into Playwright webServer). Integration factory uses UseEnvironment('Development') with in-memory overrides rather than the Test profile.",
+      "fix": "Standardize on the 'Test' environment name and point the integration factory at it"
+    },
+    {
+      "id": "R6",
+      "severity": "low",
+      "category": "correctness",
+      "title": "'USING MOCK DATA' is config-flag driven, not IMockable-driven",
+      "status": "OPEN",
+      "detail": "MainLayout shows the badge from FeatureFlags:EnableMockDataForTesting, not from detecting active IMockable service implementations as the strategy specifies.",
+      "fix": "Resolve IMockable registrations at startup and surface that to the feature-flags endpoint"
     }
   ],
-  "verticalSlices": [
-    {
-      "name": "SmartAlert",
-      "status": "Implemented",
-      "files": ["AlertEndpoints.cs", "AlertService.cs", "IAlertService.cs", "AlertRule.cs", "AlertRuleDto.cs", "Alerts.razor", "CreateAlertRuleDialog.razor"],
-      "tests": "Unit tests pass, integration tests pass"
-    },
-    {
-      "name": "CommitTagger",
-      "status": "Implemented",
-      "files": ["CommitTaggerService.cs", "CommitLineCount.cs (Tags property)", "CommitLineCountEntity.cs (TagsJson)"],
-      "tests": "259 lines of unit tests — all pass"
-    },
-    {
-      "name": "InstantReplay",
-      "status": "Implemented",
-      "files": ["TimelineScrubber.razor", "DailyLineCountDto.cs (Tags, AverageAiPercentage)"],
-      "tests": "Component-level, no dedicated tests yet"
-    },
-    {
-      "name": "PocketView",
-      "status": "Implemented",
-      "files": ["MobileRepoCard.razor", "MainLayout.razor.css (mobile breakpoints)", "app.css (mobile classes)"],
-      "tests": "Visual/CSS only — no unit tests"
-    },
-    {
-      "name": "AuthModernization",
-      "status": "Implemented",
-      "files": ["AuthEndpoints.cs (GUEST login)", "AuthServiceExtensions.cs (Microsoft OAuth)", "ProductionAuthEnforcementMiddleware.cs", "Login.razor (GUEST button)", "ApiAuthenticationStateProvider.cs (LocalStorage persistence)"],
-      "tests": "Integration tests pass with test factory mocks"
-    },
-    {
-      "name": "DTOSharedMigration",
-      "status": "Implemented",
-      "files": ["All DTOs moved from Application/Models to Shared/Models/Dtos", "Client project no longer references Application"],
-      "tests": "Build succeeds, all tests pass"
-    }
-  ],
+  "noIoAudit": {
+    "rule": "Unit tier = No-IO (no fs/net/db)",
+    "result": "PASS — sampled unit tests use MemoryStream + NSubstitute; no real filesystem/network/DB access detected"
+  },
+  "scriptsHygiene": {
+    "setupPs1": "PASS — orchestrates Winget check, Docker install+`docker compose up -d`, Azure CLI install + `az account show`/`az login`, and port 5000/5001 cleanup"
+  },
   "workflowState": {
-    "phase": "Verified",
-    "nextStep": "Fix R1 (ChartDisplayMode default mismatch), then proceed to Po3 — Radzen 10.x + AppInsights 3.x staged upgrade with full UI regression"
+    "phase": "Tested",
+    "nextStep": "Execute the new GUEST E2E spec headless (`npm run test:e2e`); then address R4 (Testcontainers-managed Azurite) and trim the unit tier under the 100 cap. Hold R1 open until verified against live Azurite."
   }
 }

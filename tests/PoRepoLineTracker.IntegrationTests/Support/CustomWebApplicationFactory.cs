@@ -99,19 +99,32 @@ namespace PoRepoLineTracker.IntegrationTests
                 };
                 config.AddInMemoryCollection(inMemorySettings);
 
-                // Detect local Azurite on default table port
+                // Prefer the Testcontainers-managed Azurite (AzuriteFixture). If that is not
+                // available (Docker absent), fall back to probing a locally-running Azurite on
+                // the default table port via IPv4. Either way, no manual container cleanup.
                 _azuriteAvailable = false;
                 _azuriteConnectionString = "";
                 try
                 {
-                    using (var tcp = new System.Net.Sockets.TcpClient())
+                    if (!string.IsNullOrEmpty(AzuriteState.ConnectionString))
                     {
-                        var task = tcp.ConnectAsync("127.0.0.1", 10002);
-                        _azuriteAvailable = task.Wait(1500) && tcp.Connected;
+                        _azuriteConnectionString = AzuriteState.ConnectionString!;
+                        _azuriteAvailable = true;
+                    }
+                    else
+                    {
+                        using (var tcp = new System.Net.Sockets.TcpClient())
+                        {
+                            var task = tcp.ConnectAsync("127.0.0.1", 10002);
+                            _azuriteAvailable = task.Wait(1500) && tcp.Connected;
+                        }
+                        if (_azuriteAvailable)
+                        {
+                            _azuriteConnectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;";
+                        }
                     }
                     if (_azuriteAvailable)
                     {
-                        _azuriteConnectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;";
                         var serviceClient = new Azure.Data.Tables.TableServiceClient(_azuriteConnectionString);
                         var testTables = new[] {
                             "PoRepoLineTrackerRepositoriesTest",
@@ -272,7 +285,7 @@ namespace PoRepoLineTracker.IntegrationTests
                 services.AddSingleton<NoOpHostedService>();
             });
 
-            builder.UseEnvironment("Development");
+            builder.UseEnvironment("Test");
         }
 
         // No-op hosted service used to replace real background services during tests

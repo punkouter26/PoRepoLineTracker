@@ -1,0 +1,21 @@
+.ai-model-card {
+    /* Compact card; fluid width so it adapts without media queries (Rule 8 mobile-first). */
+    max-width: clamp(240px, 100%, 420px);
+}
+
+.ai-model-select {
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    font-size: clamp(0.85rem, 2.2vw, 1rem);
+    border: 1px solid var(--rz-border-disabled-color, #ccc);
+    border-radius: var(--rz-border-radius, 6px);
+    background: var(--rz-base-background-color, #fff);
+    color: var(--rz-text-color, #222);
+    cursor: pointer;
+    min-height: 44px; /* touch target */
+}
+
+.ai-model-select:focus-visible {
+    outline: 2px solid var(--rz-primary, #2563eb);
+    outline-offset: 1px;
+}

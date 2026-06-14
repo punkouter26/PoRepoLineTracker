@@ -92,14 +92,22 @@ internal static class SettingsEndpoints
         // Public endpoint: exposes client-visible feature flags so the Blazor WASM app
         // can adapt its UI without requiring additional auth (e.g. MockDataBanner).
         // Strategy Pattern (GoF): flags act as runtime strategy selectors.
-        app.MapGet("/api/feature-flags", (IConfiguration configuration) =>
+        app.MapGet("/api/feature-flags", (IConfiguration configuration, IWebHostEnvironment env, IEnumerable<IMockable> mockableServices) =>
         {
+            // Mock mode is on when the feature flag is set OR any IMockable service is registered,
+            // so the "USING MOCK DATA" badge tracks the actual wiring, not just configuration.
+            var usingMockData = configuration.GetValue<bool>("FeatureFlags:EnableMockDataForTesting")
+                                || mockableServices.Any();
+
             var flags = new
             {
-                EnableMockDataForTesting = configuration.GetValue<bool>("FeatureFlags:EnableMockDataForTesting"),
+                EnableMockDataForTesting = usingMockData,
                 EnableGitHubApi = configuration.GetValue<bool>("FeatureFlags:EnableGitHubApi"),
                 EnableBackgroundAnalysis = configuration.GetValue<bool>("FeatureFlags:EnableBackgroundAnalysis"),
-                EnableOpenTelemetryExport = configuration.GetValue<bool>("FeatureFlags:EnableOpenTelemetryExport")
+                EnableOpenTelemetryExport = configuration.GetValue<bool>("FeatureFlags:EnableOpenTelemetryExport"),
+                // Server-authoritative gate for the GUEST login button (Rule 6 / Rule 13). True in
+                // any non-production environment — the client must not infer this from the hostname.
+                EnableGuestMode = !env.IsProduction()
             };
             return Results.Ok(flags);
         })

@@ -56,8 +56,9 @@ public class ProductionAuthEnforcementMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // In Development, allow everything (GUEST mode, local testing)
-        if (_env.IsDevelopment())
+        // In any non-Production environment (Development, Test), allow everything so GUEST
+        // mode, local development and E2E runs work. OAuth is enforced only in Production (Rule 13).
+        if (!_env.IsProduction())
         {
             await _next(context);
             return;

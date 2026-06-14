@@ -4,6 +4,7 @@
   "description": "E2E tests for PoRepoLineTracker using Playwright and TypeScript",
   "main": "index.js",
   "scripts": {
+    "pretest": "npx playwright install msedge chromium",
     "test": "npx playwright test",
     "test:headed": "npx playwright test --headed",
     "test:debug": "npx playwright test --debug",

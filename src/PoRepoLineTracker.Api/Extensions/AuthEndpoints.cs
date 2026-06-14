@@ -58,13 +58,13 @@ internal static class AuthEndpoints
         })
         .WithName("Logout");
 
-        // GUEST login — dev-only. Creates a session with username "GUEST{random 8 digits}".
-        // The button is programmatically hidden in production; this server-side guard prevents
-        // direct URL access.
+        // GUEST login — allowed in dev/test only. Creates a session with username
+        // "GUEST{random 8 digits}". The button is programmatically hidden in production; this
+        // server-side guard rejects direct URL access in Production (Rule 6 / Rule 13).
         // SOLID — OCP: adds a new auth path without modifying existing OAuth providers.
         app.MapGet("/api/auth/login-guest", (IWebHostEnvironment env) =>
         {
-            if (!env.IsDevelopment())
+            if (env.IsProduction())
                 return Results.Forbid();
 
             var randomSuffix = Random.Shared.Next(10000000, 99999999).ToString();

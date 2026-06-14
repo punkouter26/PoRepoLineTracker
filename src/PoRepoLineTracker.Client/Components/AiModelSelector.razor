@@ -1,0 +1,84 @@
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+@* Rule 14 — home-page AI model selector. Models are grouped into the three required
+   categories (Remote / Browser / Ollama). The choice is persisted to localStorage so it
+   survives refreshes and works for both OAuth and GUEST users. A native <select> with
+   <optgroup> is used so the three groups render reliably and accessibly. *@
+<RadzenCard class="ai-model-card">
+    <RadzenStack Gap="0.5rem">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.4rem">
+            <RadzenIcon Icon="smart_toy" Style="color: var(--rz-primary);" />
+            <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin: 0; font-weight: 600;">AI Model</RadzenText>
+        </RadzenStack>
+
+        @if (_models is null)
+        {
+            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">Loading models…</RadzenText>
+        }
+        else if (_models.Count == 0)
+        {
+            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">No AI models available.</RadzenText>
+        }
+        else
+        {
+            <select class="ai-model-select" value="@_selectedId" @onchange="OnModelChanged" aria-label="Select AI model">
+                @foreach (var group in _models.GroupBy(m => m.Category))
+                {
+                    <optgroup label="@CategoryLabel(group.Key)">
+                        @foreach (var model in group)
+                        {
+                            <option value="@model.Id" selected="@(model.Id == _selectedId)">@model.DisplayName</option>
+                        }
+                    </optgroup>
+                }
+            </select>
+        }
+    </RadzenStack>
+</RadzenCard>
+
+@code {
+    private const string StorageKey = "selectedAiModel";
+    private List<AiModelDto>? _models;
+    private string? _selectedId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _models = await Http.GetFromJsonAsync<List<AiModelDto>>("api/ai-models");
+        }
+        catch
+        {
+            // Non-critical — show an empty state rather than breaking the home page.
+            _models = new();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _models is null || _models.Count == 0)
+            return;
+
+        var saved = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+        _selectedId = _models.Any(m => m.Id == saved)
+            ? saved
+            : _models.First().Id;
+        StateHasChanged();
+    }
+
+    private async Task OnModelChanged(ChangeEventArgs e)
+    {
+        _selectedId = e.Value?.ToString();
+        if (!string.IsNullOrEmpty(_selectedId))
+            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, _selectedId);
+    }
+
+    private static string CategoryLabel(AiModelCategory category) => category switch
+    {
+        AiModelCategory.Remote => "Remote — Azure OpenAI",
+        AiModelCategory.Browser => "Browser — runs in your browser",
+        AiModelCategory.Ollama => "Ollama — local models",
+        _ => category.ToString()
+    };
+}

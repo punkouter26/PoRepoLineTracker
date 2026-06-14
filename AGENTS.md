@@ -29,7 +29,17 @@ PoRepoLineTracker.Client          → Blazor WASM UI (depends on Shared + Domain
 
 - **GitHub OAuth**: Primary auth via AspNet.Security.OAuth.GitHub
 - **Microsoft OAuth**: Secondary auth via generic OAuth2 to Microsoft identity platform
-- **GUEST Mode**: Dev-only. Clicking "Login as GUEST" creates a session with username `GUEST{random 8 digits}`. Persisted in LocalStorage. Button hidden in production.
+- **GUEST Mode**: Allowed in dev/test (hidden + server-rejected in Production). Clicking "Login as GUEST" creates a session with username `GUEST{random 8 digits}`. Persisted in LocalStorage. Button visibility is gated by the server-authoritative `EnableGuestMode` flag from `/api/feature-flags` (not by hostname).
+- **Production enforcement**: `ProductionAuthEnforcementMiddleware` challenges unauthenticated requests to OAuth only in Production; all non-prod environments are open.
+
+## AI Model Selection (Rule 14)
+
+- `GET /api/ai-models` returns the selectable model catalog grouped into three categories: **Remote** (Azure OpenAI), **Browser** (in-browser WASM), and **Ollama** (local — only included when the app is NOT running in Azure App Service, i.e. `WEBSITE_SITE_NAME` unset).
+- The home page (`Repositories.razor`) renders `AiModelSelector.razor`, a grouped dropdown; the choice is persisted to `localStorage` (`selectedAiModel`) so it works for both OAuth and GUEST users.
+
+## Versioning
+
+- Git-driven via **MinVer** (tag prefix `v`, e.g. `v1.2.3`). No tags → `0.0.0-alpha.0.<height>`.
 
 ## Configuration Hierarchy
 
