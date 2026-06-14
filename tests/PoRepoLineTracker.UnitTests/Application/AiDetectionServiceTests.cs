@@ -21,24 +21,13 @@ public class AiDetectionServiceTests
         _sut = new AiDetectionService(_logger);
     }
 
-    [Fact]
-    public async Task AnalyzeContentAsync_EmptyContent_ReturnsZero()
+    [Theory]
+    [InlineData("")]            // empty
+    [InlineData(null)]          // null
+    [InlineData("   \n\n  ")]   // whitespace only
+    public async Task AnalyzeContentAsync_EmptyOrWhitespace_ReturnsZero(string? content)
     {
-        var result = await _sut.AnalyzeContentAsync("", ".cs");
-        result.Should().Be(0.0);
-    }
-
-    [Fact]
-    public async Task AnalyzeContentAsync_NullContent_ReturnsZero()
-    {
-        var result = await _sut.AnalyzeContentAsync(null!, ".cs");
-        result.Should().Be(0.0);
-    }
-
-    [Fact]
-    public async Task AnalyzeContentAsync_WhitespaceOnly_ReturnsZero()
-    {
-        var result = await _sut.AnalyzeContentAsync("   \n\n  ", ".cs");
+        var result = await _sut.AnalyzeContentAsync(content!, ".cs");
         result.Should().Be(0.0);
     }
 
@@ -79,20 +68,14 @@ public class AiDetectionServiceTests
         result.Should().BeGreaterThan(1.5, "Wildcard import should elevate score above zero");
     }
 
-    [Fact]
-    public async Task AnalyzeContentAsync_HumanDebugStatements_ReturnsLowerScore()
+    [Theory]
+    [InlineData("console.log('debug: value is', x);\nassert(x != null);\n// FIXME: edge case with null", ".js")] // human debug patterns
+    [InlineData("// TODO: refactor this module 2025\nif (value == null) return;", ".cs")]                          // dated TODO marker
+    [InlineData("int x = 42;\nif (x > 0)\n{\n    Console.WriteLine(x);\n}", ".cs")]                                 // simple human code
+    public async Task AnalyzeContentAsync_HumanWrittenCode_ReturnsLowScore(string content, string extension)
     {
-        var content = "console.log('debug: value is', x);\nassert(x != null);\n// FIXME: edge case with null";
-        var result = await _sut.AnalyzeContentAsync(content, ".js");
-        result.Should().BeLessThan(5.0, "Human debug patterns should keep score low");
-    }
-
-    [Fact]
-    public async Task AnalyzeContentAsync_HumanDatedTodo_ReturnsLowerScore()
-    {
-        var content = "// TODO: refactor this module 2025\nif (value == null) return;";
-        var result = await _sut.AnalyzeContentAsync(content, ".cs");
-        result.Should().BeLessThan(5.0, "Dated TODO markers indicate human code");
+        var result = await _sut.AnalyzeContentAsync(content, extension);
+        result.Should().BeLessThan(5.0, "human-written code should keep the AI score low");
     }
 
     [Fact]
@@ -111,14 +94,6 @@ public class AiDetectionServiceTests
         var content = "// This function calculates the sum\n// It takes two parameters\n// a is the first number\n// b is the second number\n// Returns the sum of a and b\nint Add(int a, int b) { return a + b; }";
         var result = await _sut.AnalyzeContentAsync(content, ".cs");
         result.Should().BeGreaterThanOrEqualTo(0.0);
-    }
-
-    [Fact]
-    public async Task AnalyzeContentAsync_SimpleHumanCode_ReturnsLowScore()
-    {
-        var content = "int x = 42;\nif (x > 0)\n{\n    Console.WriteLine(x);\n}";
-        var result = await _sut.AnalyzeContentAsync(content, ".cs");
-        result.Should().BeLessThan(5.0, "Simple human code should have low AI score");
     }
 
     [Fact]

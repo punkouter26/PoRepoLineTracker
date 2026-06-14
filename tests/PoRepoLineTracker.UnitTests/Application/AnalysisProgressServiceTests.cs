@@ -65,13 +65,19 @@ public class AnalysisProgressServiceTests
     }
 
     [Fact]
-    public void ReportCommitsFound_NonExistentRepository_NoOp()
+    public void Report_NonExistentRepository_AreNoOps()
     {
+        // Reporting progress/commits/completion for an unknown repo must not throw and must
+        // not create an entry. (ReportError is intentionally different — it creates one.)
         var repoId = Guid.NewGuid();
 
-        // Should not throw
         _sut.ReportCommitsFound(repoId, 10);
+        _sut.GetProgress(repoId).Should().BeNull();
 
+        _sut.ReportCommitProgress(repoId, 5, 10);
+        _sut.GetProgress(repoId).Should().BeNull();
+
+        _sut.ReportComplete(repoId);
         _sut.GetProgress(repoId).Should().BeNull();
     }
 
@@ -90,16 +96,6 @@ public class AnalysisProgressServiceTests
     }
 
     [Fact]
-    public void ReportCommitProgress_NonExistentRepository_NoOp()
-    {
-        var repoId = Guid.NewGuid();
-
-        _sut.ReportCommitProgress(repoId, 5, 10);
-
-        _sut.GetProgress(repoId).Should().BeNull();
-    }
-
-    [Fact]
     public void ReportComplete_MarksAsNotRunning()
     {
         var repoId = Guid.NewGuid();
@@ -112,16 +108,6 @@ public class AnalysisProgressServiceTests
         var progress = _sut.GetProgress(repoId);
         progress!.IsRunning.Should().BeFalse();
         progress.ErrorMessage.Should().BeNull();
-    }
-
-    [Fact]
-    public void ReportComplete_NonExistentRepository_NoOp()
-    {
-        var repoId = Guid.NewGuid();
-
-        _sut.ReportComplete(repoId);
-
-        _sut.GetProgress(repoId).Should().BeNull();
     }
 
     [Fact]

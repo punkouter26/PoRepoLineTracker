@@ -33,182 +33,79 @@ public class CommitTaggerServiceTests
 
     #region AI-Related Tags
 
-    [Fact]
-    public void ClassifyCommit_AiPercentage80Plus_ReturnsAiHeavy()
+    // Consolidated AI-tier cases. Asserts both the expected tier AND mutual exclusivity of the
+    // other tiers (preserving every assertion from the original four single-input facts).
+    [Theory]
+    [InlineData(85, "ai-heavy")]
+    [InlineData(60, "ai-moderate")]
+    [InlineData(30, "ai-light")]
+    [InlineData(10, null)]        // below 25 → no AI tier
+    public void ClassifyCommit_AiPercentage_ReturnsExpectedTier(double aiPercentage, string? expectedTier)
     {
-        var commit = CreateCommit(aiPercentage: 85, linesAdded: 10);
+        var allTiers = new[] { "ai-heavy", "ai-moderate", "ai-light" };
+        var tags = CommitTaggerService.ClassifyCommit(CreateCommit(aiPercentage: aiPercentage, linesAdded: 10));
 
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().Contain("ai-heavy");
+        foreach (var tier in allTiers)
+        {
+            if (tier == expectedTier) tags.Should().Contain(tier);
+            else tags.Should().NotContain(tier);
+        }
     }
 
-    [Fact]
-    public void ClassifyCommit_AiPercentage50To79_ReturnsAiModerate()
+    [Theory]
+    [InlineData(60, 150, true)]   // AI Burst: >= 100 lines added AND >= 50% AI
+    [InlineData(80, 50, false)]   // < 100 lines added
+    [InlineData(30, 200, false)]  // < 50% AI
+    public void ClassifyCommit_AiBurst(double aiPercentage, int linesAdded, bool expected)
     {
-        var commit = CreateCommit(aiPercentage: 60, linesAdded: 10);
+        var tags = CommitTaggerService.ClassifyCommit(CreateCommit(aiPercentage: aiPercentage, linesAdded: linesAdded));
 
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().Contain("ai-moderate");
-        tags.Should().NotContain("ai-heavy");
-    }
-
-    [Fact]
-    public void ClassifyCommit_AiPercentage25To49_ReturnsAiLight()
-    {
-        var commit = CreateCommit(aiPercentage: 30, linesAdded: 10);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().Contain("ai-light");
-        tags.Should().NotContain("ai-moderate");
-        tags.Should().NotContain("ai-heavy");
-    }
-
-    [Fact]
-    public void ClassifyCommit_AiPercentageBelow25_NoAiTags()
-    {
-        var commit = CreateCommit(aiPercentage: 10, linesAdded: 10);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().NotContain("ai-heavy");
-        tags.Should().NotContain("ai-moderate");
-        tags.Should().NotContain("ai-light");
-    }
-
-    [Fact]
-    public void ClassifyCommit_AiBurst_LargeCommitWithHighAi()
-    {
-        // AI Burst: >= 100 lines added AND >= 50% AI
-        var commit = CreateCommit(aiPercentage: 60, linesAdded: 150);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().Contain("ai-burst");
-    }
-
-    [Fact]
-    public void ClassifyCommit_NotAiBurst_SmallCommitWithHighAi()
-    {
-        // Not AI Burst: < 100 lines added
-        var commit = CreateCommit(aiPercentage: 80, linesAdded: 50);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().NotContain("ai-burst");
-    }
-
-    [Fact]
-    public void ClassifyCommit_NotAiBurst_LargeCommitWithLowAi()
-    {
-        // Not AI Burst: < 50% AI
-        var commit = CreateCommit(aiPercentage: 30, linesAdded: 200);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().NotContain("ai-burst");
+        if (expected) tags.Should().Contain("ai-burst");
+        else tags.Should().NotContain("ai-burst");
     }
 
     #endregion
 
     #region Size-Based Tags
 
-    [Fact]
-    public void ClassifyCommit_HotStreak_500PlusLinesAdded()
+    [Theory]
+    [InlineData(500, true)]   // hot-streak: >= 500 lines added
+    [InlineData(499, false)]
+    public void ClassifyCommit_HotStreak(int linesAdded, bool expected)
     {
-        var commit = CreateCommit(aiPercentage: 0, linesAdded: 500);
+        var tags = CommitTaggerService.ClassifyCommit(CreateCommit(aiPercentage: 0, linesAdded: linesAdded));
 
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().Contain("hot-streak");
+        if (expected) tags.Should().Contain("hot-streak");
+        else tags.Should().NotContain("hot-streak");
     }
 
-    [Fact]
-    public void ClassifyCommit_NotHotStreak_Under500LinesAdded()
+    [Theory]
+    [InlineData(3, 2, true)]    // tiny: linesAdded <= 5 AND linesRemoved <= 5
+    [InlineData(3, 10, false)]  // too many removed
+    [InlineData(10, 2, false)]  // too many added
+    public void ClassifyCommit_Tiny(int linesAdded, int linesRemoved, bool expected)
     {
-        var commit = CreateCommit(aiPercentage: 0, linesAdded: 499);
+        var tags = CommitTaggerService.ClassifyCommit(CreateCommit(aiPercentage: 0, linesAdded: linesAdded, linesRemoved: linesRemoved));
 
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().NotContain("hot-streak");
-    }
-
-    [Fact]
-    public void ClassifyCommit_TinyCommit_FewLinesAddedAndRemoved()
-    {
-        var commit = CreateCommit(aiPercentage: 0, linesAdded: 3, linesRemoved: 2);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().Contain("tiny");
-    }
-
-    [Fact]
-    public void ClassifyCommit_NotTinyCommit_ManyLinesRemoved()
-    {
-        var commit = CreateCommit(aiPercentage: 0, linesAdded: 3, linesRemoved: 10);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().NotContain("tiny");
-    }
-
-    [Fact]
-    public void ClassifyCommit_NotTinyCommit_ManyLinesAdded()
-    {
-        var commit = CreateCommit(aiPercentage: 0, linesAdded: 10, linesRemoved: 2);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().NotContain("tiny");
+        if (expected) tags.Should().Contain("tiny");
+        else tags.Should().NotContain("tiny");
     }
 
     #endregion
 
     #region Diff Pattern Tags
 
-    [Fact]
-    public void ClassifyCommit_BugFix_MoreRemovedThanAdded_RatioAbove2()
+    [Theory]
+    [InlineData(10, 25, true)]   // bug-fix: LinesRemoved > LinesAdded AND ratio >= 2.0 AND added > 0
+    [InlineData(10, 15, false)]  // ratio < 2.0
+    [InlineData(25, 10, false)]  // more added than removed
+    [InlineData(0, 10, false)]   // requires LinesAdded > 0
+    public void ClassifyCommit_BugFix(int linesAdded, int linesRemoved, bool expected)
     {
-        // Bug fix: LinesRemoved > LinesAdded AND ratio >= 2.0
-        var commit = CreateCommit(aiPercentage: 0, linesAdded: 10, linesRemoved: 25);
+        var tags = CommitTaggerService.ClassifyCommit(CreateCommit(aiPercentage: 0, linesAdded: linesAdded, linesRemoved: linesRemoved));
 
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().Contain("bug-fix");
-    }
-
-    [Fact]
-    public void ClassifyCommit_NotBugFix_RatioBelow2()
-    {
-        var commit = CreateCommit(aiPercentage: 0, linesAdded: 10, linesRemoved: 15);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().NotContain("bug-fix");
-    }
-
-    [Fact]
-    public void ClassifyCommit_NotBugFix_MoreAddedThanRemoved()
-    {
-        var commit = CreateCommit(aiPercentage: 0, linesAdded: 25, linesRemoved: 10);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().NotContain("bug-fix");
-    }
-
-    [Fact]
-    public void ClassifyCommit_NotBugFix_ZeroLinesAdded()
-    {
-        // Bug fix requires LinesAdded > 0
-        var commit = CreateCommit(aiPercentage: 0, linesAdded: 0, linesRemoved: 10);
-
-        var tags = CommitTaggerService.ClassifyCommit(commit);
-
-        tags.Should().NotContain("bug-fix");
+        if (expected) tags.Should().Contain("bug-fix");
+        else tags.Should().NotContain("bug-fix");
     }
 
     #endregion
