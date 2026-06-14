@@ -17,6 +17,7 @@ env:
   API_PROJECT_PATH: src/PoRepoLineTracker.Api/PoRepoLineTracker.Api.csproj
   UNIT_TEST_PATH: tests/PoRepoLineTracker.UnitTests
 
+# Cancel superseded runs on the same ref to save runner minutes.
 concurrency:
   group: deploy-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: true
@@ -25,9 +26,7 @@ jobs:
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    outputs:
-      publish-cache-key: ${{ steps.cache-key.outputs.key }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -47,17 +46,9 @@ jobs:
         with:
           name: unit-test-results
           path: TestResults/*.trx
-      # Cache publish output — skip publish when dependencies are unchanged
-      - id: cache-key
-        run: echo "key=publish-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.razor', '**/*.cshtml', '**/*.css', '**/*.js', 'Directory.Packages.props', 'Directory.Build.props') }}" >> $GITHUB_OUTPUT
-      - uses: actions/cache@v4
-        id: publish-cache
-        with:
-          path: publish
-          key: ${{ steps.cache-key.outputs.key }}
-          restore-keys: publish-${{ runner.os }}-
-      - if: steps.publish-cache.outputs.cache-hit != 'true'
-        run: dotnet publish ${{ env.API_PROJECT_PATH }} -c Release --no-restore -o publish
+      # Publish fresh every run. (Publish-output caching was removed: its key did not
+      # hash *.cs, so pure C# changes hit the cache and shipped stale binaries.)
+      - run: dotnet publish ${{ env.API_PROJECT_PATH }} -c Release --no-restore -o publish
       - uses: actions/upload-artifact@v4
         with:
           name: webapp
@@ -75,11 +66,8 @@ jobs:
         with:
           name: webapp
           path: publish
-      # OIDC federated identity — no client secrets required
-      # Requires a federated identity credential in Azure AD matching:
-      #   subject: repo:punkouter26/PoRepoLineTracker:ref:refs/heads/master
-      #   issuer:  https://token.actions.githubusercontent.com
-      #   audience: api://AzureADTokenExchange
+      # OIDC federated identity — no client secrets stored in GitHub.
+      # Federated credential subject: repo:punkouter26/PoRepoLineTracker:ref:refs/heads/master
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
@@ -90,13 +78,24 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: webapp.zip
-      - name: Verify deployment (health check)
+      # Smoke test the live site. /health must be 200; the home page must NOT be 5xx
+      # (a 302 OAuth challenge is the expected unauthenticated response in Production).
+      - name: Post-deploy smoke test
         run: |
+          BASE="https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
           sleep 20
+          ok=""
           for i in 1 2 3 4 5; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health" --max-time 30 || echo "000")
-            echo "Health check attempt $i: HTTP $STATUS"
-            if [ "$STATUS" = "200" ]; then echo "Deployment verified."; exit 0; fi
+            HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/health" --max-time 30 || echo 000)
+            HOME=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/" --max-time 30 || echo 000)
+            echo "Attempt $i: /health=$HEALTH  /=$HOME"
+            if [ "$HEALTH" = "200" ] && [ "$HOME" != "000" ] && [ "${HOME:0:1}" != "5" ]; then
+              ok=1; break
+            fi
             sleep 15
           done
-          echo "WARNING: Health check did not return 200 after 5 attempts."
+          if [ -z "$ok" ]; then
+            echo "::error::Smoke test failed — /health not 200 or home page returned 5xx."
+            exit 1
+          fi
+          echo "Deployment verified: /health healthy, home page non-5xx."

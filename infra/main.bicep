@@ -4,8 +4,10 @@ targetScope = 'subscription'
 @description('Primary location for all resources')
 param location string = 'eastus2'
 
-// Naming convention: Po{SolutionName} prefix; resource group follows rg-Po{Name}-prod pattern
-var resourceGroupName = 'rg-PoRepoLineTracker-prod'
+// Naming convention: Po{SolutionName} prefix. The live app + storage reside in the
+// 'PoRepoLineTracker' resource group (not 'rg-...-prod'); keep Bicep aligned to reality
+// so a provision does not create a duplicate, empty resource group.
+var resourceGroupName = 'PoRepoLineTracker'
 var sharedResourceGroupName = 'PoShared'
 var storageAccountName = 'stporepolinetracker'  // Existing storage account in PoRepoLineTracker RG
 var appInsightsName = 'poappideinsights8f9c9a4e'  // Shared App Insights in PoShared RG

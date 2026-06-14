@@ -104,10 +104,16 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       appSettings: [
-        // Key Vault URL — app reads secrets via DefaultAzureCredential at startup
+        // Key Vault URI — app reads secrets via DefaultAzureCredential at startup.
+        // MUST be 'KeyVault__Uri' to bind to config key 'KeyVault:Uri' that Program.cs reads.
         {
-          name: 'KeyVault__Url'
+          name: 'KeyVault__Uri'
           value: sharedKeyVault.properties.vaultUri
+        }
+        // Explicit Production environment (App Service defaults to Production, but be explicit).
+        {
+          name: 'ASPNETCORE_ENVIRONMENT'
+          value: 'Production'
         }
         // Table Storage — use DefaultAzureCredential, not connection string keys
         {

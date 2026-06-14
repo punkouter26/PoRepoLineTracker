@@ -141,6 +141,12 @@
         await LoadData(days);
     }
 
+    /// <summary>
+    /// Reloads the chart for the current range. Called by the parent page when a
+    /// repository finishes analyzing so the growth overview refreshes automatically.
+    /// </summary>
+    public Task ReloadAsync() => LoadData(_days);
+
     private async Task LoadData(int days)
     {
         _isLoading = true;

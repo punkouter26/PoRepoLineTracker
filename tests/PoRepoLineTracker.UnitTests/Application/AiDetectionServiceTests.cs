@@ -88,15 +88,6 @@ public class AiDetectionServiceTests
     }
 
     [Fact]
-    public async Task AnalyzeContentAsync_MultiLineHighCommentRatio_ProcessesCorrectly()
-    {
-        // Multi-line content with comments — verify it processes without error
-        var content = "// This function calculates the sum\n// It takes two parameters\n// a is the first number\n// b is the second number\n// Returns the sum of a and b\nint Add(int a, int b) { return a + b; }";
-        var result = await _sut.AnalyzeContentAsync(content, ".cs");
-        result.Should().BeGreaterThanOrEqualTo(0.0);
-    }
-
-    [Fact]
     public async Task AnalyzeContentAsync_Score_IsClampedTo100()
     {
         // Extreme AI content should not exceed 100

@@ -152,7 +152,7 @@
                               Description="Switch between true values and a rolling 90-day moving average."
                               ValueChanged="OnChartDisplayModeChanged" />
 
-        <AllReposComparisonChart ChartDisplayMode="@_chartDisplayMode" />
+        <AllReposComparisonChart @ref="_comparisonChart" ChartDisplayMode="@_chartDisplayMode" />
 
         @* ─── Stats cards ──────────────────────────────────────────────────────── *@
         <RadzenRow Gap="0.75rem" Style="margin-bottom: 0.25rem;">
@@ -408,6 +408,7 @@
 
     private RepositoryPageState pageState = new();
     private RadzenDataGrid<RepositoryGridRow>? grid;
+    private AllReposComparisonChart? _comparisonChart;
     private Guid? reanalyzingRepositoryId;
     private bool _showAddPanel = false;
     private bool isRemovingAll = false;
@@ -532,9 +533,17 @@
         _showAddPanel = false;
         await LoadRepositories();
         await LoadLatestLineCounts();
+        await ReloadComparisonChartAsync();
         StartPassivePendingPollIfNeeded();
         StateHasChanged();
     }
+
+    /// <summary>
+    /// Reloads the "All Repositories — Growth Overview" chart on the UI context.
+    /// No-op until the chart is rendered (it only exists once repositories load).
+    /// </summary>
+    private Task ReloadComparisonChartAsync() =>
+        _comparisonChart is null ? Task.CompletedTask : InvokeAsync(_comparisonChart.ReloadAsync);
 
     private static string GetReanalysisElapsed(DateTime startTime)
     {
@@ -721,6 +730,7 @@
                     if (anyChange)
                     {
                         await LoadLatestLineCounts();
+                        await ReloadComparisonChartAsync();
                         await InvokeAsync(StateHasChanged);
                         if (grid is not null) await InvokeAsync(grid.Reload);
                     }
@@ -802,6 +812,7 @@
                         _reanalysisStartTimes.Remove(repositoryId);
                         _analysisProgress.Remove(repositoryId);
                         await LoadLatestLineCounts();
+                        await ReloadComparisonChartAsync();
 
                         NotificationService.Notify(new NotificationMessage
                         {
