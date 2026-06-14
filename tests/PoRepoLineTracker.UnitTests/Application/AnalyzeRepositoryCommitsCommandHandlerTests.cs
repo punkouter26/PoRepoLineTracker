@@ -1,5 +1,6 @@
 using FluentAssertions;
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -19,6 +20,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     private readonly IUserPreferencesService _prefsService = Substitute.For<IUserPreferencesService>();
     private readonly IAnalysisProgressService _progressService = Substitute.For<IAnalysisProgressService>();
     private readonly IAiDetectionService _aiDetectionService = Substitute.For<IAiDetectionService>();
+    private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger = Substitute.For<ILogger<AnalyzeRepositoryCommitsCommandHandler>>();
     private readonly AnalyzeRepositoryCommitsCommandHandler _sut;
 
@@ -26,7 +28,8 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     {
         _sut = new AnalyzeRepositoryCommitsCommandHandler(
             _gitHubService, _dataService, _failedOpService,
-            _userService, _prefsService, _progressService, _aiDetectionService, _logger);
+            _userService, _prefsService, _progressService, _aiDetectionService,
+            _configuration, _logger);
     }
 
     [Fact]
@@ -289,7 +292,14 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
-        _userService.GetAccessTokenAsync(userId).Returns("ghp_test_token");
+        // Real GitHub-logged-in user (GitHubId is numeric, not "ms:*")
+        _userService.GetUserByIdAsync(userId).Returns(new User
+        {
+            Id = userId,
+            GitHubId = "12345",
+            Username = "tester",
+            AccessToken = "ghp_test_token"
+        });
         _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
@@ -300,9 +310,53 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 
-        await _userService.Received(1).GetAccessTokenAsync(userId);
+        await _userService.Received(1).GetUserByIdAsync(userId);
         await _gitHubService.Received(1).PullRepositoryAsync("/path", "ghp_test_token");
         await _prefsService.Received(1).GetFileExtensionsAsync(userId);
+    }
+
+    [Fact]
+    public async Task Handle_MicrosoftLoggedInUser_FallsBackToConfiguredGitHubPat()
+    {
+        // Regression: a Microsoft Graph JWT was being used as a GitHub credential,
+        // which made libcurl reject the clone URL with "Port number was not a
+        // decimal number". When the user logged in via Microsoft (GitHubId starts
+        // with "ms:"), the handler must use the server-configured GitHub:PAT instead.
+        var repoId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var repo = new GitHubRepository
+        {
+            Id = repoId,
+            Owner = "o",
+            Name = "n",
+            CloneUrl = "url",
+            LocalPath = "/path",
+            UserId = userId
+        };
+
+        _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
+        _userService.GetUserByIdAsync(userId).Returns(new User
+        {
+            Id = userId,
+            GitHubId = "ms:abc123",           // Microsoft OAuth user
+            Username = "msuser",
+            AccessToken = "EwBYB...JWT..."    // A real Microsoft Graph JWT
+        });
+        _configuration["GitHub:PAT"].Returns("ghp_server_side_pat");
+        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
+        _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
+        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
+            .Returns(Enumerable.Empty<CommitStatsDto>());
+        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
+            .Returns(Enumerable.Empty<TopFileDto>());
+        _prefsService.GetFileExtensionsAsync(userId).Returns(new List<string>());
+
+        await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
+
+        // Must NOT use the Microsoft Graph JWT for the GitHub clone
+        await _gitHubService.DidNotReceive().PullRepositoryAsync(Arg.Any<string>(), Arg.Is<string?>(t => t != null && t.StartsWith("EwBY")));
+        // Must use the server-configured PAT instead
+        await _gitHubService.Received(1).PullRepositoryAsync("/path", "ghp_server_side_pat");
     }
 
     [Fact]

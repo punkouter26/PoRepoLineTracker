@@ -25,7 +25,19 @@ namespace PoRepoLineTracker.Infrastructure.Services
         {
             _logger.LogInformation("Cloning repository {RepoUrl} to {LocalPath} via git CLI", repoUrl, localPath);
 
-            // Embed token in URL for HTTPS authentication (x-access-token is the standard GitHub approach)
+            // Embed token in URL for HTTPS authentication (x-access-token is the standard GitHub approach).
+            // Sanity-check the token shape: only GitHub PATs (ghp_, gho_, ghu_, ghs_, ghr_) belong in
+            // a GitHub clone URL. Anything else (notably a Microsoft Graph JWT, which is ~1.5KB and
+            // starts with 'EwBY' or 'eyJ') would be silently rejected by libcurl with a confusing
+            // "Port number" error, so we surface a clear diagnostic before invoking git.
+            if (!string.IsNullOrEmpty(accessToken) && !LooksLikeGitHubToken(accessToken))
+            {
+                _logger.LogWarning(
+                    "Access token for clone of {RepoUrl} does not look like a GitHub PAT (length={Length}, prefix='{Prefix}'). Git will likely reject it. " +
+                    "Microsoft Graph JWTs (saved by Microsoft OAuth) must NOT be used as a GitHub credential — configure GitHub:PAT in Key Vault instead.",
+                    repoUrl, accessToken.Length, SafePrefix(accessToken));
+            }
+
             string cloneUrl = BuildAuthUrl(repoUrl, accessToken);
 
             RunGitProcess("clone", ["clone", "--quiet", "--", cloneUrl, localPath], workingDirectory: null);
@@ -33,6 +45,26 @@ namespace PoRepoLineTracker.Infrastructure.Services
             _logger.LogInformation("Successfully cloned {RepoUrl} to {LocalPath}", repoUrl, localPath);
             return localPath;
         }
+
+        private static bool LooksLikeGitHubToken(string token)
+        {
+            if (string.IsNullOrEmpty(token)) return false;
+            // Classic PATs: ghp_/gho_/ghu_/ghs_/ghr_  (length 36-40+ in practice)
+            // Fine-grained PATs: github_pat_  (length 82+)
+            if (token.StartsWith("ghp_", StringComparison.Ordinal) ||
+                token.StartsWith("gho_", StringComparison.Ordinal) ||
+                token.StartsWith("ghu_", StringComparison.Ordinal) ||
+                token.StartsWith("ghs_", StringComparison.Ordinal) ||
+                token.StartsWith("ghr_", StringComparison.Ordinal) ||
+                token.StartsWith("github_pat_", StringComparison.Ordinal))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        private static string SafePrefix(string token)
+            => token.Length <= 8 ? token : token.Substring(0, 4) + "…" + token.Substring(token.Length - 4);
 
         public void Pull(string localPath, string? accessToken = null)
         {
@@ -115,7 +147,13 @@ namespace PoRepoLineTracker.Infrastructure.Services
                 return repoUrl;
 
             var uri = new Uri(repoUrl);
-            return $"{uri.Scheme}://x-access-token:{accessToken}@{uri.Host}{uri.PathAndQuery}";
+
+            // URL-encode the token so any reserved characters (':', '/', '+', '=', etc.)
+            // cannot confuse libcurl's URL parser. Without this, a Microsoft Graph JWT
+            // embedded as a GitHub "token" produces "Port number was not a decimal
+            // number" because libcurl misreads part of the JWT as `host:port`.
+            var encodedToken = Uri.EscapeDataString(accessToken);
+            return $"{uri.Scheme}://x-access-token:{encodedToken}@{uri.Host}{uri.PathAndQuery}";
         }
 
         private void RunGitProcess(string operationLabel, string[] arguments, string? workingDirectory)

@@ -3,6 +3,7 @@ using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Application.Services;
 using PoRepoLineTracker.Domain.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -22,6 +23,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly IAnalysisProgressService _progressService;
     private readonly IAiDetectionService _aiDetectionService;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
 
     // #10 fix: per-repository semaphore prevents git Checkout() race conditions on shared local path
@@ -35,6 +37,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         IUserPreferencesService userPreferencesService,
         IAnalysisProgressService progressService,
         IAiDetectionService aiDetectionService,
+        IConfiguration configuration,
         ILogger<AnalyzeRepositoryCommitsCommandHandler> logger)
     {
         _gitHubService = gitHubService;
@@ -44,6 +47,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         _userPreferencesService = userPreferencesService;
         _progressService = progressService;
         _aiDetectionService = aiDetectionService;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -92,11 +96,49 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             await _repositoryDataService.UpdateRepositoryAsync(repository);
         }
 
-        // Get the user's access token for private repository access
+        // Resolve a GitHub-compatible access token for the clone/pull.
+        // IMPORTANT: a Microsoft Graph OAuth access token is a JWT (~1.5KB, contains
+        // '+' and '/' segments) and is NOT a GitHub token. Stuffing it into the clone
+        // URL as userinfo causes libcurl to reject it with "Port number was not a
+        // decimal number" because it parses parts of the JWT as a port. So we only
+        // use the user's stored token when the user actually signed in with GitHub;
+        // for Microsoft-authenticated users (or users with a missing/empty token)
+        // we fall back to the server-configured GitHub:PAT.
         string? accessToken = null;
         if (repository.UserId != Guid.Empty)
         {
-            accessToken = await _userService.GetAccessTokenAsync(repository.UserId);
+            var user = await _userService.GetUserByIdAsync(repository.UserId);
+            var loggedInWithGitHub = user is not null
+                && !string.IsNullOrEmpty(user.GitHubId)
+                && !user.GitHubId.StartsWith("ms:", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrEmpty(user.AccessToken);
+
+            if (loggedInWithGitHub)
+            {
+                accessToken = user!.AccessToken;
+            }
+            else
+            {
+                // Microsoft-authenticated user — fall back to the server-side GitHub PAT.
+                // GitHubEndpoints.cs applies the same rule for /api/github/user-repositories.
+                var configuredPat = _configuration["GitHub:PAT"];
+                if (!string.IsNullOrEmpty(configuredPat))
+                {
+                    _logger.LogInformation(
+                        "User {UserId} signed in with Microsoft; using server-configured GitHub:PAT for clone of {Owner}/{Name}",
+                        repository.UserId, repository.Owner, repository.Name);
+                    accessToken = configuredPat;
+                }
+            }
+        }
+        else
+        {
+            // Repository not tied to a user (e.g. legacy data) — try the server PAT.
+            var configuredPat = _configuration["GitHub:PAT"];
+            if (!string.IsNullOrEmpty(configuredPat))
+            {
+                accessToken = configuredPat;
+            }
         }
 
         try
