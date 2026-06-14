@@ -1,9 +1,30 @@
+# OS / Shell cruft (per repo-hygiene policy)
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*~               # Emacs / vim backup
+
 # IDE / Editor Directories
 .vs/
 .vscode/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# Per-user IDE state — never track these (rule: .user files are local-only)
+*.user
+*.suo
+*.userprefs
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
 
 # .NET Build Outputs
 bin/
