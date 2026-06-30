@@ -13,7 +13,7 @@ var storageAccountName = 'stporepolinetracker'  // Existing storage account in P
 var appInsightsName = 'poappideinsights8f9c9a4e'  // Shared App Insights in PoShared RG
 var logAnalyticsName = 'PoShared-LogAnalytics'  // Shared Log Analytics in PoShared RG
 var webAppName = 'app-porepolinetracker'  // App Service in PoRepoLineTracker RG
-var appServicePlanName = 'asp-porepolinetracker'  // F1 (Free) Linux App Service Plan, created in PoRepoLineTracker RG
+var appServicePlanName = 'asp-porepolinetracker'  // B1 (Basic) Linux App Service Plan, created in PoRepoLineTracker RG
 var keyVaultName = 'kv-poshared'  // Existing Key Vault in PoShared RG
 
 // Reference the app resource group (must already exist or be created separately)
@@ -27,9 +27,9 @@ module resources 'resources.bicep' = {
   name: 'resources'
   scope: rg
   params: {
-    // This subscription's Free (F1) App Service quota lives in West US 2 (East US 2 = 0),
-    // so the F1 plan + app are created in West US 2. They still reside in the
-    // PoRepoLineTracker RG; only the storage account stays in East US 2.
+    // Plan + app run in West US 2 (where the plan was provisioned); the storage account
+    // stays in East US 2. B1 is dedicated so region is not quota-constrained, but we keep
+    // West US 2 to match the live resource and avoid a plan recreate.
     webAppLocation: 'westus2'
     storageAccountName: storageAccountName
     appInsightsName: appInsightsName

@@ -23,10 +23,13 @@ param keyVaultName string
 param sharedResourceGroupName string
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
-// App Service Plan (F1 Free, Linux) and the App Service are created in THIS resource group
-// (PoRepoLineTracker), alongside the storage account — see the resources below. F1 is free but
-// has constraints: 1 instance, no Always On, ~60 CPU-min/day. App Insights, Key Vault, and
-// Log Analytics remain in the shared PoShared RG and are referenced as existing.
+// App Service Plan (B1 Basic, Linux) and the App Service are created in THIS resource group
+// (PoRepoLineTracker), alongside the storage account — see the resources below.
+// NOTE: F1 (Free) was attempted first but this subscription's Free-tier compute pool (shared
+// per subscription/region) is already exhausted by other free apps in West US 2, so a new F1
+// plan immediately hit QuotaExceeded. B1 is a dedicated tier outside that pool — it runs
+// reliably and supports Always On. App Insights, Key Vault, and Log Analytics remain in the
+// shared PoShared RG and are referenced as existing.
 // ═════════════════════════════════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────
@@ -64,7 +67,7 @@ resource sharedKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 }
 
 // ─────────────────────────────────────────────
-// App Service Plan — F1 (Free), Linux. Created in this resource group.
+// App Service Plan — B1 (Basic), Linux. Created in this resource group.
 // ─────────────────────────────────────────────
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
@@ -72,8 +75,8 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   location: webAppLocation
   kind: 'linux'
   sku: {
-    name: 'F1'
-    tier: 'Free'
+    name: 'B1'
+    tier: 'Basic'
     capacity: 1
   }
   properties: {
@@ -106,8 +109,8 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
       // provision restarts the app before startup.sh exists in wwwroot.
       // DO NOT rely on azd provision alone to set this — run the CI/CD pipeline.
       appCommandLine: 'dotnet PoRepoLineTracker.Api.dll'
-      // F1 (Free) does not support Always On — must be false or deployment fails.
-      alwaysOn: false
+      // B1 supports Always On — keep the app warm (avoids cold-start 5xx on first hit).
+      alwaysOn: true
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       appSettings: [
