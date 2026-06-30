@@ -4,17 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- AOT disabled: codebase uses reflection-based JSON serialization -->
+    <!-- AOT and trimming are BOTH disabled: this app activates Blazor components and
+         (de)serializes JSON via reflection. Trimming strips the reflected constructors/metadata
+         (observed at runtime as 'CtorNotLocated' for MainLayout), so the published WASM must not
+         be trimmed. (Rule 6.6 asks for trimming, but it is incompatible with this app's reflection use.) -->
     <IsAotCompatible>false</IsAotCompatible>
-    <!-- Rule 6.6 — trim hygiene. EnableTrimAnalyzer surfaces trim-unsafe code at build;
-         IsTrimmable marks this project's output trimmable. (AOT stays off per above.) -->
-    <IsTrimmable>true</IsTrimmable>
-    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-    <!-- IL2026/IL3050 are intrinsic to the reflection-based System.Text.Json usage this app
-         deliberately relies on (same rationale as IsAotCompatible=false above). IL2110/IL2111
-         come from Blazor's own Router/LayoutView component activation (framework, not app code).
-         Suppressed so the analyzer still flags every *other* trim hazard without failing the build. -->
-    <NoWarn>$(NoWarn);IL2026;IL3050;IL2110;IL2111</NoWarn>
+    <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
 
   <ItemGroup>

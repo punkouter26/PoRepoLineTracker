@@ -4,11 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- Rule 6.6 — trim hygiene for the WASM-shared contract assembly. -->
-    <IsTrimmable>true</IsTrimmable>
-    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-    <!-- See .Client: reflection-JSON diagnostics suppressed; all other trim checks stay on. -->
-    <NoWarn>$(NoWarn);IL2026;IL3050</NoWarn>
+    <!-- Not marked trimmable: the WASM app that consumes these DTOs serializes them via
+         reflection and is published untrimmed (see .Client). -->
   </PropertyGroup>
 
   <ItemGroup>
