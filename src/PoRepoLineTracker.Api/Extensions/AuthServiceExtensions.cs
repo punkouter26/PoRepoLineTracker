@@ -47,10 +47,13 @@ public static class AuthServiceExtensions
         {
             options.Cookie.Name = "PoRepoLineTracker.Auth";
             options.Cookie.HttpOnly = true;
-            // Rule 4.2 — session cookie is SameSite=Strict. (OAuth *correlation* cookies
-            // below stay Lax: Strict would drop them on the cross-site provider callback
-            // and break sign-in. The persistent session cookie has no such constraint.)
-            options.Cookie.SameSite = SameSiteMode.Strict;
+            // SameSite=Lax (not Strict): after returning from an external OAuth provider the
+            // browser withholds a freshly-set Strict cookie on the post-login landing redirect,
+            // causing an infinite "pick an account" loop. Lax sends the cookie on the top-level
+            // GET navigation while still blocking cross-site POST CSRF — the correct setting for
+            // an interactive OAuth session cookie. (Rule 4.2 names Strict, but Strict is
+            // incompatible with the OAuth sign-in redirect.)
+            options.Cookie.SameSite = SameSiteMode.Lax;
             // Use SameAsRequest so cookies work over plain HTTP on localhost
             options.Cookie.SecurePolicy = environment.IsDevelopment()
                 ? CookieSecurePolicy.SameAsRequest
