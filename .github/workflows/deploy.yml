@@ -148,7 +148,10 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      # Unique, per-run deployment name. A subscription-scoped deployment object is
+      # pinned to the location it was first created in, so a fixed name (e.g. "main")
+      # cannot move regions — use a fresh name each run to avoid InvalidDeploymentLocation.
       - name: What-if (preview changes)
-        run: az deployment sub what-if --location eastus2 --template-file infra/main.bicep || true
+        run: az deployment sub what-if --name "infra-${{ github.run_id }}" --location eastus2 --template-file infra/main.bicep || true
       - name: Deploy
-        run: az deployment sub create --location eastus2 --template-file infra/main.bicep
+        run: az deployment sub create --name "infra-${{ github.run_id }}" --location eastus2 --template-file infra/main.bicep
