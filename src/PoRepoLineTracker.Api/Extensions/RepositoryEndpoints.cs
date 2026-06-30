@@ -1,3 +1,4 @@
+using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using PoRepoLineTracker.Application.Interfaces;
@@ -149,7 +150,7 @@ internal static class RepositoryEndpoints
         .RequireAuthorization()
         .WithName("RemoveAllRepositories");
 
-        app.MapPost("/api/repositories/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory) =>
+        app.MapPost("/api/repositories/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory, IValidator<BulkRepositoryDto> repoValidator) =>
         {
             try
             {
@@ -160,6 +161,14 @@ internal static class RepositoryEndpoints
                 Log.Information("=== BULK REPOSITORY ADD ENDPOINT CALLED ===");
                 var repoList = repositories?.ToList() ?? [];
                 Log.Information("Number of repositories in request: {Count}", repoList.Count);
+
+                // Rule 2.2 — validate each entry with the shared FluentValidation rules.
+                foreach (var dto in repoList)
+                {
+                    var v = await repoValidator.ValidateAsync(dto);
+                    if (!v.IsValid)
+                        return Results.ValidationProblem(v.ToDictionary());
+                }
 
                 for (int i = 0; i < repoList.Count; i++)
                 {

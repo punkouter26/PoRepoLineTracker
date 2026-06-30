@@ -1,7 +1,7 @@
 namespace PoRepoLineTracker.Shared.Models;
 
 /// <summary>
-/// Represents the authentication status response returned by /api/auth/me.
+/// Represents the authentication status response returned by /auth/me.
 /// Shared between the API (return type) and the Blazor WASM client (deserialization target).
 /// </summary>
 public sealed record AuthResponse(

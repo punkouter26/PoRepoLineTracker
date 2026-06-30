@@ -2,6 +2,7 @@ using MediatR;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Application.Services;
+using PoRepoLineTracker.Application.Telemetry;
 using PoRepoLineTracker.Domain.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -279,16 +280,16 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                         if (existingCommit != null && existingCommit.LinesAdded == 0 && existingCommit.LinesRemoved == 0)
                         {
                             shouldProcessCommit = true;
-                            _logger.LogDebug("Force re-analyzing commit {CommitSha} with missing diff data", commitStat.Sha);
+                            _logger.ForceReanalyzingCommit(commitStat.Sha);
                         }
                         else
                         {
-                            _logger.LogDebug("Commit {CommitSha} already has diff data, skipping", commitStat.Sha);
+                            _logger.CommitAlreadyHasDiff(commitStat.Sha);
                         }
                     }
                     else
                     {
-                        _logger.LogDebug("Commit {CommitSha} already processed, skipping", commitStat.Sha);
+                        _logger.CommitAlreadyProcessed(commitStat.Sha);
                     }
                 }
                 else
@@ -334,8 +335,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                     commitLineCount.Tags = ClassifyCommit(commitLineCount);
 
                     await _repositoryDataService.AddCommitLineCountAsync(commitLineCount);
-                    _logger.LogDebug("Processed commit {CommitSha} with {TotalLines} lines (Added: {LinesAdded}, Removed: {LinesRemoved})",
-                        commitStat.Sha, totalLines, commitStat.LinesAdded, commitStat.LinesRemoved);
+                    _logger.ProcessedCommit(commitStat.Sha, totalLines, commitStat.LinesAdded, commitStat.LinesRemoved);
 
                     // Report commit progress every 5 commits to avoid excessive updates
                     processedCount++;

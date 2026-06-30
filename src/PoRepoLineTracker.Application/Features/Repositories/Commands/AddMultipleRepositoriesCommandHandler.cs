@@ -92,6 +92,21 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
         _logger.LogInformation("=== COMPLETED AddMultipleRepositoriesCommandHandler === Added={Added}, AlreadyTracked={AlreadyTracked}",
             added.Count, alreadyTracked.Count);
 
-        return new BulkAddResult { Added = added, AlreadyTracked = alreadyTracked };
+        return new BulkAddResult
+        {
+            Added = [.. added.Select(ToDto)],
+            AlreadyTracked = [.. alreadyTracked.Select(ToDto)]
+        };
     }
+
+    private static GitHubRepositoryDto ToDto(GitHubRepository repo) => new()
+    {
+        Id = repo.Id,
+        UserId = repo.UserId,
+        Owner = repo.Owner,
+        Name = repo.Name,
+        CloneUrl = repo.CloneUrl,
+        LastAnalyzedCommitDate = repo.LastAnalyzedCommitDate,
+        LocalPath = repo.LocalPath
+    };
 }

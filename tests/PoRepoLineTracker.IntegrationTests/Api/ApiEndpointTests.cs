@@ -156,7 +156,7 @@ public class ApiEndpointTests
     [Fact]
     public async Task AuthMe_Returns_200_With_UserInfo()
     {
-        var response = await _client.GetAsync("/api/auth/me");
+        var response = await _client.GetAsync("/auth/me");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();

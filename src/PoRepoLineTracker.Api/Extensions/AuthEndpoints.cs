@@ -12,7 +12,7 @@ internal static class AuthEndpoints
 {
     internal static void MapAuthEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/auth/login", (string? returnUrl, IConfiguration config) =>
+        app.MapGet("/auth/login", (string? returnUrl, IConfiguration config) =>
         {
             var ghClientId = config["GitHub:ClientId"];
             var msClientId = config["Microsoft:ClientId"];
@@ -44,25 +44,26 @@ internal static class AuthEndpoints
 
         // Microsoft OAuth login — challenges Microsoft account provider
         // "Microsoft" is MicrosoftAccountDefaults.AuthenticationScheme (scheme name string)
-        app.MapGet("/api/auth/login-microsoft", (string? returnUrl) =>
+        app.MapGet("/auth/login/microsoft", (string? returnUrl) =>
             Results.Challenge(
                 new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },
                 ["Microsoft"]))
             .WithName("LoginMicrosoft")
             .AllowAnonymous();
 
-        app.MapGet("/api/auth/logout", async (HttpContext context) =>
+        app.MapGet("/auth/logout", async (HttpContext context) =>
         {
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.Redirect("/");
         })
         .WithName("Logout");
 
-        // GUEST login — allowed in dev/test only. Creates a session with username
-        // "GUEST{random 8 digits}". The button is programmatically hidden in production; this
+        // Fake/Guest login (Rule 4.4) — allowed in dev/test only. Creates a cookie session
+        // with username "GUEST{random 8 digits}". The button is hidden in production; this
         // server-side guard rejects direct URL access in Production (Rule 6 / Rule 13).
-        // SOLID — OCP: adds a new auth path without modifying existing OAuth providers.
-        app.MapGet("/api/auth/login-guest", (IWebHostEnvironment env) =>
+        // For automated tests, the header-based FakeAuthHandler ("Fake" scheme) is the
+        // non-interactive equivalent — see AuthServiceExtensions.
+        app.MapGet("/auth/login/fake", (IWebHostEnvironment env) =>
         {
             if (env.IsProduction())
                 return Results.Forbid();
@@ -89,10 +90,10 @@ internal static class AuthEndpoints
                 },
                 CookieAuthenticationDefaults.AuthenticationScheme);
         })
-        .WithName("LoginGuest")
+        .WithName("LoginFake")
         .AllowAnonymous();
 
-        app.MapGet("/api/auth/me", async (HttpContext context, IUserService userService) =>
+        app.MapGet("/auth/me", async (HttpContext context, IUserService userService) =>
         {
             if (context.User.Identity?.IsAuthenticated != true)
                 return Results.Ok(new AuthResponse(IsAuthenticated: false));

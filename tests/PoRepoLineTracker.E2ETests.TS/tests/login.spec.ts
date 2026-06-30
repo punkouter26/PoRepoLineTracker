@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
  * Login / Authentication E2E tests.
  *
  * All pages are [Authorize]-protected. Unauthenticated users are automatically
- * redirected through RedirectToLogin → /api/auth/login → GitHub OAuth.
+ * redirected through RedirectToLogin → /auth/login → GitHub OAuth.
  * These tests validate that redirect chain works and the auth API behaves correctly.
  */
 
@@ -19,8 +19,8 @@ test.describe('Login / Authentication', () => {
     expect(page.url()).toContain('/login');
   });
 
-  test('api/auth/login is handled gracefully (302 challenge when configured, else 503)', async ({ request }) => {
-    const response = await request.get('/api/auth/login', { maxRedirects: 0 });
+  test('auth/login is handled gracefully (302 challenge when configured, else 503)', async ({ request }) => {
+    const response = await request.get('/auth/login', { maxRedirects: 0 });
     // When GitHub OAuth is configured (dev/prod) the endpoint issues a 302 challenge to GitHub.
     // In the Test environment there are no OAuth secrets, so it returns a graceful 503
     // ProblemDetails instead of an unhandled 500 — both are "handled", never a crash.
@@ -30,8 +30,8 @@ test.describe('Login / Authentication', () => {
     }
   });
 
-  test('api/auth/me returns isAuthenticated=false for anonymous', async ({ request }) => {
-    const response = await request.get('/api/auth/me');
+  test('auth/me returns isAuthenticated=false for anonymous', async ({ request }) => {
+    const response = await request.get('/auth/me');
     expect(response.ok()).toBeTruthy();
 
     const data = await response.json();
@@ -40,7 +40,7 @@ test.describe('Login / Authentication', () => {
 
   test('logout endpoint redirects to home without 5xx', async ({ request }) => {
     // An unauthenticated logout should gracefully redirect, not crash
-    const response = await request.get('/api/auth/logout', { maxRedirects: 0 });
+    const response = await request.get('/auth/logout', { maxRedirects: 0 });
     expect(response.status()).toBeLessThan(500);
   });
 });

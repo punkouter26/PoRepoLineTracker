@@ -1,3 +1,4 @@
+using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using PoRepoLineTracker.Application.Interfaces;
@@ -47,10 +48,14 @@ internal static class AlertEndpoints
         .RequireAuthorization()
         .WithName("GetAlertRules");
 
-        app.MapPost("/api/alerts/rules", async (CreateAlertRuleRequest request, HttpContext ctx, IAlertService alertService) =>
+        app.MapPost("/api/alerts/rules", async (CreateAlertRuleRequest request, HttpContext ctx, IAlertService alertService, IValidator<CreateAlertRuleRequest> validator) =>
         {
             var userId = GetUserId(ctx);
             if (userId == null) return Results.Unauthorized();
+
+            var validation = await validator.ValidateAsync(request);
+            if (!validation.IsValid)
+                return Results.ValidationProblem(validation.ToDictionary());
 
             try
             {

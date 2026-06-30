@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using AspNet.Security.OAuth.GitHub;
 using Microsoft.AspNetCore.DataProtection;
@@ -46,7 +47,10 @@ public static class AuthServiceExtensions
         {
             options.Cookie.Name = "PoRepoLineTracker.Auth";
             options.Cookie.HttpOnly = true;
-            options.Cookie.SameSite = SameSiteMode.Lax;
+            // Rule 4.2 — session cookie is SameSite=Strict. (OAuth *correlation* cookies
+            // below stay Lax: Strict would drop them on the cross-site provider callback
+            // and break sign-in. The persistent session cookie has no such constraint.)
+            options.Cookie.SameSite = SameSiteMode.Strict;
             // Use SameAsRequest so cookies work over plain HTTP on localhost
             options.Cookie.SecurePolicy = environment.IsDevelopment()
                 ? CookieSecurePolicy.SameAsRequest
@@ -55,6 +59,12 @@ public static class AuthServiceExtensions
             options.SlidingExpiration = true;
             options.LoginPath = "/auth/login";
             options.LogoutPath = "/auth/logout";
+            // Rule 4.4 — outside Production, a request carrying X-Fake-User authenticates
+            // via the header-based FakeAuthHandler instead of the cookie.
+            options.ForwardDefaultSelector = ctx =>
+                !environment.IsProduction() && ctx.Request.Headers.ContainsKey(FakeAuthHandler.UserHeader)
+                    ? FakeAuthHandler.SchemeName
+                    : null;
             options.Events.OnRedirectToLogin = context =>
             {
                 if (context.Request.Path.StartsWithSegments("/api"))
@@ -99,11 +109,11 @@ public static class AuthServiceExtensions
 
                 // Return 401 for API fetch calls instead of redirecting to GitHub OAuth,
                 // which would cause a browser CORS error on the cross-origin redirect.
-                // Exclude /api/auth/login — that endpoint intentionally challenges to GitHub.
+                // /auth/login is a top-level navigation that intentionally challenges to GitHub;
+                // it is not under /api, so only XHR /api/* calls get the 401 short-circuit.
                 options.Events.OnRedirectToAuthorizationEndpoint = context =>
                 {
-                    if (context.Request.Path.StartsWithSegments("/api")
-                        && !context.Request.Path.StartsWithSegments("/api/auth/login"))
+                    if (context.Request.Path.StartsWithSegments("/api"))
                     {
                         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                         return Task.CompletedTask;
@@ -194,6 +204,27 @@ public static class AuthServiceExtensions
                     // SOLID — DIP: resolve IUserService from the DI container at runtime
                     options.Events.OnCreatingTicket = async context =>
                     {
+                        // Rule 4.3 — shape-based issuer validation against an allowed tenant-ID list.
+                        // /common accepts every Entra tenant + personal MSAs; without this any tenant
+                        // could sign in. Equivalent to TokenValidationParameters.ValidateIssuer, but
+                        // applied here because the generic OAuth handler does not validate the id_token.
+                        // Empty allow-list = accept all (single-tenant deployments leave it unset).
+                        var allowedTenants = (configuration["Microsoft:AllowedTenants"] ?? string.Empty)
+                            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        if (allowedTenants.Length > 0)
+                        {
+                            var tenantId = ReadTenantId(context.AccessToken)
+                                ?? ReadTenantId(context.TokenResponse.Response?.RootElement
+                                    .TryGetProperty("id_token", out var idTok) == true ? idTok.GetString() : null);
+                            if (tenantId is null || !allowedTenants.Contains(tenantId, StringComparer.OrdinalIgnoreCase))
+                            {
+                                var log = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                                log.LogWarning("Rejected Microsoft sign-in: tenant {TenantId} not in allow-list.", tenantId ?? "<unknown>");
+                                context.Fail("Tenant not allowed.");
+                                return;
+                            }
+                        }
+
                         using var request = new HttpRequestMessage(HttpMethod.Get, context.Options.UserInformationEndpoint);
                         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", context.AccessToken);
                         using var httpResponse = await context.Backchannel.SendAsync(request, context.HttpContext.RequestAborted);
@@ -244,7 +275,47 @@ public static class AuthServiceExtensions
                 });
         }
 
+        // Rule 4.4 — header-based fake auth for automated tests. The guard throws if it is
+        // ever wired up under Production, so a misconfigured deploy fails fast at startup.
+        if (!environment.IsProduction())
+        {
+            services.AddAuthentication().AddFakeAuth(environment);
+        }
+
         services.AddAuthorization();
         return services;
+    }
+
+    private static AuthenticationBuilder AddFakeAuth(this AuthenticationBuilder builder, IWebHostEnvironment environment)
+    {
+        if (environment.IsProduction())
+            throw new InvalidOperationException(
+                "FakeAuthHandler must never be registered in Production (Rule 4.4).");
+
+        return builder.AddScheme<AuthenticationSchemeOptions, FakeAuthHandler>(
+            FakeAuthHandler.SchemeName, _ => { });
+    }
+
+    /// <summary>
+    /// Extracts the <c>tid</c> (tenant ID) claim from a JWT without verifying its signature —
+    /// the token already came over the trusted back-channel; we only inspect its shape to
+    /// enforce the tenant allow-list (Rule 4.3). Returns null for null/opaque/malformed tokens.
+    /// </summary>
+    private static string? ReadTenantId(string? jwt)
+    {
+        if (string.IsNullOrEmpty(jwt)) return null;
+        var parts = jwt.Split('.');
+        if (parts.Length < 2) return null;
+        try
+        {
+            var payload = parts[1].Replace('-', '+').Replace('_', '/');
+            payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
+            using var doc = System.Text.Json.JsonDocument.Parse(Convert.FromBase64String(payload));
+            return doc.RootElement.TryGetProperty("tid", out var tid) ? tid.GetString() : null;
+        }
+        catch (Exception ex) when (ex is FormatException or System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
 }

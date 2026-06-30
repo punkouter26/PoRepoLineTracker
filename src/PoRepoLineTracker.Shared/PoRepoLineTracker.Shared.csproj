@@ -4,10 +4,16 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Rule 6.6 — trim hygiene for the WASM-shared contract assembly. -->
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <!-- See .Client: reflection-JSON diagnostics suppressed; all other trim checks stay on. -->
+    <NoWarn>$(NoWarn);IL2026;IL3050</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\PoRepoLineTracker.Domain\PoRepoLineTracker.Domain.csproj" />
+    <!-- Rule 2.2 — Shared is the leaf: DTOs + FluentValidation rules only, no project refs. -->
+    <PackageReference Include="FluentValidation" />
   </ItemGroup>
 
 </Project>

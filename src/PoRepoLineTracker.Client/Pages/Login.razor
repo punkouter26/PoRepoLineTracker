@@ -47,7 +47,7 @@
                           ButtonStyle="ButtonStyle.Primary"
                           class="login-cta-btn"
                           Style="width: 100%; font-size: 1rem; padding: 0.8rem 1.5rem; font-weight: 600;"
-                          Click="@(() => Navigation.NavigateTo("api/auth/login", forceLoad: true))" />
+                          Click="@(() => Navigation.NavigateTo("auth/login", forceLoad: true))" />
 
             <RadzenButton Text="Sign in with Microsoft"
                           Icon="account_circle"
@@ -55,11 +55,11 @@
                           ButtonStyle="ButtonStyle.Secondary"
                           class="login-cta-btn"
                           Style="width: 100%; font-size: 1rem; padding: 0.8rem 1.5rem; font-weight: 600;"
-                          Click="@(() => Navigation.NavigateTo("api/auth/login-microsoft", forceLoad: true))" />
+                          Click="@(() => Navigation.NavigateTo("auth/login/microsoft", forceLoad: true))" />
 
             @* GUEST login — only visible in Development. Visibility is gated by a
                server-authoritative feature flag (EnableGuestMode); the server also rejects
-               /api/auth/login-guest outside Development, so this cannot be spoofed client-side. *@
+               /auth/login/fake outside Development, so this cannot be spoofed client-side. *@
             @if (IsDevelopment)
             {
                 <RadzenButton Text="Login as GUEST"
@@ -69,7 +69,7 @@
                               Variant="Variant.Outlined"
                               class="login-cta-btn"
                               Style="width: 100%; font-size: 1rem; padding: 0.8rem 1.5rem; font-weight: 600; border-style: dashed;"
-                              Click="@(() => Navigation.NavigateTo("api/auth/login-guest", forceLoad: true))" />
+                              Click="@(() => Navigation.NavigateTo("auth/login/fake", forceLoad: true))" />
             }
 
             <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">
@@ -85,7 +85,7 @@
     protected override async Task OnInitializedAsync()
     {
         // The GUEST button is gated by a server-authoritative flag rather than the hostname,
-        // which a user could spoof. The server also forbids /api/auth/login-guest outside Dev.
+        // which a user could spoof. The server also forbids /auth/login/fake outside Dev.
         try
         {
             var flags = await Http.GetFromJsonAsync<FeatureFlagsDto>("api/feature-flags");

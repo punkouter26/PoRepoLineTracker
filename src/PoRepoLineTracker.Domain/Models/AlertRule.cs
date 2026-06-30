@@ -55,34 +55,8 @@ public class AlertRule
     public DateTime? LastTriggeredAt { get; set; }
 }
 
-/// <summary>
-/// Metrics that can be monitored by alert rules.
-/// </summary>
-public enum AlertMetric
-{
-    /// <summary>AI detection percentage (0-100).</summary>
-    AiPercentage = 0,
-
-    /// <summary>Weekly line count change (percentage).</summary>
-    WeeklyLineChange = 1,
-
-    /// <summary>Total lines of code.</summary>
-    TotalLines = 2,
-
-    /// <summary>Number of commits in the last 7 days.</summary>
-    WeeklyCommitCount = 3
-}
-
-/// <summary>
-/// Comparison operators for alert thresholds.
-/// </summary>
-public enum AlertOperator
-{
-    GreaterThan = 0,
-    LessThan = 1,
-    GreaterThanOrEqual = 2,
-    LessThanOrEqual = 3
-}
+// AlertMetric and AlertOperator now live in the Shared (leaf) assembly — still under the
+// PoRepoLineTracker.Domain.Models namespace — see Shared/Models/SharedContractEnums.cs (Rule 2.2).
 
 /// <summary>
 /// Represents a triggered alert instance.

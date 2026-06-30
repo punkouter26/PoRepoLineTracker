@@ -9,15 +9,17 @@ PoRepoLineTracker is a Blazor WASM + ASP.NET Core application that tracks lines 
 **Onion Architecture** with strict layer separation:
 
 ```
-PoRepoLineTracker.Domain          → Entities, domain models (no dependencies)
+PoRepoLineTracker.Shared          → DTOs + FluentValidation rules + shared contract enums (LEAF — no project refs)
+PoRepoLineTracker.Domain          → Entities, domain models (depends on Shared for contract enums)
 PoRepoLineTracker.Application     → Business logic, interfaces, MediatR handlers (depends on Domain + Shared)
 PoRepoLineTracker.Infrastructure  → Data access, external services (depends on Domain + Application)
-PoRepoLineTracker.Shared          → DTOs shared between WASM client and API
 PoRepoLineTracker.Api             → ASP.NET Core API + Blazor WASM host (depends on all above)
 PoRepoLineTracker.Client          → Blazor WASM UI (depends on Shared + Domain only)
 ```
 
 **Key Rule**: The Client project must NOT reference Application or Infrastructure directly. It communicates with the API via HTTP calls.
+
+**Shared is the leaf (Rule 2.2)**: `.Shared` holds DTOs and FluentValidation rules only and has **no project references**. The shared-contract enums (`AlertMetric`, `AlertOperator`, `ChartDisplayMode`) physically live in `.Shared` (`Models/SharedContractEnums.cs`) but keep the `PoRepoLineTracker.Domain.Models` namespace so existing `using` directives resolve unchanged; `.Domain` references `.Shared` to consume them. DTOs never embed Domain entities — wire shapes like `GitHubRepositoryDto` mirror them instead.
 
 ## Naming Convention
 
@@ -27,9 +29,12 @@ PoRepoLineTracker.Client          → Blazor WASM UI (depends on Shared + Domain
 
 ## Authentication
 
+- **Routes (Rule 4.4)**: `/auth/login` (generic, prefers GitHub), `/auth/login/microsoft`, `/auth/login/fake` (guest bypass), `/auth/logout`, `/auth/me`. (Renamed from the former `/api/auth/*` shape.)
 - **GitHub OAuth**: Primary auth via AspNet.Security.OAuth.GitHub
-- **Microsoft OAuth**: Secondary auth via generic OAuth2 to Microsoft identity platform
-- **GUEST Mode**: Allowed in dev/test (hidden + server-rejected in Production). Clicking "Login as GUEST" creates a session with username `GUEST{random 8 digits}`. Persisted in LocalStorage. Button visibility is gated by the server-authoritative `EnableGuestMode` flag from `/api/feature-flags` (not by hostname).
+- **Microsoft OAuth**: Secondary auth via generic OAuth2 to Microsoft identity platform `/common`. Tenant allow-list (Rule 4.3) via `Microsoft:AllowedTenants` (comma-separated tenant IDs); the `tid` claim is validated in `OnCreatingTicket` and rejected if not listed (empty = accept all).
+- **FakeAuthHandler (Rule 4.4)**: header-based scheme (`X-Fake-User`, `X-Fake-Roles`) for non-interactive test auth. Registered only outside Production (`AddFakeAuth` throws `InvalidOperationException` if wired under Production); the cookie scheme forwards to it when the header is present.
+- **GUEST Mode**: Allowed in dev/test (hidden + server-rejected in Production). Clicking "Login as GUEST" hits `/auth/login/fake` and creates a session with username `GUEST{random 8 digits}`. Persisted in LocalStorage. Button visibility is gated by the server-authoritative `EnableGuestMode` flag from `/api/feature-flags` (not by hostname).
+- **Cookies (Rule 4.2)**: session cookie is `SameSite=Strict`; OAuth correlation cookies stay `Lax` (Strict drops them on the cross-site provider callback).
 - **Production enforcement**: `ProductionAuthEnforcementMiddleware` challenges unauthenticated requests to OAuth only in Production; all non-prod environments are open.
 
 ## AI Model Selection (Rule 14)
@@ -58,15 +63,19 @@ docker compose up -d
 # Run the API (hosts Blazor WASM on ports 5000/5001)
 dotnet run --project src/PoRepoLineTracker.Api
 
-# Run tests
+# Run tests (CI does NOT run tests — Rule 6.4)
 dotnet test tests/PoRepoLineTracker.UnitTests
 dotnet test tests/PoRepoLineTracker.IntegrationTests
 
-# E2E tests
-cd tests/PoRepoLineTracker.E2ETests.TS
-npm install
-npx playwright test
+# E2E (C#) — target a running instance via E2E_BASE_URL (default http://localhost:5000);
+# tests self-skip when no instance is reachable / Playwright browsers aren't installed.
+dotnet test tests/PoRepoLineTracker.E2EAPI
+dotnet test tests/PoRepoLineTracker.E2EUI   # first: pwsh tests/PoRepoLineTracker.E2EUI/bin/Debug/net10.0/playwright.ps1 install
 ```
+
+## Test Matrix (Rule 2.2)
+
+`UnitTests`, `IntegrationTests`, `E2EAPI` (pure API), `E2EUI` (C# Playwright) — single stack: **xunit + NSubstitute + FluentAssertions** (Moq and NUnit removed). The legacy `E2ETests.TS` (TypeScript Playwright) remains for now but is superseded by `E2EUI` and slated for removal.
 
 ## Key Patterns
 
@@ -93,6 +102,9 @@ npx playwright test
 - `TreatWarningsAsErrors=true` globally
 - `Nullable=enable` globally
 - AOT disabled (`IsAotCompatible=false`)
+- Trim analyzers on `.Client`/`.Shared` (Rule 6.6): `IsTrimmable` + `EnableTrimAnalyzer` enabled; reflection-JSON + Blazor-framework diagnostics (`IL2026;IL3050;IL2110;IL2111`) suppressed via `NoWarn`, all other trim hazards still fail the build.
+- Source-generated logging (Rule 6.1): `[LoggerMessage]` partial class `Application/Telemetry/AnalysisLog.cs` for the per-commit hot loop.
+- Validation (Rule 2.2): FluentValidation rules in `.Shared/Validation`, registered via `AddValidatorsFromAssemblyContaining`, applied at the alert-create and bulk-add endpoints.
 - All patterns documented with XML `<summary>` tags explaining WHY
 - Serilog with UserId, SessionId, CorrelationId enrichment
 - OpenTelemetry with ActivitySource and Meter

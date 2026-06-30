@@ -32,7 +32,7 @@ public sealed class ApiAuthenticationStateProvider : AuthenticationStateProvider
     {
         try
         {
-            var response = await _httpClient.GetAsync("api/auth/me");
+            var response = await _httpClient.GetAsync("auth/me");
 
             if (response.IsSuccessStatusCode)
             {

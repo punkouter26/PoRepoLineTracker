@@ -15,7 +15,7 @@ namespace PoRepoLineTracker.Api.Middleware;
 /// Public endpoints that are always accessible:
 /// - /health (health checks)
 /// - /diag (diagnostics — requires auth internally)
-/// - /api/auth/* (login/logout endpoints)
+/// - /auth/* (login/logout endpoints)
 /// - /api/feature-flags, /api/ai-models (anonymous — UI calls these on every page load
 ///   to decide which model selector and login button to render)
 /// - /login (Blazor login page)
@@ -36,11 +36,9 @@ public class ProductionAuthEnforcementMiddleware
     private static readonly HashSet<string> PublicPaths = new(StringComparer.OrdinalIgnoreCase)
     {
         "/health",
-        "/api/auth/login",
-        "/api/auth/login-microsoft",
-        "/api/auth/login-guest",
-        "/api/auth/logout",
-        "/api/auth/me",
+        "/auth/login",
+        "/auth/logout",
+        "/auth/me",
         // Anonymous endpoints the Blazor UI calls on every render:
         //   /api/feature-flags  → tells the UI which buttons / badges to show
         //   /api/ai-models      → powers the home-page model selector

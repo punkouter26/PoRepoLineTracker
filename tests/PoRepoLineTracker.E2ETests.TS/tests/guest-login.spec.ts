@@ -30,7 +30,7 @@ test.describe('GUEST login golden path', () => {
     expect(page.url()).not.toContain('github.com');
 
     // The session reflects an authenticated GUEST with the required username schema.
-    const meResponse = await page.request.get('/api/auth/me');
+    const meResponse = await page.request.get('/auth/me');
     expect(meResponse.ok()).toBeTruthy();
     const me = await meResponse.json();
     expect(me.isAuthenticated).toBe(true);

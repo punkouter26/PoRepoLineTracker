@@ -6,6 +6,8 @@ using PoRepoLineTracker.Application.Services;
 using PoRepoLineTracker.Application.Services.LineCounters;
 using Microsoft.AspNetCore.HttpOverrides;
 using Azure.Identity;
+using FluentValidation;
+using PoRepoLineTracker.Shared.Validation;
 
 namespace PoRepoLineTracker.Api.Extensions;
 
@@ -42,6 +44,9 @@ public static class InfrastructureServiceExtensions
 
             return new Azure.Data.Tables.TableServiceClient("UseDevelopmentStorage=true");
         });
+
+        // Rule 2.2 — FluentValidation rules (defined in .Shared) for request DTOs.
+        services.AddValidatorsFromAssemblyContaining<CreateAlertRuleRequestValidator>();
 
         // OpenAPI
         services.AddOpenApi(options =>

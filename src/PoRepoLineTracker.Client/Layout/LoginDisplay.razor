@@ -46,13 +46,13 @@
 @code {
     private void HandleLogin()
     {
-        // Navigate to API login endpoint which will redirect to GitHub OAuth
-        Navigation.NavigateTo("api/auth/login", forceLoad: true);
+        // Navigate to login endpoint which will redirect to GitHub OAuth
+        Navigation.NavigateTo("auth/login", forceLoad: true);
     }
 
     private void HandleLogout()
     {
-        // Navigate to API logout endpoint
-        Navigation.NavigateTo("api/auth/logout", forceLoad: true);
+        // Navigate to logout endpoint
+        Navigation.NavigateTo("auth/logout", forceLoad: true);
     }
 }

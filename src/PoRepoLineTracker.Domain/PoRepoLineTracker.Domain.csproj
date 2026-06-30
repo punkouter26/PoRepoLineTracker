@@ -8,4 +8,10 @@
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Shared is the leaf assembly (Rule 2.2). Domain consumes the shared contract enums
+         (AlertMetric/AlertOperator/ChartDisplayMode) that live there. -->
+    <ProjectReference Include="..\PoRepoLineTracker.Shared\PoRepoLineTracker.Shared.csproj" />
+  </ItemGroup>
+
 </Project>
