@@ -13,7 +13,7 @@ var storageAccountName = 'stporepolinetracker'  // Existing storage account in P
 var appInsightsName = 'poappideinsights8f9c9a4e'  // Shared App Insights in PoShared RG
 var logAnalyticsName = 'PoShared-LogAnalytics'  // Shared Log Analytics in PoShared RG
 var webAppName = 'app-porepolinetracker'  // App Service in PoRepoLineTracker RG
-var appServicePlanName = 'asp-poshared-linux'  // Shared Linux App Service Plan in PoShared RG
+var appServicePlanName = 'asp-porepolinetracker'  // F1 (Free) Linux App Service Plan, created in PoRepoLineTracker RG
 var keyVaultName = 'kv-poshared'  // Existing Key Vault in PoShared RG
 
 // Reference the app resource group (must already exist or be created separately)
@@ -27,7 +27,7 @@ module resources 'resources.bicep' = {
   name: 'resources'
   scope: rg
   params: {
-    webAppLocation: 'westus2'  // Must match App Service Plan location in PoShared RG
+    webAppLocation: location  // Plan + app are created in this RG, so use the RG region (East US 2)
     storageAccountName: storageAccountName
     appInsightsName: appInsightsName
     logAnalyticsName: logAnalyticsName

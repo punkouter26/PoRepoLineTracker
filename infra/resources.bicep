@@ -13,7 +13,7 @@ param logAnalyticsName string
 @description('Name of the App Service (Web App)')
 param webAppName string
 
-@description('Name of the shared Linux App Service Plan in PoShared RG')
+@description('Name of the F1 (Free) Linux App Service Plan to create in this resource group')
 param appServicePlanName string
 
 @description('Name of the Key Vault in the PoShared resource group')
@@ -23,14 +23,10 @@ param keyVaultName string
 param sharedResourceGroupName string
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
-// IMPORTANT: Shared App Service Plan in PoShared RG must be configured with:
-//   - Linux OS
-//   - SKU Tier: B1 (Basic - low-cost, suitable for non-production)
-//             S1 (Standard - for production workloads)
-//   - Minimum 1 instance
-//
-// This Bicep template references the EXISTING plan. To verify/update the plan SKU:
-//   az appservice plan show --name asp-poshared-linux --resource-group PoShared
+// App Service Plan (F1 Free, Linux) and the App Service are created in THIS resource group
+// (PoRepoLineTracker), alongside the storage account — see the resources below. F1 is free but
+// has constraints: 1 instance, no Always On, ~60 CPU-min/day. App Insights, Key Vault, and
+// Log Analytics remain in the shared PoShared RG and are referenced as existing.
 // ═════════════════════════════════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────
@@ -68,18 +64,27 @@ resource sharedKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 }
 
 // ─────────────────────────────────────────────
-// Reference shared Linux App Service Plan in PoShared RG
+// App Service Plan — F1 (Free), Linux. Created in this resource group.
 // ─────────────────────────────────────────────
 
-resource appServicePlan 'Microsoft.Web/serverFarms@2023-12-01' existing = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
-  scope: resourceGroup(sharedResourceGroupName)
+  location: webAppLocation
+  kind: 'linux'
+  sku: {
+    name: 'F1'
+    tier: 'Free'
+    capacity: 1
+  }
+  properties: {
+    reserved: true // required for Linux plans
+  }
 }
 
 // ─────────────────────────────────────────────
 // App Service (Web App) — uses system-assigned managed identity
 // Secrets pulled from PoShared Key Vault at runtime via DefaultAzureCredential
-// Uses shared App Service Plan from PoShared RG (westus2)
+// Runs on the F1 (Free) Linux plan created above, in this resource group
 // ─────────────────────────────────────────────
 
 resource webApp 'Microsoft.Web/sites@2023-12-01' = {
@@ -101,6 +106,8 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
       // provision restarts the app before startup.sh exists in wwwroot.
       // DO NOT rely on azd provision alone to set this — run the CI/CD pipeline.
       appCommandLine: 'dotnet PoRepoLineTracker.Api.dll'
+      // F1 (Free) does not support Always On — must be false or deployment fails.
+      alwaysOn: false
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       appSettings: [
