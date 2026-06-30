@@ -27,7 +27,10 @@ module resources 'resources.bicep' = {
   name: 'resources'
   scope: rg
   params: {
-    webAppLocation: location  // Plan + app are created in this RG, so use the RG region (East US 2)
+    // This subscription's Free (F1) App Service quota lives in West US 2 (East US 2 = 0),
+    // so the F1 plan + app are created in West US 2. They still reside in the
+    // PoRepoLineTracker RG; only the storage account stays in East US 2.
+    webAppLocation: 'westus2'
     storageAccountName: storageAccountName
     appInsightsName: appInsightsName
     logAnalyticsName: logAnalyticsName
