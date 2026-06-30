@@ -169,10 +169,12 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   }
 }
 
-// Storage Table Data Contributor role assignment
-// GUID matches the existing assignment in Azure (idempotent: ARM re-uses same ID)
+// Storage Table Data Contributor role assignment.
+// Name is derived from (scope, principal, role) so it is stable across re-runs but changes
+// when the web app's managed-identity principal changes — avoiding RoleAssignmentUpdateNotPermitted
+// when a fresh App Service gets a new principalId.
 resource webAppStorageTableDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: '671a4bb5-eb20-4862-beca-13ee459d991c'
+  name: guid(storageAccount.id, webApp.id, storageTableDataContributorRole.id)
   scope: storageAccount
   properties: {
     roleDefinitionId: storageTableDataContributorRole.id
