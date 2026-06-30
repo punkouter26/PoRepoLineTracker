@@ -33,7 +33,7 @@ PoRepoLineTracker.Client          → Blazor WASM UI (depends on Shared + Domain
 - **GitHub OAuth**: Primary auth via AspNet.Security.OAuth.GitHub
 - **Microsoft OAuth**: Secondary auth via generic OAuth2 to Microsoft identity platform `/common`. Tenant allow-list (Rule 4.3) via `Microsoft:AllowedTenants` (comma-separated tenant IDs); the `tid` claim is validated in `OnCreatingTicket` and rejected if not listed (empty = accept all).
 - **No guest/anonymous login**: the GUEST dev-bypass, the header-based `FakeAuthHandler`, and the `IsAnon`/`EnableGuestMode` plumbing were removed. Login is GitHub or Microsoft OAuth only.
-- **Cookies (Rule 4.2)**: session cookie is `SameSite=Strict`; OAuth correlation cookies stay `Lax` (Strict drops them on the cross-site provider callback).
+- **Cookies**: session + correlation cookies are `SameSite=Lax`. (Rule 4.2 names `Strict`, but `Strict` breaks interactive OAuth sign-in — the browser withholds the freshly-set cookie on the post-login redirect, causing a "pick an account" loop. `Lax` is the correct value for an OAuth session cookie.)
 - **Production enforcement**: `ProductionAuthEnforcementMiddleware` challenges unauthenticated requests to OAuth only in Production; all non-prod environments are open.
 
 ## Diagnostics
@@ -105,7 +105,7 @@ dotnet test tests/PoRepoLineTracker.E2EUI   # first: pwsh tests/PoRepoLineTracke
 - `TreatWarningsAsErrors=true` globally
 - `Nullable=enable` globally
 - AOT disabled (`IsAotCompatible=false`)
-- Trim analyzers on `.Client`/`.Shared` (Rule 6.6): `IsTrimmable` + `EnableTrimAnalyzer` enabled; reflection-JSON + Blazor-framework diagnostics (`IL2026;IL3050;IL2110;IL2111`) suppressed via `NoWarn`, all other trim hazards still fail the build.
+- Trimming DISABLED on the WASM client (`PublishTrimmed=false`; `.Client`/`.Shared` not marked `IsTrimmable`). Rule 6.6 asks for trimming, but this app activates Blazor components and (de)serializes JSON via reflection — trimming strips the reflected constructors and fails at runtime with `CtorNotLocated` (MainLayout). Same rationale as AOT being off.
 - Source-generated logging (Rule 6.1): `[LoggerMessage]` partial class `Application/Telemetry/AnalysisLog.cs` for the per-commit hot loop.
 - Validation (Rule 2.2): FluentValidation rules in `.Shared/Validation`, registered via `AddValidatorsFromAssemblyContaining`, applied at the alert-create and bulk-add endpoints.
 - All patterns documented with XML `<summary>` tags explaining WHY
