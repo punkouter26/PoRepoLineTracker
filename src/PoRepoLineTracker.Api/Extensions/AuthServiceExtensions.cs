@@ -59,12 +59,6 @@ public static class AuthServiceExtensions
             options.SlidingExpiration = true;
             options.LoginPath = "/auth/login";
             options.LogoutPath = "/auth/logout";
-            // Rule 4.4 — outside Production, a request carrying X-Fake-User authenticates
-            // via the header-based FakeAuthHandler instead of the cookie.
-            options.ForwardDefaultSelector = ctx =>
-                !environment.IsProduction() && ctx.Request.Headers.ContainsKey(FakeAuthHandler.UserHeader)
-                    ? FakeAuthHandler.SchemeName
-                    : null;
             options.Events.OnRedirectToLogin = context =>
             {
                 if (context.Request.Path.StartsWithSegments("/api"))
@@ -275,25 +269,8 @@ public static class AuthServiceExtensions
                 });
         }
 
-        // Rule 4.4 — header-based fake auth for automated tests. The guard throws if it is
-        // ever wired up under Production, so a misconfigured deploy fails fast at startup.
-        if (!environment.IsProduction())
-        {
-            services.AddAuthentication().AddFakeAuth(environment);
-        }
-
         services.AddAuthorization();
         return services;
-    }
-
-    private static AuthenticationBuilder AddFakeAuth(this AuthenticationBuilder builder, IWebHostEnvironment environment)
-    {
-        if (environment.IsProduction())
-            throw new InvalidOperationException(
-                "FakeAuthHandler must never be registered in Production (Rule 4.4).");
-
-        return builder.AddScheme<AuthenticationSchemeOptions, FakeAuthHandler>(
-            FakeAuthHandler.SchemeName, _ => { });
     }
 
     /// <summary>

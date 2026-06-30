@@ -6,28 +6,18 @@
 <AuthorizeView>
     <Authorized>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            @if (!string.IsNullOrEmpty(AuthStateProvider.CurrentUser?.AvatarUrl) && AuthStateProvider.CurrentUser?.IsAnon == false)
+            @if (!string.IsNullOrEmpty(AuthStateProvider.CurrentUser?.AvatarUrl))
             {
                 <RadzenImage Path="@AuthStateProvider.CurrentUser!.AvatarUrl"
                              Style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;" />
             }
-            @if (AuthStateProvider.CurrentUser?.IsAnon == true)
-            {
-                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-warning-light); font-weight: 600;"
-                            title="Guest session — data is stored under the GUEST account">
-                    @(AuthStateProvider.CurrentUser?.DisplayName ?? "GUEST") LOGGED IN
-                </RadzenText>
-            }
-            else
-            {
-                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-color);">
-                    @(AuthStateProvider.CurrentUser?.Email
-                      ?? AuthStateProvider.CurrentUser?.DisplayName
-                      ?? AuthStateProvider.CurrentUser?.Username
-                      ?? "User")
-                </RadzenText>
-            }
-            <RadzenButton Text="Logout" 
+            <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-color);">
+                @(AuthStateProvider.CurrentUser?.Email
+                  ?? AuthStateProvider.CurrentUser?.DisplayName
+                  ?? AuthStateProvider.CurrentUser?.Username
+                  ?? "User")
+            </RadzenText>
+            <RadzenButton Text="Logout"
                           ButtonStyle="ButtonStyle.Light" 
                           Variant="Variant.Outlined"
                           Size="ButtonSize.Small"

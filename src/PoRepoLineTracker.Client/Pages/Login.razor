@@ -1,9 +1,6 @@
 @page "/login"
 @layout PoRepoLineTracker.Client.Layout.LoginLayout
 @inject NavigationManager Navigation
-@inject HttpClient Http
-@implements IDisposable
-@using System.Net.Http.Json
 @using Radzen
 @using Radzen.Blazor
 
@@ -32,13 +29,6 @@
                 </RadzenText>
             </RadzenStack>
 
-            <!-- Feature pills -->
-            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.4rem" Wrap="FlexWrap.Wrap" JustifyContent="JustifyContent.Center">
-                <span class="login-feature-pill"><RadzenIcon Icon="analytics" Style="font-size: 0.8rem;" /> Line trends</span>
-                <span class="login-feature-pill"><RadzenIcon Icon="extension" Style="font-size: 0.8rem;" /> By extension</span>
-                <span class="login-feature-pill"><RadzenIcon Icon="lock" Style="font-size: 0.8rem;" /> Your storage</span>
-            </RadzenStack>
-
             <hr style="border: none; border-top: 1px solid var(--rz-border-disabled-color); width: 100%; margin: 0;" />
 
             <RadzenButton Text="Sign in with GitHub"
@@ -57,47 +47,9 @@
                           Style="width: 100%; font-size: 1rem; padding: 0.8rem 1.5rem; font-weight: 600;"
                           Click="@(() => Navigation.NavigateTo("auth/login/microsoft", forceLoad: true))" />
 
-            @* GUEST login — only visible in Development. Visibility is gated by a
-               server-authoritative feature flag (EnableGuestMode); the server also rejects
-               /auth/login/fake outside Development, so this cannot be spoofed client-side. *@
-            @if (IsDevelopment)
-            {
-                <RadzenButton Text="Login as GUEST"
-                              Icon="person_outline"
-                              aria-label="Login as Guest (Development Only)"
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Outlined"
-                              class="login-cta-btn"
-                              Style="width: 100%; font-size: 1rem; padding: 0.8rem 1.5rem; font-weight: 600; border-style: dashed;"
-                              Click="@(() => Navigation.NavigateTo("auth/login/fake", forceLoad: true))" />
-            }
-
             <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">
                 Your data stays in your own Azure Table Storage
             </RadzenText>
         </RadzenStack>
     </RadzenCard>
 </div>
-
-@code {
-    private bool IsDevelopment { get; set; }
-
-    protected override async Task OnInitializedAsync()
-    {
-        // The GUEST button is gated by a server-authoritative flag rather than the hostname,
-        // which a user could spoof. The server also forbids /auth/login/fake outside Dev.
-        try
-        {
-            var flags = await Http.GetFromJsonAsync<FeatureFlagsDto>("api/feature-flags");
-            IsDevelopment = flags?.EnableGuestMode == true;
-        }
-        catch
-        {
-            IsDevelopment = false;
-        }
-    }
-
-    private sealed record FeatureFlagsDto(bool EnableGuestMode);
-
-    public void Dispose() { }
-}

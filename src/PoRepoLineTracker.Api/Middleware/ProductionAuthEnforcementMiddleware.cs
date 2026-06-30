@@ -16,8 +16,8 @@ namespace PoRepoLineTracker.Api.Middleware;
 /// - /health (health checks)
 /// - /diag (diagnostics — requires auth internally)
 /// - /auth/* (login/logout endpoints)
-/// - /api/feature-flags, /api/ai-models (anonymous — UI calls these on every page load
-///   to decide which model selector and login button to render)
+/// - /api/feature-flags (anonymous — UI calls this on every page load
+///   to decide which login button and badges to render)
 /// - /login (Blazor login page)
 /// - /_framework/* (Blazor WASM framework files)
 /// - /css/*, /favicon.png, /icon-192.png, /manifest.json (static assets)
@@ -31,19 +31,16 @@ public class ProductionAuthEnforcementMiddleware
     // Paths that are always accessible without auth (even in production).
     // Mirrors the endpoints marked .AllowAnonymous() in the API — keeping the two
     // lists in sync is the canonical way to make the Blazor UI render in production
-    // (the layout calls /api/feature-flags and /api/ai-models on every page load,
-    // before the user has logged in).
+    // (the layout calls /api/feature-flags on every page load, before login).
     private static readonly HashSet<string> PublicPaths = new(StringComparer.OrdinalIgnoreCase)
     {
         "/health",
         "/auth/login",
         "/auth/logout",
         "/auth/me",
-        // Anonymous endpoints the Blazor UI calls on every render:
+        // Anonymous endpoint the Blazor UI calls on every render:
         //   /api/feature-flags  → tells the UI which buttons / badges to show
-        //   /api/ai-models      → powers the home-page model selector
         "/api/feature-flags",
-        "/api/ai-models",
         "/login",
         "/_framework",
         "/css",

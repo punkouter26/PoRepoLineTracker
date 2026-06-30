@@ -29,18 +29,21 @@ PoRepoLineTracker.Client          → Blazor WASM UI (depends on Shared + Domain
 
 ## Authentication
 
-- **Routes (Rule 4.4)**: `/auth/login` (generic, prefers GitHub), `/auth/login/microsoft`, `/auth/login/fake` (guest bypass), `/auth/logout`, `/auth/me`. (Renamed from the former `/api/auth/*` shape.)
+- **Routes**: `/auth/login` (generic, prefers GitHub), `/auth/login/microsoft`, `/auth/logout`, `/auth/me`.
 - **GitHub OAuth**: Primary auth via AspNet.Security.OAuth.GitHub
 - **Microsoft OAuth**: Secondary auth via generic OAuth2 to Microsoft identity platform `/common`. Tenant allow-list (Rule 4.3) via `Microsoft:AllowedTenants` (comma-separated tenant IDs); the `tid` claim is validated in `OnCreatingTicket` and rejected if not listed (empty = accept all).
-- **FakeAuthHandler (Rule 4.4)**: header-based scheme (`X-Fake-User`, `X-Fake-Roles`) for non-interactive test auth. Registered only outside Production (`AddFakeAuth` throws `InvalidOperationException` if wired under Production); the cookie scheme forwards to it when the header is present.
-- **GUEST Mode**: Allowed in dev/test (hidden + server-rejected in Production). Clicking "Login as GUEST" hits `/auth/login/fake` and creates a session with username `GUEST{random 8 digits}`. Persisted in LocalStorage. Button visibility is gated by the server-authoritative `EnableGuestMode` flag from `/api/feature-flags` (not by hostname).
+- **No guest/anonymous login**: the GUEST dev-bypass, the header-based `FakeAuthHandler`, and the `IsAnon`/`EnableGuestMode` plumbing were removed. Login is GitHub or Microsoft OAuth only.
 - **Cookies (Rule 4.2)**: session cookie is `SameSite=Strict`; OAuth correlation cookies stay `Lax` (Strict drops them on the cross-site provider callback).
 - **Production enforcement**: `ProductionAuthEnforcementMiddleware` challenges unauthenticated requests to OAuth only in Production; all non-prod environments are open.
 
-## AI Model Selection (Rule 14)
+## Diagnostics
 
-- `GET /api/ai-models` returns the selectable model catalog grouped into three categories: **Remote** (Azure OpenAI), **Browser** (in-browser WASM), and **Ollama** (local — only included when the app is NOT running in Azure App Service, i.e. `WEBSITE_SITE_NAME` unset).
-- The home page (`Repositories.razor`) renders `AiModelSelector.razor`, a grouped dropdown; the choice is persisted to `localStorage` (`selectedAiModel`) so it works for both OAuth and GUEST users.
+- **`/diag`** is a hidden (not in nav), `[Authorize]`-protected Blazor page (`Pages/ExternalConnections.razor`) showing masked external-connection statuses. It fetches its data from **`GET /api/diagnostics`** (the single diagnostics JSON source). There is no longer a server-side `GET /diag` JSON route.
+
+## Removed features
+
+- **AI model selector** (dropdown / `GET /api/ai-models` / `AiModelDto`) — was cosmetic, wired to nothing. The heuristic `AiDetectionService` remains but is not invoked; no LLM is used.
+- **SmartAlerts** — all alert rules/triggers UI, endpoints (`/api/alerts/*`), `IAlertService`/`AlertService`, domain models, DTOs, and the `AlertMetric`/`AlertOperator` enums were removed.
 
 ## Versioning
 

@@ -46,7 +46,7 @@ public static class InfrastructureServiceExtensions
         });
 
         // Rule 2.2 — FluentValidation rules (defined in .Shared) for request DTOs.
-        services.AddValidatorsFromAssemblyContaining<CreateAlertRuleRequestValidator>();
+        services.AddValidatorsFromAssemblyContaining<BulkRepositoryDtoValidator>();
 
         // OpenAPI
         services.AddOpenApi(options =>
@@ -110,9 +110,6 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IUserService, PoRepoLineTracker.Infrastructure.Services.UserService>();
         services.AddScoped<IUserPreferencesService, PoRepoLineTracker.Infrastructure.Services.UserPreferencesService>();
         services.AddScoped<IAiDetectionService, PoRepoLineTracker.Application.Services.AiDetectionService>();
-
-        // SmartAlert: alert rule management and evaluation
-        services.AddScoped<IAlertService, PoRepoLineTracker.Infrastructure.Services.AlertService>();
 
         // MediatR — register all handlers from the Application assembly
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(

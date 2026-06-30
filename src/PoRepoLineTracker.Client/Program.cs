@@ -16,9 +16,7 @@ builder.Services.AddScoped<UserPreferencesClient>();
 
 // Add authentication services
 builder.Services.AddScoped<ApiAuthenticationStateProvider>(sp =>
-    new ApiAuthenticationStateProvider(
-        sp.GetRequiredService<HttpClient>(),
-        sp.GetRequiredService<IJSRuntime>()));
+    new ApiAuthenticationStateProvider(sp.GetRequiredService<HttpClient>()));
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<ApiAuthenticationStateProvider>());
 builder.Services.AddAuthorizationCore();
 
