@@ -558,3 +558,6 @@ secrets-backup*.json
 secrets.json
 # Serilog runtime log files
 src/PoRepoLineTracker.Api/log*.txt
+
+# Large data archive - never commit
+IBRPMIS.zip
