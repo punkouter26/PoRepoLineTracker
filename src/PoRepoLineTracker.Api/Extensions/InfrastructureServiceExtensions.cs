@@ -92,8 +92,6 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<PoRepoLineTracker.Infrastructure.Interfaces.IGitClient, PoRepoLineTracker.Infrastructure.Services.GitClient>();
         services.AddScoped<ILineCounter, DefaultLineCounter>();
         services.AddScoped<PoRepoLineTracker.Infrastructure.FileFilters.IFileIgnoreFilter, PoRepoLineTracker.Infrastructure.FileFilters.FileIgnoreFilter>();
-        services.AddScoped<IFailedOperationService, PoRepoLineTracker.Infrastructure.Services.FailedOperationService>();
-        services.AddHostedService<PoRepoLineTracker.Infrastructure.Services.FailedOperationBackgroundService>();
 
         // Singleton: tracks live analysis progress across background Task.Run jobs
         services.AddSingleton<IAnalysisProgressService, PoRepoLineTracker.Application.Services.AnalysisProgressService>();

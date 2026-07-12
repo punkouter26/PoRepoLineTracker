@@ -130,8 +130,7 @@ namespace PoRepoLineTracker.IntegrationTests
                             "PoRepoLineTrackerRepositoriesTest",
                             "PoRepoLineTrackerCommitLineCountsTest",
                             "PoRepoLineTrackerUserPreferencesTest",
-                            "PoRepoLineTrackerUsersTest",
-                            "PoRepoLineTrackerFailedOperationsTest"
+                            "PoRepoLineTrackerUsersTest"
                         };
                         foreach (var tableName in testTables)
                         {
@@ -265,15 +264,7 @@ namespace PoRepoLineTracker.IntegrationTests
                     // Replace Table-backed services with mocks
                     services.AddScoped<IRepositoryDataService>(provider => mockRepoDataService);
                     services.AddScoped<PoRepoLineTracker.Application.Interfaces.IUserService>(provider => Substitute.For<PoRepoLineTracker.Application.Interfaces.IUserService>());
-                    services.AddScoped<PoRepoLineTracker.Application.Interfaces.IFailedOperationService>(provider => Substitute.For<PoRepoLineTracker.Application.Interfaces.IFailedOperationService>());
                     services.AddScoped<PoRepoLineTracker.Application.Interfaces.IUserPreferencesService>(provider => mockUserPreferencesService);
-                }
-
-                // Remove the real background service that requires Azure Tables and replace with a no-op to keep startup deterministic
-                var descriptor = services.FirstOrDefault(d => d.ImplementationType?.FullName == "PoRepoLineTracker.Infrastructure.Services.FailedOperationBackgroundService");
-                if (descriptor != null)
-                {
-                    services.Remove(descriptor);
                 }
 
                 services.AddHostedService<NoOpHostedService>();

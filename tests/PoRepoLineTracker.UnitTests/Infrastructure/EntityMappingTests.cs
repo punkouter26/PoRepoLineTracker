@@ -65,52 +65,6 @@ public class CommitLineCountEntityTests
     }
 }
 
-public class FailedOperationEntityTests
-{
-    [Fact]
-    public void FromDomainModel_ToDomainModel_RoundTrip()
-    {
-        var domain = new FailedOperation
-        {
-            Id = Guid.NewGuid(),
-            RepositoryId = Guid.NewGuid(),
-            OperationType = "CommitProcessing",
-            EntityId = "sha123",
-            ErrorMessage = "Something went wrong",
-            StackTrace = "at X.Y.Z()",
-            FailedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
-            RetryCount = 2,
-            LastRetryAttempt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
-            ContextData = new Dictionary<string, object> { { "LocalPath", "/tmp/repo" } }
-        };
-
-        var entity = FailedOperationEntity.FromDomainModel(domain);
-        var roundTripped = entity.ToDomainModel();
-
-        roundTripped.Id.Should().Be(domain.Id);
-        roundTripped.OperationType.Should().Be("CommitProcessing");
-        roundTripped.EntityId.Should().Be("sha123");
-        roundTripped.ErrorMessage.Should().Be("Something went wrong");
-        roundTripped.RetryCount.Should().Be(2);
-    }
-
-    [Fact]
-    public void FromDomainModel_RowKey_IsOperationTypeAndEntityId()
-    {
-        var domain = new FailedOperation
-        {
-            RepositoryId = Guid.NewGuid(),
-            OperationType = "CommitProcessing",
-            EntityId = "sha456",
-            ContextData = new Dictionary<string, object>()
-        };
-
-        var entity = FailedOperationEntity.FromDomainModel(domain);
-
-        entity.RowKey.Should().Be("CommitProcessing_sha456");
-    }
-}
-
 public class GitHubRepositoryEntityTests
 {
     [Fact]

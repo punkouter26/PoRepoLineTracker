@@ -15,7 +15,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
 {
     private readonly IGitHubService _gitHubService = Substitute.For<IGitHubService>();
     private readonly IRepositoryDataService _dataService = Substitute.For<IRepositoryDataService>();
-    private readonly IFailedOperationService _failedOpService = Substitute.For<IFailedOperationService>();
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IUserPreferencesService _prefsService = Substitute.For<IUserPreferencesService>();
     private readonly IAnalysisProgressService _progressService = Substitute.For<IAnalysisProgressService>();
@@ -27,7 +26,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     public AnalyzeRepositoryCommitsCommandHandlerTests()
     {
         _sut = new AnalyzeRepositoryCommitsCommandHandler(
-            _gitHubService, _dataService, _failedOpService,
+            _gitHubService, _dataService,
             _userService, _prefsService, _progressService, _aiDetectionService,
             _configuration, _logger);
     }
@@ -199,43 +198,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         // Should NOT count lines since commit already exists and ForceReanalysis=false
         await _gitHubService.DidNotReceive().CountLinesInCommitAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IEnumerable<string>>());
         await _dataService.DidNotReceive().AddCommitLineCountAsync(Arg.Any<CommitLineCount>());
-    }
-
-    [Fact]
-    public async Task Handle_CommitProcessingFails_RecordsFailedOperation()
-    {
-        var repoId = Guid.NewGuid();
-        var repo = new GitHubRepository
-        {
-            Id = repoId,
-            Owner = "o",
-            Name = "n",
-            CloneUrl = "url",
-            LocalPath = "/path"
-        };
-        var commitStats = new List<CommitStatsDto>
-        {
-            new() { Sha = "fail-sha", CommitDate = DateTime.UtcNow, LinesAdded = 5, LinesRemoved = 2 }
-        };
-
-        _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
-        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
-        _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
-        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(commitStats);
-        _dataService.CommitExistsAsync(repoId, "fail-sha").Returns(false);
-        _gitHubService.CountLinesInCommitAsync(Arg.Any<string>(), "fail-sha", Arg.Any<IEnumerable<string>>())
-            .ThrowsAsync(new InvalidOperationException("Git error"));
-        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
-            .Returns(Enumerable.Empty<TopFileDto>());
-
-        // Should NOT throw — errors are caught and recorded
-        await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
-
-        await _failedOpService.Received(1).RecordFailedOperationAsync(Arg.Is<FailedOperation>(f =>
-            f.RepositoryId == repoId &&
-            f.OperationType == "CommitProcessing" &&
-            f.EntityId == "fail-sha" &&
-            f.ErrorMessage == "Git error"));
     }
 
     [Fact]

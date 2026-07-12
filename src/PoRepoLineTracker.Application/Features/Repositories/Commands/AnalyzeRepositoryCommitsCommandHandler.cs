@@ -19,7 +19,6 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
 {
     private readonly IGitHubService _gitHubService;
     private readonly IRepositoryDataService _repositoryDataService;
-    private readonly IFailedOperationService _failedOperationService;
     private readonly IUserService _userService;
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly IAnalysisProgressService _progressService;
@@ -33,7 +32,6 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
     public AnalyzeRepositoryCommitsCommandHandler(
         IGitHubService gitHubService,
         IRepositoryDataService repositoryDataService,
-        IFailedOperationService failedOperationService,
         IUserService userService,
         IUserPreferencesService userPreferencesService,
         IAnalysisProgressService progressService,
@@ -43,7 +41,6 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
     {
         _gitHubService = gitHubService;
         _repositoryDataService = repositoryDataService;
-        _failedOperationService = failedOperationService;
         _userService = userService;
         _userPreferencesService = userPreferencesService;
         _progressService = progressService;
@@ -348,37 +345,10 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                 {
                     _logger.LogError(ex, "Error processing commit {CommitSha} for repository {RepositoryId}", commitStat.Sha, request.RepositoryId);
 
-                    // Record failed operation for retry or analysis
-                    var failedOperation = new FailedOperation
-                    {
-                        Id = Guid.NewGuid(),
-                        RepositoryId = request.RepositoryId,
-                        OperationType = "CommitProcessing",
-                        EntityId = commitStat.Sha,
-                        ErrorMessage = ex.Message,
-                        StackTrace = ex.StackTrace ?? string.Empty,
-                        FailedAt = DateTime.UtcNow,
-                        RetryCount = 0,
-                        ContextData = new Dictionary<string, object>
-                        {
-                            { "LocalPath", fullRepoPath },
-                            { "CommitDate", commitStat.CommitDate },
-                            { "LinesAdded", commitStat.LinesAdded },
-                            { "LinesRemoved", commitStat.LinesRemoved }
-                        }
-                    };
-
-                    try
-                    {
-                        await _failedOperationService.RecordFailedOperationAsync(failedOperation);
-                        _logger.LogInformation("Failed commit {CommitSha} recorded in dead letter queue for repository {RepositoryId}",
-                            commitStat.Sha, request.RepositoryId);
-                    }
-                    catch (Exception recordEx)
-                    {
-                        _logger.LogError(recordEx, "Error recording failed operation for commit {CommitSha} in repository {RepositoryId}",
-                            commitStat.Sha, request.RepositoryId);
-                    }
+                    // Surface the failure via telemetry (Serilog error above + OpenTelemetry counter).
+                    AppTelemetry.FailedOperations.Add(1,
+                        new KeyValuePair<string, object?>("operation", "CommitProcessing"),
+                        new KeyValuePair<string, object?>("repository.id", request.RepositoryId));
 
                     // Continue with other commits even if one fails
                 }

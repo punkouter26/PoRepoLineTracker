@@ -518,7 +518,6 @@ $RECYCLE.BIN/
 
 # Project-specific exclusions
 LocalRepos/
-.potune-state.json
 TESTRESULTS/
 __azurite_db_*.json
 

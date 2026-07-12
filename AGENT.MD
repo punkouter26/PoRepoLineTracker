@@ -44,6 +44,7 @@ PoRepoLineTracker.Client          → Blazor WASM UI (depends on Shared + Domain
 
 - **AI model selector** (dropdown / `GET /api/ai-models` / `AiModelDto`) — was cosmetic, wired to nothing. The heuristic `AiDetectionService` remains but is not invoked; no LLM is used.
 - **SmartAlerts** — all alert rules/triggers UI, endpoints (`/api/alerts/*`), `IAlertService`/`AlertService`, domain models, DTOs, and the `AlertMetric`/`AlertOperator` enums were removed.
+- **Failed Operations** — the whole slice was removed: the `/failed-operations` page + nav link, all `/api/failed-operations*` endpoints, `IFailedOperationService`/`FailedOperationService`, the (stub, non-functional) `FailedOperationBackgroundService`, the `FailedOperation` domain model, `FailedOperationEntity`, and the `AzureTableStorage:FailedOperationTableName` / `FeatureFlags:EnableFailedOperationRetry` config keys. Commit-processing failures now surface via the Serilog error log **plus** the `AppTelemetry.FailedOperations` OpenTelemetry counter (`operations.failed`), incremented in the analysis handler's per-commit catch block — no dead-letter persistence.
 
 ## Versioning
 

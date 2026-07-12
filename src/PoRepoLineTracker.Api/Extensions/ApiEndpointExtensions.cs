@@ -2,7 +2,7 @@ namespace PoRepoLineTracker.Api.Extensions;
 
 /// <summary>
 /// GoF Facade Pattern: Provides a unified interface to register all API endpoint groups.
-/// Each endpoint group (Auth, Repositories, GitHub, Settings, FailedOperations, Diagnostics)
+/// Each endpoint group (Auth, Repositories, GitHub, Settings, Diagnostics)
 /// lives in its own file following the VSA (Vertical Slice Architecture) principle.
 /// 
 /// SOLID — Interface Segregation Principle: Each endpoint module has its own mapping method,
@@ -16,7 +16,6 @@ public static class ApiEndpointExtensions
         app.MapRepositoryEndpoints();
         app.MapSettingsEndpoints();
         app.MapGitHubEndpoints();
-        app.MapFailedOperationEndpoints();
         app.MapDiagnosticsEndpoints();
         app.MapUploadEndpoints();
         app.MapAiDetectionEndpoints();

@@ -40,7 +40,11 @@ namespace PoRepoLineTracker.Infrastructure.Services
 
             string cloneUrl = BuildAuthUrl(repoUrl, accessToken);
 
-            RunGitProcess("clone", ["clone", "--quiet", "--", cloneUrl, localPath], workingDirectory: null);
+            // Analysis reads exclusively from the git object store (commit/tree/blob traversal
+            // via LibGit2Sharp — see GitHubService.ProcessTreeEntry), so the working tree is never
+            // read. Skip the checkout: it avoids materializing deeply-nested files that blow past
+            // Windows' 260-char MAX_PATH ("path too long"), and it clones faster with less disk.
+            RunGitProcess("clone", ["clone", "--quiet", "--no-checkout", "--", cloneUrl, localPath], workingDirectory: null);
 
             _logger.LogInformation("Successfully cloned {RepoUrl} to {LocalPath}", repoUrl, localPath);
             return localPath;
