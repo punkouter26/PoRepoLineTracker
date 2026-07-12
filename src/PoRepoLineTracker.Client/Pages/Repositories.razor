@@ -96,10 +96,10 @@
     else if (!pageState.Repositories.Any())
     {
         @* Animated onboarding empty state — step indicators + CTA *@
-        <RadzenCard Style="padding: 2.5rem 2rem;">
-            <RadzenStack AlignItems="AlignItems.Center" Gap="2rem">
+        <RadzenCard Style="padding: 1.75rem 1.5rem;">
+            <RadzenStack AlignItems="AlignItems.Center" Gap="1.5rem">
                 <RadzenStack Gap="0.5rem" AlignItems="AlignItems.Center">
-                    <RadzenIcon Icon="code" Style="font-size: 2.8rem; color: var(--rz-primary); animation: fadeSlideUp 0.4s ease both;" />
+                    <RadzenIcon Icon="code" Style="font-size: 2rem; color: var(--rz-primary); animation: fadeSlideUp 0.4s ease both;" />
                     <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; animation: fadeSlideUp 0.4s ease 0.05s both;">No repositories yet</RadzenText>
                     <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); text-align: center; max-width: 380px; animation: fadeSlideUp 0.4s ease 0.1s both;">
                         Add your first GitHub repository and start tracking lines of code over time.
@@ -195,7 +195,8 @@
                 @if (!string.IsNullOrEmpty(searchText))
                 {
                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
-                                  Click="@(() => OnSearchTextChanged(string.Empty))" title="Clear search" />
+                                  Click="@(() => OnSearchTextChanged(string.Empty))" title="Clear search"
+                                  aria-label="Clear repository search" />
                 }
             </RadzenStack>
 
@@ -222,7 +223,9 @@
                                 <RadzenText Style="font-weight: 600;" title="@($"{row.Owner}/{row.Name}")">@($"{row.Owner}/{row.Name}")</RadzenText>
                                 <span @onclick:stopPropagation="true">
                                     <a href="@($"https://github.com/{row.Owner}/{row.Name}")" target="_blank"
-                                       title="Open on GitHub" style="color: var(--rz-text-disabled-color); display: flex; align-items: center; line-height: 1;">
+                                       title="Open on GitHub"
+                                       aria-label="@($"Open {row.Owner}/{row.Name} on GitHub in a new tab")"
+                                       style="color: var(--rz-text-disabled-color); display: flex; align-items: center; line-height: 1;">
                                         <span class="material-icons" style="font-size: 0.95rem;">open_in_new</span>
                                     </a>
                                 </span>
@@ -364,10 +367,12 @@
                                     <RadzenButton Icon="refresh" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Outlined"
                                                   Click="@(() => ConfirmReanalyze(row.Repository))"
                                                   title="Re-analyze from scratch"
+                                                  aria-label="@($"Re-analyze {row.Owner}/{row.Name}")"
                                                   Disabled="@(reanalyzingRepositoryId == row.Id)" />
                                     <RadzenButton Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined"
                                                   Click="@(() => ConfirmDeleteRepository(row.Repository))"
-                                                  title="Delete repository" />
+                                                  title="Delete repository"
+                                                  aria-label="@($"Delete {row.Owner}/{row.Name}")" />
                                 </RadzenStack>
                             </span>
                         </Template>
@@ -493,6 +498,20 @@
     private void OnRowClick(DataGridRowMouseEventArgs<RepositoryGridRow> args)
     {
         Navigation.NavigateTo($"/repositories/{args.Data.Id}");
+    }
+
+    /// <summary>
+    /// Adds tabindex + role="button" + aria-label + Enter/Space keyboard activation
+    /// to each row so screen readers and keyboard users can navigate the repo
+    /// list without falling back to the chevron column. (#5 + #9)
+    /// </summary>
+    private void OnRowRender(RowRenderEventArgs<RepositoryGridRow> args)
+    {
+        args.Attributes["style"] = "cursor: pointer;";
+        args.Attributes["tabindex"] = "0";
+        args.Attributes["role"] = "button";
+        args.Attributes["aria-label"] = $"Open repository {args.Data.Owner}/{args.Data.Name}";
+        args.Attributes["onkeydown"] = "if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}";
     }
 
     private static string ToRelativeTime(DateTime? dt)

@@ -132,7 +132,10 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadData(_days);
+        // Lazy-load on first range click rather than every page load.
+        // With 1 repo the chart fetches ~140 commits; with 50+ repos this
+        // would dominate the page-render network budget. The default 90d
+        // range renders only when the user actively opts into it.
     }
 
     private async Task OnRangeChanged(int days)
@@ -140,6 +143,11 @@
         _days = days;
         await LoadData(days);
     }
+
+    /// <summary>Triggers the default 90d load on first paint. Called once by the
+    /// parent after the page has rendered so the user sees a chart without a
+    /// blocking request during initial component initialization.</summary>
+    public Task PrimeAsync() => LoadData(_days);
 
     /// <summary>
     /// Reloads the chart for the current range. Called by the parent page when a

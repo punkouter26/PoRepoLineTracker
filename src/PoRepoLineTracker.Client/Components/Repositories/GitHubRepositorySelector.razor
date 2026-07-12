@@ -5,7 +5,9 @@
 <RadzenCard>
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-bottom: 1rem;">
         <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">Select Repositories from Your GitHub Account</RadzenText>
-        <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Click="@(() => OnCancel.InvokeAsync())" />
+        <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
+                          Click="@(() => OnCancel.InvokeAsync())"
+                          aria-label="Cancel and close repository picker" />
     </RadzenStack>
 
     @if (IsLoading)
@@ -32,7 +34,8 @@
                 @if (!string.IsNullOrEmpty(_filterText))
                 {
                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
-                                  Click="@(() => _filterText = string.Empty)" title="Clear filter" />
+                                  Click="@(() => _filterText = string.Empty)" title="Clear filter"
+                                  aria-label="Clear filter text" />
                 }
             </RadzenStack>
 

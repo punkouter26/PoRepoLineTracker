@@ -250,65 +250,12 @@ public class RepositoryDataService : IRepositoryDataService
 
     public async Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync()
     {
-        // Return file extensions that should be counted for line analysis
-        // Focused on .NET development with support for common web technologies
-        var fileExtensions = new[]
-        {
-            // .NET Core/Framework Languages
-            ".cs",      // C# files
-            ".vb",      // Visual Basic files
-            ".fs",      // F# files
-            ".fsx",     // F# script files
-            
-            // .NET Web UI
-            ".razor",   // Blazor components (CRITICAL for Blazor apps)
-            ".cshtml",  // Razor views (MVC/Pages)
-            ".vbhtml",  // VB Razor views
-            ".aspx",    // ASP.NET Web Forms pages
-            ".ascx",    // ASP.NET User Controls
-            ".master",  // ASP.NET Master pages
-            ".xaml",    // XAML (WPF/UWP/MAUI)
-            
-            // .NET Project & Configuration Files
-            ".csproj",  // C# project files
-            ".vbproj",  // VB project files
-            ".fsproj",  // F# project files
-            ".sln",     // Solution files
-            ".props",   // MSBuild property files
-            ".targets", // MSBuild target files
-            ".config",  // Configuration files
-            ".resx",    // Resource files
-            ".settings",// Settings files
-            
-            // Infrastructure as Code
-            ".bicep",   // Azure Bicep templates
-            
-            // Web Technologies (for full-stack .NET apps)
-            ".js",      // JavaScript files
-            ".ts",      // TypeScript files
-            ".html",    // HTML files
-            ".css",     // CSS files
-            ".json",    // JSON configuration/data files
-            ".xml",     // XML files
-            
-            // Database & Scripts
-            ".sql",     // SQL scripts
-            ".ps1",     // PowerShell scripts
-            ".bat",     // Batch files
-            ".sh",      // Shell scripts
-            
-            // DevOps & Configuration
-            ".yml",     // YAML files (Docker, CI/CD)
-            ".yaml",    // YAML files (alternate extension)
-            ".dockerfile", // Docker files
-            ".http",    // HTTP request files
-            
-            // Documentation
-            ".md"       // Markdown documentation
-        };
-
-        _logger.LogInformation("Returning {Count} configured file extensions for line counting", fileExtensions.Length);
-        return await Task.FromResult(fileExtensions.AsEnumerable());
+        // Canonical fallback when a user has no stored preferences.
+        // Keep in sync with UserPreferences.DefaultFileExtensions — that list
+        // is the source of truth for new users.
+        _logger.LogInformation("Returning {Count} configured file extensions for line counting",
+            UserPreferences.DefaultFileExtensions.Count);
+        return await Task.FromResult(UserPreferences.DefaultFileExtensions.AsEnumerable());
     }
 
     public async Task AnalyzeRepositoryCommitsAsync(Guid repositoryId)

@@ -20,6 +20,11 @@ Accept: application/json
 # Dev Authentication (Development Only)
 # ============================================================
 
+### Dev Login by UserId (bypasses GitHub OAuth — Development Only)
+# Returns an auth cookie for the supplied userId, creating the user if missing.
+# Use any deterministic GUID; the seeded default is shown below.
+GET {{baseUrl}}/dev-login/00000000-0000-0000-0000-000000000001
+
 ### Test Login (returns auth cookie)
 POST {{baseUrl}}/test-login
 Content-Type: application/json
@@ -29,9 +34,6 @@ Content-Type: application/json
   "password": "",
   "userAgent": "HttpClient"
 }
-
-### Dev Login by UserId
-GET {{baseUrl}}/dev-login/00000000-0000-0000-0000-000000000001
 
 # ============================================================
 # Authentication (requires cookie from /test-login first)

@@ -58,8 +58,11 @@ dotnet run --project src/PoRepoLineTracker.Api
 ### Optional dev login shortcut
 
 ```text
-GET http://localhost:5000/test-login-redirect?email=you@example.com
+GET http://localhost:5001/dev-login/00000000-0000-0000-0000-000000000001
 ```
+
+This bypasses GitHub OAuth in Development and seeds a deterministic test user.
+Use any GUID; the one above matches the seeded dev identity.
 
 ## Azure deployment
 

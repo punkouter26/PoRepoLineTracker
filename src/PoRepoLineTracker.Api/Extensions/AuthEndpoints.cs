@@ -54,9 +54,13 @@ internal static class AuthEndpoints
         app.MapGet("/auth/logout", async (HttpContext context) =>
         {
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            return Results.Redirect("/");
+            // Redirect to /login so the user lands on the unauthenticated landing
+            // page even if their cookie had already expired (avoids a stale-session
+            // 302 loop where the auth filter keeps bouncing them).
+            return Results.Redirect("/login");
         })
-        .WithName("Logout");
+        .WithName("Logout")
+        .AllowAnonymous();
 
         app.MapGet("/auth/me", async (HttpContext context, IUserService userService) =>
         {

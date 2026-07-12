@@ -3,6 +3,8 @@
 @inject ILogger<AddRepository> Logger
 @inject NavigationManager Navigation
 @inject DialogService DialogService
+@inject NotificationService NotificationService
+@implements IAsyncDisposable
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Domain.Models
 @using PoRepoLineTracker.Shared.Models.Dtos
@@ -60,6 +62,21 @@
     [Parameter] public EventCallback OnInlineCompleted { get; set; }
 
     private RepositoryPageState pageState = new();
+    private CancellationTokenSource? _addCts;
+
+    /// <summary>Hard ceiling on the bulk-add request. GitHub clones + line counting
+    /// for big repos can take 30+ s; 60 s leaves headroom before we surface a timeout
+    /// to the user instead of letting the spinner hang forever.</summary>
+    private static readonly TimeSpan AddTimeout = TimeSpan.FromSeconds(60);
+
+    public ValueTask DisposeAsync()
+    {
+        _addCts?.Cancel();
+        _addCts?.Dispose();
+        _addCts = null;
+        return ValueTask.CompletedTask;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         pageState.ShowRepositorySelector = true;
@@ -128,11 +145,16 @@
     private async Task AddSelectedRepositories()
     {
         if (pageState.IsAddingRepository || !_selected.Any()) return;
-        
+
         pageState.IsAddingRepository = true;
         pageState.ClearMessages();
         StateHasChanged();
-        
+
+        // Cancel any prior in-flight request before issuing a new one.
+        _addCts?.Cancel();
+        _addCts?.Dispose();
+        _addCts = new CancellationTokenSource(AddTimeout);
+
         try
         {
             Logger.LogInformation("=== START AddSelectedRepositories ===");
@@ -185,7 +207,11 @@
             StateHasChanged();
 
             Logger.LogInformation("Making POST request to /api/repositories/bulk with {Count} repositories", repositoriesToAdd.Count);
-            var response = await Http.PostAsJsonAsync("/api/repositories/bulk", repositoriesToAdd);
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/repositories/bulk")
+            {
+                Content = JsonContent.Create(repositoriesToAdd)
+            };
+            var response = await Http.SendAsync(request, _addCts!.Token);
             
             Logger.LogInformation("Bulk repository add response: Status={StatusCode}", response.StatusCode);
             
@@ -248,16 +274,40 @@
 
                 var errorContent = await response.Content.ReadAsStringAsync();
                 Logger.LogError("Bulk repository add failed: Status={StatusCode}, Content={ErrorContent}", response.StatusCode, errorContent);
-                pageState.AddRepoMessage = $"Error adding repositories: {response.StatusCode} - {errorContent}";
+                pageState.ErrorMessage = $"Error adding repositories: {(int)response.StatusCode} {response.ReasonPhrase}";
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = "Couldn't add repositories",
+                    Detail = $"Server returned {(int)response.StatusCode} {response.ReasonPhrase}. Please try again or check the logs.",
+                    Duration = 6000
+                });
             }
+        }
+        catch (OperationCanceledException) when (_addCts?.IsCancellationRequested == true)
+        {
+            pageState.SetProgress("Timed out", 100);
+            pageState.ErrorMessage = $"Adding repositories took longer than {(int)AddTimeout.TotalSeconds} seconds and was cancelled. The background analysis may still complete — refresh this page in a moment.";
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = "Add request timed out",
+                Detail = $"We waited {(int)AddTimeout.TotalSeconds} s for a response. Analysis keeps running in the background — refresh to see results.",
+                Duration = 7000
+            });
+            Logger.LogWarning("Bulk repository add timed out after {Timeout}", AddTimeout);
         }
         catch (Exception ex)
         {
             pageState.SetProgress("Error occurred", 100);
-            StateHasChanged();
-            await Task.Delay(500);
-
-            pageState.AddRepoMessage = $"Error adding repositories: {ex.Message}";
+            pageState.ErrorMessage = $"Error adding repositories: {ex.Message}";
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Couldn't add repositories",
+                Detail = ex.Message,
+                Duration = 6000
+            });
             Logger.LogError(ex, "Error adding repositories: {Message}", ex.Message);
         }
         finally

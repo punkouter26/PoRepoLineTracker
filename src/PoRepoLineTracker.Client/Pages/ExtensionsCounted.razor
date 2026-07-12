@@ -117,8 +117,12 @@
                         <RadzenDataGridColumn TItem="ExtensionItem" Title="Actions" Width="120px" TextAlign="TextAlign.Center" Sortable="false">
                             <Template Context="item">
                                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
-                                    <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text" Click="@(() => EditRow(item))" title="Edit" />
-                                    <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Click="@(() => DeleteRow(item))" title="Delete" />
+                                    <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
+                                                  Click="@(() => EditRow(item))" title="Edit"
+                                                  aria-label="@($"Edit extension {item.Extension}")" />
+                                    <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                                  Click="@(() => DeleteRow(item))" title="Delete"
+                                                  aria-label="@($"Delete extension {item.Extension}")" />
                                 </RadzenStack>
                             </Template>
                             <EditTemplate Context="item">
@@ -152,12 +156,12 @@
     private string newExtensionValue = string.Empty;
     private static readonly Dictionary<string, string[]> categoryMap = new()
     {
-        { ".NET", [".cs", ".vb", ".fs", ".razor", ".cshtml", ".xaml", ".csproj", ".fsproj"] },
-        { "Web", [".html", ".css", ".scss", ".less", ".svg"] },
-        { "JavaScript", [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue"] },
-        { "Python", [".py", ".pyw", ".pyx", ".pyi"] },
-        { "Data", [".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".config"] },
-        { "Scripts", [".sh", ".bash", ".ps1", ".bat", ".cmd"] }
+        // Tuned for Blazor WebAssembly + .NET API: code files only.
+        // Generated, lock, and minified files are intentionally omitted
+        // (see FileIgnoreFilter and DefaultFileExtensions in UserPreferences).
+        { ".NET", [".cs", ".razor", ".cshtml", ".xaml", ".csproj"] },
+        { "JavaScript", [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"] },
+        { "Web", [".html", ".css", ".scss", ".less"] }
     };
 
     protected override async Task OnInitializedAsync()

@@ -16,8 +16,8 @@
             }
         </RadzenStack>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">Mode:</RadzenText>
-            <RadzenSelectBar TValue="ChartDisplayMode" Value="@_value" Change="OnChange" Size="ButtonSize.Small" Disabled="@_isSaving">
+            <RadzenSelectBar TValue="ChartDisplayMode" Value="@_value" Change="OnChange" Size="ButtonSize.Small" Disabled="@_isSaving"
+                              aria-label="Chart display mode">
                 <Items>
                     <RadzenSelectBarItem Text="True Data" Value="ChartDisplayMode.TrueData" />
                     <RadzenSelectBarItem Text="Moving Average" Value="ChartDisplayMode.MovingAverage" />
