@@ -41,19 +41,35 @@ public class ApiEndpointTests
         content.Should().Contain("Healthy");
     }
 
+    // /diag is a Blazor page, not a server route — the JSON it renders comes from
+    // /api/diagnostics, which is the single server-side diagnostics source.
     [Fact]
-    public async Task Diag_Endpoint_Returns_200()
+    public async Task Diagnostics_Endpoint_Returns_200()
     {
-        var response = await _client.GetAsync("/diag");
+        var response = await _client.GetAsync("/api/diagnostics");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
-    public async Task Diag_Endpoint_Returns_Environment_Info()
+    public async Task Diagnostics_Endpoint_Returns_Environment_Info()
     {
-        var response = await _client.GetAsync("/diag");
+        var response = await _client.GetAsync("/api/diagnostics");
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain("environment");
+    }
+
+    [Fact]
+    public async Task Diagnostics_Endpoint_Masks_Secret_Values()
+    {
+        // Rule 3.2 — /diag must never leak a secret value. The payload reports a
+        // Configured/Not configured status per connection and nothing else.
+        var response = await _client.GetAsync("/api/diagnostics");
+        var content = await response.Content.ReadAsStringAsync();
+
+        content.Should().Contain("Configured");
+        content.Should().NotContain("test-client-secret");
+        content.Should().NotContain("test-pat-value-must-never-be-echoed");
+        content.Should().NotContain("AccountKey");
     }
 
     // ─── File Extensions Settings ───────────────────────────────────────
@@ -216,7 +232,7 @@ public class ApiEndpointTests
     [Fact]
     public async Task DeleteRepository_Returns_NoContent()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var response = await _client.DeleteAsync($"/api/repositories/{repoId}");
 
         // Expect either NoContent (if repo existed) or NotFound (mocked scenario)
@@ -260,7 +276,7 @@ public class ApiEndpointTests
     [Fact]
     public async Task TriggerAnalysis_Returns_SuccessOrNotFound()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var response = await _client.PostAsync($"/api/repositories/{repoId}/analyses?force=false", null);
 
         // With mocked mediator this may return 200 or may throw which gets caught by middleware

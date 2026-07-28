@@ -1,3 +1,4 @@
+using PoRepoLineTracker.Domain.Models;
 namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
@@ -7,8 +8,8 @@ namespace PoRepoLineTracker.Shared.Models.Dtos;
 /// </summary>
 public sealed class GitHubRepositoryDto
 {
-    public Guid Id { get; set; }
-    public Guid UserId { get; set; }
+    public RepositoryId Id { get; set; }
+    public UserId UserId { get; set; }
     public string Owner { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string CloneUrl { get; set; } = string.Empty;

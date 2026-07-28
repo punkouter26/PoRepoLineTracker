@@ -1,3 +1,4 @@
+using PoRepoLineTracker.Domain.Models;
 using System.Collections.Concurrent;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Shared.Models;
@@ -10,9 +11,9 @@ namespace PoRepoLineTracker.Application.Services;
 /// </summary>
 public sealed class AnalysisProgressService : IAnalysisProgressService
 {
-    private readonly ConcurrentDictionary<Guid, AnalysisProgressDto> _progress = new();
+    private readonly ConcurrentDictionary<RepositoryId, AnalysisProgressDto> _progress = new();
 
-    public void ReportStep(Guid repositoryId, int stepIndex, string stepName, string stepDescription)
+    public void ReportStep(RepositoryId repositoryId, int stepIndex, string stepName, string stepDescription)
     {
         var dto = _progress.GetOrAdd(repositoryId, _ => new AnalysisProgressDto { RepositoryId = repositoryId });
         dto.StepIndex = stepIndex;
@@ -23,7 +24,7 @@ public sealed class AnalysisProgressService : IAnalysisProgressService
         dto.LastUpdatedUtc = DateTime.UtcNow;
     }
 
-    public void ReportCommitsFound(Guid repositoryId, int total)
+    public void ReportCommitsFound(RepositoryId repositoryId, int total)
     {
         if (_progress.TryGetValue(repositoryId, out var dto))
         {
@@ -33,7 +34,7 @@ public sealed class AnalysisProgressService : IAnalysisProgressService
         }
     }
 
-    public void ReportCommitProgress(Guid repositoryId, int processed, int total)
+    public void ReportCommitProgress(RepositoryId repositoryId, int processed, int total)
     {
         if (_progress.TryGetValue(repositoryId, out var dto))
         {
@@ -43,7 +44,7 @@ public sealed class AnalysisProgressService : IAnalysisProgressService
         }
     }
 
-    public void ReportComplete(Guid repositoryId)
+    public void ReportComplete(RepositoryId repositoryId)
     {
         if (_progress.TryGetValue(repositoryId, out var dto))
         {
@@ -52,7 +53,7 @@ public sealed class AnalysisProgressService : IAnalysisProgressService
         }
     }
 
-    public void ReportError(Guid repositoryId, string errorMessage)
+    public void ReportError(RepositoryId repositoryId, string errorMessage)
     {
         var dto = _progress.GetOrAdd(repositoryId, _ => new AnalysisProgressDto { RepositoryId = repositoryId });
         dto.IsRunning = false;
@@ -60,6 +61,6 @@ public sealed class AnalysisProgressService : IAnalysisProgressService
         dto.LastUpdatedUtc = DateTime.UtcNow;
     }
 
-    public AnalysisProgressDto? GetProgress(Guid repositoryId) =>
+    public AnalysisProgressDto? GetProgress(RepositoryId repositoryId) =>
         _progress.TryGetValue(repositoryId, out var dto) ? dto : null;
 }

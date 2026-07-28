@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
 using PoRepoLineTracker.Infrastructure.Entities;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Infrastructure.Services;
 
@@ -18,7 +19,7 @@ public class UserPreferencesService : IUserPreferencesService
 
     public UserPreferencesService(TableServiceClient tableServiceClient, IConfiguration configuration, ILogger<UserPreferencesService> logger)
     {
-        var tableName = configuration["AzureTableStorage:UserPreferencesTableName"] ?? "PoRepoLineTrackerUserPreferences";
+        var tableName = configuration[ConfigKeys.AzureTableStorage.UserPreferencesTableName] ?? "PoRepoLineTrackerUserPreferences";
         _preferencesTableClient = tableServiceClient.GetTableClient(tableName);
         _logger = logger;
     }
@@ -32,7 +33,7 @@ public class UserPreferencesService : IUserPreferencesService
         }
     }
 
-    public async Task<UserPreferences> GetPreferencesAsync(Guid userId)
+    public async Task<UserPreferences> GetPreferencesAsync(UserId userId)
     {
         await EnsureTableExistsAsync();
 
@@ -86,7 +87,7 @@ public class UserPreferencesService : IUserPreferencesService
         }
     }
 
-    public async Task<List<string>> GetFileExtensionsAsync(Guid userId)
+    public async Task<List<string>> GetFileExtensionsAsync(UserId userId)
     {
         var prefs = await GetPreferencesAsync(userId);
         return prefs.FileExtensions;

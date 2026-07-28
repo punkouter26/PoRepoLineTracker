@@ -28,8 +28,8 @@ public class GitHubRepositoryEntity : ITableEntity
     {
         return new GitHubRepository
         {
-            Id = Id,
-            UserId = UserId,
+            Id = new RepositoryId(Id),
+            UserId = new UserId(UserId),
             Owner = Owner,
             Name = Name,
             CloneUrl = CloneUrl,
@@ -44,8 +44,8 @@ public class GitHubRepositoryEntity : ITableEntity
         {
             PartitionKey = model.UserId.ToString(),
             RowKey = $"{model.Owner}_{model.Name}",
-            Id = model.Id,
-            UserId = model.UserId,
+            Id = model.Id.Value,
+            UserId = model.UserId.Value,
             Owner = model.Owner,
             Name = model.Name,
             CloneUrl = model.CloneUrl,

@@ -4,6 +4,7 @@ using PoRepoLineTracker.Api.Middleware;
 using PoRepoLineTracker.Application.Telemetry;
 using Scalar.AspNetCore;
 using Azure.Identity;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Api
 {
@@ -37,7 +38,7 @@ namespace PoRepoLineTracker.Api
             var builder = WebApplication.CreateBuilder(args);
 
             // Azure Key Vault — managed identity in production; DefaultAzureCredential locally
-            var keyVaultUrl = builder.Configuration["KeyVault:Uri"];
+            var keyVaultUrl = builder.Configuration[ConfigKeys.KeyVault.Uri];
             if (!string.IsNullOrEmpty(keyVaultUrl))
             {
                 try
@@ -87,7 +88,7 @@ namespace PoRepoLineTracker.Api
                         outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
                 }
 
-                var appInsightsConn = context.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+                var appInsightsConn = context.Configuration[ConfigKeys.Telemetry.AppInsightsConnectionString];
                 // AppInsights telemetry handled by AddApplicationInsightsTelemetry() in AddTelemetry().
             });
 
@@ -117,12 +118,14 @@ namespace PoRepoLineTracker.Api
 
             if (app.Environment.IsDevelopment())
             {
-                app.MapOpenApi();
+                // AllowAnonymous: the FallbackPolicy (Rule 3.3) would otherwise put the local
+                // API reference behind a login, which defeats its purpose during development.
+                app.MapOpenApi().AllowAnonymous();
                 app.MapScalarApiReference(options =>
                 {
                     options.WithTitle("PoRepoLineTracker API");
                     options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
-                });
+                }).AllowAnonymous();
             }
 
             // Only redirect to HTTPS in non-Development environments.
@@ -132,6 +135,16 @@ namespace PoRepoLineTracker.Api
             {
                 app.UseHttpsRedirection();
             }
+
+            // Static assets MUST be served before UseAuthorization. The FallbackPolicy (Rule 3.3)
+            // is applied by the authorization middleware to requests that matched no endpoint —
+            // and static files are served by middleware, not endpoints. With these two calls after
+            // UseAuthorization every asset (css/app.css, _framework/*) answered 302-to-login, so the
+            // browser got a login page instead of the Blazor runtime and rendered the "unhandled
+            // error" shell. Serving them first also matches the documented middleware order.
+            app.UseBlazorFrameworkFiles();
+            app.UseStaticFiles();
+
             app.UseAuthentication();
             app.UseAuthorization();
 
@@ -139,13 +152,14 @@ namespace PoRepoLineTracker.Api
             // In Development this is a no-op (GUEST mode and local testing still work).
             app.UseMiddleware<ProductionAuthEnforcementMiddleware>();
 
-            app.UseBlazorFrameworkFiles();
-            app.UseStaticFiles();
             // All API route mappings - MUST come BEFORE fallback file
             app.MapApiEndpoints();
 
-            app.MapHealthChecks("/health");
-            app.MapFallbackToFile("index.html");
+            // Both must opt out of the FallbackPolicy (Rule 3.3): /health is polled by the
+            // deploy smoke test and Azure's probe with no credential, and the fallback file is
+            // the Blazor shell itself — gating it would make the login page unreachable.
+            app.MapHealthChecks("/health").AllowAnonymous();
+            app.MapFallbackToFile("index.html").AllowAnonymous();
 
             return app;
         }

@@ -1,3 +1,4 @@
+using PoRepoLineTracker.Domain.Models;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.Application.Interfaces;
@@ -5,7 +6,7 @@ using PoRepoLineTracker.Shared.Models.Dtos;
 
 namespace PoRepoLineTracker.Application.Features.Repositories.Queries;
 
-public record GetTopFilesQuery(Guid RepositoryId, int Count = 5) : IRequest<IEnumerable<TopFileDto>>;
+public record GetTopFilesQuery(RepositoryId RepositoryId, int Count = 5) : IRequest<IEnumerable<TopFileDto>>;
 
 public class GetTopFilesQueryHandler : IRequestHandler<GetTopFilesQuery, IEnumerable<TopFileDto>>
 {

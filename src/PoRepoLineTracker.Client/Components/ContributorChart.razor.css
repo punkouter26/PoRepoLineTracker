@@ -1,0 +1,133 @@
+/* Rule 4.3 — scoped styles for ContributorChart.
+   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+
+::deep .cc-card.cc-card {
+    padding: 1.25rem 1.5rem !important;
+}
+
+::deep .cc-toolbar.cc-toolbar {
+    margin-bottom: 1rem !important;
+}
+
+::deep .cc-title.cc-title {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .cc-description.cc-description {
+    color: var(--rz-text-secondary-color) !important;
+    margin: 0 !important;
+}
+
+::deep .cc-caption.cc-caption,
+::deep .cc-empty-text.cc-empty-text {
+    color: var(--rz-text-secondary-color) !important;
+}
+
+::deep .cc-empty-hint.cc-empty-hint {
+    color: var(--rz-text-disabled-color) !important;
+}
+
+::deep .cc-empty-icon.cc-empty-icon {
+    font-size: 3rem !important;
+    color: var(--rz-text-disabled-color) !important;
+}
+
+::deep .cc-refresh.cc-refresh {
+    margin-left: 0.5rem !important;
+}
+
+::deep .cc-chart.cc-chart {
+    height: 320px !important;
+    width: 100% !important;
+}
+
+::deep .cc-table-title.cc-table-title {
+    margin: 0 0 0.75rem 0 !important;
+    font-weight: 600 !important;
+}
+
+::deep .cc-grid.cc-grid {
+    font-size: 0.85rem !important;
+}
+
+/* ─── Plain markup owned by this component ───────────────────────────────── */
+
+.cc-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.cc-legend__item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.cc-legend__label {
+    font-size: 0.85rem;
+}
+
+.cc-table-section {
+    margin-top: 1.5rem;
+}
+
+/* Grid cells are rendered inside Radzen column templates. */
+::deep .cc-cell-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cc-swatch,
+::deep .cc-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+::deep .cc-swatch--sm {
+    width: 10px;
+    height: 10px;
+}
+
+::deep .cc-added {
+    color: #22c55e;
+    font-weight: 600;
+}
+
+::deep .cc-removed {
+    color: #ef4444;
+}
+
+::deep .cc-bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--rz-base-200);
+}
+
+/* The fill percentage is per-row data, so it arrives as a single custom property rather than a
+   full inline rule — the presentation stays here, only the datum is bound in the markup. */
+::deep .cc-bar__fill {
+    height: 100%;
+    border-radius: 3px;
+    width: var(--cc-bar-fill, 0%);
+}
+
+/* Author palette. Index-for-index with _colors in the .razor file (see GetAuthorColorClass). */
+.cc-swatch--0, ::deep .cc-swatch--0 { background: #3b82f6; }
+.cc-swatch--1, ::deep .cc-swatch--1 { background: #ef4444; }
+.cc-swatch--2, ::deep .cc-swatch--2 { background: #22c55e; }
+.cc-swatch--3, ::deep .cc-swatch--3 { background: #f59e0b; }
+.cc-swatch--4, ::deep .cc-swatch--4 { background: #8b5cf6; }
+.cc-swatch--5, ::deep .cc-swatch--5 { background: #ec4899; }
+.cc-swatch--6, ::deep .cc-swatch--6 { background: #14b8a6; }
+.cc-swatch--7, ::deep .cc-swatch--7 { background: #f97316; }
+
+::deep .cc-bar__value {
+    min-width: 40px;
+    text-align: right;
+}

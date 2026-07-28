@@ -3,8 +3,8 @@
 @using Radzen.Blazor
 
 <RadzenCard>
-    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-bottom: 1rem;">
-        <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">Select Repositories from Your GitHub Account</RadzenText>
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="ghsel-row-mb1">
+        <RadzenText TextStyle="TextStyle.H6" class="ghsel-heading">Select Repositories from Your GitHub Account</RadzenText>
         <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
                           Click="@(() => OnCancel.InvokeAsync())"
                           aria-label="Cancel and close repository picker" />
@@ -19,8 +19,8 @@
     }
     else if (Repositories.Any())
     {
-        <RadzenStack Style="margin-bottom: 1rem;">
-            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-bottom: 0.5rem;">
+        <RadzenStack class="ghsel-stack-mb1">
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="ghsel-row-mb05">
                 <RadzenText TextStyle="TextStyle.Caption">Found @Repositories.Count() repositories</RadzenText>
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
                     <RadzenButton Text="Select All" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => OnSelectAll.InvokeAsync())" />
@@ -28,9 +28,9 @@
                 </RadzenStack>
             </RadzenStack>
 
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin-bottom: 0.5rem;">
-                <RadzenIcon Icon="search" Style="color: var(--rz-text-secondary-color);" />
-                <RadzenTextBox @bind-Value="_filterText" Placeholder="Filter repositories..." Style="width: 100%;" />
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="ghsel-row-mb05">
+                <RadzenIcon Icon="search" class="ghsel-search-icon" />
+                <RadzenTextBox @bind-Value="_filterText" Placeholder="Filter repositories..." class="ghsel-filter" />
                 @if (!string.IsNullOrEmpty(_filterText))
                 {
                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
@@ -45,11 +45,11 @@
                            Data="FilteredRepositories"
                            TValue="IEnumerable<GitHubUserRepositoryDto>"
                            TextProperty="FullName"
-                           Style="height: 360px; width: 100%;" />
+                           class="ghsel-list" />
         </RadzenStack>
 
-        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-top: 1rem;">
-            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="ghsel-row-mt1">
+            <RadzenText TextStyle="TextStyle.Caption" class="ghsel-caption">
                 @(SelectedRepositories.Count()) selected
             </RadzenText>
             <RadzenButton Text="Add Selected Repositories"

@@ -1,3 +1,4 @@
+using PoRepoLineTracker.Domain.Models;
 namespace PoRepoLineTracker.Shared.Models;
 
 /// <summary>
@@ -6,7 +7,7 @@ namespace PoRepoLineTracker.Shared.Models;
 /// </summary>
 public sealed class AnalysisProgressDto
 {
-    public Guid RepositoryId { get; set; }
+    public RepositoryId RepositoryId { get; set; }
 
     /// <summary>Human-readable description of the current step, e.g. "Cloning repository (step 1/4)".</summary>
     public string StepDescription { get; set; } = string.Empty;

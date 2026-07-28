@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using System.IO;
 using static PoRepoLineTracker.Application.Services.CommitTaggerService;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Application.Features.Repositories.Commands;
 
@@ -27,7 +28,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
 
     // #10 fix: per-repository semaphore prevents git Checkout() race conditions on shared local path
-    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> _repoLocks = new();
+    private static readonly ConcurrentDictionary<RepositoryId, SemaphoreSlim> _repoLocks = new();
 
     public AnalyzeRepositoryCommitsCommandHandler(
         IGitHubService gitHubService,
@@ -103,7 +104,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         // for Microsoft-authenticated users (or users with a missing/empty token)
         // we fall back to the server-configured GitHub:PAT.
         string? accessToken = null;
-        if (repository.UserId != Guid.Empty)
+        if (repository.UserId != UserId.Empty)
         {
             var user = await _userService.GetUserByIdAsync(repository.UserId);
             var loggedInWithGitHub = user is not null
@@ -119,7 +120,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             {
                 // Microsoft-authenticated user — fall back to the server-side GitHub PAT.
                 // GitHubEndpoints.cs applies the same rule for /api/github/user-repositories.
-                var configuredPat = _configuration["GitHub:PAT"];
+                var configuredPat = _configuration[ConfigKeys.GitHub.Pat];
                 if (!string.IsNullOrEmpty(configuredPat))
                 {
                     _logger.LogInformation(
@@ -132,7 +133,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         else
         {
             // Repository not tied to a user (e.g. legacy data) — try the server PAT.
-            var configuredPat = _configuration["GitHub:PAT"];
+            var configuredPat = _configuration[ConfigKeys.GitHub.Pat];
             if (!string.IsNullOrEmpty(configuredPat))
             {
                 accessToken = configuredPat;
@@ -216,7 +217,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             }
 
             // Get user-specific file extensions to count (falls back to defaults if not configured)
-            var fileExtensionsToCount = repository.UserId != Guid.Empty
+            var fileExtensionsToCount = repository.UserId != UserId.Empty
                 ? await _userPreferencesService.GetFileExtensionsAsync(repository.UserId)
                 : UserPreferences.DefaultFileExtensions;
 

@@ -1,3 +1,4 @@
+using PoRepoLineTracker.Domain.Models;
 using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Application.Interfaces;
@@ -9,20 +10,20 @@ namespace PoRepoLineTracker.Application.Interfaces;
 public interface IAnalysisProgressService
 {
     /// <summary>Report that a job has reached a new step.</summary>
-    void ReportStep(Guid repositoryId, int stepIndex, string stepName, string stepDescription);
+    void ReportStep(RepositoryId repositoryId, int stepIndex, string stepName, string stepDescription);
 
     /// <summary>Report how many commits have been found (before processing starts).</summary>
-    void ReportCommitsFound(Guid repositoryId, int total);
+    void ReportCommitsFound(RepositoryId repositoryId, int total);
 
     /// <summary>Report progress within the commit processing loop.</summary>
-    void ReportCommitProgress(Guid repositoryId, int processed, int total);
+    void ReportCommitProgress(RepositoryId repositoryId, int processed, int total);
 
     /// <summary>Mark a job as finished (success).</summary>
-    void ReportComplete(Guid repositoryId);
+    void ReportComplete(RepositoryId repositoryId);
 
     /// <summary>Mark a job as failed with an error message.</summary>
-    void ReportError(Guid repositoryId, string errorMessage);
+    void ReportError(RepositoryId repositoryId, string errorMessage);
 
     /// <summary>Get the current progress snapshot for a repository. Returns null if no job is tracked.</summary>
-    AnalysisProgressDto? GetProgress(Guid repositoryId);
+    AnalysisProgressDto? GetProgress(RepositoryId repositoryId);
 }

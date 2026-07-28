@@ -1,3 +1,4 @@
+using PoRepoLineTracker.Domain.Models;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using PoRepoLineTracker.Application.Interfaces;
@@ -10,13 +11,18 @@ namespace PoRepoLineTracker.Api.Extensions;
 
 internal static class AiDetectionEndpoints
 {
-    internal static void MapAiDetectionEndpoints(this WebApplication app)
+    internal static void MapAiDetectionEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        // Shares the /api/repositories prefix with RepositoryEndpoints but stays its own group so
+        // the AI-detection routes carry their own OpenAPI tag (Rule 3.1).
+        var aiStats = endpoints.MapGroup("/api/repositories")
+            .WithTags("AI Detection")
+            .RequireAuthorization();
+
         // Get AI detection statistics by user for a repository
-        app.MapGet("/api/repositories/{repositoryId}/ai-stats/{days}", async (Guid repositoryId, int days, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        aiStats.MapGet("/{repositoryId}/ai-stats/{days}", async (RepositoryId repositoryId, int days, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
@@ -39,14 +45,12 @@ internal static class AiDetectionEndpoints
                 return Results.Problem($"Error retrieving AI stats: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .RequireAuthorization()
         .WithName("GetAiStatsByUser");
 
         // Get daily AI detection statistics for a repository
-        app.MapGet("/api/repositories/{repositoryId}/ai-daily/{days}", async (Guid repositoryId, int days, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        aiStats.MapGet("/{repositoryId}/ai-daily/{days}", async (RepositoryId repositoryId, int days, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
@@ -93,14 +97,12 @@ internal static class AiDetectionEndpoints
                 return Results.Problem($"Error retrieving daily AI stats: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .RequireAuthorization()
         .WithName("GetDailyAiStats");
 
         // Get top contributors by lines of code
-        app.MapGet("/api/repositories/{repositoryId}/contributors/{days}", async (Guid repositoryId, int days, int topN, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        aiStats.MapGet("/{repositoryId}/contributors/{days}", async (RepositoryId repositoryId, int days, int topN, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
@@ -123,7 +125,6 @@ internal static class AiDetectionEndpoints
                 return Results.Problem($"Error retrieving contributor stats: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .RequireAuthorization()
         .WithName("GetContributorStats");
     }
 }

@@ -1,0 +1,107 @@
+/* Rule 4.3 — scoped styles for the ZIP upload page.
+   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. Plain HTML
+   elements in this page's own markup (dropzone, log, grid) need neither, so they are written as
+   ordinary rules. */
+
+::deep .ul-title.ul-title {
+    margin: 0 !important;
+}
+
+::deep .ul-subtitle.ul-subtitle {
+    color: var(--rz-text-secondary-color) !important;
+}
+
+::deep .ul-input.ul-input,
+::deep .ul-submit.ul-submit {
+    width: 100% !important;
+}
+
+::deep .ul-hint.ul-hint {
+    color: var(--rz-text-disabled-color) !important;
+    margin-top: 0.25rem !important;
+}
+
+::deep .ul-progress-message.ul-progress-message {
+    text-align: center !important;
+    margin-top: 0.5rem !important;
+}
+
+::deep .ul-diag-wide.ul-diag-wide {
+    grid-column: span 2 !important;
+}
+
+::deep .ul-dropzone-icon.ul-dropzone-icon {
+    font-size: 2rem !important;
+}
+
+::deep .ul-dropzone-icon--ok.ul-dropzone-icon--ok {
+    color: var(--rz-success) !important;
+}
+
+/* ─── Plain markup owned by this page ─────────────────────────────────────── */
+
+.ul-dropzone {
+    border: 2px dashed var(--rz-border-color);
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    display: block;
+}
+
+/* The real <input type=file>; the label above is the visible control. */
+.ul-file-input {
+    display: none;
+}
+
+.ul-file-name {
+    margin-top: 0.5rem;
+    font-weight: 500;
+}
+
+.ul-file-meta {
+    color: var(--rz-text-secondary-color);
+    font-size: 0.875rem;
+}
+
+.ul-dropzone-prompt {
+    margin-top: 0.5rem;
+}
+
+.ul-diag-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem 1rem;
+}
+
+.ul-phase {
+    color: var(--rz-info);
+}
+
+.ul-log {
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--rz-border-color);
+    border-radius: 6px;
+    padding: 0.5rem;
+    font-family: monospace;
+    font-size: 0.78rem;
+}
+
+.ul-log-line {
+    margin-bottom: 0.2rem;
+    color: inherit;
+}
+
+/* Severity of a log line, previously interpolated per row (see LogSeverityClass). */
+.ul-log-line--error {
+    color: var(--rz-danger);
+}
+
+.ul-log-line--success {
+    color: var(--rz-success);
+}
+
+.ul-log-line--warning {
+    color: var(--rz-warning);
+}

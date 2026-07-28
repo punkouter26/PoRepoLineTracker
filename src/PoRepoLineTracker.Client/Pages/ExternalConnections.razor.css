@@ -1,0 +1,53 @@
+/* Rule 4.3 — scoped styles for the /diag page.
+   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+
+::deep .xc-title-icon.xc-title-icon {
+    font-size: 1.5rem !important;
+}
+
+::deep .xc-title.xc-title {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .xc-subtitle.xc-subtitle {
+    color: var(--rz-text-secondary-color) !important;
+    margin: 0 !important;
+}
+
+::deep .xc-refresh.xc-refresh {
+    margin-left: 0.5rem !important;
+}
+
+::deep .xc-env-card.xc-env-card {
+    border-left: 4px solid var(--rz-primary) !important;
+}
+
+::deep .xc-summary-card.xc-summary-card {
+    background: var(--rz-base-100) !important;
+}
+
+::deep .xc-section-title.xc-section-title {
+    margin: 0 !important;
+}
+
+::deep .xc-caption.xc-caption {
+    color: var(--rz-text-secondary-color) !important;
+}
+
+::deep .xc-grid.xc-grid {
+    font-size: 0.9rem !important;
+}
+
+/* Per-provider brand colours for the section icons. */
+::deep .xc-icon--azure.xc-icon--azure {
+    color: #0078d4 !important;
+}
+
+::deep .xc-icon--github.xc-icon--github {
+    color: #333 !important;
+}
+
+::deep .xc-icon--otel.xc-icon--otel {
+    color: #6b4fbb !important;
+}

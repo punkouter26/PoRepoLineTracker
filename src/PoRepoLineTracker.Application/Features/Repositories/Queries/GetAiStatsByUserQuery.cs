@@ -1,3 +1,4 @@
+using PoRepoLineTracker.Domain.Models;
 using MediatR;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Shared.Models.Dtos;
@@ -5,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.Application.Features.Repositories.Queries;
 
-public record GetAiStatsByUserQuery(Guid RepositoryId, int Days = 365) : IRequest<IEnumerable<AiStatsByUserDto>>;
+public record GetAiStatsByUserQuery(RepositoryId RepositoryId, int Days = 365) : IRequest<IEnumerable<AiStatsByUserDto>>;
 
 public class GetAiStatsByUserQueryHandler : IRequestHandler<GetAiStatsByUserQuery, IEnumerable<AiStatsByUserDto>>
 {

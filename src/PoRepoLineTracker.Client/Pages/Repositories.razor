@@ -20,8 +20,8 @@
     <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
         <RadzenColumn Size="12" SizeMD="8">
             <RadzenStack Gap="0.125rem">
-                <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">Repositories</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); margin: 0;">
+                <RadzenText TextStyle="TextStyle.H3" class="rp-title">Repositories</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="rp-muted-tight">
                     @if (pageState.IsLoadingRepositories)
                     {
                         <span>Loading your repositories...</span>
@@ -53,7 +53,7 @@
     @* Inline Add Repository Panel *@
     @if (_showAddPanel)
     {
-        <RadzenCard Style="border-left: 3px solid var(--rz-primary); animation: fadeSlideUp 0.25s ease both;">
+        <RadzenCard class="rp-inline-card">
             <AddRepository IsInline="true" OnInlineCompleted="@HandleAddCompleted" />
         </RadzenCard>
     }
@@ -96,48 +96,47 @@
     else if (!pageState.Repositories.Any())
     {
         @* Animated onboarding empty state — step indicators + CTA *@
-        <RadzenCard Style="padding: 1.75rem 1.5rem;">
+        <RadzenCard class="rp-onboarding-card">
             <RadzenStack AlignItems="AlignItems.Center" Gap="1.5rem">
                 <RadzenStack Gap="0.5rem" AlignItems="AlignItems.Center">
-                    <RadzenIcon Icon="code" Style="font-size: 2rem; color: var(--rz-primary); animation: fadeSlideUp 0.4s ease both;" />
-                    <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; animation: fadeSlideUp 0.4s ease 0.05s both;">No repositories yet</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); text-align: center; max-width: 380px; animation: fadeSlideUp 0.4s ease 0.1s both;">
+                    <RadzenIcon Icon="code" class="rp-onboarding-icon" />
+                    <RadzenText TextStyle="TextStyle.H5" class="rp-onboarding-title">No repositories yet</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" class="rp-onboarding-lede">
                         Add your first GitHub repository and start tracking lines of code over time.
                     </RadzenText>
                 </RadzenStack>
 
                 @* How it works — 3-step flow *@
-                <div style="display: flex; align-items: flex-start; justify-content: center; gap: 0; flex-wrap: wrap; width: 100%; max-width: 520px;">
+                <div class="rp-onboarding-steps">
                     <div class="onboarding-step">
                         <div class="onboarding-step-icon">
                             <RadzenIcon Icon="add_link" />
                         </div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0; text-align: center;">Add Repo</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); text-align: center;">Connect your GitHub repository</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rp-step-title">Add Repo</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="rp-step-caption">Connect your GitHub repository</RadzenText>
                     </div>
                     <div class="onboarding-connector" aria-hidden="true"></div>
                     <div class="onboarding-step">
                         <div class="onboarding-step-icon">
                             <RadzenIcon Icon="manage_search" />
                         </div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0; text-align: center;">Auto-Analyze</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); text-align: center;">Commits scanned in background</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rp-step-title">Auto-Analyze</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="rp-step-caption">Commits scanned in background</RadzenText>
                     </div>
                     <div class="onboarding-connector" aria-hidden="true"></div>
                     <div class="onboarding-step">
                         <div class="onboarding-step-icon">
                             <RadzenIcon Icon="trending_up" />
                         </div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0; text-align: center;">Track Trends</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); text-align: center;">Charts, extensions & top files</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rp-step-title">Track Trends</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="rp-step-caption">Charts, extensions & top files</RadzenText>
                     </div>
                 </div>
 
                 <RadzenButton Text="Add Your First Repository"
                               Icon="add_circle"
                               ButtonStyle="ButtonStyle.Primary"
-                              class="onboarding-cta-pulse"
-                              Style="padding: 0.75rem 2rem; font-size: 1rem; font-weight: 600; border-radius: 12px;"
+                              class="onboarding-cta-pulse rp-onboarding-cta"
                               Click="@ToggleAddPanel" />
             </RadzenStack>
         </RadzenCard>
@@ -152,11 +151,11 @@
         <AllReposComparisonChart @ref="_comparisonChart" ChartDisplayMode="@_chartDisplayMode" />
 
         @* ─── Stats cards ──────────────────────────────────────────────────────── *@
-        <RadzenRow Gap="0.75rem" Style="margin-bottom: 0.25rem;">
+        <RadzenRow Gap="0.75rem" class="rp-stat-row">
             <RadzenColumn Size="12" SizeMD="4">
-                <RadzenCard class="stat-card" Style="--stat-accent: var(--rz-primary); padding: 1rem;">
+                <RadzenCard class="stat-card rp-stat rp-stat--repos">
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                        <RadzenIcon Icon="folder" Style="font-size: 1.6rem; color: var(--rz-primary); opacity: 0.7;" />
+                        <RadzenIcon Icon="folder" class="rp-stat-icon rp-stat-icon--repos" />
                         <div>
                             <div class="stat-value">@pageState.Repositories.Count</div>
                             <div class="stat-label">Repositories</div>
@@ -165,9 +164,9 @@
                 </RadzenCard>
             </RadzenColumn>
             <RadzenColumn Size="12" SizeMD="4">
-                <RadzenCard class="stat-card" Style="--stat-accent: #0891b2; padding: 1rem;">
+                <RadzenCard class="stat-card rp-stat rp-stat--lines">
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                        <RadzenIcon Icon="code" Style="font-size: 1.6rem; color: #0891b2; opacity: 0.7;" />
+                        <RadzenIcon Icon="code" class="rp-stat-icon rp-stat-icon--lines" />
                         <div>
                             <div class="stat-value">@(_repoLatestLineCounts.Values.Sum().ToString("N0"))</div>
                             <div class="stat-label">Total Lines</div>
@@ -176,9 +175,9 @@
                 </RadzenCard>
             </RadzenColumn>
             <RadzenColumn Size="12" SizeMD="4">
-                <RadzenCard class="stat-card" Style="--stat-accent: #059669; padding: 1rem;">
+                <RadzenCard class="stat-card rp-stat rp-stat--analyzed">
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                        <RadzenIcon Icon="check_circle" Style="font-size: 1.6rem; color: #059669; opacity: 0.7;" />
+                        <RadzenIcon Icon="check_circle" class="rp-stat-icon rp-stat-icon--analyzed" />
                         <div>
                             <div class="stat-value">@(pageState.Repositories.Count(r => r.LastAnalyzedCommitDate.HasValue))</div>
                             <div class="stat-label">Analyzed</div>
@@ -189,9 +188,9 @@
         </RadzenRow>
 
         <RadzenCard>
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin-bottom: 1rem;">
-                <RadzenIcon Icon="search" Style="color: var(--rz-text-secondary-color);" />
-                <RadzenTextBox Value="@searchText" ValueChanged="@OnSearchTextChanged" Placeholder="Search owner or repository..." Style="width: 280px;" />
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rp-searchbar">
+                <RadzenIcon Icon="search" class="rp-muted-icon" />
+                <RadzenTextBox Value="@searchText" ValueChanged="@OnSearchTextChanged" Placeholder="Search owner or repository..." class="rp-search-input" />
                 @if (!string.IsNullOrEmpty(searchText))
                 {
                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
@@ -200,7 +199,7 @@
                 }
             </RadzenStack>
 
-            <div style="overflow-x: auto;">
+            <div class="rp-grid-scroll">
             <RadzenDataGrid @ref="grid"
                             Data="@FilteredRepositories"
                             TItem="RepositoryGridRow"
@@ -215,18 +214,18 @@
                             RowRender="@(args => args.Attributes["style"] = "cursor: pointer;")"
                             RowClick="@OnRowClick"
                             Density="Density.Default"
-                            Style="height: auto;">
+                            class="rp-grid">
                 <Columns>
                     <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Repository" MinWidth="160px">
                         <Template Context="row">
                             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
-                                <RadzenText Style="font-weight: 600;" title="@($"{row.Owner}/{row.Name}")">@($"{row.Owner}/{row.Name}")</RadzenText>
+                                <RadzenText class="rp-repo-name" title="@($"{row.Owner}/{row.Name}")">@($"{row.Owner}/{row.Name}")</RadzenText>
                                 <span @onclick:stopPropagation="true">
                                     <a href="@($"https://github.com/{row.Owner}/{row.Name}")" target="_blank"
                                        title="Open on GitHub"
                                        aria-label="@($"Open {row.Owner}/{row.Name} on GitHub in a new tab")"
-                                       style="color: var(--rz-text-disabled-color); display: flex; align-items: center; line-height: 1;">
-                                        <span class="material-icons" style="font-size: 0.95rem;">open_in_new</span>
+                                       class="rp-github-link">
+                                        <span class="material-icons rp-github-link__icon">open_in_new</span>
                                     </a>
                                 </span>
                             </RadzenStack>
@@ -236,7 +235,7 @@
                         <Template Context="row">
                             @if (row.TotalLinesSortValue.HasValue)
                             {
-                                <RadzenText Style="font-weight: 600; color: var(--rz-primary);">@row.TotalLinesSortValue.Value.ToString("N0")</RadzenText>
+                                <RadzenText class="rp-lines-value">@row.TotalLinesSortValue.Value.ToString("N0")</RadzenText>
                             }
                             else if (row.LastAnalyzedCommitDate.HasValue)
                             {
@@ -244,7 +243,7 @@
                             }
                             else
                             {
-                                <RadzenText Style="color: var(--rz-text-disabled-color);">—</RadzenText>
+                                <RadzenText class="rp-disabled">—</RadzenText>
                             }
                         </Template>
                     </RadzenDataGridColumn>
@@ -253,8 +252,8 @@
                             @if (row.LastAnalyzedCommitDate.HasValue)
                             {
                                 <RadzenStack Gap="0.1rem">
-                                    <RadzenText Style="font-weight: 500;">@ToRelativeTime(row.LastAnalyzedCommitDate)</RadzenText>
-                                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">@row.LastAnalyzedCommitDate.Value.ToString("MM/dd/yy HH:mm")</RadzenText>
+                                    <RadzenText class="rp-relative-time">@ToRelativeTime(row.LastAnalyzedCommitDate)</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Caption" class="rp-muted">@row.LastAnalyzedCommitDate.Value.ToString("MM/dd/yy HH:mm")</RadzenText>
                                 </RadzenStack>
                             }
                             else
@@ -273,7 +272,7 @@
                                 <RadzenStack Gap="0.25rem">
                                     @* Step badge + spin icon *@
                                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
-                                        <RadzenIcon Icon="sync" class="spin-icon" Style="font-size: 0.9rem; color: var(--rz-info); flex-shrink:0;" />
+                                        <RadzenIcon Icon="sync" class="spin-icon rp-sync-icon" />
                                         <RadzenBadge BadgeStyle="@(prog?.IsStuck == true ? BadgeStyle.Danger : BadgeStyle.Info)"
                                                      Text="@(prog?.StepName ?? "Analyzing")" />
                                     </RadzenStack>
@@ -281,7 +280,7 @@
                                     @* Detailed step description *@
                                     @if (prog != null)
                                     {
-                                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); font-size: 0.68rem; line-height: 1.3;">
+                                        <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-note">
                                             @prog.StepDescription
                                         </RadzenText>
 
@@ -291,9 +290,9 @@
                                             <div class="reanalysis-progress-wrap">
                                                 <RadzenProgressBar Mode="ProgressBarMode.Determinate"
                                                                    Value="@prog.ProgressPercent"
-                                                                   Style="height: 5px; border-radius: 4px;" />
+                                                                   class="rp-prog-bar" />
                                             </div>
-                                            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); font-size: 0.65rem;">
+                                            <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-sub">
                                                 @prog.CommitsProcessed / @prog.CommitsTotal commits (@prog.ProgressPercent%)
                                             </RadzenText>
                                         }
@@ -302,7 +301,7 @@
                                             <div class="reanalysis-progress-wrap">
                                                 <RadzenProgressBar Mode="ProgressBarMode.Indeterminate"
                                                                    Value="100"
-                                                                   Style="height: 5px; border-radius: 4px;" />
+                                                                   class="rp-prog-bar" />
                                             </div>
                                         }
 
@@ -310,8 +309,8 @@
                                         @if (prog.IsStuck)
                                         {
                                             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.2rem">
-                                                <RadzenIcon Icon="warning" Style="font-size: 0.8rem; color: var(--rz-danger);" />
-                                                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-danger); font-size: 0.65rem;">
+                                                <RadzenIcon Icon="warning" class="rp-warn-icon" />
+                                                <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub">
                                                     No progress in 3+ min — may be stuck
                                                 </RadzenText>
                                             </RadzenStack>
@@ -320,7 +319,7 @@
                                         @* Error message *@
                                         @if (!string.IsNullOrEmpty(prog.ErrorMessage))
                                         {
-                                            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-danger); font-size: 0.65rem;" title="@prog.ErrorMessage">
+                                            <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub" title="@prog.ErrorMessage">
                                                 Error: @(prog.ErrorMessage.Length > 40 ? prog.ErrorMessage[..40] + "…" : prog.ErrorMessage)
                                             </RadzenText>
                                         }
@@ -330,9 +329,9 @@
                                         <div class="reanalysis-progress-wrap">
                                             <RadzenProgressBar Mode="ProgressBarMode.Indeterminate"
                                                                Value="100"
-                                                               Style="height: 5px; border-radius: 4px;" />
+                                                               class="rp-prog-bar" />
                                         </div>
-                                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); font-size: 0.68rem;">
+                                        <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-note">
                                             @GetReanalysisElapsed(startTime)
                                         </RadzenText>
                                     }
@@ -342,10 +341,10 @@
                             {
                                 <RadzenStack Gap="0.2rem">
                                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
-                                        <RadzenIcon Icon="error_outline" Style="font-size: 0.9rem; color: var(--rz-danger);" />
+                                        <RadzenIcon Icon="error_outline" class="rp-error-icon" />
                                         <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" />
                                     </RadzenStack>
-                                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-danger); font-size: 0.65rem;" title="@prog.ErrorMessage">
+                                    <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub" title="@prog.ErrorMessage">
                                         @(prog.ErrorMessage.Length > 50 ? prog.ErrorMessage[..50] + "…" : prog.ErrorMessage)
                                     </RadzenText>
                                 </RadzenStack>
@@ -379,7 +378,7 @@
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="RepositoryGridRow" Title="" Width="36px" Filterable="false" Sortable="false">
                         <Template>
-                            <RadzenIcon Icon="chevron_right" Style="color: var(--rz-text-disabled-color); font-size: 1.1rem;" />
+                            <RadzenIcon Icon="chevron_right" class="rp-chevron" />
                         </Template>
                     </RadzenDataGridColumn>
                 </Columns>
@@ -388,8 +387,8 @@
 
             @* Danger Zone — separated from primary actions *@
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
-                         Style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--rz-border-disabled-color);">
-                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color); font-style: italic;">Danger Zone</RadzenText>
+                         class="rp-danger-zone">
+                <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-zone__label">Danger Zone</RadzenText>
                 <RadzenButton Text="Remove All Repositories"
                               Icon="delete_forever"
                               ButtonStyle="ButtonStyle.Danger"
@@ -411,16 +410,16 @@
     private RepositoryPageState pageState = new();
     private RadzenDataGrid<RepositoryGridRow>? grid;
     private AllReposComparisonChart? _comparisonChart;
-    private Guid? reanalyzingRepositoryId;
+    private RepositoryId? reanalyzingRepositoryId;
     private bool _showAddPanel = false;
     private bool isRemovingAll = false;
     private string searchText = string.Empty;
     // Tracks the last Q value we wrote to the URL ourselves, so OnParametersSet
     // does not overwrite searchText after our own NavigateTo call.
     private string? _lastSyncedQ;
-    private Dictionary<Guid, DateTime> _reanalysisStartTimes = new();
-    private Dictionary<Guid, int> _repoLatestLineCounts = new();
-    private Dictionary<Guid, AnalysisProgressDto> _analysisProgress = new();
+    private Dictionary<RepositoryId, DateTime> _reanalysisStartTimes = new();
+    private Dictionary<RepositoryId, int> _repoLatestLineCounts = new();
+    private Dictionary<RepositoryId, AnalysisProgressDto> _analysisProgress = new();
     private readonly CancellationTokenSource _disposeCts = new();
     private ChartDisplayMode _chartDisplayMode = ChartDisplayMode.TrueData;
 
@@ -784,7 +783,7 @@
     /// Also polls /api/repositories/{id}/analysis-progress for live step details.
     /// Automatically stops after 30 minutes or when the component is disposed.
     /// </summary>
-    private async Task PollForReanalysisCompletionAsync(Guid repositoryId, DateTime? priorDate)
+    private async Task PollForReanalysisCompletionAsync(RepositoryId repositoryId, DateTime? priorDate)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
         cts.CancelAfter(TimeSpan.FromMinutes(30)); // hard stop — very large repos won't hang forever
@@ -869,13 +868,13 @@
 
     private sealed record RepositoryGridRow(GitHubRepository Repository, int? TotalLinesSortValue)
     {
-        public Guid Id => Repository.Id;
+        public RepositoryId Id => Repository.Id;
         public string Owner => Repository.Owner;
         public string Name => Repository.Name;
         public DateTime? LastAnalyzedCommitDate => Repository.LastAnalyzedCommitDate;
     }
 
-    private async Task DeleteRepository(Guid repositoryId)
+    private async Task DeleteRepository(RepositoryId repositoryId)
     {
         try
         {

@@ -1,0 +1,13 @@
+/* Rule 4.3 — scoped styles for the Settings page.
+   ::deep is used because the classes land on Radzen components, whose rendered elements are
+   outside this component's CSS-isolation scope. `.repo-hero` is a plain <div> in this page's
+   own markup, so it is a valid scoping anchor. */
+
+.repo-hero ::deep .settings-title {
+    margin: 0;
+}
+
+.repo-hero ::deep .settings-subtitle {
+    margin: 0;
+    color: var(--rz-text-secondary-color);
+}

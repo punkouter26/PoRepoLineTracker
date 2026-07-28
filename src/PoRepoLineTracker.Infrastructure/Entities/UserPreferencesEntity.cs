@@ -41,7 +41,7 @@ public class UserPreferencesEntity : ITableEntity
     {
         PartitionKey = "PREFS";
         RowKey = prefs.UserId.ToString();
-        UserId = prefs.UserId;
+        UserId = prefs.UserId.Value;
         FileExtensions = string.Join(",", prefs.FileExtensions);
         ChartDisplayMode = prefs.ChartDisplayMode.ToString();
         LastUpdated = prefs.LastUpdated;
@@ -55,7 +55,7 @@ public class UserPreferencesEntity : ITableEntity
 
         return new PoRepoLineTracker.Domain.Models.UserPreferences
         {
-            UserId = UserId,
+            UserId = new PoRepoLineTracker.Domain.Models.UserId(UserId),
             FileExtensions = string.IsNullOrEmpty(FileExtensions)
                 ? PoRepoLineTracker.Domain.Models.UserPreferences.DefaultFileExtensions
                 : FileExtensions.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),

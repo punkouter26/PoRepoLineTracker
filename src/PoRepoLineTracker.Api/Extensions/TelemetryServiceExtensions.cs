@@ -4,6 +4,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
 using PoRepoLineTracker.Application.Telemetry;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Api.Extensions;
 
@@ -26,13 +27,13 @@ public static class TelemetryServiceExtensions
         //   1. APPLICATIONINSIGHTS_CONNECTION_STRING
         //   2. APPINSIGHTS_INSTRUMENTATIONKEY  (promoted to a connection string)
         //   3. Hardcoded staging connection string fallback
-        var aiCs = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]
-                   ?? configuration["ApplicationInsights:ConnectionString"];
+        var aiCs = configuration[ConfigKeys.Telemetry.AppInsightsConnectionString]
+                   ?? configuration[ConfigKeys.Telemetry.AppInsightsConnectionStringSection];
 
         if (string.IsNullOrWhiteSpace(aiCs))
         {
-            var iKey = configuration["APPINSIGHTS_INSTRUMENTATIONKEY"]
-                       ?? configuration["ApplicationInsights:InstrumentationKey"];
+            var iKey = configuration[ConfigKeys.Telemetry.AppInsightsInstrumentationKey]
+                       ?? configuration[ConfigKeys.Telemetry.AppInsightsInstrumentationKeySection];
             if (!string.IsNullOrWhiteSpace(iKey))
                 aiCs = $"InstrumentationKey={iKey}";
         }
@@ -63,10 +64,10 @@ public static class TelemetryServiceExtensions
                     .AddHttpClientInstrumentation();
 
                 if (environment.IsDevelopment() &&
-                    string.Equals(configuration["EnableConsoleExporters"], "true", StringComparison.OrdinalIgnoreCase))
+                    string.Equals(configuration[ConfigKeys.Telemetry.EnableConsoleExporters], "true", StringComparison.OrdinalIgnoreCase))
                     tracing.AddConsoleExporter();
 
-                var otlpEndpoint = configuration["OpenTelemetry:OtlpEndpoint"];
+                var otlpEndpoint = configuration[ConfigKeys.Telemetry.OtlpEndpoint];
                 if (!string.IsNullOrWhiteSpace(otlpEndpoint))
                     tracing.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
             })
@@ -78,10 +79,10 @@ public static class TelemetryServiceExtensions
                     .AddHttpClientInstrumentation();
 
                 if (environment.IsDevelopment() &&
-                    string.Equals(configuration["EnableConsoleExporters"], "true", StringComparison.OrdinalIgnoreCase))
+                    string.Equals(configuration[ConfigKeys.Telemetry.EnableConsoleExporters], "true", StringComparison.OrdinalIgnoreCase))
                     metrics.AddConsoleExporter();
 
-                var otlpEndpoint = configuration["OpenTelemetry:OtlpEndpoint"];
+                var otlpEndpoint = configuration[ConfigKeys.Telemetry.OtlpEndpoint];
                 if (!string.IsNullOrWhiteSpace(otlpEndpoint))
                     metrics.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
             });

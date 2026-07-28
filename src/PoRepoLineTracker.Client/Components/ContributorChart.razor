@@ -2,16 +2,16 @@
 @using Radzen
 @using Radzen.Blazor
 
-<RadzenCard Style="padding: 1.25rem 1.5rem;">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" Style="margin-bottom: 1rem;">
+<RadzenCard class="cc-card">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="cc-toolbar">
         <RadzenStack Gap="0.15rem">
-            <RadzenText TextStyle="TextStyle.H6" Style="margin: 0; font-weight: 700;">Top Contributors</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">
+            <RadzenText TextStyle="TextStyle.H6" class="cc-title">Top Contributors</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" class="cc-description">
                 Source code contributions by author
             </RadzenText>
         </RadzenStack>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">Range:</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" class="cc-caption">Range:</RadzenText>
             <RadzenSelectBar @bind-Value="_chartDays" TValue="int" Change="@OnChartRangeChanged" Size="ButtonSize.Small">
                 <Items>
                     <RadzenSelectBarItem Text="30d" Value="30" />
@@ -32,36 +32,37 @@
         <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
             @_chartError
             <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
-                          Click="@LoadContributorStats" Style="margin-left: 0.5rem;" />
+                          Click="@LoadContributorStats" class="cc-refresh" />
         </RadzenAlert>
     }
     else if (_contributors == null || !_contributors.Any())
     {
         <RadzenStack AlignItems="AlignItems.Center" class="rz-p-8">
-            <RadzenIcon Icon="people" Style="font-size: 3rem; color: var(--rz-text-disabled-color);" />
-            <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color);">No contributor data yet.</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">Re-analyze the repository to see contributor statistics.</RadzenText>
+            <RadzenIcon Icon="people" class="cc-empty-icon" />
+            <RadzenText TextStyle="TextStyle.Body1" class="cc-empty-text">No contributor data yet.</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" class="cc-empty-hint">Re-analyze the repository to see contributor statistics.</RadzenText>
         </RadzenStack>
     }
     else
     {
         @* Legend *@
-        <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+        <div class="cc-legend">
             @foreach (var contributor in _contributors.OrderByDescending(c => c.TotalLinesAdded).Take(5))
             {
-                var color = GetColorForAuthor(contributor.AuthorName);
+                var swatchClass = GetAuthorColorClass(contributor.AuthorName);
                 var displayName = string.IsNullOrWhiteSpace(contributor.AuthorName) ? "(Unknown)" : contributor.AuthorName;
-                <div style="display: flex; align-items: center; gap: 0.35rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 2px; background: @color;"></div>
-                    <span style="font-size: 0.85rem;">@displayName (@contributor.TotalLinesAdded.ToString("N0") lines)</span>
+                <div class="cc-legend__item">
+                    <div class="cc-swatch @swatchClass"></div>
+                    <span class="cc-legend__label">@displayName (@contributor.TotalLinesAdded.ToString("N0") lines)</span>
                 </div>
             }
         </div>
 
         @* Chart *@
-        <RadzenChart Style="height: 320px; width: 100%;">
+        <RadzenChart class="cc-chart">
             @foreach (var contributor in _contributors.OrderByDescending(c => c.TotalLinesAdded).Take(5))
             {
+                // Stroke is a Radzen parameter, not CSS — it stays a colour value.
                 var color = GetColorForAuthor(contributor.AuthorName);
                 var displayName = string.IsNullOrWhiteSpace(contributor.AuthorName) ? "(Unknown)" : contributor.AuthorName;
                 <RadzenLineSeries Data="@contributor.DailyHistory"
@@ -83,14 +84,14 @@
         </RadzenChart>
 
         @* Summary Table *@
-        <div style="margin-top: 1.5rem;">
-            <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0 0 0.75rem 0; font-weight: 600;">All Contributors</RadzenText>
-            <RadzenDataGrid Data="@_contributors.OrderByDescending(c => c.TotalLinesAdded)" TItem="ContributorStatsDto" Style="font-size: 0.85rem;">
+        <div class="cc-table-section">
+            <RadzenText TextStyle="TextStyle.Subtitle2" class="cc-table-title">All Contributors</RadzenText>
+            <RadzenDataGrid Data="@_contributors.OrderByDescending(c => c.TotalLinesAdded)" TItem="ContributorStatsDto" class="cc-grid">
                 <Columns>
                     <RadzenDataGridColumn TItem="ContributorStatsDto" Property="AuthorName" Title="Author" Width="30%">
                         <Template Context="data">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <div style="width: 10px; height: 10px; border-radius: 2px; background: @GetColorForAuthor(data.AuthorName);"></div>
+                            <div class="cc-cell-row">
+                                <div class="cc-swatch cc-swatch--sm @GetAuthorColorClass(data.AuthorName)"></div>
                                 @data.AuthorName
                             </div>
                         </Template>
@@ -102,21 +103,21 @@
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="ContributorStatsDto" Property="TotalLinesAdded" Title="Lines Added" Width="20%">
                         <Template Context="data">
-                            <span style="color: #22c55e; font-weight: 600;">+@data.TotalLinesAdded.ToString("N0")</span>
+                            <span class="cc-added">+@data.TotalLinesAdded.ToString("N0")</span>
                         </Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="ContributorStatsDto" Property="TotalLinesRemoved" Title="Lines Removed" Width="20%">
                         <Template Context="data">
-                            <span style="color: #ef4444;">-@data.TotalLinesRemoved.ToString("N0")</span>
+                            <span class="cc-removed">-@data.TotalLinesRemoved.ToString("N0")</span>
                         </Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="ContributorStatsDto" Property="PercentageOfTotalLines" Title="% of Total" Width="15%">
                         <Template Context="data">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <div style="flex: 1; height: 6px; border-radius: 3px; background: var(--rz-base-200);">
-                                    <div style="@($"height: 100%; border-radius: 3px; background: {GetColorForAuthor(data.AuthorName)}; width: {Math.Min(data.PercentageOfTotalLines, 100):F1}%;")"></div>
+                            <div class="cc-cell-row">
+                                <div class="cc-bar">
+                                    <div class="cc-bar__fill @GetAuthorColorClass(data.AuthorName)" style="@($"--cc-bar-fill: {Math.Min(data.PercentageOfTotalLines, 100):F1}%")"></div>
                                 </div>
-                                <span style="min-width: 40px; text-align: right;">@data.PercentageOfTotalLines.ToString("F1")%</span>
+                                <span class="cc-bar__value">@data.PercentageOfTotalLines.ToString("F1")%</span>
                             </div>
                         </Template>
                     </RadzenDataGridColumn>
@@ -127,7 +128,7 @@
 </RadzenCard>
 
 @code {
-    [Parameter] public Guid RepositoryId { get; set; }
+    [Parameter] public RepositoryId RepositoryId { get; set; }
     [Inject] HttpClient Http { get; set; } = null!;
     [Inject] ILogger<ContributorChart> Logger { get; set; } = null!;
 
@@ -181,4 +182,12 @@
         var index = Math.Abs(authorName.GetHashCode()) % _colors.Length;
         return _colors[index];
     }
+
+    /// <summary>
+    /// Rule 4.3 — swatches and bars used to receive their colour through an interpolated inline
+    /// style. The palette is a fixed list, so the hash maps to a modifier class and the colours
+    /// live in ContributorChart.razor.css (kept in step with <see cref="_colors"/>).
+    /// </summary>
+    private static string GetAuthorColorClass(string authorName) =>
+        $"cc-swatch--{Math.Abs(authorName.GetHashCode()) % _colors.Length}";
 }

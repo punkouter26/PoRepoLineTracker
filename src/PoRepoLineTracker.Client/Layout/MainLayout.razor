@@ -12,12 +12,12 @@
     <RadzenHeader>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Gap="1rem" class="rz-p-4">
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem"
-                         Style="cursor: pointer;" @onclick="@(() => Navigation.NavigateTo("/"))">
+                         class="brand-link" @onclick="@(() => Navigation.NavigateTo("/"))">
                 <span class="brand-icon-wrap">
-                    <RadzenIcon Icon="code" Style="font-size: 1.2rem; color: #fff;" />
-                    <RadzenIcon Icon="trending_up" class="brand-icon-trend" Style="font-size: 0.55rem; color: white;" />
+                    <RadzenIcon Icon="code" class="brand-icon-main" />
+                    <RadzenIcon Icon="trending_up" class="brand-icon-trend" />
                 </span>
-                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; font-weight: 700; color: #fff; letter-spacing: -0.01em;">PoRepoLineTracker</RadzenText>
+                <RadzenText TextStyle="TextStyle.H5" class="brand-wordmark">PoRepoLineTracker</RadzenText>
             </RadzenStack>
 
             @* USING MOCK DATA warning shown prominently in the nav when feature flag is enabled *@
@@ -25,28 +25,28 @@
             {
                 <RadzenBadge BadgeStyle="BadgeStyle.Warning"
                              Text="⚠ USING MOCK DATA"
-                             Style="font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; padding: 0.3rem 0.75rem;" />
+                             class="mock-data-badge" />
             }
 
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
                 <RadzenButton Icon="@(_isDarkMode ? "light_mode" : "dark_mode")"
                               ButtonStyle="ButtonStyle.Light"
                               Variant="Variant.Text"
-                              Style="color: rgba(255,255,255,0.85);"
+                              class="header-icon-btn"
                               title="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")"
                               Click="@ToggleDarkMode" />
                 <LoginDisplay />
-                <RadzenButton Icon="@(sidebarExpanded ? "menu_open" : "menu")" 
-                              ButtonStyle="ButtonStyle.Light" 
+                <RadzenButton Icon="@(sidebarExpanded ? "menu_open" : "menu")"
+                              ButtonStyle="ButtonStyle.Light"
                               Variant="Variant.Text"
-                              Style="color: rgba(255,255,255,0.85);"
+                              class="header-icon-btn"
                               Click="@ToggleSidebar" />
             </RadzenStack>
         </RadzenStack>
     </RadzenHeader>
 
-    <RadzenSidebar @bind-Expanded="@sidebarExpanded" Style="width: 220px; min-height: 100vh;">
-        <div style="padding: 1rem 0 0.5rem;">
+    <RadzenSidebar @bind-Expanded="@sidebarExpanded" class="app-sidebar">
+        <div class="app-sidebar__nav">
             <ErrorBoundary>
                 <ChildContent>
                     <NavMenu />

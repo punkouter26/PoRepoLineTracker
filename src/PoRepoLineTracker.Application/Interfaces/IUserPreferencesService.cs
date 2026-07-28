@@ -10,7 +10,7 @@ public interface IUserPreferencesService
     /// <summary>
     /// Gets preferences for a user. Returns default preferences if none exist.
     /// </summary>
-    Task<UserPreferences> GetPreferencesAsync(Guid userId);
+    Task<UserPreferences> GetPreferencesAsync(UserId userId);
 
     /// <summary>
     /// Saves user preferences.
@@ -20,5 +20,5 @@ public interface IUserPreferencesService
     /// <summary>
     /// Gets file extensions for a specific user.
     /// </summary>
-    Task<List<string>> GetFileExtensionsAsync(Guid userId);
+    Task<List<string>> GetFileExtensionsAsync(UserId userId);
 }

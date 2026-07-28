@@ -8,7 +8,7 @@ public record UserPreferences
     /// <summary>
     /// User ID this preference belongs to.
     /// </summary>
-    public Guid UserId { get; init; }
+    public UserId UserId { get; init; }
 
     /// <summary>
     /// File extensions to include in line count calculations.

@@ -1,0 +1,131 @@
+/* Rule 4.3 — scoped styles for AllReposComparisonChart.
+   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+
+::deep .arc-card.arc-card {
+    padding: 1.25rem 1.5rem !important;
+}
+
+::deep .arc-toolbar.arc-toolbar {
+    margin-bottom: 1rem !important;
+}
+
+::deep .arc-title.arc-title {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .arc-description.arc-description,
+::deep .arc-caption.arc-caption,
+::deep .arc-empty-text.arc-empty-text {
+    color: var(--rz-text-secondary-color) !important;
+}
+
+::deep .arc-description.arc-description {
+    margin: 0 !important;
+}
+
+::deep .arc-refresh.arc-refresh {
+    margin-left: 0.5rem !important;
+}
+
+::deep .arc-empty.arc-empty {
+    padding: 3rem 0 !important;
+}
+
+::deep .arc-empty-icon.arc-empty-icon {
+    font-size: 3rem !important;
+    color: var(--rz-text-disabled-color) !important;
+}
+
+::deep .arc-chart.arc-chart {
+    height: 340px !important;
+    width: 100% !important;
+}
+
+::deep .arc-tooltip.arc-tooltip {
+    background: rgba(21, 21, 24, 0.96) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
+    color: #fff !important;
+}
+
+/* ─── Tooltip body (plain markup inside a Radzen template) ────────────────── */
+
+::deep .arc-tip {
+    padding: 0.35rem 0.45rem;
+    min-width: 170px;
+}
+
+::deep .arc-tip__title {
+    font-weight: 700;
+    color: var(--rz-text-color);
+    margin-bottom: 0.15rem;
+}
+
+::deep .arc-tip__meta {
+    font-size: 0.8rem;
+    color: var(--rz-text-secondary-color);
+}
+
+::deep .arc-tip__value {
+    margin-top: 0.2rem;
+    font-size: 0.85rem;
+    color: var(--rz-text-color);
+}
+
+::deep .arc-tip__label {
+    font-weight: 600;
+}
+
+/* ─── Legend ──────────────────────────────────────────────────────────────── */
+
+.arc-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.45rem 0.9rem;
+    margin-top: 0.9rem;
+    max-height: 112px;
+    overflow-y: auto;
+    align-items: start;
+    padding-right: 0.25rem;
+}
+
+.arc-legend__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    font-size: 0.76rem;
+    color: var(--rz-text-secondary-color);
+    line-height: 1.25;
+    min-width: 0;
+}
+
+.arc-legend__swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    flex: 0 0 auto;
+    margin-top: 0.18rem;
+}
+
+.arc-legend__label {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+}
+
+/* Series palette. Index-for-index with _seriesPalette in the .razor file — the swatch colour was
+   previously interpolated into the style attribute (see GetSeriesColorClass). */
+.arc-legend__swatch--0  { background: #5b3df5; }
+.arc-legend__swatch--1  { background: #d46ae8; }
+.arc-legend__swatch--2  { background: #ff7a59; }
+.arc-legend__swatch--3  { background: #ffb84d; }
+.arc-legend__swatch--4  { background: #f95d9b; }
+.arc-legend__swatch--5  { background: #34c3b3; }
+.arc-legend__swatch--6  { background: #5aa9ff; }
+.arc-legend__swatch--7  { background: #9b7bff; }
+.arc-legend__swatch--8  { background: #8bc34a; }
+.arc-legend__swatch--9  { background: #ffd54f; }
+.arc-legend__swatch--10 { background: #ec407a; }
+.arc-legend__swatch--11 { background: #26a69a; }

@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO; // Added for Stream
 using PoRepoLineTracker.Infrastructure.Interfaces; // Added for IGitClient
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Infrastructure.Services;
 
@@ -39,7 +40,7 @@ public class GitHubService : IGitHubService
         else
         {
             // Running locally
-            _localReposPath = configuration["GitHub:LocalReposPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
+            _localReposPath = configuration[ConfigKeys.GitHub.LocalReposPath] ?? Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
         }
 
         if (!Directory.Exists(_localReposPath))

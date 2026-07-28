@@ -1,6 +1,7 @@
 using Azure;
 using Azure.Data.Tables;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Api.HealthChecks;
 
@@ -16,7 +17,7 @@ public class AzureTableStorageHealthCheck : IHealthCheck
         ILogger<AzureTableStorageHealthCheck> logger)
     {
         _tableServiceClient = tableServiceClient;
-        _healthCheckTableName = configuration["AzureTableStorage:RepositoryTableName"] ?? "PoRepoLineTrackerRepositories";
+        _healthCheckTableName = configuration[ConfigKeys.AzureTableStorage.RepositoryTableName] ?? "PoRepoLineTrackerRepositories";
         _logger = logger;
     }
 

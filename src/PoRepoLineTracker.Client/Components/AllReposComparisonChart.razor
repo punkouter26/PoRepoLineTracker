@@ -5,14 +5,14 @@
 @using Radzen
 @using Radzen.Blazor
 
-<RadzenCard Style="padding: 1.25rem 1.5rem;">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" Style="margin-bottom: 1rem;">
+<RadzenCard class="arc-card">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="arc-toolbar">
         <RadzenStack Gap="0.15rem">
-            <RadzenText TextStyle="TextStyle.H6" Style="margin: 0; font-weight: 700;">All Repositories — Growth Overview</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">@ChartDescription</RadzenText>
+            <RadzenText TextStyle="TextStyle.H6" class="arc-title">All Repositories — Growth Overview</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" class="arc-description">@ChartDescription</RadzenText>
         </RadzenStack>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">Range:</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" class="arc-caption">Range:</RadzenText>
             <RadzenSelectBar @bind-Value="_days" TValue="int" Change="@OnRangeChanged" Size="ButtonSize.Small">
                 <Items>
                     <RadzenSelectBarItem Text="30d" Value="30" />
@@ -35,24 +35,25 @@
         <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" AllowClose="false">
             @_errorMessage
             <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
-                          Click="@(() => LoadData(_days))" Style="margin-left: 0.5rem;" />
+                          Click="@(() => LoadData(_days))" class="arc-refresh" />
         </RadzenAlert>
     }
     else if (_historyData == null || !_historyData.Any(r => r.DailyLineCounts.Any()))
     {
-        <RadzenStack AlignItems="AlignItems.Center" Style="padding: 3rem 0;">
-            <RadzenIcon Icon="show_chart" Style="font-size: 3rem; color: var(--rz-text-disabled-color);" />
-            <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color);">No history data yet — analysis is needed for at least one repository.</RadzenText>
+        <RadzenStack AlignItems="AlignItems.Center" class="arc-empty">
+            <RadzenIcon Icon="show_chart" class="arc-empty-icon" />
+            <RadzenText TextStyle="TextStyle.Body1" class="arc-empty-text">No history data yet — analysis is needed for at least one repository.</RadzenText>
         </RadzenStack>
     }
     else
     {
         var plottedRepos = GetDisplayedHistoryData().Where(r => r.DailyLineCounts.Any()).ToList();
 
-        <RadzenChart Style="height: 340px; width: 100%;">
+        <RadzenChart class="arc-chart">
             @for (var index = 0; index < plottedRepos.Count; index++)
             {
                 var repo = plottedRepos[index];
+                // Stroke is a Radzen parameter, not CSS — it stays a colour value.
                 var seriesColor = GetSeriesColor(index);
 
                 <RadzenLineSeries Data="@repo.DailyLineCounts.ToList()"
@@ -64,15 +65,15 @@
                     <TooltipTemplate Context="point">
                         @if (point is DailyLineCountDto day)
                         {
-                            <div style="padding: 0.35rem 0.45rem; min-width: 170px;">
-                                <div style="font-weight: 700; color: var(--rz-text-color); margin-bottom: 0.15rem;">
+                            <div class="arc-tip">
+                                <div class="arc-tip__title">
                                     @($"{repo.Owner}/{repo.RepositoryName}")
                                 </div>
-                                <div style="font-size: 0.8rem; color: var(--rz-text-secondary-color);">
+                                <div class="arc-tip__meta">
                                     @day.Date.ToString("MMM dd, yyyy")
                                 </div>
-                                <div style="margin-top: 0.2rem; font-size: 0.85rem; color: var(--rz-text-color);">
-                                    <span style="font-weight: 600;">@($"{TooltipValueLabel}:")</span> @day.TotalLines.ToString("N0")
+                                <div class="arc-tip__value">
+                                    <span class="arc-tip__label">@($"{TooltipValueLabel}:")</span> @day.TotalLines.ToString("N0")
                                 </div>
                             </div>
                         }
@@ -89,18 +90,18 @@
                 <RadzenGridLines Visible="true" />
             </RadzenValueAxis>
             <RadzenLegend Visible="false" />
-            <RadzenChartTooltipOptions Shared="false" Style="background: rgba(21, 21, 24, 0.96); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); color: white;" />
+            <RadzenChartTooltipOptions Shared="false" class="arc-tooltip" />
         </RadzenChart>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.45rem 0.9rem; margin-top: 0.9rem; max-height: 112px; overflow-y: auto; align-items: start; padding-right: 0.25rem;">
+        <div class="arc-legend">
             @for (var index = 0; index < plottedRepos.Count; index++)
             {
                 var repo = plottedRepos[index];
-                var seriesColor = GetSeriesColor(index);
+                var swatchClass = GetSeriesColorClass(index);
 
-                <div style="display: flex; align-items: flex-start; gap: 0.45rem; font-size: 0.76rem; color: var(--rz-text-secondary-color); line-height: 1.25; min-width: 0;">
-                    <span style="width: 10px; height: 10px; border-radius: 999px; background: @seriesColor; flex: 0 0 auto; margin-top: 0.18rem;"></span>
-                    <span style="overflow-wrap: anywhere; word-break: break-word; min-width: 0;">@($"{repo.Owner}/{repo.RepositoryName}")</span>
+                <div class="arc-legend__item">
+                    <span class="arc-legend__swatch @swatchClass"></span>
+                    <span class="arc-legend__label">@($"{repo.Owner}/{repo.RepositoryName}")</span>
                 </div>
             }
         </div>
@@ -208,4 +209,12 @@
     }
 
     private static string GetSeriesColor(int index) => _seriesPalette[index % _seriesPalette.Length];
+
+    /// <summary>
+    /// Rule 4.3 — the legend swatch used to receive its colour through an interpolated inline
+    /// style. The palette is a fixed list, so the index maps to a modifier class and the colours
+    /// live in AllReposComparisonChart.razor.css (kept in step with <see cref="_seriesPalette"/>).
+    /// </summary>
+    private static string GetSeriesColorClass(int index) =>
+        $"arc-legend__swatch--{index % _seriesPalette.Length}";
 }

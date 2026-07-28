@@ -74,6 +74,14 @@
         --text-muted: #64748b;          /* Slate 500 */
         --border-light: #334155;        /* Slate 700 */
         --border-medium: #475569;       /* Slate 600 */
+
+        /* Radzen's own surface tokens must move too, otherwise the page background stays
+           light: the `body { background: var(--rz-base-100) }` rule further down this file
+           wins over the `html, body` rule above it, so overriding only --bg-primary left the
+           dark theme invisible on the page background. */
+        --rz-base-100: var(--bg-dark);
+        --rz-base-200: var(--bg-dark-secondary);
+        --rz-text-color: var(--text-inverse);
     }
 }
 

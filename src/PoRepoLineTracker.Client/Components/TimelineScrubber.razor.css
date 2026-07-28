@@ -1,0 +1,93 @@
+/* Rule 4.3 — scoped styles for TimelineScrubber.
+   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+
+::deep .ts-card.ts-card {
+    padding: 1rem 1.5rem !important;
+}
+
+::deep .ts-toolbar.ts-toolbar {
+    margin-bottom: 0.75rem !important;
+}
+
+::deep .ts-title.ts-title {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .ts-description.ts-description {
+    color: var(--rz-text-secondary-color) !important;
+    margin: 0 !important;
+}
+
+::deep .ts-empty.ts-empty {
+    color: var(--rz-text-disabled-color) !important;
+}
+
+::deep .ts-slider.ts-slider {
+    width: 100% !important;
+}
+
+::deep .ts-bounds.ts-bounds {
+    margin-bottom: 1rem !important;
+}
+
+::deep .ts-bound-label.ts-bound-label {
+    color: var(--rz-text-secondary-color) !important;
+}
+
+::deep .ts-date-badge.ts-date-badge {
+    font-size: 0.85rem !important;
+}
+
+::deep .ts-metric.ts-metric {
+    background: var(--rz-base-100) !important;
+    border-radius: 8px !important;
+    text-align: center !important;
+}
+
+::deep .ts-metric__label.ts-metric__label {
+    color: var(--rz-text-secondary-color) !important;
+    margin: 0 !important;
+}
+
+::deep .ts-metric__value.ts-metric__value {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .ts-metric__value--primary.ts-metric__value--primary {
+    color: var(--rz-primary) !important;
+}
+
+::deep .ts-metric__value--added.ts-metric__value--added {
+    color: #22c55e !important;
+}
+
+::deep .ts-tags.ts-tags {
+    margin-top: 0.75rem !important;
+}
+
+::deep .ts-tag.ts-tag {
+    font-size: 0.75rem !important;
+}
+
+.ts-slider-row {
+    margin-bottom: 1rem;
+}
+
+/* AI-share severity, previously interpolated per render (see GetAiSeverityClass). */
+::deep .ts-metric__value--ai-high.ts-metric__value--ai-high {
+    color: #ef4444 !important;
+}
+
+::deep .ts-metric__value--ai-elevated.ts-metric__value--ai-elevated {
+    color: #f97316 !important;
+}
+
+::deep .ts-metric__value--ai-moderate.ts-metric__value--ai-moderate {
+    color: #eab308 !important;
+}
+
+::deep .ts-metric__value--ai-low.ts-metric__value--ai-low {
+    color: #22c55e !important;
+}

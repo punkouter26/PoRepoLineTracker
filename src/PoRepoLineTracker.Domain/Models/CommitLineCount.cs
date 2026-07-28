@@ -3,7 +3,7 @@ namespace PoRepoLineTracker.Domain.Models;
 public class CommitLineCount
 {
     public Guid Id { get; set; }
-    public Guid RepositoryId { get; set; }
+    public RepositoryId RepositoryId { get; set; }
     public string CommitSha { get; set; } = string.Empty;
     public DateTime CommitDate { get; set; }
     public int TotalLines { get; set; }

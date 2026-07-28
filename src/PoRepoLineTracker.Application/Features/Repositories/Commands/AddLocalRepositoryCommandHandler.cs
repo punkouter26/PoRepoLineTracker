@@ -28,7 +28,7 @@ public class AddLocalRepositoryCommandHandler : IRequestHandler<AddLocalReposito
 
         var repository = new GitHubRepository
         {
-            Id = Guid.NewGuid(),
+            Id = RepositoryId.New(),
             UserId = request.UserId,
             Owner = request.Owner,
             Name = request.Name,

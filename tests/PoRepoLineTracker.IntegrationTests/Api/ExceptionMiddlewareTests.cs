@@ -91,7 +91,7 @@ public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory
 public class ExceptionMiddlewareFactory : CustomWebApplicationFactory
 {
     /// <summary>The repository ID that causes the mediator to throw.</summary>
-    public static readonly Guid ThrowingRepoId = new("DEADBEEF-DEAD-BEEF-DEAD-BEEFDEADBEEF");
+    public static readonly RepositoryId ThrowingRepoId = new(new Guid("DEADBEEF-DEAD-BEEF-DEAD-BEEFDEADBEEF"));
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -105,7 +105,7 @@ public class ExceptionMiddlewareFactory : CustomWebApplicationFactory
             var fakeRepo = new GitHubRepository
             {
                 Id = ThrowingRepoId,
-                UserId = Guid.Parse(TestAuthHandler.TestUserId),
+                UserId = UserId.Parse(TestAuthHandler.TestUserId),
                 Owner = "testowner",
                 Name = "testrepo",
                 CloneUrl = "https://github.com/testowner/testrepo.git"

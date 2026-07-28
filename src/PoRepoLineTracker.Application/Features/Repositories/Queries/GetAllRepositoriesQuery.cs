@@ -4,7 +4,7 @@ using PoRepoLineTracker.Domain.Models;
 
 namespace PoRepoLineTracker.Application.Features.Repositories.Queries;
 
-public record GetAllRepositoriesQuery(Guid UserId) : IRequest<IEnumerable<GitHubRepository>>;
+public record GetAllRepositoriesQuery(UserId UserId) : IRequest<IEnumerable<GitHubRepository>>;
 
 public class GetAllRepositoriesQueryHandler : IRequestHandler<GetAllRepositoriesQuery, IEnumerable<GitHubRepository>>
 {

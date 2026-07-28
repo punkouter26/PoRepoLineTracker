@@ -28,6 +28,13 @@ namespace PoRepoLineTracker.IntegrationTests
         public const string TestUserId = "00000000-0000-0000-0000-000000000001";
         public const string TestUsername = "testuser";
 
+        /// <summary>
+        /// Requests carrying this header are treated as signed out, so a single host can serve
+        /// both the authenticated tests and the FallbackPolicy denial tests (Rule 3.3). Spinning
+        /// up a second WebApplicationFactory instead races the entry-point resolver.
+        /// </summary>
+        public const string AnonymousHeader = "X-Test-Anonymous";
+
         public TestAuthHandler(
             IOptionsMonitor<AuthenticationSchemeOptions> options,
             ILoggerFactory logger,
@@ -37,6 +44,9 @@ namespace PoRepoLineTracker.IntegrationTests
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
+            if (Request.Headers.ContainsKey(AnonymousHeader))
+                return Task.FromResult(AuthenticateResult.NoResult());
+
             var claims = new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, "github-123"),
@@ -57,7 +67,7 @@ namespace PoRepoLineTracker.IntegrationTests
     {
         private UserPreferences _storedPreferences = new()
         {
-            UserId = Guid.Parse(TestAuthHandler.TestUserId),
+            UserId = UserId.Parse(TestAuthHandler.TestUserId),
             FileExtensions = UserPreferences.DefaultFileExtensions,
             ChartDisplayMode = ChartDisplayMode.TrueData,
             LastUpdated = DateTime.UtcNow
@@ -85,6 +95,10 @@ namespace PoRepoLineTracker.IntegrationTests
                     {"GitHub:ClientId", "test-client-id"},
                     {"GitHub:ClientSecret", "test-client-secret"},
                     {"GitHub:CallbackPath", "/signin-github"},
+                    // Server-side PAT fallback. Without it the user-repositories endpoint short
+                    // circuits with 400 before it ever reaches IGitHubService, which would make
+                    // the caching tests assert nothing. Also exercises /diag masking.
+                    {"GitHub:PAT", "test-pat-value-must-never-be-echoed"},
                     // Disable Key Vault to prevent DefaultAzureCredential from throwing
                     {"KeyVault:Uri", ""},
                     // Disable OpenTelemetry export
@@ -181,17 +195,17 @@ namespace PoRepoLineTracker.IntegrationTests
                 var mockRepoDataService = Substitute.For<IRepositoryDataService>();
 
                 // Default: return empty collections for all repository data queries
-                mockRepoDataService.GetAllRepositoriesAsync(Arg.Any<Guid>())
+                mockRepoDataService.GetAllRepositoriesAsync(Arg.Any<UserId>())
                     .Returns(Task.FromResult(Enumerable.Empty<GitHubRepository>()));
-                mockRepoDataService.GetRepositoryByIdAsync(Arg.Any<Guid>())
+                mockRepoDataService.GetRepositoryByIdAsync(Arg.Any<RepositoryId>())
                     .Returns(Task.FromResult<GitHubRepository?>(null));
-                mockRepoDataService.GetCommitLineCountsByRepositoryIdAsync(Arg.Any<Guid>())
+                mockRepoDataService.GetCommitLineCountsByRepositoryIdAsync(Arg.Any<RepositoryId>())
                     .Returns(Task.FromResult(Enumerable.Empty<CommitLineCount>()));
-                mockRepoDataService.GetTopFilesAsync(Arg.Any<Guid>(), Arg.Any<int>())
+                mockRepoDataService.GetTopFilesAsync(Arg.Any<RepositoryId>(), Arg.Any<int>())
                     .Returns(Task.FromResult(Enumerable.Empty<TopFileDto>()));
-                mockRepoDataService.SaveTopFilesAsync(Arg.Any<Guid>(), Arg.Any<IEnumerable<TopFileDto>>())
+                mockRepoDataService.SaveTopFilesAsync(Arg.Any<RepositoryId>(), Arg.Any<IEnumerable<TopFileDto>>())
                     .Returns(Task.CompletedTask);
-                mockRepoDataService.DeleteTopFilesForRepositoryAsync(Arg.Any<Guid>())
+                mockRepoDataService.DeleteTopFilesForRepositoryAsync(Arg.Any<RepositoryId>())
                     .Returns(Task.CompletedTask);
                 mockRepoDataService.GetConfiguredFileExtensionsAsync()
                     .Returns(Task.FromResult<IEnumerable<string>>(new[] { ".cs", ".razor", ".js", ".ts", ".py", ".html", ".css" }));
@@ -199,14 +213,14 @@ namespace PoRepoLineTracker.IntegrationTests
                     .Returns(Task.CompletedTask);
 
                 mockUserPreferencesService
-                    .GetPreferencesAsync(Arg.Any<Guid>())
+                    .GetPreferencesAsync(Arg.Any<UserId>())
                     .Returns(callInfo =>
                     {
-                        var userId = callInfo.Arg<Guid>();
+                        var userId = callInfo.Arg<UserId>();
                         return _storedPreferences with { UserId = userId };
                     });
                 mockUserPreferencesService
-                    .GetFileExtensionsAsync(Arg.Any<Guid>())
+                    .GetFileExtensionsAsync(Arg.Any<UserId>())
                     .Returns(callInfo => Task.FromResult(_storedPreferences.FileExtensions));
                 mockUserPreferencesService
                     .SavePreferencesAsync(Arg.Any<UserPreferences>())

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
 using PoRepoLineTracker.Infrastructure.Entities;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Infrastructure.Services;
 
@@ -20,7 +21,7 @@ public class UserService : IUserService
     public UserService(TableServiceClient tableServiceClient, IConfiguration configuration, ILogger<UserService> logger)
     {
         _logger = logger;
-        var tableName = configuration["AzureTableStorage:UserTableName"] ?? "PoRepoLineTrackerUsers";
+        var tableName = configuration[ConfigKeys.AzureTableStorage.UserTableName] ?? "PoRepoLineTrackerUsers";
         _userTableClient = tableServiceClient.GetTableClient(tableName);
     }
 
@@ -41,14 +42,14 @@ public class UserService : IUserService
         }
     }
 
-    public async Task<User?> GetUserByIdAsync(Guid userId)
+    public async Task<User?> GetUserByIdAsync(UserId userId)
     {
         await EnsureTableExistsAsync();
 
         try
         {
             // Query by Id property since RowKey is GitHubId
-            var query = _userTableClient.QueryAsync<UserEntity>(e => e.Id == userId);
+            var query = _userTableClient.QueryAsync<UserEntity>(e => e.Id == userId.Value);
             await foreach (var entity in query)
             {
                 return entity.ToDomainModel();
@@ -103,7 +104,7 @@ public class UserService : IUserService
             else
             {
                 // New user
-                user.Id = Guid.NewGuid();
+                user.Id = UserId.New();
                 user.CreatedAt = DateTime.UtcNow;
                 user.LastLoginAt = DateTime.UtcNow;
             }
@@ -121,7 +122,7 @@ public class UserService : IUserService
         }
     }
 
-    public async Task UpdateAccessTokenAsync(Guid userId, string accessToken, DateTime? expiresAt = null)
+    public async Task UpdateAccessTokenAsync(UserId userId, string accessToken, DateTime? expiresAt = null)
     {
         await EnsureTableExistsAsync();
 
@@ -148,13 +149,13 @@ public class UserService : IUserService
         }
     }
 
-    public async Task<string?> GetAccessTokenAsync(Guid userId)
+    public async Task<string?> GetAccessTokenAsync(UserId userId)
     {
         var user = await GetUserByIdAsync(userId);
         return user?.AccessToken;
     }
 
-    public async Task DeleteUserAsync(Guid userId, bool deleteAssociatedData = false)
+    public async Task DeleteUserAsync(UserId userId, bool deleteAssociatedData = false)
     {
         await EnsureTableExistsAsync();
 

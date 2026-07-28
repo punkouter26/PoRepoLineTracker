@@ -34,7 +34,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     [Fact]
     public async Task Handle_RepoNotFound_ReturnsUnitWithoutProcessing()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         _dataService.GetRepositoryByIdAsync(repoId).Returns((GitHubRepository?)null);
 
         var result = await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
@@ -47,7 +47,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     [Fact]
     public async Task Handle_NewRepo_ClonesRepository()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,
@@ -74,7 +74,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     [Fact]
     public async Task Handle_ExistingLocalPath_PullsRepository()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,
@@ -102,7 +102,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     [Fact]
     public async Task Handle_ClearExistingData_DeletesCommitsAndResetsDate()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,
@@ -133,7 +133,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     [Fact]
     public async Task Handle_NewCommit_ProcessesAndSaves()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,
@@ -171,7 +171,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     [Fact]
     public async Task Handle_ExistingCommit_SkipsWithoutForce()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,
@@ -203,7 +203,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     [Fact]
     public async Task Handle_ContinuesProcessingAfterCommitFailure()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,
@@ -241,8 +241,8 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     [Fact]
     public async Task Handle_UserWithId_FetchesAccessToken()
     {
-        var repoId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
+        var userId = UserId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,
@@ -284,8 +284,8 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         // which made libcurl reject the clone URL with "Port number was not a
         // decimal number". When the user logged in via Microsoft (GitHubId starts
         // with "ms:"), the handler must use the server-configured GitHub:PAT instead.
-        var repoId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
+        var userId = UserId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,
@@ -324,7 +324,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     [Fact]
     public async Task Handle_TopFilesCalculationFails_DoesNotThrow()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,
@@ -350,7 +350,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     [Fact]
     public async Task Handle_CloneError_Throws()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,

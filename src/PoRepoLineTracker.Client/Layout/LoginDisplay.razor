@@ -3,15 +3,16 @@
 @inject ApiAuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
+@* Rule 4.3 — the wrapper <div> anchors CSS isolation for the Radzen markup below. *@
+<div class="login-display">
 <AuthorizeView>
     <Authorized>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
             @if (!string.IsNullOrEmpty(AuthStateProvider.CurrentUser?.AvatarUrl))
             {
-                <RadzenImage Path="@AuthStateProvider.CurrentUser!.AvatarUrl"
-                             Style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;" />
+                <RadzenImage Path="@AuthStateProvider.CurrentUser!.AvatarUrl" class="login-display__avatar" />
             }
-            <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-color);">
+            <RadzenText TextStyle="TextStyle.Body2" class="login-display__identity">
                 @(AuthStateProvider.CurrentUser?.Email
                   ?? AuthStateProvider.CurrentUser?.DisplayName
                   ?? AuthStateProvider.CurrentUser?.Username
@@ -32,6 +33,7 @@
                       Click="@HandleLogin" />
     </NotAuthorized>
 </AuthorizeView>
+</div>
 
 @code {
     private void HandleLogin()

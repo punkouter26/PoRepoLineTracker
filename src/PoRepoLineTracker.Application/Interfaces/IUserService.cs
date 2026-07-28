@@ -10,7 +10,7 @@ public interface IUserService
     /// <summary>
     /// Gets a user by their internal ID.
     /// </summary>
-    Task<User?> GetUserByIdAsync(Guid userId);
+    Task<User?> GetUserByIdAsync(UserId userId);
 
     /// <summary>
     /// Gets a user by their GitHub ID.
@@ -26,15 +26,15 @@ public interface IUserService
     /// <summary>
     /// Updates a user's access token.
     /// </summary>
-    Task UpdateAccessTokenAsync(Guid userId, string accessToken, DateTime? expiresAt = null);
+    Task UpdateAccessTokenAsync(UserId userId, string accessToken, DateTime? expiresAt = null);
 
     /// <summary>
     /// Gets the access token for a user.
     /// </summary>
-    Task<string?> GetAccessTokenAsync(Guid userId);
+    Task<string?> GetAccessTokenAsync(UserId userId);
 
     /// <summary>
     /// Deletes a user and optionally their associated data.
     /// </summary>
-    Task DeleteUserAsync(Guid userId, bool deleteAssociatedData = false);
+    Task DeleteUserAsync(UserId userId, bool deleteAssociatedData = false);
 }

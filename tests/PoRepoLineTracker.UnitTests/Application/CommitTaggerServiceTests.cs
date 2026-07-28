@@ -20,7 +20,7 @@ public class CommitTaggerServiceTests
         return new CommitLineCount
         {
             Id = Guid.NewGuid(),
-            RepositoryId = Guid.NewGuid(),
+            RepositoryId = RepositoryId.New(),
             CommitSha = "abc123",
             CommitDate = DateTime.UtcNow,
             TotalLines = totalLines > 0 ? totalLines : linesAdded + linesRemoved,

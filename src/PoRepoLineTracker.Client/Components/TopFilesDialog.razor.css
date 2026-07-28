@@ -1,0 +1,30 @@
+/* Rule 4.3 — scoped styles for TopFilesDialog. See AddRepository.razor.css for the pattern. */
+
+.top-files-dialog ::deep .top-files-dialog__loading.top-files-dialog__loading {
+    height: 320px !important;
+    gap: 1rem !important;
+}
+
+.top-files-dialog ::deep .top-files-dialog__grid.top-files-dialog__grid {
+    height: 520px !important;
+}
+
+.top-files-dialog ::deep .top-files-dialog__rank.top-files-dialog__rank {
+    color: var(--rz-text-secondary-color) !important;
+}
+
+/* Rendered inside a Radzen column template, so it is reached through ::deep even though it is a
+   plain <span> — templates are compiled into the grid's own render tree. */
+.top-files-dialog ::deep .top-files-dialog__filename {
+    word-break: break-all;
+    font-size: 0.875rem;
+}
+
+.top-files-dialog ::deep .top-files-dialog__empty-icon.top-files-dialog__empty-icon {
+    font-size: 3rem !important;
+    color: var(--rz-text-disabled-color) !important;
+}
+
+.top-files-dialog ::deep .top-files-dialog__empty-text.top-files-dialog__empty-text {
+    color: var(--rz-text-secondary-color) !important;
+}

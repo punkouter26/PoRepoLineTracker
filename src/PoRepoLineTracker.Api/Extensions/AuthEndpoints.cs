@@ -10,13 +10,19 @@ namespace PoRepoLineTracker.Api.Extensions;
 
 internal static class AuthEndpoints
 {
-    internal static void MapAuthEndpoints(this WebApplication app)
+    internal static void MapAuthEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        app.MapGet("/auth/login", (string? returnUrl, IConfiguration config) =>
+        // Rule 3.1 — the whole /auth slice is anonymous by construction: these are the routes a
+        // signed-out browser must reach to sign in, so the group opts out of the FallbackPolicy once.
+        var auth = endpoints.MapGroup("/auth")
+            .WithTags("Auth")
+            .AllowAnonymous();
+
+        auth.MapGet("/login", (string? returnUrl, IConfiguration config) =>
         {
-            var ghClientId = config["GitHub:ClientId"];
-            var msClientId = config["Microsoft:ClientId"];
-            var msClientSecret = config["Microsoft:ClientSecret"];
+            var ghClientId = config[ConfigKeys.GitHub.ClientId];
+            var msClientId = config[ConfigKeys.Microsoft.ClientId];
+            var msClientSecret = config[ConfigKeys.Microsoft.ClientSecret];
 
             // Prefer GitHub OAuth when configured; fall back to Microsoft OAuth.
             // If neither is configured, return 503 so the client can show a helpful message
@@ -39,19 +45,17 @@ internal static class AuthEndpoints
                 detail: "Neither GitHub nor Microsoft OAuth is configured. Set GitHub:ClientId (and GitHub:ClientSecret) or Microsoft:ClientId (and Microsoft:ClientSecret) in configuration.",
                 statusCode: StatusCodes.Status503ServiceUnavailable);
         })
-        .WithName("Login")
-        .AllowAnonymous();
+        .WithName("Login");
 
         // Microsoft OAuth login — challenges Microsoft account provider
         // "Microsoft" is MicrosoftAccountDefaults.AuthenticationScheme (scheme name string)
-        app.MapGet("/auth/login/microsoft", (string? returnUrl) =>
+        auth.MapGet("/login/microsoft", (string? returnUrl) =>
             Results.Challenge(
                 new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },
                 ["Microsoft"]))
-            .WithName("LoginMicrosoft")
-            .AllowAnonymous();
+            .WithName("LoginMicrosoft");
 
-        app.MapGet("/auth/logout", async (HttpContext context) =>
+        auth.MapGet("/logout", async (HttpContext context) =>
         {
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             // Redirect to /login so the user lands on the unauthenticated landing
@@ -59,16 +63,16 @@ internal static class AuthEndpoints
             // 302 loop where the auth filter keeps bouncing them).
             return Results.Redirect("/login");
         })
-        .WithName("Logout")
-        .AllowAnonymous();
+        .WithName("Logout");
 
-        app.MapGet("/auth/me", async (HttpContext context, IUserService userService) =>
+        // Anonymous by design: the Blazor client polls this to discover whether it has a
+        // session, and must get a well-formed "not authenticated" answer rather than a 401.
+        auth.MapGet("/me", async (HttpContext context, IUserService userService) =>
         {
             if (context.User.Identity?.IsAuthenticated != true)
                 return Results.Ok(new AuthResponse(IsAuthenticated: false));
 
-            var userIdClaim = context.User.FindFirst("UserId")?.Value;
-            if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            if (!context.User.TryGetUserId(out var userId))
                 return Results.Ok(new AuthResponse(IsAuthenticated: false));
 
             try
@@ -108,7 +112,6 @@ internal static class AuthEndpoints
                     AvatarUrl: context.User.FindFirst("AvatarUrl")?.Value ?? ""));
             }
         })
-        .WithName("GetCurrentUser")
-        .AllowAnonymous();
+        .WithName("GetCurrentUser");
     }
 }

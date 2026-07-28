@@ -15,8 +15,8 @@
     <div class="repo-hero">
     <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
         <RadzenColumn Size="12" SizeMD="6">
-            <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">File Extension Settings</RadzenText>
-            <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color); margin: 0;">Configure which file extensions are counted in line analysis</RadzenText>
+            <RadzenText TextStyle="TextStyle.H3" class="ext-title">File Extension Settings</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body1" class="ext-subtitle">Configure which file extensions are counted in line analysis</RadzenText>
         </RadzenColumn>
     </RadzenRow>
     </div>
@@ -99,14 +99,14 @@
                                 RowUpdate="@OnUpdateRow"
                                 RowCreate="@OnCreateRow"
                                 Density="Density.Compact"
-                                Style="height: auto;">
+                                class="ext-grid">
                     <Columns>
                         <RadzenDataGridColumn TItem="ExtensionItem" Property="Extension" Title="Extension" Width="200px">
                             <Template Context="item">
-                                <code style="font-size: 1rem;">@item.Extension</code>
+                                <code class="ext-code">@item.Extension</code>
                             </Template>
                             <EditTemplate Context="item">
-                                <RadzenTextBox @bind-Value="item.Extension" Style="width: 100%;" autofocus />
+                                <RadzenTextBox @bind-Value="item.Extension" class="ext-input" autofocus />
                             </EditTemplate>
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="ExtensionItem" Property="Category" Title="Category" Width="150px">
@@ -219,8 +219,8 @@
     private async Task AddNewExtension()
     {
         var result = await DialogService.OpenAsync("Add Extension", ds =>
-            @<RadzenStack Gap="1rem" Style="padding: 1rem;">
-                <RadzenTextBox @bind-Value="@newExtensionValue" Placeholder="e.g., .py or py" Style="width: 100%;" />
+            @<RadzenStack Gap="1rem" class="ext-dialog">
+                <RadzenTextBox @bind-Value="@newExtensionValue" Placeholder="e.g., .py or py" class="ext-input" />
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
                     <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => ds.Close(null))" />
                     <RadzenButton Text="Add" ButtonStyle="ButtonStyle.Primary" Click="@(() => ds.Close(newExtensionValue))" />
@@ -305,7 +305,7 @@
         {
             var updatedPrefs = new UserPreferences
             {
-                UserId = preferences?.UserId ?? Guid.Empty,
+                UserId = preferences?.UserId ?? UserId.Empty,
                 FileExtensions = extensionItems.Select(e => e.Extension).ToList(),
                 ChartDisplayMode = preferences?.ChartDisplayMode ?? ChartDisplayMode.TrueData,
                 LastUpdated = DateTime.UtcNow

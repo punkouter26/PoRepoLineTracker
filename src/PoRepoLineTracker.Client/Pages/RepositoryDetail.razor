@@ -27,10 +27,10 @@
                     {
                         <RadzenStack Gap="0.15rem">
                             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                <RadzenText TextStyle="TextStyle.H4" Style="margin: 0; font-weight: 700;">@_repo.Owner/@_repo.Name</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H4" class="rd-title">@_repo.Owner/@_repo.Name</RadzenText>
                                 <a href="@($"https://github.com/{_repo.Owner}/{_repo.Name}")" target="_blank"
-                                   title="Open on GitHub" style="color: var(--rz-text-secondary-color); line-height: 1; display: flex; align-items: center;">
-                                    <span class="material-icons" style="font-size: 1.1rem;">open_in_new</span>
+                                   title="Open on GitHub" class="rd-github-link">
+                                    <span class="material-icons rd-github-link__icon">open_in_new</span>
                                 </a>
                             </RadzenStack>
                             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
@@ -97,7 +97,7 @@
     {
         <RadzenCard>
             <RadzenStack AlignItems="AlignItems.Center" class="rz-p-8">
-                <RadzenIcon Icon="search_off" Style="font-size: 3rem; color: var(--rz-text-disabled-color);" />
+                <RadzenIcon Icon="search_off" class="rd-empty-icon" />
                 <RadzenText TextStyle="TextStyle.H6">Repository not found</RadzenText>
                 <RadzenButton Text="Back to Repositories" Icon="arrow_back" Click="@(() => Navigation.NavigateTo("/"))" />
             </RadzenStack>
@@ -108,27 +108,27 @@
         @* ─── Re-analyzing banner ──────────────────────────────────────────────── *@
         @if (_isReanalyzing)
         {
-            <RadzenCard Style="border-left: 3px solid var(--rz-info);">
+            <RadzenCard class="rd-progress-card">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
-                    <RadzenIcon Icon="sync" class="spin-icon" Style="color: var(--rz-info);" />
+                    <RadzenIcon Icon="sync" class="spin-icon rd-progress-icon" />
                     <RadzenStack Gap="0.1rem">
-                        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0;">Re-analysis in progress</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">Commits are being scanned. This page will refresh automatically when complete.</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rd-progress-title">Re-analysis in progress</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="rd-muted-tight">Commits are being scanned. This page will refresh automatically when complete.</RadzenText>
                     </RadzenStack>
-                    <RadzenProgressBar Mode="ProgressBarMode.Indeterminate" Style="flex: 1; height: 4px;" />
+                    <RadzenProgressBar Mode="ProgressBarMode.Indeterminate" class="rd-progress-bar" />
                 </RadzenStack>
             </RadzenCard>
         }
 
         @* ─── Line Count Chart ────────────────────────────────────────────────── *@
-        <RadzenCard Style="padding: 1.25rem 1.5rem;">
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" Style="margin-bottom: 1rem;">
+        <RadzenCard class="rd-chart-card">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="rd-toolbar">
                 <RadzenStack Gap="0.15rem">
-                    <RadzenText TextStyle="TextStyle.H6" Style="margin: 0; font-weight: 700;">Line Count History</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">@ChartDescription</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H6" class="rd-section-title">Line Count History</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" class="rd-muted-tight">@ChartDescription</RadzenText>
                 </RadzenStack>
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">Range:</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" class="rd-muted">Range:</RadzenText>
                     <RadzenSelectBar @bind-Value="_chartDays" TValue="int" Change="@OnChartRangeChanged" Size="ButtonSize.Small">
                         <Items>
                             <RadzenSelectBarItem Text="30d" Value="30" />
@@ -149,20 +149,20 @@
                 <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
                     @_chartError
                     <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
-                                  Click="@(() => LoadLineHistory(_chartDays))" Style="margin-left: 0.5rem;" />
+                                  Click="@(() => LoadLineHistory(_chartDays))" class="rd-refresh" />
                 </RadzenAlert>
             }
             else if (_lineHistory == null || !_lineHistory.Any())
             {
                 <RadzenStack AlignItems="AlignItems.Center" class="rz-p-8">
-                    <RadzenIcon Icon="bar_chart" Style="font-size: 3rem; color: var(--rz-text-disabled-color);" />
-                    <RadzenText TextStyle="TextStyle.Body1" Style="color: var(--rz-text-secondary-color);">No history data yet.</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color);">Click Re-analyze to start scanning this repository.</RadzenText>
+                    <RadzenIcon Icon="bar_chart" class="rd-empty-icon" />
+                    <RadzenText TextStyle="TextStyle.Body1" class="rd-muted">No history data yet.</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" class="rd-disabled">Click Re-analyze to start scanning this repository.</RadzenText>
                 </RadzenStack>
             }
             else
             {
-                <RadzenChart Style="height: 320px; width: 100%;">
+                <RadzenChart class="rd-chart">
                     <RadzenLineSeries Data="@DisplayedLineHistory"
                                       CategoryProperty="Date"
                                       ValueProperty="TotalLines"
@@ -185,33 +185,33 @@
         @* ─── Extensions + Top Files ──────────────────────────────────────────── *@
         <RadzenRow Gap="1rem">
             <RadzenColumn Size="12" SizeMD="5">
-                <RadzenCard Style="height: 100%;">
-                    <RadzenText TextStyle="TextStyle.H6" Style="margin: 0 0 0.75rem 0; font-weight: 700;">By Extension</RadzenText>
+                <RadzenCard class="rd-panel">
+                    <RadzenText TextStyle="TextStyle.H6" class="rd-panel-title">By Extension</RadzenText>
                     @if (_extensions != null && _extensions.Any())
                     {
                         @foreach (var ext in _extensions)
                         {
-                            <div style="margin-bottom: 0.6rem;">
+                            <div class="rd-ext-row">
                                 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
-                                    <code style="font-size: 0.85em;">@ext.FileExtension</code>
-                                    <RadzenText TextStyle="TextStyle.Caption" Style="font-weight: 600; color: var(--rz-primary);">@ext.Percentage.ToString("F1")%</RadzenText>
+                                    <code class="rd-ext-code">@ext.FileExtension</code>
+                                    <RadzenText TextStyle="TextStyle.Caption" class="rd-ext-pct">@ext.Percentage.ToString("F1")%</RadzenText>
                                 </RadzenStack>
-                                <div style="height: 4px; border-radius: 4px; background: var(--rz-base-200); margin-top: 3px;">
-                                    <div style="@($"height: 100%; border-radius: 4px; background: var(--rz-primary); width: {Math.Min(ext.Percentage, 100):F1}%;")"></div>
+                                <div class="rd-ext-bar">
+                                    <div class="rd-ext-bar__fill" style="@($"--rd-bar-fill: {Math.Min(ext.Percentage, 100):F1}%")"></div>
                                 </div>
                             </div>
                         }
                     }
                     else
                     {
-                        <RadzenText Style="color: var(--rz-text-disabled-color);">No extension data yet.</RadzenText>
+                        <RadzenText class="rd-disabled">No extension data yet.</RadzenText>
                     }
                 </RadzenCard>
             </RadzenColumn>
             <RadzenColumn Size="12" SizeMD="7">
-                <RadzenCard Style="height: 100%;">
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Style="margin-bottom: 0.75rem;">
-                        <RadzenText TextStyle="TextStyle.H6" Style="margin: 0; font-weight: 700;">Largest Files</RadzenText>
+                <RadzenCard class="rd-panel">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" class="rd-panel-head">
+                        <RadzenText TextStyle="TextStyle.H6" class="rd-section-title">Largest Files</RadzenText>
                         @if (_topFiles != null && _topFiles.Any())
                         {
                             <RadzenButton Text="View top 100" Variant="Variant.Text" ButtonStyle="ButtonStyle.Primary"
@@ -223,8 +223,8 @@
                         @foreach (var f in _topFiles)
                         {
                             <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center"
-                                         Style="padding: 0.4rem 0; border-bottom: 1px solid var(--rz-base-100);">
-                                <RadzenText Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; font-size: 0.85em;"
+                                         class="rd-file-row">
+                                <RadzenText class="rd-file-name"
                                             title="@f.FileName">@f.FileName</RadzenText>
                                 <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@f.LineCount.ToString("N0")" />
                             </RadzenStack>
@@ -232,7 +232,7 @@
                     }
                     else
                     {
-                        <RadzenText Style="color: var(--rz-text-disabled-color);">No file data yet.</RadzenText>
+                        <RadzenText class="rd-disabled">No file data yet.</RadzenText>
                     }
                 </RadzenCard>
             </RadzenColumn>
@@ -247,7 +247,7 @@
 </RadzenStack>
 
 @code {
-    [Parameter] public Guid RepositoryId { get; set; }
+    [Parameter] public RepositoryId RepositoryId { get; set; }
 
     private GitHubRepository? _repo;
     private List<DailyLineCountDto>? _lineHistory;

@@ -6,19 +6,23 @@ using System.Net;
 using Serilog;
 using System.IO.Compression;
 using System.Diagnostics;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Api.Extensions;
 
 internal static class UploadEndpoints
 {
-    internal static void MapUploadEndpoints(this WebApplication app)
+    internal static void MapUploadEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        var uploads = endpoints.MapGroup("/api/repositories")
+            .WithTags("Uploads")
+            .RequireAuthorization();
+
         // Upload a zipped repository (.git folder + code) for analysis
         // DisableRequestSizeLimit: overrides the 30 MB Kestrel default for this endpoint only
-        app.MapPost("/api/repositories/upload-zip", async (HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory, IConfiguration configuration) =>
+        uploads.MapPost("/upload-zip", async (HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory, IConfiguration configuration) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var serverRequestId = ctx.TraceIdentifier;
@@ -156,7 +160,7 @@ internal static class UploadEndpoints
                     }
                     else
                     {
-                        localReposBasePath = configuration["GitHub:LocalReposPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
+                        localReposBasePath = configuration[ConfigKeys.GitHub.LocalReposPath] ?? Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
                     }
 
                     if (!Directory.Exists(localReposBasePath))
@@ -315,7 +319,6 @@ internal static class UploadEndpoints
                     });
             }
         })
-        .RequireAuthorization()
         .WithName("UploadZipRepository");
     }
 

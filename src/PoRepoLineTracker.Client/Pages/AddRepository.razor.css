@@ -1,0 +1,18 @@
+/* Rule 4.3 — scoped styles for AddRepository.
+
+   Pattern used across the extracted components:
+     .anchor ::deep .cls.cls { ... !important }
+   The anchor is a plain HTML element from this component's markup (the only kind that receives
+   the CSS-isolation attribute); ::deep reaches the element Radzen actually renders; the class is
+   doubled and the declarations marked !important so the rule keeps the cascade position the
+   inline style had. Without that an extracted rule can match and still lose to the Radzen theme,
+   silently dropping the styling. */
+
+.add-repo ::deep .add-repo-title.add-repo-title {
+    margin: 0 0 0.5rem 0 !important;
+}
+
+.add-repo ::deep .add-repo-progress-message.add-repo-progress-message {
+    text-align: center !important;
+    margin-top: 0.5rem !important;
+}

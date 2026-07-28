@@ -1,0 +1,29 @@
+/* Rule 4.3 — scoped styles for ExtensionsCounted. See AddRepository.razor.css for the pattern. */
+
+::deep .ext-title.ext-title {
+    margin: 0 !important;
+}
+
+::deep .ext-subtitle.ext-subtitle {
+    color: var(--rz-text-secondary-color) !important;
+    margin: 0 !important;
+}
+
+::deep .ext-grid.ext-grid {
+    height: auto !important;
+}
+
+::deep .ext-code {
+    font-size: 1rem;
+}
+
+::deep .ext-input.ext-input {
+    width: 100% !important;
+}
+
+/* The "Add Extension" dialog body is rendered into Radzen's dialog host, outside this component's
+   DOM subtree — but the markup is still compiled here, so its own elements carry the isolation
+   attribute and these selectors resolve. */
+::deep .ext-dialog.ext-dialog {
+    padding: 1rem !important;
+}

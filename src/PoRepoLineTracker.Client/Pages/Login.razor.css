@@ -1,0 +1,64 @@
+/* Rule 4.3 — scoped styles for the login screen. The `.login-canvas`, `.login-logomark` and
+   `.login-divider` elements are plain HTML in this page's markup, so they carry the isolation
+   scope directly; everything Radzen renders is reached through ::deep. The blob/canvas/card
+   layout rules themselves still live in app.css alongside their keyframes.
+
+   The class is repeated (`.x.x`) wherever the rule has to beat a Radzen base class such as
+   `.rz-button`. An inline style used to win by default; a single class does not, so without the
+   doubled selector the extraction silently loses the styling. ScopedCssUiTests asserts the
+   computed values so that failure mode cannot pass unnoticed. */
+
+.login-canvas ::deep .login-card.login-card {
+    max-width: 420px;
+    width: 100%;
+    padding: 2.75rem 2.5rem;
+}
+
+.login-logomark-icon ::deep .login-logomark-icon__glyph.login-logomark-icon__glyph {
+    font-size: 1.6rem;
+    color: var(--rz-primary);
+}
+
+.login-logomark-badge ::deep .login-logomark-badge__glyph.login-logomark-badge__glyph {
+    font-size: 0.75rem;
+    color: #fff;
+}
+
+.login-canvas ::deep .login-wordmark.login-wordmark {
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.03em;
+}
+
+.login-canvas ::deep .login-tagline.login-tagline {
+    color: var(--rz-text-secondary-color);
+    text-align: center;
+    max-width: 280px;
+    line-height: 1.5;
+}
+
+/* Faithful extraction of the previous inline style, including its reference to
+   --rz-border-disabled-color. NOTE: that token is not defined by the Radzen theme in use, so the
+   declaration is invalid at computed-value time and the divider has always rendered with no
+   border. Left as-is because this change is an extraction, not a restyle — but it is a real
+   dead style worth fixing deliberately. */
+.login-divider {
+    border: none;
+    border-top: 1px solid var(--rz-border-disabled-color);
+    width: 100%;
+    margin: 0;
+}
+
+/* !important on the typography: the Radzen theme sets these on .rz-button forcefully, and an
+   inline style used to win automatically. This matches the existing convention in app.css
+   (`.login-cta-btn { border-radius: 12px !important }`). */
+.login-canvas ::deep .login-cta-btn.login-cta-btn {
+    width: 100%;
+    font-size: 1rem !important;
+    padding: 0.8rem 1.5rem !important;
+    font-weight: 600 !important;
+}
+
+.login-canvas ::deep .login-footnote.login-footnote {
+    color: var(--rz-text-disabled-color);
+}

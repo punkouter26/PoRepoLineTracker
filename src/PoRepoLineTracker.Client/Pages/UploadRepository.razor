@@ -8,9 +8,9 @@
 @using Microsoft.AspNetCore.Authorization
 
 <RadzenStack Gap="1.5rem">
-    <RadzenText TextStyle="TextStyle.H4" Style="margin: 0;">Upload Local Repository</RadzenText>
+    <RadzenText TextStyle="TextStyle.H4" class="ul-title">Upload Local Repository</RadzenText>
     
-    <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">
+    <RadzenText TextStyle="TextStyle.Body2" class="ul-subtitle">
         Upload a zipped folder containing your code and .git folder for analysis.
         The zip must contain a complete repository with a .git folder.
     </RadzenText>
@@ -35,27 +35,27 @@
         <RadzenStack Gap="1rem">
             <div>
                 <RadzenLabel Text="Repository Name (optional)" Component="RepoName" />
-                <RadzenTextBox @bind-Value="repoName" Name="RepoName" Placeholder="Leave empty to use filename" Style="width: 100%;" />
-                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color); margin-top: 0.25rem;">
+                <RadzenTextBox @bind-Value="repoName" Name="RepoName" Placeholder="Leave empty to use filename" class="ul-input" />
+                <RadzenText TextStyle="TextStyle.Caption" class="ul-hint">
                     If not provided, the zip filename will be used.
                 </RadzenText>
             </div>
 
             <div>
                 <RadzenLabel Text="Select ZIP File" Component="FileUpload" />
-                <label for="zipFileInput" style="border: 2px dashed var(--rz-border-color); border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; display: block;">
-                    <InputFile id="zipFileInput" OnChange="OnFileSelected" accept=".zip" style="display: none;" />
+                <label for="zipFileInput" class="ul-dropzone">
+                    <InputFile id="zipFileInput" OnChange="OnFileSelected" accept=".zip" class="ul-file-input" />
                     @if (selectedFile != null)
                     {
-                        <RadzenIcon Icon="check_circle" Style="color: var(--rz-success); font-size: 2rem;" />
-                        <div style="margin-top: 0.5rem; font-weight: 500;">@selectedFile.Name</div>
-                        <div style="color: var(--rz-text-secondary-color); font-size: 0.875rem;">@(FormatFileSize(selectedFile.Size))</div>
+                        <RadzenIcon Icon="check_circle" class="ul-dropzone-icon ul-dropzone-icon--ok" />
+                        <div class="ul-file-name">@selectedFile.Name</div>
+                        <div class="ul-file-meta">@(FormatFileSize(selectedFile.Size))</div>
                     }
                     else
                     {
-                        <RadzenIcon Icon="upload_file" Style="font-size: 2rem;" />
-                        <div style="margin-top: 0.5rem;">Click to select a ZIP file</div>
-                        <div style="color: var(--rz-text-secondary-color); font-size: 0.875rem;">Must contain .git folder</div>
+                        <RadzenIcon Icon="upload_file" class="ul-dropzone-icon" />
+                        <div class="ul-dropzone-prompt">Click to select a ZIP file</div>
+                        <div class="ul-file-meta">Must contain .git folder</div>
                     }
                 </label>
             </div>
@@ -65,7 +65,7 @@
                           ButtonStyle="ButtonStyle.Primary"
                           Click="@UploadFileAsync"
                           Disabled="@(!CanUpload)"
-                          Style="width: 100%;" />
+                          class="ul-submit" />
         </RadzenStack>
     </RadzenCard>
 
@@ -73,7 +73,7 @@
     {
         <RadzenCard>
             <RadzenProgressBar Value="@uploadProgress" ShowValue="true" />
-            <RadzenText TextStyle="TextStyle.Caption" Style="text-align: center; margin-top: 0.5rem;">
+            <RadzenText TextStyle="TextStyle.Caption" class="ul-progress-message">
                 @progressMessage
             </RadzenText>
         </RadzenCard>
@@ -87,7 +87,7 @@
 
                 @if (selectedFile != null)
                 {
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem 1rem;">
+                    <div class="ul-diag-grid">
                         <RadzenText TextStyle="TextStyle.Caption"><b>File:</b> @selectedFile.Name</RadzenText>
                         <RadzenText TextStyle="TextStyle.Caption"><b>Size:</b> @FormatFileSize(selectedFile.Size)</RadzenText>
                         @if (totalBytesToUpload > 0)
@@ -103,11 +103,11 @@
                         @if (uploadStartedAt.HasValue && isUploading)
                         {
                             <RadzenText TextStyle="TextStyle.Caption"><b>Elapsed:</b> @elapsedDisplay</RadzenText>
-                            <RadzenText TextStyle="TextStyle.Caption"><b>Phase:</b> <span style="color: var(--rz-info);">@currentPhase</span></RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption"><b>Phase:</b> <span class="ul-phase">@currentPhase</span></RadzenText>
                         }
                         @if (!string.IsNullOrWhiteSpace(uploadRequestId))
                         {
-                            <RadzenText TextStyle="TextStyle.Caption" Style="grid-column: span 2;"><b>Request Id:</b> @uploadRequestId</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption" class="ul-diag-wide"><b>Request Id:</b> @uploadRequestId</RadzenText>
                         }
                     </div>
                 }
@@ -121,14 +121,11 @@
 
                 @if (uploadDiagnostics.Count > 0)
                 {
-                    <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--rz-border-color); border-radius: 6px; padding: 0.5rem; font-family: monospace; font-size: 0.78rem;">
+                    <div class="ul-log">
                         @foreach (var item in uploadDiagnostics)
                         {
-                            var color = item.Contains("ERR") || item.Contains("Exception") || item.Contains("failed") ? "var(--rz-danger)" 
-                                       : item.Contains("100%") || item.Contains("Complete") || item.Contains("Verification passed") ? "var(--rz-success)"
-                                       : item.Contains("Waiting") || item.Contains("server") ? "var(--rz-warning)"
-                                       : "inherit";
-                            <div style="margin-bottom: 0.2rem; color: @color;">@item</div>
+                            var severity = LogSeverityClass(item);
+                            <div class="ul-log-line @severity">@item</div>
                         }
                     </div>
                 }
@@ -292,7 +289,7 @@
                 }
 
                 var bytesMatched = bytesUploaded >= totalBytesToUpload && totalBytesToUpload > 0;
-                var hasRepositoryIdentity = result is not null && result.Id != Guid.Empty && !string.IsNullOrWhiteSpace(result.Name);
+                var hasRepositoryIdentity = result is not null && result.Id != RepositoryId.Empty && !string.IsNullOrWhiteSpace(result.Name);
                 uploadVerification = bytesMatched && hasRepositoryIdentity
                     ? "Verification passed: streamed bytes matched selected file size and API returned repository identity."
                     : "Verification warning: upload finished but one or more validation checks failed. See diagnostics below.";
@@ -422,6 +419,20 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    /// <summary>
+    /// Rule 4.3 — the upload log used to colour each line through an interpolated inline style.
+    /// The classification is discrete, so it maps to a modifier class and the colours live in
+    /// UploadRepository.razor.css.
+    /// </summary>
+    private static string LogSeverityClass(string line) =>
+        line.Contains("ERR") || line.Contains("Exception") || line.Contains("failed")
+            ? "ul-log-line--error"
+            : line.Contains("100%") || line.Contains("Complete") || line.Contains("Verification passed")
+                ? "ul-log-line--success"
+                : line.Contains("Waiting") || line.Contains("server")
+                    ? "ul-log-line--warning"
+                    : string.Empty;
+
     private string FormatFileSize(long bytes)
     {
         string[] sizes = { "B", "KB", "MB", "GB" };
@@ -437,7 +448,7 @@
 
     private class UploadResult
     {
-        public Guid Id { get; set; }
+        public RepositoryId Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Owner { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;

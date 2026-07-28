@@ -1,0 +1,15 @@
+/* Rule 4.3 — scoped styles for ChartDisplayModeCard. */
+
+.chart-display-card ::deep .chart-display-card__surface {
+    padding: 1rem 1.25rem;
+}
+
+.chart-display-card ::deep .chart-display-card__title {
+    margin: 0;
+    font-weight: 700;
+}
+
+.chart-display-card ::deep .chart-display-card__description {
+    margin: 0;
+    color: var(--rz-text-secondary-color);
+}

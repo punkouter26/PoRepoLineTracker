@@ -36,7 +36,7 @@ public class CommitLineCountEntity : ITableEntity
         return new CommitLineCount
         {
             Id = Id,
-            RepositoryId = RepositoryId,
+            RepositoryId = new RepositoryId(RepositoryId),
             CommitSha = CommitSha,
             CommitDate = CommitDate,
             TotalLines = TotalLines,
@@ -61,7 +61,7 @@ public class CommitLineCountEntity : ITableEntity
             PartitionKey = model.RepositoryId.ToString(),
             RowKey = model.CommitSha,
             Id = model.Id,
-            RepositoryId = model.RepositoryId,
+            RepositoryId = model.RepositoryId.Value,
             CommitSha = model.CommitSha,
             CommitDate = model.CommitDate.Kind == DateTimeKind.Unspecified
                 ? DateTime.SpecifyKind(model.CommitDate, DateTimeKind.Utc)

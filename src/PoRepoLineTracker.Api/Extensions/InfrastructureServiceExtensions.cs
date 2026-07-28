@@ -1,6 +1,3 @@
-using Polly;
-using Polly.CircuitBreaker;
-using System.Net;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Application.Services;
 using PoRepoLineTracker.Application.Services.LineCounters;
@@ -8,6 +5,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Azure.Identity;
 using FluentValidation;
 using PoRepoLineTracker.Shared.Validation;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Api.Extensions;
 
@@ -30,12 +28,12 @@ public static class InfrastructureServiceExtensions
         services.AddSingleton<Azure.Data.Tables.TableServiceClient>(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();
-            var connStr = config["AzureTableStorage:ConnectionString"] ?? config["ConnectionStrings:tables"];
+            var connStr = config[ConfigKeys.AzureTableStorage.ConnectionString] ?? config[ConfigKeys.AzureTableStorage.TablesConnectionString];
 
             if (!string.IsNullOrEmpty(connStr) && connStr.Contains("UseDevelopmentStorage", StringComparison.OrdinalIgnoreCase))
                 return new Azure.Data.Tables.TableServiceClient(connStr);
 
-            var storageEndpoint = config["AzureTableStorage:ServiceUrl"];
+            var storageEndpoint = config[ConfigKeys.AzureTableStorage.ServiceUrl];
             if (!string.IsNullOrEmpty(storageEndpoint))
                 return new Azure.Data.Tables.TableServiceClient(new Uri(storageEndpoint), new DefaultAzureCredential());
 
@@ -64,17 +62,19 @@ public static class InfrastructureServiceExtensions
         services.ConfigureHttpJsonOptions(options =>
             options.SerializerOptions.PropertyNameCaseInsensitive = true);
 
-        // GitHub API HttpClient with Polly circuit breaker
-        var circuitBreakerOptions = new CircuitBreakerStrategyOptions<HttpResponseMessage>
+        // Rule 5.4 — HybridCache is the single caching abstraction. It is in-memory only here
+        // (no IDistributedCache registered), which is correct for a single App Service instance
+        // and gains an L2 for free if Redis is ever added. Its stampede protection matters more
+        // than raw hit rate: GitHub's REST API is rate-limited per token, so N concurrent page
+        // loads must produce one upstream call, not N.
+        services.AddHybridCache(options =>
         {
-            FailureRatio = 0.5,
-            SamplingDuration = TimeSpan.FromSeconds(10),
-            MinimumThroughput = 5,
-            BreakDuration = TimeSpan.FromSeconds(30),
-            ShouldHandle = args => new ValueTask<bool>(
-                args.Outcome.Result?.StatusCode == HttpStatusCode.ServiceUnavailable ||
-                args.Outcome.Result?.StatusCode == HttpStatusCode.RequestTimeout)
-        };
+            options.DefaultEntryOptions = new Microsoft.Extensions.Caching.Hybrid.HybridCacheEntryOptions
+            {
+                Expiration = TimeSpan.FromMinutes(5),
+                LocalCacheExpiration = TimeSpan.FromMinutes(5)
+            };
+        });
 
         services.AddHttpClient("GitHubClient", (sp, client) =>
         {
@@ -82,11 +82,24 @@ public static class InfrastructureServiceExtensions
             client.BaseAddress = new Uri("https://api.github.com/");
             client.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3+json");
             client.DefaultRequestHeaders.Add("User-Agent", "PoRepoLineTracker");
-            var pat = config["GitHub:PAT"];
+            var pat = config[ConfigKeys.GitHub.Pat];
             if (!string.IsNullOrEmpty(pat))
                 client.DefaultRequestHeaders.Add("Authorization", $"token {pat}");
         })
-        .AddResilienceHandler("CircuitBreaker", b => b.AddCircuitBreaker(circuitBreakerOptions));
+        // Rule 5.4 — the standard pipeline replaces the hand-rolled circuit-breaker-only handler:
+        // rate limiter → total timeout → retry → circuit breaker → attempt timeout. The retry is
+        // what the old configuration was missing; a single 503 from GitHub used to surface to the
+        // user instead of being retried with backoff.
+        .AddStandardResilienceHandler(options =>
+        {
+            options.Retry.MaxRetryAttempts = 3;
+            options.Retry.UseJitter = true;
+            options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(15);
+            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(60);
+            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+            options.CircuitBreaker.FailureRatio = 0.5;
+            options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
+        });
 
         // Domain services
         services.AddScoped<PoRepoLineTracker.Infrastructure.Interfaces.IGitClient, PoRepoLineTracker.Infrastructure.Services.GitClient>();

@@ -23,7 +23,7 @@ public class GetFileExtensionPercentagesQueryHandlerTests
     [Fact]
     public async Task Handle_NoCommits_ReturnsEmpty()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         _dataService.GetCommitLineCountsByRepositoryIdAsync(repoId)
             .Returns(Enumerable.Empty<CommitLineCount>());
 
@@ -35,7 +35,7 @@ public class GetFileExtensionPercentagesQueryHandlerTests
     [Fact]
     public async Task Handle_SingleCommit_CalculatesCorrectPercentages()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var commits = new List<CommitLineCount>
         {
             new()
@@ -67,7 +67,7 @@ public class GetFileExtensionPercentagesQueryHandlerTests
     [Fact]
     public async Task Handle_MultipleCommits_AggregatesCorrectly()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var commits = new List<CommitLineCount>
         {
             new()
@@ -97,7 +97,7 @@ public class GetFileExtensionPercentagesQueryHandlerTests
     [Fact]
     public async Task Handle_ZeroLineExtensions_AreExcluded()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var commits = new List<CommitLineCount>
         {
             new()
@@ -135,7 +135,7 @@ public class AddMultipleRepositoriesCommandHandlerTests
             new() { Owner = "", RepoName = "repo1", CloneUrl = "https://github.com/x/repo1.git" },
             new() { Owner = "valid-owner", RepoName = "repo2", CloneUrl = "https://github.com/valid-owner/repo2.git" }
         };
-        var userId = Guid.NewGuid();
+        var userId = UserId.New();
 
         _dataService.GetRepositoryByOwnerAndNameAsync("valid-owner", "repo2", userId)
             .Returns((GitHubRepository?)null);
@@ -154,7 +154,7 @@ public class AddMultipleRepositoriesCommandHandlerTests
             new() { Owner = "owner", RepoName = "", CloneUrl = "https://github.com/owner/x.git" }
         };
 
-        var result = (await _sut.Handle(new AddMultipleRepositoriesCommand(repos, Guid.NewGuid()), CancellationToken.None)).Added;
+        var result = (await _sut.Handle(new AddMultipleRepositoriesCommand(repos, UserId.New()), CancellationToken.None)).Added;
 
         result.Should().BeEmpty();
     }
@@ -162,8 +162,8 @@ public class AddMultipleRepositoriesCommandHandlerTests
     [Fact]
     public async Task Handle_SkipsDuplicateRepo()
     {
-        var userId = Guid.NewGuid();
-        var existingRepo = new GitHubRepository { Id = Guid.NewGuid(), Owner = "owner", Name = "repo", UserId = userId };
+        var userId = UserId.New();
+        var existingRepo = new GitHubRepository { Id = RepositoryId.New(), Owner = "owner", Name = "repo", UserId = userId };
         var repos = new List<BulkRepositoryDto>
         {
             new() { Owner = "owner", RepoName = "repo", CloneUrl = "https://github.com/owner/repo.git" }
@@ -183,7 +183,7 @@ public class AddMultipleRepositoriesCommandHandlerTests
     [Fact]
     public async Task Handle_ContinuesOnSingleFailure()
     {
-        var userId = Guid.NewGuid();
+        var userId = UserId.New();
         var repos = new List<BulkRepositoryDto>
         {
             new() { Owner = "fail-owner", RepoName = "fail-repo", CloneUrl = "url1" },
@@ -216,7 +216,7 @@ public class GetAllRepositoriesLineCountHistoryQueryHandlerTests
     [Fact]
     public async Task Handle_NoRepositories_ReturnsEmpty()
     {
-        var userId = Guid.NewGuid();
+        var userId = UserId.New();
         _dataService.GetAllRepositoriesAsync(userId).Returns(Enumerable.Empty<GitHubRepository>());
 
         var result = await _sut.Handle(new GetAllRepositoriesLineCountHistoryQuery(30, userId), CancellationToken.None);
@@ -227,8 +227,8 @@ public class GetAllRepositoriesLineCountHistoryQueryHandlerTests
     [Fact]
     public async Task Handle_FiltersCommitsByDateRange()
     {
-        var userId = Guid.NewGuid();
-        var repoId = Guid.NewGuid();
+        var userId = UserId.New();
+        var repoId = RepositoryId.New();
         var repos = new List<GitHubRepository> { new() { Id = repoId, Owner = "o", Name = "n", UserId = userId } };
         var commits = new List<CommitLineCount>
         {
@@ -250,8 +250,8 @@ public class GetAllRepositoriesLineCountHistoryQueryHandlerTests
     [Fact]
     public async Task Handle_GroupsByDate_SumsCorrectly()
     {
-        var userId = Guid.NewGuid();
-        var repoId = Guid.NewGuid();
+        var userId = UserId.New();
+        var repoId = RepositoryId.New();
         var today = DateTime.UtcNow.Date;
         var repos = new List<GitHubRepository> { new() { Id = repoId, Owner = "o", Name = "n", UserId = userId } };
         var commits = new List<CommitLineCount>

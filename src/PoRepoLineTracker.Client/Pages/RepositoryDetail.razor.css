@@ -1,0 +1,128 @@
+/* Rule 4.3 — scoped styles for the repository detail page.
+   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+
+::deep .rd-title.rd-title,
+::deep .rd-section-title.rd-section-title {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .rd-panel-title.rd-panel-title {
+    margin: 0 0 0.75rem 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .rd-muted.rd-muted {
+    color: var(--rz-text-secondary-color) !important;
+}
+
+::deep .rd-muted-tight.rd-muted-tight {
+    color: var(--rz-text-secondary-color) !important;
+    margin: 0 !important;
+}
+
+::deep .rd-disabled.rd-disabled {
+    color: var(--rz-text-disabled-color) !important;
+}
+
+::deep .rd-empty-icon.rd-empty-icon {
+    font-size: 3rem !important;
+    color: var(--rz-text-disabled-color) !important;
+}
+
+::deep .rd-progress-card.rd-progress-card {
+    border-left: 3px solid var(--rz-info) !important;
+}
+
+::deep .rd-progress-icon.rd-progress-icon {
+    color: var(--rz-info) !important;
+}
+
+::deep .rd-progress-title.rd-progress-title {
+    margin: 0 !important;
+}
+
+::deep .rd-progress-bar.rd-progress-bar {
+    flex: 1 !important;
+    height: 4px !important;
+}
+
+::deep .rd-chart-card.rd-chart-card {
+    padding: 1.25rem 1.5rem !important;
+}
+
+::deep .rd-toolbar.rd-toolbar {
+    margin-bottom: 1rem !important;
+}
+
+::deep .rd-refresh.rd-refresh {
+    margin-left: 0.5rem !important;
+}
+
+::deep .rd-chart.rd-chart {
+    height: 320px !important;
+    width: 100% !important;
+}
+
+::deep .rd-panel.rd-panel {
+    height: 100% !important;
+}
+
+::deep .rd-panel-head.rd-panel-head {
+    margin-bottom: 0.75rem !important;
+}
+
+::deep .rd-ext-pct.rd-ext-pct {
+    font-weight: 600 !important;
+    color: var(--rz-primary) !important;
+}
+
+::deep .rd-file-row.rd-file-row {
+    padding: 0.4rem 0 !important;
+    border-bottom: 1px solid var(--rz-base-100) !important;
+}
+
+::deep .rd-file-name.rd-file-name {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 280px !important;
+    font-size: 0.85em !important;
+}
+
+/* ─── Plain markup owned by this page ─────────────────────────────────────── */
+
+.rd-github-link {
+    color: var(--rz-text-secondary-color);
+    line-height: 1;
+    display: flex;
+    align-items: center;
+}
+
+.rd-github-link__icon {
+    font-size: 1.1rem;
+}
+
+.rd-ext-row {
+    margin-bottom: 0.6rem;
+}
+
+.rd-ext-code {
+    font-size: 0.85em;
+}
+
+.rd-ext-bar {
+    height: 4px;
+    border-radius: 4px;
+    background: var(--rz-base-200);
+    margin-top: 3px;
+}
+
+/* The fill percentage is per-row data, so only that datum is bound in the markup — as a single
+   custom property — while the presentation stays here. */
+.rd-ext-bar__fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--rz-primary);
+    width: var(--rd-bar-fill, 0%);
+}

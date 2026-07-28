@@ -67,7 +67,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
                 _logger.LogInformation("Creating new repository entity for {Owner}/{Name}", repo.Owner, repo.RepoName);
                 var newRepo = new GitHubRepository
                 {
-                    Id = Guid.NewGuid(),
+                    Id = RepositoryId.New(),
                     UserId = request.UserId,
                     Owner = repo.Owner,
                     Name = repo.RepoName,

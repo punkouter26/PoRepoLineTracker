@@ -14,7 +14,7 @@ public class CommitLineCountEntityTests
         var domain = new CommitLineCount
         {
             Id = Guid.NewGuid(),
-            RepositoryId = Guid.NewGuid(),
+            RepositoryId = RepositoryId.New(),
             CommitSha = "abc123def",
             CommitDate = DateTime.SpecifyKind(new DateTime(2025, 6, 15, 10, 30, 0), DateTimeKind.Utc),
             TotalLines = 500,
@@ -72,8 +72,8 @@ public class GitHubRepositoryEntityTests
     {
         var domain = new GitHubRepository
         {
-            Id = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            Id = RepositoryId.New(),
+            UserId = UserId.New(),
             Owner = "testowner",
             Name = "testrepo",
             CloneUrl = "https://github.com/testowner/testrepo.git",
@@ -93,7 +93,7 @@ public class GitHubRepositoryEntityTests
     [Fact]
     public void FromDomainModel_RowKey_IsOwnerUnderscoreName()
     {
-        var domain = new GitHubRepository { Owner = "myorg", Name = "myrepo", UserId = Guid.NewGuid() };
+        var domain = new GitHubRepository { Owner = "myorg", Name = "myrepo", UserId = UserId.New() };
         var entity = GitHubRepositoryEntity.FromDomainModel(domain);
 
         entity.RowKey.Should().Be("myorg_myrepo");
@@ -116,9 +116,9 @@ public class TopFileEntityTests
     public void FromDto_ToDto_RoundTrip()
     {
         var dto = new TopFileDto { FileName = "src/Program.cs", LineCount = 1500 };
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
 
-        var entity = TopFileEntity.FromDto(repoId, dto, 1);
+        var entity = TopFileEntity.FromDto(repoId.Value, dto, 1);
         var roundTripped = entity.ToDto();
 
         roundTripped.FileName.Should().Be("src/Program.cs");
@@ -157,7 +157,7 @@ public class UserPreferencesEntityTests
     {
         var prefs = new UserPreferences
         {
-            UserId = Guid.NewGuid(),
+            UserId = UserId.New(),
             FileExtensions = new List<string> { ".cs", ".js", ".py" },
             ChartDisplayMode = ChartDisplayMode.MovingAverage,
             LastUpdated = DateTime.UtcNow
@@ -167,7 +167,7 @@ public class UserPreferencesEntityTests
 
         entity.FileExtensions.Should().Be(".cs,.js,.py");
         entity.ChartDisplayMode.Should().Be(nameof(ChartDisplayMode.MovingAverage));
-        entity.UserId.Should().Be(prefs.UserId);
+        entity.UserId.Should().Be(prefs.UserId.Value);
     }
 
     [Fact]

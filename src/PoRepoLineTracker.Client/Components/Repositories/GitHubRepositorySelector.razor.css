@@ -1,0 +1,39 @@
+/* Rule 4.3 — scoped styles for GitHubRepositorySelector.
+   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+
+::deep .ghsel-row-mb1.ghsel-row-mb1 {
+    margin-bottom: 1rem !important;
+}
+
+::deep .ghsel-stack-mb1.ghsel-stack-mb1 {
+    margin-bottom: 1rem !important;
+}
+
+::deep .ghsel-row-mb05.ghsel-row-mb05 {
+    margin-bottom: 0.5rem !important;
+}
+
+::deep .ghsel-row-mt1.ghsel-row-mt1 {
+    margin-top: 1rem !important;
+}
+
+::deep .ghsel-heading.ghsel-heading {
+    margin: 0 !important;
+}
+
+::deep .ghsel-search-icon.ghsel-search-icon {
+    color: var(--rz-text-secondary-color) !important;
+}
+
+::deep .ghsel-filter.ghsel-filter {
+    width: 100% !important;
+}
+
+::deep .ghsel-list.ghsel-list {
+    height: 360px !important;
+    width: 100% !important;
+}
+
+::deep .ghsel-caption.ghsel-caption {
+    color: var(--rz-text-secondary-color) !important;
+}

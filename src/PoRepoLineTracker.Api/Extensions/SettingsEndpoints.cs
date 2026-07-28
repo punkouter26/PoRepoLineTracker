@@ -2,14 +2,22 @@ using MediatR;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
 using Serilog;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Api.Extensions;
 
 internal static class SettingsEndpoints
 {
-    internal static void MapSettingsEndpoints(this WebApplication app)
+    internal static void MapSettingsEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        app.MapGet("/api/settings/file-extensions", async (IMediator mediator) =>
+        // Rule 3.1 — /api/settings is entirely per-user state, so the group requires auth.
+        // Under the FallbackPolicy these routes would be protected anyway; declaring it on the
+        // group makes the intent explicit and survives a future change to the fallback.
+        var settings = endpoints.MapGroup("/api/settings")
+            .WithTags("Settings")
+            .RequireAuthorization();
+
+        settings.MapGet("/file-extensions", async (IMediator mediator) =>
         {
             try
             {
@@ -24,16 +32,15 @@ internal static class SettingsEndpoints
         })
         .WithName("GetConfiguredFileExtensions");
 
-        app.MapGet("/api/settings/chart/max-lines", (IConfiguration configuration) =>
-            Results.Ok(configuration.GetValue<int>("ChartSettings:MaxLinesOfCode", 50000)))
+        settings.MapGet("/chart/max-lines", (IConfiguration configuration) =>
+            Results.Ok(configuration.GetValue<int>(ConfigKeys.ChartSettings.MaxLinesOfCode, 50000)))
         .WithName("GetChartMaxLines");
 
-        app.MapGet("/api/settings/user-preferences", async (HttpContext ctx, IUserPreferencesService preferencesService) =>
+        settings.MapGet("/user-preferences", async (HttpContext ctx, IUserPreferencesService preferencesService) =>
         {
             try
             {
-                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                if (!ctx.User.TryGetUserId(out var userId))
                     return Results.Unauthorized();
 
                 var preferences = await preferencesService.GetPreferencesAsync(userId);
@@ -45,15 +52,13 @@ internal static class SettingsEndpoints
                 return Results.Problem($"Error retrieving user preferences: {ex.Message}", statusCode: 500);
             }
         })
-        .RequireAuthorization()
         .WithName("GetUserPreferences");
 
-        app.MapPut("/api/settings/user-preferences", async (HttpContext ctx, IUserPreferencesService preferencesService, UserPreferences preferences) =>
+        settings.MapPut("/user-preferences", async (HttpContext ctx, IUserPreferencesService preferencesService, UserPreferences preferences) =>
         {
             try
             {
-                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                if (!ctx.User.TryGetUserId(out var userId))
                     return Results.Unauthorized();
 
                 preferences = preferences with { UserId = userId, LastUpdated = DateTime.UtcNow };
@@ -66,15 +71,13 @@ internal static class SettingsEndpoints
                 return Results.Problem($"Error saving user preferences: {ex.Message}", statusCode: 500);
             }
         })
-        .RequireAuthorization()
         .WithName("SaveUserPreferences");
 
-        app.MapGet("/api/settings/user-extensions", async (HttpContext ctx, IUserPreferencesService preferencesService) =>
+        settings.MapGet("/user-extensions", async (HttpContext ctx, IUserPreferencesService preferencesService) =>
         {
             try
             {
-                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                if (!ctx.User.TryGetUserId(out var userId))
                     return Results.Unauthorized();
 
                 var extensions = await preferencesService.GetFileExtensionsAsync(userId);
@@ -86,25 +89,24 @@ internal static class SettingsEndpoints
                 return Results.Problem($"Error retrieving user file extensions: {ex.Message}", statusCode: 500);
             }
         })
-        .RequireAuthorization()
         .WithName("GetUserFileExtensions");
 
         // Public endpoint: exposes client-visible feature flags so the Blazor WASM app
         // can adapt its UI without requiring additional auth (e.g. MockDataBanner).
         // Strategy Pattern (GoF): flags act as runtime strategy selectors.
-        app.MapGet("/api/feature-flags", (IConfiguration configuration, IEnumerable<IMockable> mockableServices) =>
+        endpoints.MapGet("/api/feature-flags", (IConfiguration configuration, IEnumerable<IMockable> mockableServices) =>
         {
             // Mock mode is on when the feature flag is set OR any IMockable service is registered,
             // so the "USING MOCK DATA" badge tracks the actual wiring, not just configuration.
-            var usingMockData = configuration.GetValue<bool>("FeatureFlags:EnableMockDataForTesting")
+            var usingMockData = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableMockDataForTesting)
                                 || mockableServices.Any();
 
             var flags = new
             {
                 EnableMockDataForTesting = usingMockData,
-                EnableGitHubApi = configuration.GetValue<bool>("FeatureFlags:EnableGitHubApi"),
-                EnableBackgroundAnalysis = configuration.GetValue<bool>("FeatureFlags:EnableBackgroundAnalysis"),
-                EnableOpenTelemetryExport = configuration.GetValue<bool>("FeatureFlags:EnableOpenTelemetryExport")
+                EnableGitHubApi = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableGitHubApi),
+                EnableBackgroundAnalysis = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableBackgroundAnalysis),
+                EnableOpenTelemetryExport = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableOpenTelemetryExport)
             };
             return Results.Ok(flags);
         })

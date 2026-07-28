@@ -1,3 +1,4 @@
+using PoRepoLineTracker.Api.Extensions;
 using Serilog.Context;
 using System.Security.Claims;
 
@@ -25,7 +26,7 @@ public class LogEnrichmentMiddleware
             : Guid.NewGuid().ToString("N");
 
         // UserId from the custom claim — distinct from session
-        var userId = context.User?.FindFirst("UserId")?.Value ?? "anonymous";
+        var userId = context.User?.FindFirst(ClaimsPrincipalExtensions.UserIdClaim)?.Value ?? "anonymous";
 
         // SessionId from the standard NameIdentifier claim (OAuth subject / GUID)
         var sessionId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "anonymous";

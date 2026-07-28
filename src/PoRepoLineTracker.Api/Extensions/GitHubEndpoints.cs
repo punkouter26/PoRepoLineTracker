@@ -1,18 +1,23 @@
+using Microsoft.Extensions.Caching.Hybrid;
 using PoRepoLineTracker.Application.Interfaces;
 using Serilog;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Api.Extensions;
 
 internal static class GitHubEndpoints
 {
-    internal static void MapGitHubEndpoints(this WebApplication app)
+    internal static void MapGitHubEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        app.MapGet("/api/github/user-repositories", async (HttpContext ctx, IGitHubService githubService, IUserService userService, IConfiguration config) =>
+        var github = endpoints.MapGroup("/api/github")
+            .WithTags("GitHub")
+            .RequireAuthorization();
+
+        github.MapGet("/user-repositories", async (HttpContext ctx, IGitHubService githubService, IUserService userService, IConfiguration config, HybridCache cache, CancellationToken cancellationToken) =>
         {
             try
             {
-                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                if (!ctx.User.TryGetUserId(out var userId))
                     return Results.Unauthorized();
 
                 var user = await userService.GetUserByIdAsync(userId);
@@ -26,7 +31,7 @@ internal static class GitHubEndpoints
                     && !string.IsNullOrEmpty(user.GitHubId)
                     && !user.GitHubId.StartsWith("ms:", StringComparison.OrdinalIgnoreCase);
 
-                var gitHubPat = config["GitHub:PAT"];
+                var gitHubPat = config[ConfigKeys.GitHub.Pat];
                 var accessToken = loggedInWithGitHub && !string.IsNullOrEmpty(user!.AccessToken)
                     ? user.AccessToken
                     : gitHubPat;
@@ -40,7 +45,16 @@ internal static class GitHubEndpoints
                         statusCode: StatusCodes.Status400BadRequest);
                 }
 
-                var userRepositories = await githubService.GetUserRepositoriesAsync(accessToken);
+                // Rule 5.4 — cached per user, not per token: the token can rotate (PAT fallback vs
+                // the user's own OAuth token) while the answer is the same repository list, and a
+                // token in a cache key is a token written to a cache store.
+                var userRepositories = await cache.GetOrCreateAsync(
+                    $"github:user-repositories:{userId}",
+                    (githubService, accessToken),
+                    static async (state, ct) =>
+                        (await state.githubService.GetUserRepositoriesAsync(state.accessToken)).ToList(),
+                    cancellationToken: cancellationToken);
+
                 return Results.Ok(userRepositories);
             }
             catch (InvalidOperationException ex)
@@ -62,7 +76,6 @@ internal static class GitHubEndpoints
                 return Results.Problem($"Error fetching user repositories: {ex.Message}", statusCode: 500);
             }
         })
-        .RequireAuthorization()
         .WithName("GetUserRepositories");
     }
 }

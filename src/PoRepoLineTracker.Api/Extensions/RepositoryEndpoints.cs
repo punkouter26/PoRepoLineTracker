@@ -11,38 +11,39 @@ namespace PoRepoLineTracker.Api.Extensions;
 
 internal static class RepositoryEndpoints
 {
-    internal static void MapRepositoryEndpoints(this WebApplication app)
+    internal static void MapRepositoryEndpoints(this IEndpointRouteBuilder endpoints, bool isDevelopment)
     {
-        // #6 fix: added RequireAuthorization() - was unprotected
-        app.MapPost("/api/repositories", async (GitHubRepository newRepo, HttpContext ctx, IMediator mediator) =>
+        // Rule 3.1 — one group carries the prefix and the authorization requirement for the whole
+        // slice. Every route below is authenticated because the group says so, not because each
+        // endpoint remembered to say so (the "#6 fix" comments below record the era when they didn't).
+        var repos = endpoints.MapGroup("/api/repositories")
+            .WithTags("Repositories")
+            .RequireAuthorization();
+
+        repos.MapPost("/", async (GitHubRepository newRepo, HttpContext ctx, IMediator mediator) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var repo = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Commands.AddRepositoryCommand(newRepo.Owner, newRepo.Name, newRepo.CloneUrl, userId));
             return Results.Created($"/api/repositories/{repo.Id}", repo);
         })
-        .RequireAuthorization()
         .WithName("AddRepository");
 
-        app.MapGet("/api/repositories", async (HttpContext ctx, IMediator mediator) =>
+        repos.MapGet("/", async (HttpContext ctx, IMediator mediator) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var repositories = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetAllRepositoriesQuery(userId));
             return Results.Ok(repositories);
         })
-        .RequireAuthorization()
         .WithName("GetAllRepositories");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        app.MapGet("/api/repositories/{repositoryId}/linehistory/{days}", async (Guid repositoryId, int days, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        repos.MapGet("/{repositoryId}/linehistory/{days}", async (RepositoryId repositoryId, int days, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
@@ -64,15 +65,13 @@ internal static class RepositoryEndpoints
                 return Results.Problem($"Error retrieving line count history: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .RequireAuthorization()
         .WithName("GetRepositoryLineHistory");
 
-        app.MapGet("/api/repositories/allcharts/{days}", async (int days, HttpContext ctx, IMediator mediator) =>
+        repos.MapGet("/allcharts/{days}", async (int days, HttpContext ctx, IMediator mediator) =>
         {
             try
             {
-                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                if (!ctx.User.TryGetUserId(out var userId))
                     return Results.Unauthorized();
 
                 var data = await mediator.Send(new PoRepoLineTracker.Application.Features.Repositories.Queries.GetAllRepositoriesLineCountHistoryQuery(days, userId));
@@ -84,14 +83,12 @@ internal static class RepositoryEndpoints
                 return Results.Problem($"Error retrieving all repositories line count history: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .RequireAuthorization()
         .WithName("GetAllRepositoriesLineHistory");
 
         // #6 fix: added RequireAuthorization() + ownership check - was fully unprotected
-        app.MapDelete("/api/repositories/{repositoryId}", async (Guid repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        repos.MapDelete("/{repositoryId}", async (RepositoryId repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             // Ownership guard: only the owning user may delete their repository
@@ -122,15 +119,13 @@ internal static class RepositoryEndpoints
                 return Results.Problem($"Error deleting repository: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .RequireAuthorization()
         .WithName("DeleteRepository");
 
-        app.MapDelete("/api/repositories/all", async (HttpContext ctx, IMediator mediator) =>
+        repos.MapDelete("/all", async (HttpContext ctx, IMediator mediator) =>
         {
             try
             {
-                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                if (!ctx.User.TryGetUserId(out var userId))
                 {
                     Log.Warning("Remove all repositories failed: No valid UserId claim found");
                     return Results.Unauthorized();
@@ -147,15 +142,13 @@ internal static class RepositoryEndpoints
                 return Results.Problem($"Error removing all repositories: {ex.GetType().Name} - {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .RequireAuthorization()
         .WithName("RemoveAllRepositories");
 
-        app.MapPost("/api/repositories/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory, IValidator<BulkRepositoryDto> repoValidator) =>
+        repos.MapPost("/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory, IValidator<BulkRepositoryDto> repoValidator) =>
         {
             try
             {
-                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                if (!ctx.User.TryGetUserId(out var userId))
                     return Results.Unauthorized();
 
                 Log.Information("=== BULK REPOSITORY ADD ENDPOINT CALLED ===");
@@ -216,14 +209,12 @@ internal static class RepositoryEndpoints
                 return Results.Problem($"Error adding repositories: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .RequireAuthorization()
         .WithName("AddMultipleRepositories");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        app.MapPost("/api/repositories/{repositoryId}/analyses", async (Guid repositoryId, [FromQuery] bool force, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
+        repos.MapPost("/{repositoryId}/analyses", async (RepositoryId repositoryId, [FromQuery] bool force, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
@@ -251,13 +242,11 @@ internal static class RepositoryEndpoints
             });
             return Results.Accepted();
         })
-        .RequireAuthorization()
         .WithName("CreateRepositoryAnalysis");
 
-        app.MapPost("/api/repositories/{repositoryId}/reanalyze", async (Guid repositoryId, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
+        repos.MapPost("/{repositoryId}/reanalyze", async (RepositoryId repositoryId, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
@@ -286,14 +275,12 @@ internal static class RepositoryEndpoints
             });
             return Results.Accepted(value: new { message = "Re-analysis started. All commit data will be re-calculated with your current file extension preferences." });
         })
-        .RequireAuthorization()
         .WithName("ReanalyzeRepository");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        app.MapGet("/api/repositories/{repositoryId}/file-extension-percentages", async (Guid repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        repos.MapGet("/{repositoryId}/file-extension-percentages", async (RepositoryId repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
@@ -315,14 +302,12 @@ internal static class RepositoryEndpoints
                 return Results.Problem($"Error retrieving file extension percentages: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .RequireAuthorization()
         .WithName("GetFileExtensionPercentages");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        app.MapGet("/api/repositories/{repositoryId}/top-files", async (Guid repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService, int count = 5) =>
+        repos.MapGet("/{repositoryId}/top-files", async (RepositoryId repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService, int count = 5) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
@@ -344,15 +329,13 @@ internal static class RepositoryEndpoints
                 return Results.Problem($"Error retrieving top files: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .RequireAuthorization()
         .WithName("GetTopFiles");
 
         // Analysis progress endpoint — returns live step/commit progress for an active analysis job.
         // Ownership check: only the owning user may read progress for their repo.
-        app.MapGet("/api/repositories/{repositoryId}/analysis-progress", async (Guid repositoryId, HttpContext ctx, IRepositoryDataService repoDataService, PoRepoLineTracker.Application.Interfaces.IAnalysisProgressService progressService) =>
+        repos.MapGet("/{repositoryId}/analysis-progress", async (RepositoryId repositoryId, HttpContext ctx, IRepositoryDataService repoDataService, PoRepoLineTracker.Application.Interfaces.IAnalysisProgressService progressService) =>
         {
-            var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
@@ -369,21 +352,23 @@ internal static class RepositoryEndpoints
 
             return Results.Ok(progress);
         })
-        .RequireAuthorization()
         .WithName("GetRepositoryAnalysisProgress");
 
         // DEV-ONLY: Patch the LocalPath for a local-upload repository whose LocalPath was lost
         // before GitHubRepositoryEntity.LocalPath was added. Remove after data is fixed.
-        if (app.Environment.IsDevelopment())
+        if (isDevelopment)
         {
-            app.MapPost("/api/dev/repositories/{repositoryId}/fix-local-path", async (
-                Guid repositoryId,
+            var devRepos = endpoints.MapGroup("/api/dev/repositories")
+                .WithTags("Dev")
+                .RequireAuthorization();
+
+            devRepos.MapPost("/{repositoryId}/fix-local-path", async (
+                RepositoryId repositoryId,
                 [FromQuery] string localPath,
                 HttpContext ctx,
                 IRepositoryDataService repoDataService) =>
             {
-                var userIdClaim = ctx.User.FindFirst("UserId")?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                if (!ctx.User.TryGetUserId(out var userId))
                     return Results.Unauthorized();
 
                 var repo = await repoDataService.GetRepositoryByIdAsync(repositoryId);
@@ -395,7 +380,6 @@ internal static class RepositoryEndpoints
                 Log.Information("DEV: Patched LocalPath for repository {RepositoryId} to {LocalPath}", repositoryId, localPath);
                 return Results.Ok(new { repositoryId, localPath });
             })
-            .RequireAuthorization()
             .WithName("DevFixLocalPath");
         }
     }

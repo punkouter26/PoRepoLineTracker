@@ -2,9 +2,11 @@
 @inject ILogger<TopFilesDialog> Logger
 @using PoRepoLineTracker.Shared.Models.Dtos
 
+@* Rule 4.3 — the wrapper <div> is this component's CSS-isolation anchor for ::deep rules. *@
+<div class="top-files-dialog">
 @if (_isLoading)
 {
-    <RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Style="height: 320px; gap: 1rem;">
+    <RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" class="top-files-dialog__loading">
         <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Large" />
         <RadzenText>Loading top files...</RadzenText>
     </RadzenStack>
@@ -17,16 +19,16 @@ else if (_files != null && _files.Any())
                     PagerHorizontalAlign="HorizontalAlign.Center"
                     ShowPagingSummary="true"
                     AllowSorting="true"
-                    Style="height: 520px;">
+                    class="top-files-dialog__grid">
         <Columns>
             <RadzenDataGridColumn TItem="TopFileDto" Title="#" Width="55px" Sortable="false">
                 <Template Context="file">
-                    <RadzenText Style="color: var(--rz-text-secondary-color);">@(_files!.IndexOf(file) + 1)</RadzenText>
+                    <RadzenText class="top-files-dialog__rank">@(_files!.IndexOf(file) + 1)</RadzenText>
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="TopFileDto" Property="FileName" Title="File Name">
                 <Template Context="file">
-                    <span title="@file.FileName" style="word-break: break-all; font-size: 0.875rem;">@file.FileName</span>
+                    <span title="@file.FileName" class="top-files-dialog__filename">@file.FileName</span>
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="TopFileDto" Property="LineCount" Title="Lines" Width="110px" TextAlign="TextAlign.Right">
@@ -40,13 +42,14 @@ else if (_files != null && _files.Any())
 else
 {
     <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-8">
-        <RadzenIcon Icon="folder_off" Style="font-size: 3rem; color: var(--rz-text-disabled-color);" />
-        <RadzenText Style="color: var(--rz-text-secondary-color);">No file data available. Try re-analyzing the repository first.</RadzenText>
+        <RadzenIcon Icon="folder_off" class="top-files-dialog__empty-icon" />
+        <RadzenText class="top-files-dialog__empty-text">No file data available. Try re-analyzing the repository first.</RadzenText>
     </RadzenStack>
 }
+</div>
 
 @code {
-    [Parameter, EditorRequired] public Guid RepositoryId { get; set; }
+    [Parameter, EditorRequired] public RepositoryId RepositoryId { get; set; }
 
     private List<TopFileDto>? _files;
     private bool _isLoading = true;

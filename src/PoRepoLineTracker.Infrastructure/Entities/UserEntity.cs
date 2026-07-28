@@ -31,7 +31,7 @@ public class UserEntity : ITableEntity
     {
         return new User
         {
-            Id = Id,
+            Id = new UserId(Id),
             GitHubId = GitHubId,
             Username = Username,
             DisplayName = DisplayName,
@@ -50,7 +50,7 @@ public class UserEntity : ITableEntity
         {
             PartitionKey = "USER",
             RowKey = model.GitHubId,
-            Id = model.Id,
+            Id = model.Id.Value,
             GitHubId = model.GitHubId,
             Username = model.Username,
             DisplayName = model.DisplayName,

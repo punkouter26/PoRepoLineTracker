@@ -26,7 +26,7 @@ public class AddRepositoryCommandHandlerTests
     public async Task Handle_ValidCommand_PersistsRepositoryAndReturnsIt()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = UserId.New();
         var command = new AddRepositoryCommand("testowner", "testrepo", "https://github.com/testowner/testrepo.git", userId);
 
         // Act
@@ -38,7 +38,7 @@ public class AddRepositoryCommandHandlerTests
         result.Name.Should().Be("testrepo");
         result.CloneUrl.Should().Be("https://github.com/testowner/testrepo.git");
         result.UserId.Should().Be(userId);
-        result.Id.Should().NotBeEmpty();
+        result.Id.Should().NotBe(RepositoryId.Empty);
 
         await _dataService.Received(1).AddRepositoryAsync(
             Arg.Is<GitHubRepository>(r =>
@@ -52,7 +52,7 @@ public class AddRepositoryCommandHandlerTests
     public async Task Handle_WhenDataServiceThrows_ExceptionPropagates()
     {
         // Arrange
-        var command = new AddRepositoryCommand("owner", "repo", "https://github.com/owner/repo.git", Guid.NewGuid());
+        var command = new AddRepositoryCommand("owner", "repo", "https://github.com/owner/repo.git", UserId.New());
         _dataService
             .When(s => s.AddRepositoryAsync(Arg.Any<GitHubRepository>()))
             .Do(_ => throw new InvalidOperationException("Storage unavailable"));

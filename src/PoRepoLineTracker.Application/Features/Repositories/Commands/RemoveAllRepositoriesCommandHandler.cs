@@ -5,6 +5,7 @@ using PoRepoLineTracker.Application.Interfaces;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Application.Features.Repositories.Commands;
 
@@ -68,7 +69,7 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
     /// </summary>
     private async Task RemoveAllLocalRepositoriesAsync()
     {
-        var localReposPath = _configuration["GitHub:LocalReposPath"];
+        var localReposPath = _configuration[ConfigKeys.GitHub.LocalReposPath];
 
         if (string.IsNullOrEmpty(localReposPath))
         {

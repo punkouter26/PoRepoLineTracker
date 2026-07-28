@@ -7,6 +7,7 @@ using PoRepoLineTracker.Infrastructure.Entities;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Shared.Models.Dtos;
 using System.IO;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Infrastructure.Services;
 
@@ -24,9 +25,9 @@ public class RepositoryDataService : IRepositoryDataService
     public RepositoryDataService(TableServiceClient tableServiceClient, IConfiguration configuration, ILogger<RepositoryDataService> logger)
     {
         _logger = logger;
-        var repositoryTableName = configuration["AzureTableStorage:RepositoryTableName"] ?? "PoRepoLineTrackerRepositories";
-        var commitLineCountTableName = configuration["AzureTableStorage:CommitLineCountTableName"] ?? "PoRepoLineTrackerCommitLineCounts";
-        var topFilesTableName = configuration["AzureTableStorage:TopFilesTableName"] ?? "PoRepoLineTrackerTopFiles";
+        var repositoryTableName = configuration[ConfigKeys.AzureTableStorage.RepositoryTableName] ?? "PoRepoLineTrackerRepositories";
+        var commitLineCountTableName = configuration[ConfigKeys.AzureTableStorage.CommitLineCountTableName] ?? "PoRepoLineTrackerCommitLineCounts";
+        var topFilesTableName = configuration[ConfigKeys.AzureTableStorage.TopFilesTableName] ?? "PoRepoLineTrackerTopFiles";
 
         _repositoryTableClient = tableServiceClient.GetTableClient(repositoryTableName);
         _commitLineCountTableClient = tableServiceClient.GetTableClient(commitLineCountTableName);
@@ -94,11 +95,11 @@ public class RepositoryDataService : IRepositoryDataService
         _logger.LogInformation("Repository {RepoName} updated successfully.", repository.Name);
     }
 
-    public async Task<GitHubRepository?> GetRepositoryByIdAsync(Guid id)
+    public async Task<GitHubRepository?> GetRepositoryByIdAsync(RepositoryId id)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Getting repository by Id: {RepositoryId} from Table Storage.", id);
-        await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(e => e.Id == id))
+        await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(e => e.Id == id.Value))
         {
             _logger.LogInformation("Found repository {RepoName} by Id {RepositoryId}.", entity.Name, id);
             return entity.ToDomainModel();
@@ -107,7 +108,7 @@ public class RepositoryDataService : IRepositoryDataService
         return null;
     }
 
-    public async Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync(Guid userId)
+    public async Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync(UserId userId)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Getting all repositories for user {UserId} from Table Storage.", userId);
@@ -130,7 +131,7 @@ public class RepositoryDataService : IRepositoryDataService
         _logger.LogInformation("Commit line count for commit {CommitSha} upserted successfully.", commitLineCount.CommitSha);
     }
 
-    public async Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(Guid repositoryId)
+    public async Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(RepositoryId repositoryId)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Getting commit line counts for repository {RepositoryId} from Table Storage.", repositoryId);
@@ -143,7 +144,7 @@ public class RepositoryDataService : IRepositoryDataService
         return commitLineCounts;
     }
 
-    public async Task<bool> CommitExistsAsync(Guid repositoryId, string commitSha)
+    public async Task<bool> CommitExistsAsync(RepositoryId repositoryId, string commitSha)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Checking if commit {CommitSha} exists for repository {RepositoryId}.", commitSha, repositoryId);
@@ -178,7 +179,7 @@ public class RepositoryDataService : IRepositoryDataService
         _logger.LogInformation("Azure Table Storage connection successful.");
     }
 
-    public async Task DeleteCommitLineCountsForRepositoryAsync(Guid repositoryId)
+    public async Task DeleteCommitLineCountsForRepositoryAsync(RepositoryId repositoryId)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Deleting all commit line counts for repository {RepositoryId} from Table Storage.", repositoryId);
@@ -200,7 +201,7 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
-    public async Task DeleteRepositoryAsync(Guid repositoryId)
+    public async Task DeleteRepositoryAsync(RepositoryId repositoryId)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Deleting repository {RepositoryId} and all associated data from Table Storage.", repositoryId);
@@ -211,7 +212,7 @@ public class RepositoryDataService : IRepositoryDataService
         // Then, find and delete the repository entity
         try
         {
-            await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(r => r.Id == repositoryId))
+            await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(r => r.Id == repositoryId.Value))
             {
                 await _repositoryTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, entity.ETag);
                 _logger.LogInformation("Repository entity deleted successfully for repository {RepositoryId}.", repositoryId);
@@ -225,7 +226,7 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
-    public async Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name, Guid userId)
+    public async Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name, UserId userId)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Getting repository by Owner: {Owner} and Name: {Name} for user {UserId} from Table Storage.", owner, name, userId);
@@ -258,7 +259,7 @@ public class RepositoryDataService : IRepositoryDataService
         return await Task.FromResult(UserPreferences.DefaultFileExtensions.AsEnumerable());
     }
 
-    public async Task AnalyzeRepositoryCommitsAsync(Guid repositoryId)
+    public async Task AnalyzeRepositoryCommitsAsync(RepositoryId repositoryId)
     {
         _logger.LogInformation("Starting analysis for repository ID: {RepositoryId}", repositoryId);
 
@@ -276,7 +277,7 @@ public class RepositoryDataService : IRepositoryDataService
         _logger.LogInformation("Repository analysis completed for repository ID: {RepositoryId}", repositoryId);
     }
 
-    public async Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(Guid repositoryId, int days)
+    public async Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(RepositoryId repositoryId, int days)
     {
         _logger.LogInformation("Getting line count history for repository {RepositoryId} for the last {Days} days from Table Storage.", repositoryId, days);
 
@@ -328,7 +329,7 @@ public class RepositoryDataService : IRepositoryDataService
     /// Removes all data from both repository and commit line count tables in Azure Table Storage.
     /// Uses batch operations for optimal performance.
     /// </summary>
-    public async Task RemoveAllRepositoriesAsync(Guid userId)
+    public async Task RemoveAllRepositoriesAsync(UserId userId)
     {
         _logger.LogInformation("Starting removal of all repositories and commit data for user {UserId} from Azure Table Storage.", userId);
 
@@ -358,7 +359,7 @@ public class RepositoryDataService : IRepositoryDataService
     /// <summary>
     /// Strategy Pattern: Implements batch deletion strategy for repository entities for a specific user.
     /// </summary>
-    private async Task RemoveAllRepositoryEntitiesForUserAsync(Guid userId)
+    private async Task RemoveAllRepositoryEntitiesForUserAsync(UserId userId)
     {
         _logger.LogInformation("Removing all repository entities for user {UserId} from Table Storage.", userId);
 
@@ -410,7 +411,7 @@ public class RepositoryDataService : IRepositoryDataService
     /// Saves the top files for a repository to Azure Table Storage.
     /// Replaces any existing top files for the repository.
     /// </summary>
-    public async Task SaveTopFilesAsync(Guid repositoryId, IEnumerable<TopFileDto> topFiles)
+    public async Task SaveTopFilesAsync(RepositoryId repositoryId, IEnumerable<TopFileDto> topFiles)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Saving top files for repository {RepositoryId} to Table Storage.", repositoryId);
@@ -424,7 +425,7 @@ public class RepositoryDataService : IRepositoryDataService
             var rank = 1;
             foreach (var topFile in topFiles.Take(100)) // Store up to 100 for flexibility
             {
-                var entity = TopFileEntity.FromDto(repositoryId, topFile, rank);
+                var entity = TopFileEntity.FromDto(repositoryId.Value, topFile, rank);
                 await _topFilesTableClient.AddEntityAsync(entity);
                 rank++;
             }
@@ -441,7 +442,7 @@ public class RepositoryDataService : IRepositoryDataService
     /// <summary>
     /// Retrieves the top files for a repository from Azure Table Storage.
     /// </summary>
-    public async Task<IEnumerable<TopFileDto>> GetTopFilesAsync(Guid repositoryId, int count = 5)
+    public async Task<IEnumerable<TopFileDto>> GetTopFilesAsync(RepositoryId repositoryId, int count = 5)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Getting top {Count} files for repository {RepositoryId} from Table Storage.", count, repositoryId);
@@ -480,7 +481,7 @@ public class RepositoryDataService : IRepositoryDataService
     /// <summary>
     /// Deletes all top files for a repository from Azure Table Storage.
     /// </summary>
-    public async Task DeleteTopFilesForRepositoryAsync(Guid repositoryId)
+    public async Task DeleteTopFilesForRepositoryAsync(RepositoryId repositoryId)
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Deleting top files for repository {RepositoryId} from Table Storage.", repositoryId);

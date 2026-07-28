@@ -9,7 +9,7 @@ public class User
     /// <summary>
     /// Unique identifier for the user in our system.
     /// </summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public UserId Id { get; set; } = UserId.New();
 
     /// <summary>
     /// GitHub user ID (numeric, from GitHub API).

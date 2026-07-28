@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using AspNet.Security.OAuth.GitHub;
 using Microsoft.AspNetCore.DataProtection;
 using System.Security.Claims;
 using PoRepoLineTracker.Application.Interfaces;
 using PoRepoLineTracker.Domain.Models;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.Api.Extensions;
 
@@ -26,9 +28,9 @@ public static class AuthServiceExtensions
         // so this just sets the default challenge scheme.
         // If neither provider is configured (e.g. local dev without secrets), fall back to
         // the cookie scheme so GUEST mode and other non-OAuth flows still work.
-        var ghClientId = configuration["GitHub:ClientId"];
-        var msClientId = configuration["Microsoft:ClientId"];
-        var msClientSecret = configuration["Microsoft:ClientSecret"];
+        var ghClientId = configuration[ConfigKeys.GitHub.ClientId];
+        var msClientId = configuration[ConfigKeys.Microsoft.ClientId];
+        var msClientSecret = configuration[ConfigKeys.Microsoft.ClientSecret];
 
         string defaultChallengeScheme;
         if (environment.IsDevelopment() && !string.IsNullOrEmpty(ghClientId))
@@ -81,9 +83,9 @@ public static class AuthServiceExtensions
             services.AddAuthentication().AddGitHub(options =>
             {
                 options.ClientId = ghClientId;
-                options.ClientSecret = configuration["GitHub:ClientSecret"]
+                options.ClientSecret = configuration[ConfigKeys.GitHub.ClientSecret]
                     ?? throw new InvalidOperationException("GitHub:ClientSecret is not configured");
-                options.CallbackPath = configuration["GitHub:CallbackPath"] ?? "/signin-github";
+                options.CallbackPath = configuration[ConfigKeys.GitHub.CallbackPath] ?? "/signin-github";
 
                 // Use SameAsRequest so cookies work over plain HTTP on localhost
                 options.CorrelationCookie.SecurePolicy = environment.IsDevelopment()
@@ -206,7 +208,7 @@ public static class AuthServiceExtensions
                         // could sign in. Equivalent to TokenValidationParameters.ValidateIssuer, but
                         // applied here because the generic OAuth handler does not validate the id_token.
                         // Empty allow-list = accept all (single-tenant deployments leave it unset).
-                        var allowedTenants = (configuration["Microsoft:AllowedTenants"] ?? string.Empty)
+                        var allowedTenants = (configuration[ConfigKeys.Microsoft.AllowedTenants] ?? string.Empty)
                             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                         if (allowedTenants.Length > 0)
                         {
@@ -272,7 +274,17 @@ public static class AuthServiceExtensions
                 });
         }
 
-        services.AddAuthorization();
+        // Rule 3.3 — server-side FallbackPolicy: every endpoint that carries no authorization
+        // metadata of its own is authenticated by default. Endpoints that must stay public
+        // (/auth/*, /health, /api/feature-flags, the Blazor fallback file, OpenAPI/Scalar in
+        // Development) opt out explicitly with .AllowAnonymous(). Deny-by-default means a new
+        // endpoint added without a RequireAuthorization() call fails closed, not open.
+        services.AddAuthorization(options =>
+        {
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+        });
         return services;
     }
 

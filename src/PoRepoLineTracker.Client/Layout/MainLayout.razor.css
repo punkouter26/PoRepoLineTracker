@@ -308,3 +308,49 @@
         padding: 0.75rem 1rem;
     }
 }
+
+/* ─── Rule 4.3 — extracted from inline style= attributes ──────────────────────
+   Declarations are marked !important and the class doubled so each rule keeps the
+   cascade position its inline style had; the Radzen theme sets several of these
+   (button colour, badge padding, text margin) and would otherwise win. */
+
+::deep .brand-link.brand-link {
+    cursor: pointer !important;
+}
+
+::deep .brand-icon-main.brand-icon-main {
+    font-size: 1.2rem !important;
+    color: #fff !important;
+}
+
+::deep .brand-icon-trend.brand-icon-trend {
+    font-size: 0.55rem !important;
+    color: #fff !important;
+}
+
+::deep .brand-wordmark.brand-wordmark {
+    margin: 0 !important;
+    font-weight: 700 !important;
+    color: #fff !important;
+    letter-spacing: -0.01em !important;
+}
+
+::deep .mock-data-badge.mock-data-badge {
+    font-size: 0.8rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.05em !important;
+    padding: 0.3rem 0.75rem !important;
+}
+
+::deep .header-icon-btn.header-icon-btn {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+::deep .app-sidebar.app-sidebar {
+    width: 220px !important;
+    min-height: 100vh !important;
+}
+
+.app-sidebar__nav {
+    padding: 1rem 0 0.5rem;
+}

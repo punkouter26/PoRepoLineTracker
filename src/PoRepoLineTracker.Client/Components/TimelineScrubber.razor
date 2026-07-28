@@ -4,11 +4,11 @@
 
 @* InstantReplay: Timeline scrubber that lets users "scrub through time" to see repo state at any date *@
 
-<RadzenCard Style="padding: 1rem 1.5rem;">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" Style="margin-bottom: 0.75rem;">
+<RadzenCard class="ts-card">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="ts-toolbar">
         <RadzenStack Gap="0.15rem">
-            <RadzenText TextStyle="TextStyle.H6" Style="margin: 0; font-weight: 700;">⏪ Timeline Scrubber</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">
+            <RadzenText TextStyle="TextStyle.H6" class="ts-title">⏪ Timeline Scrubber</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" class="ts-description">
                 Drag to see repository state at any point in time
             </RadzenText>
         </RadzenStack>
@@ -21,33 +21,33 @@
 
     @if (DailyData == null || !DailyData.Any())
     {
-        <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-disabled-color);">No history data available for timeline scrubbing.</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2" class="ts-empty">No history data available for timeline scrubbing.</RadzenText>
     }
     else
     {
         @* Timeline Slider *@
-        <div style="margin-bottom: 1rem;">
+        <div class="ts-slider-row">
             <RadzenSlider TValue="int" 
                           Min="@_minIndex" 
                           Max="@_maxIndex" 
                           Step="1"
                           @bind-Value="_scrubberIndex"
                           Change="@OnScrubberChanged"
-                          Style="width: 100%;" />
+                          class="ts-slider" />
         </div>
 
         @* Date markers *@
-        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" Style="margin-bottom: 1rem;">
-            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" class="ts-bounds">
+            <RadzenText TextStyle="TextStyle.Caption" class="ts-bound-label">
                 @(_dates.Any() ? _dates.First().ToString("MMM dd, yyyy") : "")
             </RadzenText>
             @if (_selectedDate.HasValue)
             {
                 <RadzenBadge BadgeStyle="BadgeStyle.Info" 
                              Text="@(_selectedDate.Value.ToString("MMM dd, yyyy"))" 
-                             Style="font-size: 0.85rem;" />
+                             class="ts-date-badge" />
             }
-            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">
+            <RadzenText TextStyle="TextStyle.Caption" class="ts-bound-label">
                 @(_dates.Any() ? _dates.Last().ToString("MMM dd, yyyy") : "")
             </RadzenText>
         </RadzenStack>
@@ -57,27 +57,27 @@
         {
             <RadzenRow Gap="1rem">
                 <RadzenColumn Size="6" SizeMD="3">
-                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2" Style="background: var(--rz-base-100); border-radius: 8px; text-align: center;">
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">Total Lines</RadzenText>
-                        <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; font-weight: 700; color: var(--rz-primary);">@_snapshot.TotalLines.ToString("N0")</RadzenText>
+                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2 ts-metric">
+                        <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">Total Lines</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H5" class="ts-metric__value ts-metric__value--primary">@_snapshot.TotalLines.ToString("N0")</RadzenText>
                     </RadzenStack>
                 </RadzenColumn>
                 <RadzenColumn Size="6" SizeMD="3">
-                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2" Style="background: var(--rz-base-100); border-radius: 8px; text-align: center;">
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">Commits</RadzenText>
-                        <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; font-weight: 700;">@_snapshot.CommitCount</RadzenText>
+                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2 ts-metric">
+                        <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">Commits</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H5" class="ts-metric__value">@_snapshot.CommitCount</RadzenText>
                     </RadzenStack>
                 </RadzenColumn>
                 <RadzenColumn Size="6" SizeMD="3">
-                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2" Style="background: var(--rz-base-100); border-radius: 8px; text-align: center;">
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">Lines Added</RadzenText>
-                        <RadzenText TextStyle="TextStyle.H5" Style="margin: 0; font-weight: 700; color: #22c55e;">+@_snapshot.TotalLinesAdded.ToString("N0")</RadzenText>
+                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2 ts-metric">
+                        <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">Lines Added</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H5" class="ts-metric__value ts-metric__value--added">+@_snapshot.TotalLinesAdded.ToString("N0")</RadzenText>
                     </RadzenStack>
                 </RadzenColumn>
                 <RadzenColumn Size="6" SizeMD="3">
-                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2" Style="background: var(--rz-base-100); border-radius: 8px; text-align: center;">
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">AI %</RadzenText>
-                        <RadzenText TextStyle="TextStyle.H5" Style="@($"margin: 0; font-weight: 700; color: {GetAiColor(_snapshot.AverageAiPercentage)};")">@_snapshot.AverageAiPercentage.ToString("F1")%</RadzenText>
+                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2 ts-metric">
+                        <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">AI %</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H5" class="@($"ts-metric__value {GetAiSeverityClass(_snapshot.AverageAiPercentage)}")">@_snapshot.AverageAiPercentage.ToString("F1")%</RadzenText>
                     </RadzenStack>
                 </RadzenColumn>
             </RadzenRow>
@@ -85,10 +85,10 @@
             @* CommitTagger badges for this day *@
             @if (_snapshot.Tags.Any())
             {
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.35rem" Style="margin-top: 0.75rem;" Wrap="FlexWrap.Wrap">
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.35rem" class="ts-tags" Wrap="FlexWrap.Wrap">
                     @foreach (var tag in _snapshot.Tags.Distinct())
                     {
-                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@tag" Style="font-size: 0.75rem;" />
+                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@tag" class="ts-tag" />
                     }
                 </RadzenStack>
             }
@@ -155,11 +155,15 @@
         UpdateSnapshot();
     }
 
-    private static string GetAiColor(double aiPercentage) => aiPercentage switch
+    /// <summary>
+    /// Rule 4.3 — the AI figure used to be coloured through an interpolated inline style. The
+    /// thresholds are discrete, so they map to modifier classes defined in the scoped stylesheet.
+    /// </summary>
+    private static string GetAiSeverityClass(double aiPercentage) => aiPercentage switch
     {
-        >= 50 => "#ef4444",
-        >= 25 => "#f97316",
-        >= 10 => "#eab308",
-        _ => "#22c55e"
+        >= 50 => "ts-metric__value--ai-high",
+        >= 25 => "ts-metric__value--ai-elevated",
+        >= 10 => "ts-metric__value--ai-moderate",
+        _ => "ts-metric__value--ai-low"
     };
 }

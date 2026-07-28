@@ -1,3 +1,4 @@
+using PoRepoLineTracker.Domain.Models;
 using FluentAssertions;
 using PoRepoLineTracker.Application.Services;
 using PoRepoLineTracker.Shared.Models;
@@ -16,14 +17,14 @@ public class AnalysisProgressServiceTests
     [Fact]
     public void GetProgress_NonExistentRepository_ReturnsNull()
     {
-        var result = _sut.GetProgress(Guid.NewGuid());
+        var result = _sut.GetProgress(RepositoryId.New());
         result.Should().BeNull();
     }
 
     [Fact]
     public void ReportStep_NewRepository_CreatesProgressEntry()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
 
         _sut.ReportStep(repoId, 1, "Cloning", "Cloning repository...");
 
@@ -40,7 +41,7 @@ public class AnalysisProgressServiceTests
     [Fact]
     public void ReportStep_ExistingRepository_UpdatesEntry()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         _sut.ReportStep(repoId, 1, "Cloning", "Cloning...");
 
         _sut.ReportStep(repoId, 2, "Analyzing", "Processing commits...");
@@ -54,7 +55,7 @@ public class AnalysisProgressServiceTests
     [Fact]
     public void ReportCommitsFound_SetsTotalAndResetsProcessed()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         _sut.ReportStep(repoId, 1, "Cloning", "Cloning...");
 
         _sut.ReportCommitsFound(repoId, 42);
@@ -69,7 +70,7 @@ public class AnalysisProgressServiceTests
     {
         // Reporting progress/commits/completion for an unknown repo must not throw and must
         // not create an entry. (ReportError is intentionally different — it creates one.)
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
 
         _sut.ReportCommitsFound(repoId, 10);
         _sut.GetProgress(repoId).Should().BeNull();
@@ -84,7 +85,7 @@ public class AnalysisProgressServiceTests
     [Fact]
     public void ReportCommitProgress_UpdatesProcessedCount()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         _sut.ReportStep(repoId, 1, "Test", "Test");
         _sut.ReportCommitsFound(repoId, 100);
 
@@ -98,7 +99,7 @@ public class AnalysisProgressServiceTests
     [Fact]
     public void ReportComplete_MarksAsNotRunning()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         _sut.ReportStep(repoId, 1, "Cloning", "Cloning...");
         _sut.ReportCommitsFound(repoId, 10);
         _sut.ReportCommitProgress(repoId, 10, 10);
@@ -113,7 +114,7 @@ public class AnalysisProgressServiceTests
     [Fact]
     public void ReportError_SetsErrorMessageAndStopsRunning()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         _sut.ReportStep(repoId, 1, "Cloning", "Cloning...");
 
         _sut.ReportError(repoId, "Connection timeout");
@@ -126,7 +127,7 @@ public class AnalysisProgressServiceTests
     [Fact]
     public void ReportError_NonExistentRepository_CreatesEntry()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
 
         _sut.ReportError(repoId, "Something went wrong");
 
@@ -139,7 +140,7 @@ public class AnalysisProgressServiceTests
     [Fact]
     public void FullLifecycle_ReportsCorrectStateTransitions()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
 
         // Step 1: Start
         _sut.ReportStep(repoId, 1, "Cloning", "Cloning repository...");
@@ -170,8 +171,8 @@ public class AnalysisProgressServiceTests
     [Fact]
     public void MultipleRepositories_TrackedIndependently()
     {
-        var repo1 = Guid.NewGuid();
-        var repo2 = Guid.NewGuid();
+        var repo1 = RepositoryId.New();
+        var repo2 = RepositoryId.New();
 
         _sut.ReportStep(repo1, 1, "Cloning", "Repo 1 cloning...");
         _sut.ReportStep(repo2, 3, "Complete", "Repo 2 done...");
@@ -188,7 +189,7 @@ public class AnalysisProgressServiceTests
     [Fact]
     public void LastUpdatedUtc_IsSetOnEveryMutation()
     {
-        var repoId = Guid.NewGuid();
+        var repoId = RepositoryId.New();
         var before = DateTime.UtcNow;
 
         _sut.ReportStep(repoId, 1, "Test", "Test");

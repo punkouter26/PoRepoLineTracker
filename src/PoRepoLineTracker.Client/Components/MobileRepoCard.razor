@@ -8,23 +8,23 @@
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
         @* Repo icon *@
         <div class="mobile-repo-icon">
-            <RadzenIcon Icon="code" Style="font-size: 1.2rem; color: var(--rz-primary);" />
+            <RadzenIcon Icon="code" class="mrc-icon" />
         </div>
 
         @* Repo info *@
-        <RadzenStack Gap="0.1rem" Style="flex: 1; min-width: 0;">
-            <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <RadzenStack Gap="0.1rem" class="mrc-info">
+            <RadzenText TextStyle="TextStyle.Subtitle2" class="mrc-name">
                 @Repo.Owner/@Repo.Name
             </RadzenText>
             @if (Repo.LastAnalyzedCommitDate.HasValue)
             {
-                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color); margin: 0;">
+                <RadzenText TextStyle="TextStyle.Caption" class="mrc-analyzed">
                     Analyzed @ToRelativeTime(Repo.LastAnalyzedCommitDate)
                 </RadzenText>
             }
             else
             {
-                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color); margin: 0;">
+                <RadzenText TextStyle="TextStyle.Caption" class="mrc-unanalyzed">
                     Not yet analyzed
                 </RadzenText>
             }
@@ -34,19 +34,19 @@
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
             @if (LineCount > 0)
             {
-                <RadzenStack AlignItems="AlignItems.Center" Gap="0.1rem" Style="text-align: center;">
-                    <RadzenText Style="font-size: 1.1rem; font-weight: 700; color: var(--rz-primary); line-height: 1;">@FormatCompact(LineCount)</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color); line-height: 1;">lines</RadzenText>
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.1rem" class="mrc-metric">
+                    <RadzenText class="mrc-metric-value mrc-metric-value--lines">@FormatCompact(LineCount)</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" class="mrc-metric-label">lines</RadzenText>
                 </RadzenStack>
             }
             @if (AiPercentage > 0)
             {
-                <RadzenStack AlignItems="AlignItems.Center" Gap="0.1rem" Style="text-align: center;">
-                    <RadzenText Style="@($"font-size: 1.1rem; font-weight: 700; color: {GetAiColor(AiPercentage)}; line-height: 1;")">@AiPercentage.ToString("F0")%</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-disabled-color); line-height: 1;">AI</RadzenText>
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.1rem" class="mrc-metric">
+                    <RadzenText class="@($"mrc-metric-value {GetAiSeverityClass(AiPercentage)}")">@AiPercentage.ToString("F0")%</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" class="mrc-metric-label">AI</RadzenText>
                 </RadzenStack>
             }
-            <RadzenIcon Icon="chevron_right" Style="color: var(--rz-text-disabled-color);" />
+            <RadzenIcon Icon="chevron_right" class="mrc-chevron" />
         </RadzenStack>
     </RadzenStack>
 </div>
@@ -80,11 +80,15 @@
         _ => count.ToString()
     };
 
-    private static string GetAiColor(double aiPercentage) => aiPercentage switch
+    /// <summary>
+    /// Rule 4.3 — the AI figure used to be coloured through an interpolated inline style. The
+    /// thresholds are discrete, so they map to modifier classes and the colours live in CSS.
+    /// </summary>
+    private static string GetAiSeverityClass(double aiPercentage) => aiPercentage switch
     {
-        >= 50 => "#ef4444",
-        >= 25 => "#f97316",
-        >= 10 => "#eab308",
-        _ => "#22c55e"
+        >= 50 => "mrc-metric-value--ai-high",
+        >= 25 => "mrc-metric-value--ai-elevated",
+        >= 10 => "mrc-metric-value--ai-moderate",
+        _ => "mrc-metric-value--ai-low"
     };
 }
