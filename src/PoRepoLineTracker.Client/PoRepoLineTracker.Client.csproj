@@ -21,7 +21,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PoRepoLineTracker.Shared\PoRepoLineTracker.Shared.csproj" />
-    <ProjectReference Include="..\PoRepoLineTracker.Domain\PoRepoLineTracker.Domain.csproj" />
   </ItemGroup>
 
 </Project>

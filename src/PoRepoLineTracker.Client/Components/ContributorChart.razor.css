@@ -102,22 +102,29 @@
     color: #ef4444;
 }
 
+/* A native <progress> carries the percentage in its value attribute, so no inline style is
+   needed to draw the bar (Rule 4.3) and screen readers announce the value for free. The
+   track/value pseudo-elements are not interchangeable across engines, hence the triple rule. */
 ::deep .cc-bar {
     flex: 1;
+    display: block;
     height: 6px;
+    border: none;
+    border-radius: 3px;
+    background: var(--rz-base-200);
+    appearance: none;
+}
+
+::deep .cc-bar::-webkit-progress-bar {
     border-radius: 3px;
     background: var(--rz-base-200);
 }
 
-/* The fill percentage is per-row data, so it arrives as a single custom property rather than a
-   full inline rule — the presentation stays here, only the datum is bound in the markup. */
-::deep .cc-bar__fill {
-    height: 100%;
-    border-radius: 3px;
-    width: var(--cc-bar-fill, 0%);
-}
+::deep .cc-bar::-webkit-progress-value { border-radius: 3px; }
+::deep .cc-bar::-moz-progress-bar      { border-radius: 3px; }
 
-/* Author palette. Index-for-index with _colors in the .razor file (see GetAuthorColorClass). */
+/* Author palette. Index-for-index with _colors in the .razor file (see GetAuthorColorClass).
+   .cc-swatch--N colours the legend dot; the matching progress rules colour the bar. */
 .cc-swatch--0, ::deep .cc-swatch--0 { background: #3b82f6; }
 .cc-swatch--1, ::deep .cc-swatch--1 { background: #ef4444; }
 .cc-swatch--2, ::deep .cc-swatch--2 { background: #22c55e; }
@@ -126,6 +133,24 @@
 .cc-swatch--5, ::deep .cc-swatch--5 { background: #ec4899; }
 .cc-swatch--6, ::deep .cc-swatch--6 { background: #14b8a6; }
 .cc-swatch--7, ::deep .cc-swatch--7 { background: #f97316; }
+
+::deep .cc-bar.cc-swatch--0::-webkit-progress-value { background: #3b82f6; }
+::deep .cc-bar.cc-swatch--1::-webkit-progress-value { background: #ef4444; }
+::deep .cc-bar.cc-swatch--2::-webkit-progress-value { background: #22c55e; }
+::deep .cc-bar.cc-swatch--3::-webkit-progress-value { background: #f59e0b; }
+::deep .cc-bar.cc-swatch--4::-webkit-progress-value { background: #8b5cf6; }
+::deep .cc-bar.cc-swatch--5::-webkit-progress-value { background: #ec4899; }
+::deep .cc-bar.cc-swatch--6::-webkit-progress-value { background: #14b8a6; }
+::deep .cc-bar.cc-swatch--7::-webkit-progress-value { background: #f97316; }
+
+::deep .cc-bar.cc-swatch--0::-moz-progress-bar { background: #3b82f6; }
+::deep .cc-bar.cc-swatch--1::-moz-progress-bar { background: #ef4444; }
+::deep .cc-bar.cc-swatch--2::-moz-progress-bar { background: #22c55e; }
+::deep .cc-bar.cc-swatch--3::-moz-progress-bar { background: #f59e0b; }
+::deep .cc-bar.cc-swatch--4::-moz-progress-bar { background: #8b5cf6; }
+::deep .cc-bar.cc-swatch--5::-moz-progress-bar { background: #ec4899; }
+::deep .cc-bar.cc-swatch--6::-moz-progress-bar { background: #14b8a6; }
+::deep .cc-bar.cc-swatch--7::-moz-progress-bar { background: #f97316; }
 
 ::deep .cc-bar__value {
     min-width: 40px;

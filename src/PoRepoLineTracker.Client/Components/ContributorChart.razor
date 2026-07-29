@@ -114,9 +114,10 @@
                     <RadzenDataGridColumn TItem="ContributorStatsDto" Property="PercentageOfTotalLines" Title="% of Total" Width="15%">
                         <Template Context="data">
                             <div class="cc-cell-row">
-                                <div class="cc-bar">
-                                    <div class="cc-bar__fill @GetAuthorColorClass(data.AuthorName)" style="@($"--cc-bar-fill: {Math.Min(data.PercentageOfTotalLines, 100):F1}%")"></div>
-                                </div>
+                                <progress class="cc-bar @GetAuthorColorClass(data.AuthorName)"
+                                          max="100"
+                                          value="@Math.Min(data.PercentageOfTotalLines, 100)"
+                                          aria-label="@($"{data.AuthorName}: {data.PercentageOfTotalLines:F1}% of total lines")"></progress>
                                 <span class="cc-bar__value">@data.PercentageOfTotalLines.ToString("F1")%</span>
                             </div>
                         </Template>

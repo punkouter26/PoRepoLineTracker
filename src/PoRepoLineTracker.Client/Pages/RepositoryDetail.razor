@@ -196,9 +196,10 @@
                                     <code class="rd-ext-code">@ext.FileExtension</code>
                                     <RadzenText TextStyle="TextStyle.Caption" class="rd-ext-pct">@ext.Percentage.ToString("F1")%</RadzenText>
                                 </RadzenStack>
-                                <div class="rd-ext-bar">
-                                    <div class="rd-ext-bar__fill" style="@($"--rd-bar-fill: {Math.Min(ext.Percentage, 100):F1}%")"></div>
-                                </div>
+                                <progress class="rd-ext-bar"
+                                          max="100"
+                                          value="@Math.Min(ext.Percentage, 100)"
+                                          aria-label="@($"{ext.FileExtension}: {ext.Percentage:F1}% of lines")"></progress>
                             </div>
                         }
                     }

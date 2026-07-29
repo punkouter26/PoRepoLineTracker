@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PoRepoLineTracker.API/PoRepoLineTracker.API.csproj" />
+    <Project Path="src/PoRepoLineTracker.Client/PoRepoLineTracker.Client.csproj" />
+    <Project Path="src/PoRepoLineTracker.Shared/PoRepoLineTracker.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PoRepoLineTracker.E2EAPI/PoRepoLineTracker.E2EAPI.csproj" />
+    <Project Path="tests/PoRepoLineTracker.E2EUI/PoRepoLineTracker.E2EUI.csproj" />
+    <Project Path="tests/PoRepoLineTracker.Integration/PoRepoLineTracker.Integration.csproj" />
+    <Project Path="tests/PoRepoLineTracker.Unit/PoRepoLineTracker.Unit.csproj" />
+  </Folder>
+</Solution>

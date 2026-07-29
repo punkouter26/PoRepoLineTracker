@@ -2,7 +2,11 @@
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
-    <!-- C# 14 features (requires .NET 10 SDK) -->
+    <!-- Target is C# 15, but the SDK pinned in global.json (10.0.301) ships a Roslyn that
+         rejects LangVersion=15.0 — C# 14 is its newest numbered version. "preview" selects the
+         newest language version the installed compiler supports, so this picks up C# 15 the
+         moment an SDK that implements it is installed, with no edit here. Revisit and pin to
+         15.0 once that SDK is the one in global.json. -->
     <LangVersion>preview</LangVersion>
     <!-- Git-Driven Versioning (Rule 1): MinVer derives AssemblyVersion/FileVersion/
          InformationalVersion from the nearest Git tag (prefix "v", e.g. v1.2.3).

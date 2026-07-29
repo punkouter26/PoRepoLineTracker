@@ -68,9 +68,9 @@ public sealed class StaticAssetsApiTests
         { "xc-env-card", "ExternalConnections.razor.css" },
         { "ul-dropzone", "UploadRepository.razor.css" },
         { "arc-legend__swatch", "AllReposComparisonChart.razor.css" },
-        { "cc-bar__fill", "ContributorChart.razor.css" },
+        { "cc-bar", "ContributorChart.razor.css" },
         { "ts-metric__value", "TimelineScrubber.razor.css" },
-        { "rd-ext-bar__fill", "RepositoryDetail.razor.css" },
+        { "rd-ext-bar", "RepositoryDetail.razor.css" },
         { "rp-stat-icon", "Repositories.razor.css" },
     };
 

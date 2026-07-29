@@ -346,6 +346,61 @@
     color: rgba(255, 255, 255, 0.85) !important;
 }
 
+::deep .header-action-btn.header-action-btn {
+    color: rgba(255, 255, 255, 0.92) !important;
+}
+
+/* ─── Rule 4.1 header contract: Left (Branding) | Center (Actions) | Right (Session) ───
+   Equal-width outer columns keep the centre column optically centred regardless of how
+   wide the brand or the session controls happen to be. */
+.app-header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+}
+
+.app-header__brand {
+    justify-self: start;
+    min-width: 0;
+}
+
+.app-header__actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.app-header__session {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
+}
+
+/* Narrow viewports cannot fit three columns; stack branding+session on one row and let the
+   actions wrap underneath rather than letting the centre column squeeze the wordmark out. */
+@media (max-width: 768px) {
+    .app-header {
+        grid-template-columns: auto 1fr;
+        row-gap: 0.5rem;
+    }
+
+    .app-header__actions {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-content: flex-start;
+    }
+
+    .app-header__session {
+        grid-column: 2;
+        grid-row: 1;
+    }
+}
+
 ::deep .app-sidebar.app-sidebar {
     width: 220px !important;
     min-height: 100vh !important;
