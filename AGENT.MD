@@ -113,6 +113,18 @@ Current counts (test cases, Theory rows included): **Unit 162 · Integration 67 
 
 ## Azure Deployment
 
+- **Startup command must be `/home/site/wwwroot/startup.sh`** (set automatically by the deploy
+  workflow). The DOTNETCORE image has no `git`, and `GitClient` shells out to it for clone/pull,
+  so without the script every analysis fails with "git is not installed or not in PATH".
+  The script also resolves the entry assembly by discovery, which keeps the `.Api` -> `.API`
+  rename from breaking the boot on case-sensitive Linux.
+- **OAuth**: the Microsoft app registration `PoRepoLineTracker-WebAuth`
+  (`7db2fe07-0780-41d0-b11f-3712297d4daf`, audience AzureADandPersonalMicrosoftAccount) already
+  carries both the prod and `http://localhost:5000` `/signin-microsoft` redirect URIs; its secret
+  runs to 2028-06-14. The GitHub OAuth App (`Ov23liKNXw9OAOkwgDNG`) must have
+  `https://app-porepolinetracker.azurewebsites.net/signin-github` registered as its callback —
+  that lives on github.com, not in Azure.
+
 - Resource group: `PoShared` (shared services) + `PoRepoLineTracker` (app resources)
 - Key Vault: `kv-poshared` in PoShared RG
 - Storage: `stporepolinetracker` in PoRepoLineTracker RG
