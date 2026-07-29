@@ -17,66 +17,69 @@
 <RadzenStack Gap="1rem">
 
     @* ─── Hero ──────────────────────────────────────────────────────────────── *@
-    <div class="repo-hero">
-        <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-            <RadzenColumn Size="12" SizeMD="8">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
-                    <RadzenButton Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
-                                  Click="@(() => Navigation.NavigateTo("/"))" title="Back to Repositories" />
-                    @if (_repo != null)
-                    {
-                        <RadzenStack Gap="0.15rem">
-                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                <RadzenText TextStyle="TextStyle.H4" class="rd-title">@_repo.Owner/@_repo.Name</RadzenText>
-                                <a href="@($"https://github.com/{_repo.Owner}/{_repo.Name}")" target="_blank"
-                                   title="Open on GitHub" class="rd-github-link">
-                                    <span class="material-icons rd-github-link__icon">open_in_new</span>
-                                </a>
-                            </RadzenStack>
-                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                @if (_repo.LastAnalyzedCommitDate.HasValue)
-                                {
-                                    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@($"Analyzed {ToRelativeTime(_repo.LastAnalyzedCommitDate)}")" />
-                                    @if (_repoLatestLines > 0)
-                                    {
-                                        <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="@($"{_repoLatestLines:N0} lines")" />
-                                    }
-                                }
-                                else if (_isReanalyzing)
-                                {
-                                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Re-analyzing…" />
-                                }
-                                else
-                                {
-                                    <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Not yet analyzed" />
-                                }
-                            </RadzenStack>
+    <PageHero>
+        <Heading>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                <RadzenButton Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
+                              Click="@(() => Navigation.NavigateTo("/"))" title="Back to Repositories"
+                              aria-label="Back to Repositories" />
+                @if (_repo != null)
+                {
+                    <RadzenStack Gap="0.15rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                            <RadzenText TextStyle="TextStyle.H4" class="rd-title">@_repo.Owner/@_repo.Name</RadzenText>
+                            <a href="@($"https://github.com/{_repo.Owner}/{_repo.Name}")" target="_blank"
+                               title="Open on GitHub"
+                               aria-label="@($"Open {_repo.Owner}/{_repo.Name} on GitHub in a new tab")"
+                               class="rd-github-link">
+                                @* RadzenIcon rather than a bare <span class="material-icons">: the
+                                   glyph then comes from Radzen's bundled icon font instead of the
+                                   Google Fonts CDN, so it renders as an icon rather than the
+                                   literal text "open_in_new" whenever that request fails. *@
+                                <RadzenIcon Icon="open_in_new" class="rd-github-link__icon" />
+                            </a>
                         </RadzenStack>
-                    }
-                    else if (_isPageLoading)
-                    {
-                        <RadzenSkeleton Width="220px" Height="28px" />
-                    }
-                </RadzenStack>
-            </RadzenColumn>
-            <RadzenColumn Size="12" SizeMD="4" class="rz-text-align-end">
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
-                    <RadzenButton Text="Re-analyze" Icon="refresh"
-                                  ButtonStyle="ButtonStyle.Warning"
-                                  Variant="Variant.Outlined"
-                                  Size="ButtonSize.Small"
-                                  Click="@ConfirmReanalyze"
-                                  Disabled="@(_repo == null || _isReanalyzing)" />
-                    <RadzenButton Text="Delete" Icon="delete"
-                                  ButtonStyle="ButtonStyle.Danger"
-                                  Variant="Variant.Outlined"
-                                  Size="ButtonSize.Small"
-                                  Click="@ConfirmDelete"
-                                  Disabled="@(_repo == null || _isReanalyzing)" />
-                </RadzenStack>
-            </RadzenColumn>
-        </RadzenRow>
-    </div>
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem">
+                            @if (_repo.LastAnalyzedCommitDate.HasValue)
+                            {
+                                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@($"Analyzed {ChartFormat.RelativeTime(_repo.LastAnalyzedCommitDate)}")" />
+                                @if (_repoLatestLines > 0)
+                                {
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="@($"{_repoLatestLines:N0} lines")" />
+                                }
+                            }
+                            else if (_isReanalyzing)
+                            {
+                                <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Re-analyzing…" />
+                            }
+                            else
+                            {
+                                <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Not yet analyzed" />
+                            }
+                        </RadzenStack>
+                    </RadzenStack>
+                }
+                else if (_isPageLoading)
+                {
+                    <RadzenSkeleton Width="220px" Height="28px" />
+                }
+            </RadzenStack>
+        </Heading>
+        <Actions>
+            <RadzenButton Text="Re-analyze" Icon="refresh"
+                          ButtonStyle="ButtonStyle.Warning"
+                          Variant="Variant.Outlined"
+                          Size="ButtonSize.Small"
+                          Click="@ConfirmReanalyze"
+                          Disabled="@(_repo == null || _isReanalyzing)" />
+            <RadzenButton Text="Delete" Icon="delete"
+                          ButtonStyle="ButtonStyle.Danger"
+                          Variant="Variant.Outlined"
+                          Size="ButtonSize.Small"
+                          Click="@ConfirmDelete"
+                          Disabled="@(_repo == null || _isReanalyzing)" />
+        </Actions>
+    </PageHero>
 
     @* ─── Errors ─────────────────────────────────────────────────────────────── *@
     @if (!string.IsNullOrEmpty(_errorMessage))
@@ -121,78 +124,78 @@
         }
 
         @* ─── Line Count Chart ────────────────────────────────────────────────── *@
-        <RadzenCard class="rd-chart-card">
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="rd-toolbar">
-                <RadzenStack Gap="0.15rem">
-                    <RadzenText TextStyle="TextStyle.H6" class="rd-section-title">Line Count History</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" class="rd-muted-tight">@ChartDescription</RadzenText>
-                </RadzenStack>
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                    <RadzenText TextStyle="TextStyle.Caption" class="rd-muted">Range:</RadzenText>
-                    <RadzenSelectBar @bind-Value="_chartDays" TValue="int" Change="@OnChartRangeChanged" Size="ButtonSize.Small">
-                        <Items>
-                            <RadzenSelectBarItem Text="30d" Value="30" />
-                            <RadzenSelectBarItem Text="90d" Value="90" />
-                            <RadzenSelectBarItem Text="180d" Value="180" />
-                            <RadzenSelectBarItem Text="1yr" Value="365" />
-                        </Items>
-                    </RadzenSelectBar>
-                </RadzenStack>
-            </RadzenStack>
-
-            @if (_isLoadingChart)
-            {
-                <RadzenSkeleton Width="100%" Height="320px" />
-            }
-            else if (!string.IsNullOrEmpty(_chartError))
-            {
-                <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
-                    @_chartError
-                    <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
-                                  Click="@(() => LoadLineHistory(_chartDays))" class="rd-refresh" />
-                </RadzenAlert>
-            }
-            else if (_lineHistory == null || !_lineHistory.Any())
-            {
-                <RadzenStack AlignItems="AlignItems.Center" class="rz-p-8">
-                    <RadzenIcon Icon="bar_chart" class="rd-empty-icon" />
-                    <RadzenText TextStyle="TextStyle.Body1" class="rd-muted">No history data yet.</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" class="rd-disabled">Click Re-analyze to start scanning this repository.</RadzenText>
-                </RadzenStack>
-            }
-            else
-            {
-                <RadzenChart class="rd-chart">
-                    <RadzenLineSeries Data="@DisplayedLineHistory"
+        <ChartCard Title="Line Count History"
+                   Description="@ChartDescription"
+                   IsLoading="@_isLoadingChart"
+                   ErrorMessage="@_chartError"
+                   OnRetry="@(() => LoadLineHistory(_chartDays))"
+                   IsEmpty="@(_lineHistory is null || !_lineHistory.Any())"
+                   EmptyIcon="bar_chart"
+                   EmptyText="No history data yet."
+                   EmptyHint="Click Re-analyze to start scanning this repository.">
+            <Toolbar>
+                <ChartRangeSelector Days="@_chartDays" DaysChanged="@OnChartRangeChanged" />
+            </Toolbar>
+            <ChildContent>
+                <RadzenChart>
+                    <RadzenAreaSeries Data="@DisplayedLineHistory"
                                       CategoryProperty="Date"
                                       ValueProperty="TotalLines"
                                       Title="@ChartSeriesTitle"
                                       Stroke="var(--rz-primary)"
+                                      Fill="rgba(103, 80, 164, 0.14)"
                                       StrokeWidth="3">
-                        <RadzenMarkers MarkerType="MarkerType.Circle" />
-                    </RadzenLineSeries>
-                    <RadzenCategoryAxis FormatString="{0:MM/dd}">
+                        @* Markers only once the series is sparse enough to place them without
+                           turning the line into a solid band of circles. *@
+                        <RadzenMarkers MarkerType="@(DisplayedLineHistory.Count <= 60 ? MarkerType.Circle : MarkerType.None)" />
+                        @* Growth trajectory is the question this page exists to answer, so draw
+                           it rather than making the reader infer it from the curve. *@
+                        <RadzenSeriesTrendLine Stroke="#ff7a59" StrokeWidth="2" LineType="LineType.Dashed" />
+                    </RadzenAreaSeries>
+
+                    @* Whole-day Step: see ChartFormat.DateAxisStep. *@
+                    <RadzenCategoryAxis FormatString="{0:MMM d}"
+                                        Step="@ChartFormat.DateAxisStep(DisplayedLineHistory.Select(d => d.Date))"
+                                        LabelAutoRotation="-45">
+                        <RadzenAxisTitle Text="Date" />
                         <RadzenGridLines Visible="true" />
                     </RadzenCategoryAxis>
-                    <RadzenValueAxis Min="0" Formatter="@FormatLines">
+                    <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                        <RadzenAxisTitle Text="Lines of Code" />
                         <RadzenGridLines Visible="true" />
                     </RadzenValueAxis>
                     <RadzenLegend Visible="false" />
                 </RadzenChart>
-            }
-        </RadzenCard>
+            </ChildContent>
+        </ChartCard>
 
-        @* ─── Extensions + Top Files ──────────────────────────────────────────── *@
-        <RadzenRow Gap="1rem">
+        @* ─── Extensions + Top Files ────────────────────────────────────────────
+           `align-items: stretch` via .rd-panel keeps the two cards the same height so the row
+           does not leave a ragged gap under the shorter one. *@
+        <RadzenRow Gap="1rem" RowGap="1rem">
             <RadzenColumn Size="12" SizeMD="5">
-                <RadzenCard class="rd-panel">
-                    <RadzenText TextStyle="TextStyle.H6" class="rd-panel-title">By Extension</RadzenText>
-                    @if (_extensions != null && _extensions.Any())
-                    {
-                        @foreach (var ext in _extensions)
+                <ChartCard Title="By Extension"
+                           Description="Share of tracked lines per file type"
+                           IsEmpty="@(_extensions is null || !_extensions.Any())"
+                           EmptyIcon="donut_large"
+                           EmptyText="No extension data yet.">
+                    @* A donut states the part-of-whole relationship directly; the stacked
+                       progress bars underneath keep the exact percentages legible. *@
+                    <RadzenChart>
+                        <RadzenDonutSeries Data="@ExtensionSlices"
+                                           CategoryProperty="Label"
+                                           ValueProperty="Percentage"
+                                           Title="Share of lines">
+                            <RadzenSeriesDataLabels Visible="false" />
+                        </RadzenDonutSeries>
+                        <RadzenLegend Position="LegendPosition.Bottom" />
+                    </RadzenChart>
+
+                    <div class="rd-ext-list">
+                        @foreach (var ext in _extensions!)
                         {
                             <div class="rd-ext-row">
-                                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="0.5rem">
                                     <code class="rd-ext-code">@ext.FileExtension</code>
                                     <RadzenText TextStyle="TextStyle.Caption" class="rd-ext-pct">@ext.Percentage.ToString("F1")%</RadzenText>
                                 </RadzenStack>
@@ -202,40 +205,31 @@
                                           aria-label="@($"{ext.FileExtension}: {ext.Percentage:F1}% of lines")"></progress>
                             </div>
                         }
-                    }
-                    else
-                    {
-                        <RadzenText class="rd-disabled">No extension data yet.</RadzenText>
-                    }
-                </RadzenCard>
+                    </div>
+                </ChartCard>
             </RadzenColumn>
             <RadzenColumn Size="12" SizeMD="7">
-                <RadzenCard class="rd-panel">
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" class="rd-panel-head">
-                        <RadzenText TextStyle="TextStyle.H6" class="rd-section-title">Largest Files</RadzenText>
-                        @if (_topFiles != null && _topFiles.Any())
-                        {
-                            <RadzenButton Text="View top 100" Variant="Variant.Text" ButtonStyle="ButtonStyle.Primary"
-                                          Size="ButtonSize.Small" Click="@OpenTopFilesModal" />
-                        }
-                    </RadzenStack>
-                    @if (_topFiles != null && _topFiles.Any())
-                    {
-                        @foreach (var f in _topFiles)
+                <ChartCard Title="Largest Files"
+                           Description="Files contributing the most lines"
+                           IsEmpty="@(_topFiles is null || !_topFiles.Any())"
+                           EmptyIcon="description"
+                           EmptyText="No file data yet.">
+                    <Toolbar>
+                        <RadzenButton Text="View top 100" Variant="Variant.Text" ButtonStyle="ButtonStyle.Primary"
+                                      Size="ButtonSize.Small" Click="@OpenTopFilesModal" />
+                    </Toolbar>
+                    <ChildContent>
+                        @foreach (var f in _topFiles!)
                         {
                             <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center"
-                                         class="rd-file-row">
+                                         Gap="0.5rem" class="rd-file-row">
                                 <RadzenText class="rd-file-name"
                                             title="@f.FileName">@f.FileName</RadzenText>
                                 <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@f.LineCount.ToString("N0")" />
                             </RadzenStack>
                         }
-                    }
-                    else
-                    {
-                        <RadzenText class="rd-disabled">No file data yet.</RadzenText>
-                    }
-                </RadzenCard>
+                    </ChildContent>
+                </ChartCard>
             </RadzenColumn>
         </RadzenRow>
 
@@ -277,6 +271,33 @@
 
     private IReadOnlyList<DailyLineCountDto> DisplayedLineHistory =>
         DailyLineCountChartTransformations.TransformForDisplay(_lineHistory, _chartDisplayMode);
+
+
+    /// <summary>
+    /// Donut slices for the extension breakdown. A repository can report dozens of extensions and
+    /// a donut with dozens of slivers communicates nothing, so everything past the top eight is
+    /// folded into a single "Other" wedge. The exact per-extension figures stay available in the
+    /// bar list rendered beneath the chart.
+    /// </summary>
+    private IReadOnlyList<ExtensionSlice> ExtensionSlices
+    {
+        get
+        {
+            if (_extensions is null || _extensions.Count == 0) return [];
+
+            var ranked = _extensions.OrderByDescending(e => e.Percentage).ToList();
+            var slices = ranked.Take(8)
+                .Select(e => new ExtensionSlice(e.FileExtension, e.Percentage))
+                .ToList();
+
+            var remainder = ranked.Skip(8).Sum(e => e.Percentage);
+            if (remainder > 0) slices.Add(new ExtensionSlice("Other", remainder));
+
+            return slices;
+        }
+    }
+
+    private sealed record ExtensionSlice(string Label, double Percentage);
 
     private string ChartDescription => _chartDisplayMode == ChartDisplayMode.MovingAverage
         ? "Rolling 90-day moving average of total lines of code"
@@ -535,28 +556,8 @@
             new DialogOptions { Width = "720px", CloseDialogOnOverlayClick = true, ShowClose = true });
     }
 
-    private static string ToRelativeTime(DateTime? dt)
-    {
-        if (!dt.HasValue) return string.Empty;
-        var diff = DateTime.UtcNow - dt.Value.ToUniversalTime();
-        if (diff.TotalHours < 1) return "just now";
-        if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
-        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
-        if (diff.TotalDays < 30) return $"{(int)(diff.TotalDays / 7)}w ago";
-        if (diff.TotalDays < 365) return $"{(int)(diff.TotalDays / 30)}mo ago";
-        return $"{(int)(diff.TotalDays / 365)}y ago";
-    }
-
-    private string FormatLines(object value)
-    {
-        if (value is double d)
-        {
-            if (d >= 1_000_000) return $"{d / 1_000_000:F1}M";
-            if (d >= 1_000) return $"{d / 1_000:F0}k";
-            return d.ToString("N0");
-        }
-        return value?.ToString() ?? string.Empty;
-    }
+    // ToRelativeTime and FormatLines moved to ChartFormat — they were duplicated verbatim
+    // across this page, Repositories.razor and AllReposComparisonChart.
 
     /// <summary>
     /// InstantReplay: Handler for timeline scrubber date selection.

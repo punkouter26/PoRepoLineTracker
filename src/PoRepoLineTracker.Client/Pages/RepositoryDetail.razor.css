@@ -1,34 +1,20 @@
-/* Rule 4.3 — scoped styles for the repository detail page.
-   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+/* Scoped styles for the repository detail page.
 
-::deep .rd-title.rd-title,
-::deep .rd-section-title.rd-section-title {
+   The card, toolbar, section-title, muted/disabled text, empty-state and chart-height rules that
+   used to live here are gone: the three panels on this page now render through <ChartCard>,
+   which owns that chrome. What remains is markup this page renders itself.
+
+   Rules are written `.x.x` where they must outrank a Radzen base class; a single class does not
+   win that cascade on its own. */
+
+::deep .rd-title.rd-title {
     margin: 0 !important;
     font-weight: 700 !important;
+    /* An owner/name pair can be long; wrap rather than push the action buttons off a phone. */
+    overflow-wrap: anywhere !important;
 }
 
-::deep .rd-panel-title.rd-panel-title {
-    margin: 0 0 0.75rem 0 !important;
-    font-weight: 700 !important;
-}
-
-::deep .rd-muted.rd-muted {
-    color: var(--rz-text-secondary-color) !important;
-}
-
-::deep .rd-muted-tight.rd-muted-tight {
-    color: var(--rz-text-secondary-color) !important;
-    margin: 0 !important;
-}
-
-::deep .rd-disabled.rd-disabled {
-    color: var(--rz-text-disabled-color) !important;
-}
-
-::deep .rd-empty-icon.rd-empty-icon {
-    font-size: 3rem !important;
-    color: var(--rz-text-disabled-color) !important;
-}
+/* ─── Re-analysis banner ─────────────────────────────────────────────────── */
 
 ::deep .rd-progress-card.rd-progress-card {
     border-left: 3px solid var(--rz-info) !important;
@@ -42,65 +28,26 @@
     margin: 0 !important;
 }
 
+::deep .rd-muted-tight.rd-muted-tight {
+    color: var(--text-secondary) !important;
+    margin: 0 !important;
+}
+
 ::deep .rd-progress-bar.rd-progress-bar {
     flex: 1 !important;
     height: 4px !important;
+    min-width: 6rem !important;
 }
 
-::deep .rd-chart-card.rd-chart-card {
-    padding: 1.25rem 1.5rem !important;
+::deep .rd-empty-icon.rd-empty-icon {
+    font-size: 3rem !important;
+    color: var(--text-muted) !important;
 }
 
-::deep .rd-toolbar.rd-toolbar {
-    margin-bottom: 1rem !important;
-}
+/* ─── Extension breakdown ────────────────────────────────────────────────── */
 
-::deep .rd-refresh.rd-refresh {
-    margin-left: 0.5rem !important;
-}
-
-::deep .rd-chart.rd-chart {
-    height: 320px !important;
-    width: 100% !important;
-}
-
-::deep .rd-panel.rd-panel {
-    height: 100% !important;
-}
-
-::deep .rd-panel-head.rd-panel-head {
-    margin-bottom: 0.75rem !important;
-}
-
-::deep .rd-ext-pct.rd-ext-pct {
-    font-weight: 600 !important;
-    color: var(--rz-primary) !important;
-}
-
-::deep .rd-file-row.rd-file-row {
-    padding: 0.4rem 0 !important;
-    border-bottom: 1px solid var(--rz-base-100) !important;
-}
-
-::deep .rd-file-name.rd-file-name {
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    max-width: 280px !important;
-    font-size: 0.85em !important;
-}
-
-/* ─── Plain markup owned by this page ─────────────────────────────────────── */
-
-.rd-github-link {
-    color: var(--rz-text-secondary-color);
-    line-height: 1;
-    display: flex;
-    align-items: center;
-}
-
-.rd-github-link__icon {
-    font-size: 1.1rem;
+.rd-ext-list {
+    margin-top: 1rem;
 }
 
 .rd-ext-row {
@@ -109,6 +56,13 @@
 
 .rd-ext-code {
     font-size: 0.85em;
+    overflow-wrap: anywhere;
+}
+
+::deep .rd-ext-pct.rd-ext-pct {
+    font-weight: 600 !important;
+    color: var(--rz-primary) !important;
+    flex: 0 0 auto !important;
 }
 
 /* Native <progress>: the percentage rides in the value attribute, so the bar needs no inline
@@ -119,14 +73,14 @@
     height: 4px;
     border: none;
     border-radius: 4px;
-    background: var(--rz-base-200);
+    background: var(--border-light);
     margin-top: 3px;
     appearance: none;
 }
 
 .rd-ext-bar::-webkit-progress-bar {
     border-radius: 4px;
-    background: var(--rz-base-200);
+    background: var(--border-light);
 }
 
 .rd-ext-bar::-webkit-progress-value {
@@ -137,4 +91,49 @@
 .rd-ext-bar::-moz-progress-bar {
     border-radius: 4px;
     background: var(--rz-primary);
+}
+
+/* ─── Largest files ──────────────────────────────────────────────────────── */
+
+::deep .rd-file-row.rd-file-row {
+    padding: 0.4rem 0 !important;
+    border-bottom: 1px solid var(--border-light) !important;
+}
+
+/* max-width was a fixed 280px, which truncated paths long before it needed to on a wide screen
+   and overflowed a narrow one. Letting it flex means the ellipsis appears only when it must. */
+::deep .rd-file-name.rd-file-name {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    font-size: 0.85em !important;
+}
+
+/* ─── Plain markup owned by this page ─────────────────────────────────────── */
+
+/* Padded to the WCAG 2.2 AA 2.5.8 minimum target of 24x24 — the glyph alone falls short. */
+.rd-github-link {
+    color: var(--text-secondary);
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
+    border-radius: 6px;
+    flex: 0 0 auto;
+}
+
+.rd-github-link:hover {
+    color: var(--rz-primary);
+    background: rgba(103, 80, 164, 0.08);
+}
+
+/* ::deep because the glyph is now rendered by <RadzenIcon>: the element Radzen emits does not
+   carry this file's scope id, but the enclosing <a class="rd-github-link"> does, so the rule
+   still reaches it. A plain selector here would silently stop matching. */
+::deep .rd-github-link__icon {
+    font-size: 1.1rem;
 }

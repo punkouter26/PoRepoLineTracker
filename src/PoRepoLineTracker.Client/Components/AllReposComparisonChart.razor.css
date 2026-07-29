@@ -1,88 +1,55 @@
-/* Rule 4.3 — scoped styles for AllReposComparisonChart.
-   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+/* Scoped styles for AllReposComparisonChart.
 
-::deep .arc-card.arc-card {
-    padding: 1.25rem 1.5rem !important;
-}
+   The card, toolbar, title, description, empty-state and chart-height rules that used to live
+   here moved into ChartCard / app.css when this component adopted <ChartCard>. What is left is
+   the tooltip body and the custom legend, both of which are this component's own markup.
 
-::deep .arc-toolbar.arc-toolbar {
-    margin-bottom: 1rem !important;
-}
+   Tooltip note: these are deliberately NOT `::deep`. Radzen renders the tooltip into its own
+   portal at the end of <body>, so the template's markup has no ancestor left inside this
+   component — `::deep .arc-tip` compiles to `[b-scope] .arc-tip` and matched nothing once the
+   node was reparented. The `.arc-tip` div is our own markup and carries the scope id itself, so
+   a plain selector reaches it wherever Radzen puts it. */
 
-::deep .arc-title.arc-title {
-    margin: 0 !important;
-    font-weight: 700 !important;
-}
-
-::deep .arc-description.arc-description,
-::deep .arc-caption.arc-caption,
-::deep .arc-empty-text.arc-empty-text {
-    color: var(--rz-text-secondary-color) !important;
-}
-
-::deep .arc-description.arc-description {
-    margin: 0 !important;
-}
-
-::deep .arc-refresh.arc-refresh {
-    margin-left: 0.5rem !important;
-}
-
-::deep .arc-empty.arc-empty {
-    padding: 3rem 0 !important;
-}
-
-::deep .arc-empty-icon.arc-empty-icon {
-    font-size: 3rem !important;
-    color: var(--rz-text-disabled-color) !important;
-}
-
-::deep .arc-chart.arc-chart {
-    height: 340px !important;
-    width: 100% !important;
-}
-
-/* ─── Tooltip body (plain markup inside a Radzen template) ──────────────────
-   The former .arc-tooltip rule is gone with the class= that fed it: Radzen renders the
-   tooltip chrome into its own portal, so a scoped ::deep rule never reached it anyway.
-   The surface styling now rides on .arc-tip, which IS inside our template. */
-
-::deep .arc-tip {
+.arc-tip {
     background: rgba(21, 21, 24, 0.96);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     color: #fff;
-    padding: 0.35rem 0.45rem;
+    padding: 0.4rem 0.55rem;
     min-width: 170px;
 }
 
-::deep .arc-tip__title {
+/* The surface is always dark, so the text is white regardless of theme — the previous
+   var(--rz-text-color) rendered dark-on-dark once the dark theme was applied. */
+.arc-tip__title {
     font-weight: 700;
-    color: var(--rz-text-color);
+    color: #fff;
     margin-bottom: 0.15rem;
 }
 
-::deep .arc-tip__meta {
+.arc-tip__meta {
     font-size: 0.8rem;
-    color: var(--rz-text-secondary-color);
+    color: rgba(255, 255, 255, 0.65);
 }
 
-::deep .arc-tip__value {
+.arc-tip__value {
     margin-top: 0.2rem;
     font-size: 0.85rem;
-    color: var(--rz-text-color);
+    color: #fff;
 }
 
-::deep .arc-tip__label {
+.arc-tip__label {
     font-weight: 600;
 }
 
 /* ─── Legend ──────────────────────────────────────────────────────────────── */
 
+/* min() on the track keeps the grid from forcing a 220px column — and a horizontal
+   scrollbar — inside a narrower card on a phone. */
 .arc-legend {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
     gap: 0.45rem 0.9rem;
     margin-top: 0.9rem;
     max-height: 112px;
@@ -96,7 +63,7 @@
     align-items: flex-start;
     gap: 0.45rem;
     font-size: 0.76rem;
-    color: var(--rz-text-secondary-color);
+    color: var(--text-secondary);
     line-height: 1.25;
     min-width: 0;
 }

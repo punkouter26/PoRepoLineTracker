@@ -1,0 +1,35 @@
+/* Scoped styles for PageHero. Rooted at a plain <div>, so the scope id lands correctly. */
+
+.page-hero {
+    background: linear-gradient(135deg, rgba(103, 80, 164, 0.07) 0%, transparent 70%);
+    padding: 0.75rem 0.75rem 0.875rem;
+    margin-bottom: 0.25rem;
+    border-bottom: 1px solid rgba(103, 80, 164, 0.08);
+    border-radius: 8px 8px 0 0;
+}
+
+.page-hero__heading {
+    min-width: 0;
+}
+
+/* Desktop: actions hug the right edge. */
+.page-hero__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Phone: the actions get their own row, so stretch them edge to edge rather than leaving them
+   right-aligned under a left-aligned title. Buttons split the row evenly. */
+@media (max-width: 767px) {
+    .page-hero__actions {
+        justify-content: stretch;
+    }
+
+    .page-hero__actions ::deep .rz-button {
+        flex: 1 1 0;
+        justify-content: center;
+    }
+}

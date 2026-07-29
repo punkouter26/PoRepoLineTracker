@@ -67,8 +67,8 @@
         </div>
     </RadzenHeader>
 
-    <RadzenSidebar @bind-Expanded="@sidebarExpanded" class="app-sidebar">
-        <div class="app-sidebar__nav">
+    <RadzenSidebar @bind-Expanded="@sidebarExpanded" class="@SidebarClass">
+        <div class="app-sidebar__nav" @onclick="@CollapseSidebarOnMobile">
             <ErrorBoundary>
                 <ChildContent>
                     <NavMenu />
@@ -79,9 +79,17 @@
             </ErrorBoundary>
         </div>
     </RadzenSidebar>
-    
+
+    @* Scrim: only rendered while the drawer overlays content on a phone. Tapping it
+       closes the drawer, which is the behaviour users expect from an off-canvas nav
+       and the only way to dismiss it without hunting for the toggle. *@
+    @if (sidebarExpanded && _isMobile)
+    {
+        <button type="button" class="app-scrim" aria-label="Close navigation" @onclick="@ToggleSidebar"></button>
+    }
+
     <RadzenBody>
-        <div class="rz-p-4">
+        <div class="app-content">
             <MockDataBanner IsMockData="@_isMockData" />
             @if (!string.IsNullOrEmpty(_breadcrumbCurrent))
             {
@@ -114,7 +122,10 @@
 <RadzenContextMenu />
 
 @code {
+    private const int MobileBreakpointPx = 768;
+
     private bool sidebarExpanded = true;
+    private bool _isMobile = false;
     private bool _isDarkMode = false;
     private bool _isMockData = false;
     private bool _usingMockData = false;
@@ -146,14 +157,36 @@
         }
     }
 
+    /// <summary>
+    /// `app-sidebar--open` is what drives the off-canvas transform below 768px. Radzen's own
+    /// expanded/collapsed classes are an implementation detail we would rather not depend on,
+    /// so the drawer state rides on a class this component owns.
+    /// </summary>
+    private string SidebarClass => sidebarExpanded ? "app-sidebar app-sidebar--open" : "app-sidebar";
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
-        {
-            var saved = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "theme");
-            _isDarkMode = saved == "dark";
-            if (_isDarkMode) StateHasChanged();
-        }
+        if (!firstRender) return;
+
+        // Seed from what the boot script actually painted rather than from localStorage:
+        // with no saved choice the script follows the OS, and reading the raw key would
+        // leave the toggle icon showing the opposite of the page.
+        var theme = await JSRuntime.InvokeAsync<string>("getEffectiveTheme");
+        _isDarkMode = theme == "dark";
+
+        // The drawer defaults to expanded, which is right for the desktop grid but would
+        // cover the page on a phone. Collapse it once we know the viewport.
+        var width = await JSRuntime.InvokeAsync<int>("getViewportWidth");
+        _isMobile = width <= MobileBreakpointPx;
+        if (_isMobile) sidebarExpanded = false;
+
+        StateHasChanged();
+    }
+
+    /// <summary>Dismisses the drawer after a nav tap so the page is not left behind a scrim.</summary>
+    private void CollapseSidebarOnMobile()
+    {
+        if (_isMobile) sidebarExpanded = false;
     }
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)

@@ -84,12 +84,45 @@
 
 /* ─── Stat cards ──────────────────────────────────────────────────────────── */
 
-::deep .rp-stat-row.rp-stat-row {
-    margin-bottom: 0.25rem !important;
+/* auto-fit + minmax reflows 3 → 2 → 1 across the whole range without a breakpoint per step,
+   and never strands a lone card on a half-empty final row the way the fixed SizeMD="4"
+   RadzenRow did. */
+.rp-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
 }
 
 ::deep .rp-stat.rp-stat {
     padding: 1rem !important;
+}
+
+/* Lets the value/label block shrink so the sparkline beside it is never squeezed to zero. */
+.rp-stat-body {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.rp-stat-spark {
+    width: 72px;
+    height: 28px;
+    flex: 0 0 auto;
+}
+
+.rp-stat-gauge {
+    width: 56px;
+    height: 40px;
+    flex: 0 0 auto;
+}
+
+/* The sparkline and gauge are decoration on top of a number that is already stated in text;
+   drop them before the number itself has to shrink. */
+@media (max-width: 400px) {
+    .rp-stat-spark,
+    .rp-stat-gauge {
+        display: none;
+    }
 }
 
 /* --stat-accent is consumed by .stat-card in app.css; it used to be set per card through the
@@ -129,16 +162,27 @@
     margin-bottom: 1rem !important;
 }
 
+/* Was a hard 280px, which overflowed the card on a 375px phone once the icon and clear button
+   were accounted for. Grows to fill the bar, capped so it does not sprawl on a wide screen. */
 ::deep .rp-search-input.rp-search-input {
-    width: 280px !important;
+    width: 100% !important;
+    max-width: 280px !important;
+    min-width: 0 !important;
+}
+
+::deep .rp-searchbar .rz-textbox {
+    min-width: 0;
 }
 
 ::deep .rp-grid.rp-grid {
     height: auto !important;
 }
 
+/* Radzen's Responsive mode stacks rows into cards on narrow viewports, so this is now only a
+   safety net for the in-between widths where the columns still exceed the card. */
 .rp-grid-scroll {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* ─── Grid cell contents (rendered inside Radzen column templates) ────────── */
@@ -156,11 +200,24 @@
     font-weight: 500 !important;
 }
 
+/* The icon glyph alone measured ~15px, below the WCAG 2.2 AA 2.5.8 minimum of 24x24. The link
+   box is padded out to 24px rather than the glyph being enlarged, so the target grows without
+   the icon visually dominating the repository name beside it. */
 ::deep .rp-github-link {
     color: var(--rz-text-disabled-color);
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     line-height: 1;
+    min-width: 24px;
+    min-height: 24px;
+    border-radius: 6px;
+    flex: 0 0 auto;
+}
+
+::deep .rp-github-link:hover {
+    color: var(--rz-primary);
+    background: rgba(103, 80, 164, 0.08);
 }
 
 ::deep .rp-github-link__icon {
@@ -213,13 +270,18 @@
 
 /* ─── Danger zone ─────────────────────────────────────────────────────────── */
 
+/* --rz-border-disabled-color is not defined by either Radzen theme in use (it computes to the
+   empty string in both), which made this declaration invalid and the separator never render.
+   --border-light is defined by app.css for both themes. */
 ::deep .rp-danger-zone.rp-danger-zone {
     margin-top: 1rem !important;
     padding-top: 0.75rem !important;
-    border-top: 1px solid var(--rz-border-disabled-color) !important;
+    border-top: 1px solid var(--border-light) !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
 }
 
 ::deep .rp-danger-zone__label.rp-danger-zone__label {
-    color: var(--rz-text-disabled-color) !important;
+    color: var(--text-muted) !important;
     font-style: italic !important;
 }

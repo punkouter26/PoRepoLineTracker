@@ -1,45 +1,30 @@
-/* Rule 4.3 — scoped styles for ContributorChart.
-   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+/* Scoped styles for ContributorChart.
 
-::deep .cc-card.cc-card {
-    padding: 1.25rem 1.5rem !important;
+   The card, toolbar, title, description, empty-state and chart-height rules moved into
+   ChartCard / app.css when this component adopted <ChartCard>. What remains is the legend, the
+   author palette and the summary grid — all this component's own markup. */
+
+.cc-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1rem;
 }
 
-::deep .cc-toolbar.cc-toolbar {
-    margin-bottom: 1rem !important;
+.cc-legend__item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
 }
 
-::deep .cc-title.cc-title {
-    margin: 0 !important;
-    font-weight: 700 !important;
+.cc-legend__label {
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
 }
 
-::deep .cc-description.cc-description {
-    color: var(--rz-text-secondary-color) !important;
-    margin: 0 !important;
-}
-
-::deep .cc-caption.cc-caption,
-::deep .cc-empty-text.cc-empty-text {
-    color: var(--rz-text-secondary-color) !important;
-}
-
-::deep .cc-empty-hint.cc-empty-hint {
-    color: var(--rz-text-disabled-color) !important;
-}
-
-::deep .cc-empty-icon.cc-empty-icon {
-    font-size: 3rem !important;
-    color: var(--rz-text-disabled-color) !important;
-}
-
-::deep .cc-refresh.cc-refresh {
-    margin-left: 0.5rem !important;
-}
-
-::deep .cc-chart.cc-chart {
-    height: 320px !important;
-    width: 100% !important;
+.cc-table-section {
+    margin-top: 1.5rem;
 }
 
 ::deep .cc-table-title.cc-table-title {
@@ -51,27 +36,11 @@
     font-size: 0.85rem !important;
 }
 
-/* ─── Plain markup owned by this component ───────────────────────────────── */
-
-.cc-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.cc-legend__item {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-
-.cc-legend__label {
-    font-size: 0.85rem;
-}
-
-.cc-table-section {
-    margin-top: 1.5rem;
+/* The percentage columns keep the grid wider than a phone even in Radzen's responsive mode;
+   contain the overflow here rather than letting it push the page sideways. */
+.cc-grid-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Grid cells are rendered inside Radzen column templates. */
@@ -86,6 +55,7 @@
     width: 12px;
     height: 12px;
     border-radius: 2px;
+    flex: 0 0 auto;
 }
 
 ::deep .cc-swatch--sm {
@@ -94,12 +64,12 @@
 }
 
 ::deep .cc-added {
-    color: #22c55e;
+    color: #16a34a;
     font-weight: 600;
 }
 
 ::deep .cc-removed {
-    color: #ef4444;
+    color: #dc2626;
 }
 
 /* A native <progress> carries the percentage in its value attribute, so no inline style is
@@ -109,15 +79,16 @@
     flex: 1;
     display: block;
     height: 6px;
+    min-width: 40px;
     border: none;
     border-radius: 3px;
-    background: var(--rz-base-200);
+    background: var(--border-light);
     appearance: none;
 }
 
 ::deep .cc-bar::-webkit-progress-bar {
     border-radius: 3px;
-    background: var(--rz-base-200);
+    background: var(--border-light);
 }
 
 ::deep .cc-bar::-webkit-progress-value { border-radius: 3px; }

@@ -1,0 +1,74 @@
+/* Scoped styles for ChartCard. The component roots at a plain <div class="chart-card">, so that
+   element carries the scope id and the ::deep rules below can reach what Radzen renders. */
+
+/* Full height so two cards sharing a RadzenRow line up at the bottom instead of leaving a
+   ragged gap under the shorter one. Resolves to auto when the parent has no definite height,
+   which is the case for the full-width cards. */
+.chart-card {
+    display: block;
+    height: 100%;
+}
+
+/* Fluid padding: the three cards this replaced each hardcoded `1.25rem 1.5rem`, which ate a
+   sixth of the width of a 375px phone. */
+::deep .chart-card__surface.chart-card__surface {
+    padding: clamp(0.875rem, 2.5vw, 1.5rem) !important;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+::deep .chart-card__toolbar.chart-card__toolbar {
+    margin-bottom: 1rem !important;
+}
+
+/* Let the heading shrink before it forces the toolbar to wrap. */
+::deep .chart-card__heading.chart-card__heading {
+    min-width: 0 !important;
+    flex: 1 1 12rem !important;
+}
+
+::deep .chart-card__title.chart-card__title {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .chart-card__description.chart-card__description {
+    margin: 0 !important;
+    color: var(--text-secondary) !important;
+}
+
+.chart-card__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Matches the global .rz-chart clamp so the skeleton does not resize the card on load. */
+::deep .chart-card__skeleton.chart-card__skeleton {
+    height: clamp(220px, 38vh, 380px) !important;
+}
+
+::deep .chart-card__retry.chart-card__retry {
+    margin-left: 0.5rem !important;
+}
+
+::deep .chart-card__empty.chart-card__empty {
+    /* Was a flat `3rem 0`, which left a tall empty band on a phone. */
+    padding: clamp(1.25rem, 6vw, 3rem) 0 !important;
+}
+
+::deep .chart-card__empty-icon.chart-card__empty-icon {
+    font-size: 3rem !important;
+    color: var(--text-muted) !important;
+}
+
+::deep .chart-card__empty-text.chart-card__empty-text {
+    color: var(--text-secondary) !important;
+    text-align: center !important;
+}
+
+::deep .chart-card__empty-hint.chart-card__empty-hint {
+    color: var(--text-muted) !important;
+    text-align: center !important;
+}

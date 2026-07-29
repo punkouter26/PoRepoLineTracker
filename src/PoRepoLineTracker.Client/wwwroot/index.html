@@ -47,21 +47,52 @@
             }
         }
 
-        function setTheme(theme) {
+        // Paint a theme without recording a choice. `data-theme` is what app.css keys
+        // off, so it must be set on every path — previously it was only set when the
+        // user actively toggled, which left the OS-dark case styled as light.
+        function applyTheme(theme) {
             var link = document.getElementById('radzen-theme');
             if (link) {
                 link.href = theme === 'dark'
                     ? '_content/Radzen.Blazor/css/material-dark.css'
                     : '_content/Radzen.Blazor/css/material-base.css';
             }
-            localStorage.setItem('theme', theme);
             document.documentElement.setAttribute('data-theme', theme);
         }
 
-        // Restore saved theme on load to prevent flash of wrong theme
+        // Explicit user choice: paint it and remember it.
+        function setTheme(theme) {
+            applyTheme(theme);
+            localStorage.setItem('theme', theme);
+        }
+
+        function prefersDark() {
+            return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        }
+
+        // What the app is actually showing right now — MainLayout reads this to seed
+        // its toggle so the icon cannot disagree with the page.
+        function getEffectiveTheme() {
+            return document.documentElement.getAttribute('data-theme') || 'light';
+        }
+
+        function getViewportWidth() {
+            return window.innerWidth;
+        }
+
+        // Resolve the theme before first paint: saved choice wins, else the OS
+        // preference. Deliberately not persisted, so a user who has never chosen
+        // keeps following their OS when it changes.
         (function () {
             var saved = localStorage.getItem('theme');
-            if (saved === 'dark') setTheme('dark');
+            applyTheme(saved || (prefersDark() ? 'dark' : 'light'));
+
+            if (!saved && window.matchMedia) {
+                window.matchMedia('(prefers-color-scheme: dark)')
+                    .addEventListener('change', function (e) {
+                        if (!localStorage.getItem('theme')) applyTheme(e.matches ? 'dark' : 'light');
+                    });
+            }
         })();
     </script>
 </body>

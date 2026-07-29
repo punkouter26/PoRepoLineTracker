@@ -5,88 +5,101 @@
 @using Radzen
 @using Radzen.Blazor
 
-<RadzenCard class="arc-card">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="arc-toolbar">
-        <RadzenStack Gap="0.15rem">
-            <RadzenText TextStyle="TextStyle.H6" class="arc-title">All Repositories — Growth Overview</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption" class="arc-description">@ChartDescription</RadzenText>
-        </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenText TextStyle="TextStyle.Caption" class="arc-caption">Range:</RadzenText>
-            <RadzenSelectBar @bind-Value="_days" TValue="int" Change="@OnRangeChanged" Size="ButtonSize.Small">
-                <Items>
-                    <RadzenSelectBarItem Text="30d" Value="30" />
-                    <RadzenSelectBarItem Text="90d" Value="90" />
-                    <RadzenSelectBarItem Text="180d" Value="180" />
-                    <RadzenSelectBarItem Text="1yr" Value="365" />
-                </Items>
-            </RadzenSelectBar>
-        </RadzenStack>
-    </RadzenStack>
+<ChartCard Title="All Repositories — Growth Overview"
+           Description="@ChartDescription"
+           IsLoading="@_isLoading"
+           ErrorMessage="@_errorMessage"
+           OnRetry="@(() => LoadData(_days))"
+           IsEmpty="@(_historyData is null || !_historyData.Any(r => r.DailyLineCounts.Any()))"
+           EmptyIcon="show_chart"
+           EmptyText="No history data yet"
+           EmptyHint="Analysis is needed for at least one repository.">
+    <Toolbar>
+        @* Stacked mode answers "how much of the total is each repo?", which overlapping lines
+           cannot at more than a handful of series. *@
+        <RadzenSelectBar Value="@_stacked" TValue="bool" Change="@OnStackedChanged" Size="ButtonSize.Small"
+                         aria-label="Chart style">
+            <Items>
+                <RadzenSelectBarItem Text="Lines" Value="false" />
+                <RadzenSelectBarItem Text="Stacked" Value="true" />
+            </Items>
+        </RadzenSelectBar>
+        <ChartRangeSelector Days="@_days" DaysChanged="@OnRangeChanged" />
+    </Toolbar>
+    <ChildContent>
+        @{
+            var plottedRepos = GetDisplayedHistoryData().Where(r => r.DailyLineCounts.Any()).ToList();
+        }
 
-    @if (_isLoading)
-    {
-        <RadzenStack Gap="0.5rem">
-            <RadzenSkeleton Width="100%" Height="280px" />
-        </RadzenStack>
-    }
-    else if (!string.IsNullOrEmpty(_errorMessage))
-    {
-        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" AllowClose="false">
-            @_errorMessage
-            <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
-                          Click="@(() => LoadData(_days))" class="arc-refresh" />
-        </RadzenAlert>
-    }
-    else if (_historyData == null || !_historyData.Any(r => r.DailyLineCounts.Any()))
-    {
-        <RadzenStack AlignItems="AlignItems.Center" class="arc-empty">
-            <RadzenIcon Icon="show_chart" class="arc-empty-icon" />
-            <RadzenText TextStyle="TextStyle.Body1" class="arc-empty-text">No history data yet — analysis is needed for at least one repository.</RadzenText>
-        </RadzenStack>
-    }
-    else
-    {
-        var plottedRepos = GetDisplayedHistoryData().Where(r => r.DailyLineCounts.Any()).ToList();
-
-        <RadzenChart class="arc-chart">
+        <RadzenChart>
             @for (var index = 0; index < plottedRepos.Count; index++)
             {
                 var repo = plottedRepos[index];
-                // Stroke is a Radzen parameter, not CSS — it stays a colour value.
+                // Stroke/Fill are Radzen parameters, not CSS — they stay colour values.
                 var seriesColor = GetSeriesColor(index);
+                var seriesTitle = $"{repo.Owner}/{repo.RepositoryName}";
 
-                <RadzenLineSeries Data="@repo.DailyLineCounts.ToList()"
-                                  CategoryProperty="Date"
-                                  ValueProperty="TotalLines"
-                                  Title="@($"{repo.Owner}/{repo.RepositoryName}")"
-                                  Stroke="@seriesColor"
-                                  StrokeWidth="2">
-                    <TooltipTemplate Context="point">
-                        @if (point is DailyLineCountDto day)
-                        {
-                            <div class="arc-tip">
-                                <div class="arc-tip__title">
-                                    @($"{repo.Owner}/{repo.RepositoryName}")
+                if (_stacked)
+                {
+                    <RadzenStackedAreaSeries Data="@repo.DailyLineCounts.ToList()"
+                                             CategoryProperty="Date"
+                                             ValueProperty="TotalLines"
+                                             Title="@seriesTitle"
+                                             Stroke="@seriesColor"
+                                             Fill="@GetSeriesFill(index)"
+                                             StrokeWidth="1">
+                        <TooltipTemplate Context="point">
+                            @if (point is DailyLineCountDto day)
+                            {
+                                <div class="arc-tip">
+                                    <div class="arc-tip__title">@seriesTitle</div>
+                                    <div class="arc-tip__meta">@day.Date.ToString("MMM dd, yyyy")</div>
+                                    <div class="arc-tip__value">
+                                        <span class="arc-tip__label">@($"{TooltipValueLabel}:")</span> @day.TotalLines.ToString("N0")
+                                    </div>
                                 </div>
-                                <div class="arc-tip__meta">
-                                    @day.Date.ToString("MMM dd, yyyy")
+                            }
+                        </TooltipTemplate>
+                    </RadzenStackedAreaSeries>
+                }
+                else
+                {
+                    <RadzenLineSeries Data="@repo.DailyLineCounts.ToList()"
+                                      CategoryProperty="Date"
+                                      ValueProperty="TotalLines"
+                                      Title="@seriesTitle"
+                                      Stroke="@seriesColor"
+                                      StrokeWidth="2">
+                        <TooltipTemplate Context="point">
+                            @if (point is DailyLineCountDto day)
+                            {
+                                <div class="arc-tip">
+                                    <div class="arc-tip__title">@seriesTitle</div>
+                                    <div class="arc-tip__meta">@day.Date.ToString("MMM dd, yyyy")</div>
+                                    <div class="arc-tip__value">
+                                        <span class="arc-tip__label">@($"{TooltipValueLabel}:")</span> @day.TotalLines.ToString("N0")
+                                    </div>
                                 </div>
-                                <div class="arc-tip__value">
-                                    <span class="arc-tip__label">@($"{TooltipValueLabel}:")</span> @day.TotalLines.ToString("N0")
-                                </div>
-                            </div>
-                        }
-                    </TooltipTemplate>
-                    <ChildContent>
-                        <RadzenMarkers MarkerType="MarkerType.None" />
-                    </ChildContent>
-                </RadzenLineSeries>
+                            }
+                        </TooltipTemplate>
+                        <ChildContent>
+                            <RadzenMarkers MarkerType="MarkerType.None" />
+                        </ChildContent>
+                    </RadzenLineSeries>
+                }
             }
-            <RadzenCategoryAxis FormatString="{0:MM/dd}">
+
+            @* A whole-day Step keeps every label distinct and bounded in number — see
+               ChartFormat.DateAxisStep for why neither the default nor TickDistance suffices.
+               LabelAutoRotation angles what is left so labels do not collide at narrow widths. *@
+            <RadzenCategoryAxis FormatString="{0:MMM d}"
+                                Step="@ChartFormat.DateAxisStep(plottedRepos.SelectMany(r => r.DailyLineCounts).Select(d => d.Date))"
+                                LabelAutoRotation="-45">
+                <RadzenAxisTitle Text="Date" />
                 <RadzenGridLines Visible="true" />
             </RadzenCategoryAxis>
-            <RadzenValueAxis Min="0" Formatter="@FormatLines">
+            <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                <RadzenAxisTitle Text="Lines of Code" />
                 <RadzenGridLines Visible="true" />
             </RadzenValueAxis>
             <RadzenLegend Visible="false" />
@@ -109,13 +122,14 @@
                 </div>
             }
         </div>
-    }
-</RadzenCard>
+    </ChildContent>
+</ChartCard>
 
 @code {
     [Parameter] public ChartDisplayMode ChartDisplayMode { get; set; } = ChartDisplayMode.TrueData;
 
     private int _days = 90;
+    private bool _stacked = false;
     private bool _isLoading = false;
     private string? _errorMessage;
     private List<RepositoryLineCountHistoryDto>? _historyData;
@@ -135,6 +149,7 @@
         "#26a69a"
     ];
 
+
     protected override async Task OnInitializedAsync()
     {
         // Lazy-load on first range click rather than every page load.
@@ -148,6 +163,8 @@
         _days = days;
         await LoadData(days);
     }
+
+    private void OnStackedChanged(bool stacked) => _stacked = stacked;
 
     /// <summary>Triggers the default 90d load on first paint. Called once by the
     /// parent after the page has rendered so the user sees a chart without a
@@ -201,18 +218,17 @@
             .ToList();
     }
 
-    private string FormatLines(object value)
-    {
-        if (value is double d)
-        {
-            if (d >= 1_000_000) return $"{d / 1_000_000:F1}M";
-            if (d >= 1_000) return $"{d / 1_000:F0}k";
-            return d.ToString("N0");
-        }
-        return value?.ToString() ?? string.Empty;
-    }
-
     private static string GetSeriesColor(int index) => _seriesPalette[index % _seriesPalette.Length];
+
+    /// <summary>Translucent band fill for stacked mode so overlapping areas stay readable.</summary>
+    private static string GetSeriesFill(int index)
+    {
+        var hex = GetSeriesColor(index);
+        var r = Convert.ToInt32(hex.Substring(1, 2), 16);
+        var g = Convert.ToInt32(hex.Substring(3, 2), 16);
+        var b = Convert.ToInt32(hex.Substring(5, 2), 16);
+        return $"rgba({r}, {g}, {b}, 0.65)";
+    }
 
     /// <summary>
     /// Rule 4.3 — the legend swatch used to receive its colour through an interpolated inline

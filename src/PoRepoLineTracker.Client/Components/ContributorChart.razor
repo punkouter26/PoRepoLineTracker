@@ -2,82 +2,82 @@
 @using Radzen
 @using Radzen.Blazor
 
-<RadzenCard class="cc-card">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="cc-toolbar">
-        <RadzenStack Gap="0.15rem">
-            <RadzenText TextStyle="TextStyle.H6" class="cc-title">Top Contributors</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption" class="cc-description">
-                Source code contributions by author
-            </RadzenText>
-        </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenText TextStyle="TextStyle.Caption" class="cc-caption">Range:</RadzenText>
-            <RadzenSelectBar @bind-Value="_chartDays" TValue="int" Change="@OnChartRangeChanged" Size="ButtonSize.Small">
-                <Items>
-                    <RadzenSelectBarItem Text="30d" Value="30" />
-                    <RadzenSelectBarItem Text="90d" Value="90" />
-                    <RadzenSelectBarItem Text="180d" Value="180" />
-                    <RadzenSelectBarItem Text="1yr" Value="365" />
-                </Items>
-            </RadzenSelectBar>
-        </RadzenStack>
-    </RadzenStack>
+<ChartCard Title="Top Contributors"
+           Description="Source code contributions by author"
+           IsLoading="@_isLoading"
+           ErrorMessage="@_chartError"
+           OnRetry="@LoadContributorStats"
+           IsEmpty="@(_contributors is null || !_contributors.Any())"
+           EmptyIcon="people"
+           EmptyText="No contributor data yet."
+           EmptyHint="Re-analyze the repository to see contributor statistics.">
+    <Toolbar>
+        @* Stacked columns read far better than five overlapping daily line series: the total
+           height is the day's output and each band is one author's share of it. *@
+        <RadzenSelectBar Value="@_stacked" TValue="bool" Change="@OnStackedChanged" Size="ButtonSize.Small"
+                         aria-label="Chart style">
+            <Items>
+                <RadzenSelectBarItem Text="Lines" Value="false" />
+                <RadzenSelectBarItem Text="Stacked" Value="true" />
+            </Items>
+        </RadzenSelectBar>
+        <ChartRangeSelector Days="@_chartDays" DaysChanged="@OnChartRangeChanged" />
+    </Toolbar>
+    <ChildContent>
+        @{
+            var top = TopContributors.ToList();
+        }
 
-    @if (_isLoading)
-    {
-        <RadzenSkeleton Width="100%" Height="320px" />
-    }
-    else if (!string.IsNullOrEmpty(_chartError))
-    {
-        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
-            @_chartError
-            <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
-                          Click="@LoadContributorStats" class="cc-refresh" />
-        </RadzenAlert>
-    }
-    else if (_contributors == null || !_contributors.Any())
-    {
-        <RadzenStack AlignItems="AlignItems.Center" class="rz-p-8">
-            <RadzenIcon Icon="people" class="cc-empty-icon" />
-            <RadzenText TextStyle="TextStyle.Body1" class="cc-empty-text">No contributor data yet.</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption" class="cc-empty-hint">Re-analyze the repository to see contributor statistics.</RadzenText>
-        </RadzenStack>
-    }
-    else
-    {
         @* Legend *@
         <div class="cc-legend">
-            @foreach (var contributor in _contributors.OrderByDescending(c => c.TotalLinesAdded).Take(5))
+            @foreach (var contributor in top)
             {
                 var swatchClass = GetAuthorColorClass(contributor.AuthorName);
-                var displayName = string.IsNullOrWhiteSpace(contributor.AuthorName) ? "(Unknown)" : contributor.AuthorName;
                 <div class="cc-legend__item">
                     <div class="cc-swatch @swatchClass"></div>
-                    <span class="cc-legend__label">@displayName (@contributor.TotalLinesAdded.ToString("N0") lines)</span>
+                    <span class="cc-legend__label">@DisplayName(contributor) (@contributor.TotalLinesAdded.ToString("N0") lines)</span>
                 </div>
             }
         </div>
 
         @* Chart *@
-        <RadzenChart class="cc-chart">
-            @foreach (var contributor in _contributors.OrderByDescending(c => c.TotalLinesAdded).Take(5))
+        <RadzenChart>
+            @foreach (var contributor in top)
             {
-                // Stroke is a Radzen parameter, not CSS — it stays a colour value.
+                // Stroke/Fill are Radzen parameters, not CSS — they stay colour values.
                 var color = GetColorForAuthor(contributor.AuthorName);
-                var displayName = string.IsNullOrWhiteSpace(contributor.AuthorName) ? "(Unknown)" : contributor.AuthorName;
-                <RadzenLineSeries Data="@contributor.DailyHistory"
-                                  CategoryProperty="Date"
-                                  ValueProperty="LinesAdded"
-                                  Title="@displayName"
-                                  Stroke="@color"
-                                  StrokeWidth="2">
-                    <RadzenMarkers MarkerType="MarkerType.Circle" />
-                </RadzenLineSeries>
+                var displayName = DisplayName(contributor);
+
+                if (_stacked)
+                {
+                    <RadzenStackedColumnSeries Data="@contributor.DailyHistory"
+                                               CategoryProperty="Date"
+                                               ValueProperty="LinesAdded"
+                                               Title="@displayName"
+                                               Fill="@color" />
+                }
+                else
+                {
+                    <RadzenLineSeries Data="@contributor.DailyHistory"
+                                      CategoryProperty="Date"
+                                      ValueProperty="LinesAdded"
+                                      Title="@displayName"
+                                      Stroke="@color"
+                                      StrokeWidth="2">
+                        <RadzenMarkers MarkerType="MarkerType.Circle" />
+                    </RadzenLineSeries>
+                }
             }
-            <RadzenCategoryAxis FormatString="{0:MM/dd/yy}">
+
+            @* Whole-day Step: see ChartFormat.DateAxisStep. *@
+            <RadzenCategoryAxis FormatString="{0:MMM d}"
+                                Step="@ChartFormat.DateAxisStep(top.SelectMany(c => c.DailyHistory).Select(d => d.Date))"
+                                LabelAutoRotation="-45">
+                <RadzenAxisTitle Text="Date" />
                 <RadzenGridLines Visible="true" />
             </RadzenCategoryAxis>
-            <RadzenValueAxis Min="0">
+            <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                <RadzenAxisTitle Text="Lines Added" />
                 <RadzenGridLines Visible="true" />
             </RadzenValueAxis>
             <RadzenLegend Position="LegendPosition.Bottom" />
@@ -86,47 +86,52 @@
         @* Summary Table *@
         <div class="cc-table-section">
             <RadzenText TextStyle="TextStyle.Subtitle2" class="cc-table-title">All Contributors</RadzenText>
-            <RadzenDataGrid Data="@_contributors.OrderByDescending(c => c.TotalLinesAdded)" TItem="ContributorStatsDto" class="cc-grid">
-                <Columns>
-                    <RadzenDataGridColumn TItem="ContributorStatsDto" Property="AuthorName" Title="Author" Width="30%">
-                        <Template Context="data">
-                            <div class="cc-cell-row">
-                                <div class="cc-swatch cc-swatch--sm @GetAuthorColorClass(data.AuthorName)"></div>
-                                @data.AuthorName
-                            </div>
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="ContributorStatsDto" Property="TotalCommits" Title="Commits" Width="15%">
-                        <Template Context="data">
-                            @data.TotalCommits.ToString("N0")
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="ContributorStatsDto" Property="TotalLinesAdded" Title="Lines Added" Width="20%">
-                        <Template Context="data">
-                            <span class="cc-added">+@data.TotalLinesAdded.ToString("N0")</span>
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="ContributorStatsDto" Property="TotalLinesRemoved" Title="Lines Removed" Width="20%">
-                        <Template Context="data">
-                            <span class="cc-removed">-@data.TotalLinesRemoved.ToString("N0")</span>
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="ContributorStatsDto" Property="PercentageOfTotalLines" Title="% of Total" Width="15%">
-                        <Template Context="data">
-                            <div class="cc-cell-row">
-                                <progress class="cc-bar @GetAuthorColorClass(data.AuthorName)"
-                                          max="100"
-                                          value="@Math.Min(data.PercentageOfTotalLines, 100)"
-                                          aria-label="@($"{data.AuthorName}: {data.PercentageOfTotalLines:F1}% of total lines")"></progress>
-                                <span class="cc-bar__value">@data.PercentageOfTotalLines.ToString("F1")%</span>
-                            </div>
-                        </Template>
-                    </RadzenDataGridColumn>
-                </Columns>
-            </RadzenDataGrid>
+            <div class="cc-grid-scroll">
+                <RadzenDataGrid Data="@_contributors!.OrderByDescending(c => c.TotalLinesAdded)"
+                                TItem="ContributorStatsDto"
+                                Responsive="true"
+                                class="cc-grid">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="ContributorStatsDto" Property="AuthorName" Title="Author" Width="30%">
+                            <Template Context="data">
+                                <div class="cc-cell-row">
+                                    <div class="cc-swatch cc-swatch--sm @GetAuthorColorClass(data.AuthorName)"></div>
+                                    @data.AuthorName
+                                </div>
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ContributorStatsDto" Property="TotalCommits" Title="Commits" Width="15%">
+                            <Template Context="data">
+                                @data.TotalCommits.ToString("N0")
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ContributorStatsDto" Property="TotalLinesAdded" Title="Lines Added" Width="20%">
+                            <Template Context="data">
+                                <span class="cc-added">+@data.TotalLinesAdded.ToString("N0")</span>
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ContributorStatsDto" Property="TotalLinesRemoved" Title="Lines Removed" Width="20%">
+                            <Template Context="data">
+                                <span class="cc-removed">-@data.TotalLinesRemoved.ToString("N0")</span>
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ContributorStatsDto" Property="PercentageOfTotalLines" Title="% of Total" Width="15%">
+                            <Template Context="data">
+                                <div class="cc-cell-row">
+                                    <progress class="cc-bar @GetAuthorColorClass(data.AuthorName)"
+                                              max="100"
+                                              value="@Math.Min(data.PercentageOfTotalLines, 100)"
+                                              aria-label="@($"{data.AuthorName}: {data.PercentageOfTotalLines:F1}% of total lines")"></progress>
+                                    <span class="cc-bar__value">@data.PercentageOfTotalLines.ToString("F1")%</span>
+                                </div>
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </div>
         </div>
-    }
-</RadzenCard>
+    </ChildContent>
+</ChartCard>
 
 @code {
     [Parameter] public RepositoryId RepositoryId { get; set; }
@@ -135,10 +140,19 @@
 
     private List<ContributorStatsDto>? _contributors;
     private bool _isLoading = false;
+    private bool _stacked = false;
     private string _chartError = string.Empty;
     private int _chartDays = 90;
 
     private static readonly string[] _colors = { "#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316" };
+
+    /// <summary>The five plotted authors. Ordering and Take were repeated three times inline.</summary>
+    private IEnumerable<ContributorStatsDto> TopContributors =>
+        (_contributors ?? []).OrderByDescending(c => c.TotalLinesAdded).Take(5);
+
+
+    private static string DisplayName(ContributorStatsDto contributor) =>
+        string.IsNullOrWhiteSpace(contributor.AuthorName) ? "(Unknown)" : contributor.AuthorName;
 
     protected override async Task OnInitializedAsync()
     {
@@ -154,11 +168,6 @@
         try
         {
             _contributors = await Http.GetFromJsonAsync<List<ContributorStatsDto>>($"/api/repositories/{RepositoryId}/contributors/{_chartDays}?topN=10");
-            
-            if (_contributors == null || !_contributors.Any())
-            {
-                _chartError = "No contributor data found. Re-analyze the repository to see contributor statistics.";
-            }
         }
         catch (Exception ex)
         {
@@ -177,6 +186,8 @@
         _chartDays = days;
         await LoadContributorStats();
     }
+
+    private void OnStackedChanged(bool stacked) => _stacked = stacked;
 
     private string GetColorForAuthor(string authorName)
     {

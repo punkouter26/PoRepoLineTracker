@@ -64,10 +64,14 @@ public sealed class StaticAssetsApiTests
         { "brand-wordmark", "MainLayout.razor.css" },
         { "ext-code", "ExtensionsCounted.razor.css" },
         { "ghsel-list", "GitHubRepositorySelector.razor.css" },
-        { "mrc-metric-value", "MobileRepoCard.razor.css" },
+        // MobileRepoCard.razor(.css) was deleted: no page ever referenced the component, and the
+        // `.mobile-only` / `.desktop-only` classes written to switch it in were unused too.
+        // Radzen's own responsive DataGrid covers the case it was built for.
         { "xc-env-card", "ExternalConnections.razor.css" },
         { "ul-dropzone", "UploadRepository.razor.css" },
         { "arc-legend__swatch", "AllReposComparisonChart.razor.css" },
+        { "chart-card__title", "ChartCard.razor.css" },
+        { "page-hero__actions", "PageHero.razor.css" },
         { "cc-bar", "ContributorChart.razor.css" },
         { "ts-metric__value", "TimelineScrubber.razor.css" },
         { "rd-ext-bar", "RepositoryDetail.razor.css" },

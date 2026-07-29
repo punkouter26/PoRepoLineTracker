@@ -1,0 +1,25 @@
+@* Page title strip: heading on the left, actions on the right, stacking on narrow viewports.
+
+   Repositories.razor and RepositoryDetail.razor carried the same Size="12" SizeMD="8" / "4"
+   row with a right-aligned action stack. Both also pinned the action column to
+   `rz-text-align-end` at every width, so on a phone the buttons stayed jammed against the right
+   edge under a left-aligned title; here they go full-width instead. *@
+
+<div class="page-hero">
+    <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" RowGap="0.5rem">
+        <RadzenColumn Size="12" SizeMD="8">
+            <div class="page-hero__heading">@Heading</div>
+        </RadzenColumn>
+        @if (Actions is not null)
+        {
+            <RadzenColumn Size="12" SizeMD="4">
+                <div class="page-hero__actions">@Actions</div>
+            </RadzenColumn>
+        }
+    </RadzenRow>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment? Heading { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

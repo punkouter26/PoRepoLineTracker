@@ -26,6 +26,17 @@ public sealed class E2EUiFixture : IAsyncLifetime
     public static string BaseUrl =>
         Environment.GetEnvironmentVariable("E2E_BASE_URL") ?? "https://localhost:5001";
 
+    /// <summary>
+    /// Identity sent as <c>X-Fake-User</c> by <see cref="OpenAuthenticatedAsync"/>. Repositories
+    /// are scoped per user, so assertions about chart contents only have something to look at
+    /// when this names a user with analysed repositories — point it at one with
+    /// <c>E2E_FAKE_USER</c>. The default is deliberately an isolated user: the shell, layout and
+    /// theming tests are meaningful against an empty account, and the chart-content tests skip
+    /// rather than fail when there is nothing to plot.
+    /// </summary>
+    public static string FakeUser =>
+        Environment.GetEnvironmentVariable("E2E_FAKE_USER") ?? "e2e-ui";
+
     private IPlaywright? _playwright;
     public IBrowser? Browser { get; private set; }
 
@@ -66,6 +77,47 @@ public sealed class E2EUiFixture : IAsyncLifetime
         try
         {
             await page.GotoAsync(BaseUrl.TrimEnd('/') + path, new PageGotoOptions { Timeout = 10000 });
+        }
+        catch (PlaywrightException ex)
+        {
+            await context.DisposeAsync();
+            throw new SkipException($"No app instance reachable at {BaseUrl} ({ex.Message}).");
+        }
+
+        return page;
+    }
+
+    /// <summary>
+    /// Opens <paramref name="path"/> as a signed-in user. Authentication rides on the
+    /// <c>X-Fake-User</c> header that FakeAuthHandler reads outside Production, applied at the
+    /// browser-context level so the Blazor client's own fetch calls carry it too — the app
+    /// resolves its auth state from an API call, not from the document request.
+    /// <para>
+    /// Everything behind [Authorize] — the repositories grid and every chart — is unreachable
+    /// without this, which is why the existing suite only ever exercised /login.
+    /// </para>
+    /// </summary>
+    public async Task<IPage> OpenAuthenticatedAsync(ViewportSize viewport, string path = "/", string? colorScheme = null)
+    {
+        Skip.If(Browser is null, "Playwright browser unavailable — run playwright.ps1 install.");
+
+        var context = await Browser!.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = viewport,
+            IgnoreHTTPSErrors = true,
+            ColorScheme = colorScheme switch
+            {
+                "dark" => ColorScheme.Dark,
+                "light" => ColorScheme.Light,
+                _ => null
+            },
+            ExtraHTTPHeaders = new Dictionary<string, string> { ["X-Fake-User"] = FakeUser }
+        });
+
+        var page = await context.NewPageAsync();
+        try
+        {
+            await page.GotoAsync(BaseUrl.TrimEnd('/') + path, new PageGotoOptions { Timeout = 15000 });
         }
         catch (PlaywrightException ex)
         {

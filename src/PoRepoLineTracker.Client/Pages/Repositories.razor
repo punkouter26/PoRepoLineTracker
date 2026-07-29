@@ -16,9 +16,8 @@
 @using Microsoft.AspNetCore.Authorization
 
 <RadzenStack Gap="1rem">
-    <div class="repo-hero">
-    <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-        <RadzenColumn Size="12" SizeMD="8">
+    <PageHero>
+        <Heading>
             <RadzenStack Gap="0.125rem">
                 <RadzenText TextStyle="TextStyle.H3" class="rp-title">Repositories</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body1" class="rp-muted-tight">
@@ -32,23 +31,20 @@
                     }
                 </RadzenText>
             </RadzenStack>
-        </RadzenColumn>
-        <RadzenColumn Size="12" SizeMD="4" class="rz-text-align-end">
-            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
-                <RadzenButton Text="Upload Local"
-                              Icon="upload_file"
-                              ButtonStyle="ButtonStyle.Secondary"
-                              Variant="Variant.Outlined"
-                              Click="@ShowUploadDialog" />
-                <RadzenButton Text="@(_showAddPanel ? "Cancel" : "Add Repository")"
-                              Icon="@(_showAddPanel ? "close" : "add_circle")"
-                              ButtonStyle="@(_showAddPanel ? ButtonStyle.Light : ButtonStyle.Primary)"
-                              Variant="@(_showAddPanel ? Variant.Outlined : Variant.Filled)"
-                              Click="@ToggleAddPanel" />
-            </RadzenStack>
-        </RadzenColumn>
-    </RadzenRow>
-    </div>
+        </Heading>
+        <Actions>
+            <RadzenButton Text="Upload Local"
+                          Icon="upload_file"
+                          ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Outlined"
+                          Click="@ShowUploadDialog" />
+            <RadzenButton Text="@(_showAddPanel ? "Cancel" : "Add Repository")"
+                          Icon="@(_showAddPanel ? "close" : "add_circle")"
+                          ButtonStyle="@(_showAddPanel ? ButtonStyle.Light : ButtonStyle.Primary)"
+                          Variant="@(_showAddPanel ? Variant.Outlined : Variant.Filled)"
+                          Click="@ToggleAddPanel" />
+        </Actions>
+    </PageHero>
 
     @* Inline Add Repository Panel *@
     @if (_showAddPanel)
@@ -150,42 +146,64 @@
 
         <AllReposComparisonChart @ref="_comparisonChart" ChartDisplayMode="@_chartDisplayMode" />
 
-        @* ─── Stats cards ──────────────────────────────────────────────────────── *@
-        <RadzenRow Gap="0.75rem" class="rp-stat-row">
-            <RadzenColumn Size="12" SizeMD="4">
-                <RadzenCard class="stat-card rp-stat rp-stat--repos">
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                        <RadzenIcon Icon="folder" class="rp-stat-icon rp-stat-icon--repos" />
-                        <div>
-                            <div class="stat-value">@pageState.Repositories.Count</div>
-                            <div class="stat-label">Repositories</div>
+        @* ─── Stats cards ────────────────────────────────────────────────────────
+           An auto-fit grid rather than a 3-column RadzenRow: the tiles reflow from 3 → 2 → 1
+           across the range on their own, without a breakpoint per step, and never leave a
+           half-empty final row. *@
+        <div class="rp-stat-grid">
+            <RadzenCard class="stat-card rp-stat rp-stat--repos">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenIcon Icon="folder" class="rp-stat-icon rp-stat-icon--repos" />
+                    <div class="rp-stat-body">
+                        <div class="stat-value">@pageState.Repositories.Count</div>
+                        <div class="stat-label">Repositories</div>
+                    </div>
+                </RadzenStack>
+            </RadzenCard>
+            <RadzenCard class="stat-card rp-stat rp-stat--lines">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenIcon Icon="code" class="rp-stat-icon rp-stat-icon--lines" />
+                    <div class="rp-stat-body">
+                        <div class="stat-value">@(_repoLatestLineCounts.Values.Sum().ToString("N0"))</div>
+                        <div class="stat-label">Total Lines</div>
+                    </div>
+                    @* The 365-day history is already in hand from LoadLatestLineCounts, so the
+                       trend costs no extra request. *@
+                    @if (TotalLinesTrend.Count > 1)
+                    {
+                        <div class="rp-stat-spark">
+                            <RadzenSparkline Data="@TotalLinesTrend"
+                                             CategoryProperty="Date"
+                                             ValueProperty="TotalLines"
+                                             Stroke="#0891b2"
+                                             Fill="rgba(8, 145, 178, 0.16)" />
                         </div>
-                    </RadzenStack>
-                </RadzenCard>
-            </RadzenColumn>
-            <RadzenColumn Size="12" SizeMD="4">
-                <RadzenCard class="stat-card rp-stat rp-stat--lines">
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                        <RadzenIcon Icon="code" class="rp-stat-icon rp-stat-icon--lines" />
-                        <div>
-                            <div class="stat-value">@(_repoLatestLineCounts.Values.Sum().ToString("N0"))</div>
-                            <div class="stat-label">Total Lines</div>
+                    }
+                </RadzenStack>
+            </RadzenCard>
+            <RadzenCard class="stat-card rp-stat rp-stat--analyzed">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenIcon Icon="check_circle" class="rp-stat-icon rp-stat-icon--analyzed" />
+                    <div class="rp-stat-body">
+                        <div class="stat-value">@AnalyzedCount</div>
+                        <div class="stat-label">Analyzed</div>
+                    </div>
+                    @* Completion at a glance — a gauge reads faster than "7" next to a count of 9. *@
+                    @if (pageState.Repositories.Count > 0)
+                    {
+                        <div class="rp-stat-gauge">
+                            <RadzenArcGauge>
+                                <RadzenArcGaugeScale Min="0" Max="@pageState.Repositories.Count"
+                                                     Step="@Math.Max(1, pageState.Repositories.Count / 4d)"
+                                                     ShowTickLabels="false" TickPosition="GaugeTickPosition.None">
+                                    <RadzenArcGaugeScaleValue Value="@AnalyzedCount" ShowValue="false" Fill="#059669" />
+                                </RadzenArcGaugeScale>
+                            </RadzenArcGauge>
                         </div>
-                    </RadzenStack>
-                </RadzenCard>
-            </RadzenColumn>
-            <RadzenColumn Size="12" SizeMD="4">
-                <RadzenCard class="stat-card rp-stat rp-stat--analyzed">
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                        <RadzenIcon Icon="check_circle" class="rp-stat-icon rp-stat-icon--analyzed" />
-                        <div>
-                            <div class="stat-value">@(pageState.Repositories.Count(r => r.LastAnalyzedCommitDate.HasValue))</div>
-                            <div class="stat-label">Analyzed</div>
-                        </div>
-                    </RadzenStack>
-                </RadzenCard>
-            </RadzenColumn>
-        </RadzenRow>
+                    }
+                </RadzenStack>
+            </RadzenCard>
+        </div>
 
         <RadzenCard>
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rp-searchbar">
@@ -199,6 +217,14 @@
                 }
             </RadzenStack>
 
+            @* Responsive="true" makes Radzen stack each row into a labelled card below its
+               breakpoint. Without it the fixed column widths summed to ~736px, so on a phone the
+               grid scrolled sideways and the Actions column sat permanently off-screen.
+
+               RowRender is bound to OnRowRender rather than the inline lambda it used to carry:
+               the lambda set only `cursor: pointer`, leaving rows unreachable by keyboard even
+               though OnRowRender — which adds tabindex, role and Enter/Space handling — was
+               already written and simply never wired up. *@
             <div class="rp-grid-scroll">
             <RadzenDataGrid @ref="grid"
                             Data="@FilteredRepositories"
@@ -211,7 +237,8 @@
                             ShowPagingSummary="true"
                             PagingSummaryFormat="Showing {0} to {1} of {2} repositories"
                             AllowColumnResize="true"
-                            RowRender="@(args => args.Attributes["style"] = "cursor: pointer;")"
+                            Responsive="true"
+                            RowRender="@OnRowRender"
                             RowClick="@OnRowClick"
                             Density="Density.Default"
                             class="rp-grid">
@@ -225,7 +252,11 @@
                                        title="Open on GitHub"
                                        aria-label="@($"Open {row.Owner}/{row.Name} on GitHub in a new tab")"
                                        class="rp-github-link">
-                                        <span class="material-icons rp-github-link__icon">open_in_new</span>
+                                        @* RadzenIcon, not a bare <span class="material-icons">: the glyph
+                                           comes from Radzen's bundled font rather than the Google Fonts
+                                           CDN, so a failed CDN request cannot leave the literal text
+                                           "open_in_new" in the middle of the grid row. *@
+                                        <RadzenIcon Icon="open_in_new" class="rp-github-link__icon" />
                                     </a>
                                 </span>
                             </RadzenStack>
@@ -252,7 +283,7 @@
                             @if (row.LastAnalyzedCommitDate.HasValue)
                             {
                                 <RadzenStack Gap="0.1rem">
-                                    <RadzenText class="rp-relative-time">@ToRelativeTime(row.LastAnalyzedCommitDate)</RadzenText>
+                                    <RadzenText class="rp-relative-time">@ChartFormat.RelativeTime(row.LastAnalyzedCommitDate)</RadzenText>
                                     <RadzenText TextStyle="TextStyle.Caption" class="rp-muted">@row.LastAnalyzedCommitDate.Value.ToString("MM/dd/yy HH:mm")</RadzenText>
                                 </RadzenStack>
                             }
@@ -410,6 +441,7 @@
     private RepositoryPageState pageState = new();
     private RadzenDataGrid<RepositoryGridRow>? grid;
     private AllReposComparisonChart? _comparisonChart;
+    private bool _chartPrimed;
     private RepositoryId? reanalyzingRepositoryId;
     private bool _showAddPanel = false;
     private bool isRemovingAll = false;
@@ -434,6 +466,16 @@
         repository,
         _repoLatestLineCounts.TryGetValue(repository.Id, out var totalLines) ? totalLines : null));
 
+    private int AnalyzedCount => pageState.Repositories.Count(r => r.LastAnalyzedCommitDate.HasValue);
+
+    /// <summary>
+    /// Portfolio-wide daily totals for the Total Lines sparkline. Built from the history already
+    /// fetched by <see cref="LoadLatestLineCounts"/>, so the trend costs no extra request.
+    /// Capped at the most recent 60 points — a sparkline a few centimetres wide cannot resolve
+    /// 365 and the extra nodes are pure render cost.
+    /// </summary>
+    private List<DailyLineCountDto> TotalLinesTrend { get; set; } = [];
+
 
     protected override void OnParametersSet()
     {
@@ -457,6 +499,26 @@
         StartPassivePendingPollIfNeeded();
     }
 
+    /// <summary>
+    /// Kicks off the growth chart's first fetch once the page has painted.
+    /// <para>
+    /// AllReposComparisonChart deliberately does not load in OnInitializedAsync so the request
+    /// stays off the initial render path, and documents that the parent primes it afterwards —
+    /// but no parent ever did. The card therefore always rendered its "No history data yet"
+    /// empty state until the user happened to click a range button, even with repositories
+    /// analysed and the very same endpoint already supplying the Total Lines figure above it.
+    /// </para>
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Not gated on firstRender: the chart lives inside the "repositories loaded" branch, so
+        // on the very first pass the page is still showing its skeleton and @ref is null. Prime
+        // on the first render where the ref actually exists, and only once.
+        if (_chartPrimed || _comparisonChart is null) return;
+        _chartPrimed = true;
+        await _comparisonChart.PrimeAsync();
+    }
+
     private async Task OnChartDisplayModeChanged(ChartDisplayMode chartDisplayMode)
     {
         _chartDisplayMode = chartDisplayMode;
@@ -476,6 +538,15 @@
                         r => r.RepositoryId,
                         r => r.DailyLineCounts.OrderByDescending(d => d.Date).First().TotalLines);
                 Logger.LogInformation("Loaded latest line counts for {Count} repositories", _repoLatestLineCounts.Count);
+
+                // Sum every repo's per-day total into one portfolio series for the sparkline.
+                TotalLinesTrend = all
+                    .SelectMany(r => r.DailyLineCounts)
+                    .GroupBy(d => d.Date.Date)
+                    .OrderBy(g => g.Key)
+                    .Select(g => new DailyLineCountDto { Date = g.Key, TotalLines = g.Sum(d => d.TotalLines) })
+                    .TakeLast(60)
+                    .ToList();
             }
         }
         catch (Exception ex)
@@ -513,17 +584,7 @@
         args.Attributes["onkeydown"] = "if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}";
     }
 
-    private static string ToRelativeTime(DateTime? dt)
-    {
-        if (!dt.HasValue) return string.Empty;
-        var diff = DateTime.UtcNow - dt.Value.ToUniversalTime();
-        if (diff.TotalHours < 1) return "just now";
-        if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
-        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
-        if (diff.TotalDays < 30) return $"{(int)(diff.TotalDays / 7)}w ago";
-        if (diff.TotalDays < 365) return $"{(int)(diff.TotalDays / 30)}mo ago";
-        return $"{(int)(diff.TotalDays / 365)}y ago";
-    }
+    // ToRelativeTime moved to ChartFormat — it was duplicated verbatim on RepositoryDetail.
 
     private void ToggleAddPanel()
     {

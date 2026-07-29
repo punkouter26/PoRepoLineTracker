@@ -1,0 +1,31 @@
+@* Range picker shared by every time-series card.
+
+   This markup was previously byte-identical in three places: AllReposComparisonChart,
+   ContributorChart and RepositoryDetail. Supports @bind-Days. *@
+
+<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+    <RadzenText TextStyle="TextStyle.Caption" class="crs-label">Range:</RadzenText>
+    <RadzenSelectBar Value="@Days" TValue="int" Change="@HandleChange" Size="ButtonSize.Small"
+                     aria-label="Chart time range">
+        <Items>
+            <RadzenSelectBarItem Text="30d" Value="30" />
+            <RadzenSelectBarItem Text="90d" Value="90" />
+            <RadzenSelectBarItem Text="180d" Value="180" />
+            <RadzenSelectBarItem Text="1yr" Value="365" />
+        </Items>
+    </RadzenSelectBar>
+</RadzenStack>
+
+@code {
+    [Parameter] public int Days { get; set; } = 90;
+
+    /// <summary>Fires after <see cref="Days"/> changes, so `@bind-Days` works.</summary>
+    [Parameter] public EventCallback<int> DaysChanged { get; set; }
+
+    private async Task HandleChange(int days)
+    {
+        if (days == Days) return;
+        Days = days;
+        await DaysChanged.InvokeAsync(days);
+    }
+}

@@ -1,0 +1,86 @@
+@* Card shell for a chart or data panel: heading + optional toolbar, then the
+   loading → error → empty → content ladder.
+
+   That ladder was written out three times (AllReposComparisonChart, ContributorChart,
+   RepositoryDetail), ~40 near-identical lines each, along with three copies of the
+   `.arc-*` / `.cc-*` / `.rd-*` styles that dressed it.
+
+   Rooted at a plain <div> on purpose: Blazor's `::deep` compiles to `[b-scope] .x` and needs a
+   plain HTML ancestor carrying the scope id. Rooting at <RadzenCard> would leave nothing in this
+   file carrying the id, and every rule in ChartCard.razor.css would silently match nothing. *@
+
+<div class="chart-card">
+    <RadzenCard class="chart-card__surface">
+        <RadzenStack Orientation="Orientation.Horizontal"
+                     AlignItems="AlignItems.Center"
+                     JustifyContent="JustifyContent.SpaceBetween"
+                     Wrap="FlexWrap.Wrap"
+                     Gap="0.5rem"
+                     class="chart-card__toolbar">
+            <RadzenStack Gap="0.15rem" class="chart-card__heading">
+                <RadzenText TextStyle="TextStyle.H6" class="chart-card__title">@Title</RadzenText>
+                @if (!string.IsNullOrWhiteSpace(Description))
+                {
+                    <RadzenText TextStyle="TextStyle.Caption" class="chart-card__description">@Description</RadzenText>
+                }
+            </RadzenStack>
+
+            @if (Toolbar is not null)
+            {
+                <div class="chart-card__actions">@Toolbar</div>
+            }
+        </RadzenStack>
+
+        @if (IsLoading)
+        {
+            <RadzenSkeleton Width="100%" class="chart-card__skeleton" />
+        }
+        else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" AllowClose="false">
+                @ErrorMessage
+                @if (OnRetry.HasDelegate)
+                {
+                    <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
+                                  Click="@OnRetry" class="chart-card__retry" />
+                }
+            </RadzenAlert>
+        }
+        else if (IsEmpty)
+        {
+            <RadzenStack AlignItems="AlignItems.Center" Gap="0.35rem" class="chart-card__empty">
+                <RadzenIcon Icon="@EmptyIcon" class="chart-card__empty-icon" />
+                <RadzenText TextStyle="TextStyle.Body1" class="chart-card__empty-text">@EmptyText</RadzenText>
+                @if (!string.IsNullOrWhiteSpace(EmptyHint))
+                {
+                    <RadzenText TextStyle="TextStyle.Caption" class="chart-card__empty-hint">@EmptyHint</RadzenText>
+                }
+            </RadzenStack>
+        }
+        else
+        {
+            @ChildContent
+        }
+    </RadzenCard>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Description { get; set; }
+
+    /// <summary>Controls rendered on the right of the heading — typically a ChartRangeSelector.</summary>
+    [Parameter] public RenderFragment? Toolbar { get; set; }
+
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    /// <summary>Wired to the retry button; the button is omitted when no handler is supplied.</summary>
+    [Parameter] public EventCallback OnRetry { get; set; }
+
+    [Parameter] public bool IsEmpty { get; set; }
+    [Parameter] public string EmptyIcon { get; set; } = "bar_chart";
+    [Parameter] public string EmptyText { get; set; } = "No data yet.";
+    [Parameter] public string? EmptyHint { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
