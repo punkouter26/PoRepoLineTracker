@@ -27,11 +27,15 @@
     {
         @* Timeline Slider *@
         <div class="ts-slider-row">
-            <RadzenSlider TValue="int" 
-                          Min="@_minIndex" 
-                          Max="@_maxIndex" 
+            @* One-way Value + Change rather than @bind-Value. The bind system would also write to
+       _scrubberIndex, but the Change handler is the single owner of state transitions here
+       (it updates the snapshot and fires OnDateSelected), so a single source of updates is
+       clearer than two racing paths into the same field. *@
+    <RadzenSlider TValue="int"
+                          Min="@_minIndex"
+                          Max="@_maxIndex"
                           Step="1"
-                          @bind-Value="_scrubberIndex"
+                          Value="@_scrubberIndex"
                           Change="@OnScrubberChanged"
                           class="ts-slider" />
         </div>
@@ -114,14 +118,36 @@
     private DateTime? _selectedDate;
     private DailyLineCountDto? _snapshot;
 
+    /// <summary>
+    /// The DailyData reference this component last seeded its axis from. Used by
+    /// <see cref="OnParametersSet"/> to distinguish "new dataset arrived" from "the same
+    /// dataset, re-rendered" — see the method for why that distinction matters.
+    /// </summary>
+    private List<DailyLineCountDto>? _initializedFrom;
+
     protected override void OnParametersSet()
     {
         if (DailyData != null && DailyData.Any())
         {
-            _dates = DailyData.Select(d => d.Date).OrderBy(d => d).ToList();
-            _minIndex = 0;
-            _maxIndex = _dates.Count - 1;
-            _scrubberIndex = _maxIndex; // Default to latest
+            // RepositoryDetail re-renders frequently — chart reloads, reanalysis polls,
+            // re-analyze-busy StateHasChanged calls — and every one of them re-runs
+            // OnParametersSet on this child. The old code reset _scrubberIndex = _maxIndex
+            // on every call, so the slider snapped back to "today" the instant the parent
+            // re-rendered, and dragging felt completely unresponsive: the handle moved for
+            // one frame, then jumped to the right edge.
+            //
+            // Now we seed the axis only when DailyData is a different list reference — the
+            // parent reuses the same instance across renders, so a reference change is the
+            // signal "actually new data, snap back to latest." Same-reference re-renders
+            // leave _scrubberIndex alone and just refresh the snapshot from the current value.
+            if (!ReferenceEquals(_initializedFrom, DailyData))
+            {
+                _dates = DailyData.Select(d => d.Date).OrderBy(d => d).ToList();
+                _minIndex = 0;
+                _maxIndex = _dates.Count - 1;
+                _scrubberIndex = _maxIndex;
+                _initializedFrom = DailyData;
+            }
             UpdateSnapshot();
         }
     }

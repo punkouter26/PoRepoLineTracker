@@ -51,13 +51,6 @@
     text-overflow: ellipsis;
 }
 
-::deep .mock-data-badge.mock-data-badge {
-    font-size: 0.8rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.05em !important;
-    padding: 0.3rem 0.75rem !important;
-}
-
 ::deep .header-icon-btn.header-icon-btn {
     color: rgba(255, 255, 255, 0.85) !important;
 }

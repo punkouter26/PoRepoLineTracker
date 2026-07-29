@@ -64,10 +64,9 @@ public static class ConfigKeys
         public const string EnableConsoleExporters = "EnableConsoleExporters";
     }
 
-    /// <summary>Runtime strategy selectors (GoF Strategy — see the mock-data banner, Rule 4.2).</summary>
+    /// <summary>Runtime strategy selectors (GoF Strategy).</summary>
     public static class FeatureFlags
     {
-        public const string EnableMockDataForTesting = "FeatureFlags:EnableMockDataForTesting";
         public const string EnableGitHubApi = "FeatureFlags:EnableGitHubApi";
         public const string EnableBackgroundAnalysis = "FeatureFlags:EnableBackgroundAnalysis";
         public const string EnableOpenTelemetryExport = "FeatureFlags:EnableOpenTelemetryExport";

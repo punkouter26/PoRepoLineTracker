@@ -17,7 +17,7 @@ namespace PoRepoLineTracker.API.Middleware;
 /// - /diag (diagnostics — requires auth internally)
 /// - /auth/* (login/logout endpoints)
 /// - /api/feature-flags (anonymous — UI calls this on every page load
-///   to decide which login button and badges to render)
+///   to decide which login button to render)
 /// - /login (Blazor login page)
 /// - /_framework/* (Blazor WASM framework files)
 /// - /css/*, /favicon.png, /icon-192.png, /manifest.json (static assets)
@@ -39,7 +39,7 @@ public class ProductionAuthEnforcementMiddleware
         "/auth/logout",
         "/auth/me",
         // Anonymous endpoint the Blazor UI calls on every render:
-        //   /api/feature-flags  → tells the UI which buttons / badges to show
+        //   /api/feature-flags  → tells the UI which buttons to show
         "/api/feature-flags",
         "/login",
         "/_framework",

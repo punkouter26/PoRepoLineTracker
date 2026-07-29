@@ -25,7 +25,7 @@ public class ConfigKeysTests
         { ConfigKeys.Microsoft.AllowedTenants, "Microsoft:AllowedTenants" },
         { ConfigKeys.Telemetry.AppInsightsConnectionString, "APPLICATIONINSIGHTS_CONNECTION_STRING" },
         { ConfigKeys.Telemetry.OtlpEndpoint, "OpenTelemetry:OtlpEndpoint" },
-        { ConfigKeys.FeatureFlags.EnableMockDataForTesting, "FeatureFlags:EnableMockDataForTesting" },
+        
         { ConfigKeys.ChartSettings.MaxLinesOfCode, "ChartSettings:MaxLinesOfCode" },
     };
 

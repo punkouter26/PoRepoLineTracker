@@ -48,7 +48,7 @@ Authoritative rules for `Po{Name}` .NET solutions. Deviations must be recorded i
 ## 4. UI/UX & Blazor WASM
 
 - **4.1 Layout Contract** — Header: left = branding, center = actions, right = session/logout.
-- **4.2 State Visibility** — Persistent "USING MOCK DATA" banner whenever local mock data is active.
+- **4.2 State Visibility** — Persistent "USING MOCK DATA" banner whenever local mock data is active. *(Deprecated — no mock-data plumbing is wired in this app.)*
 - **4.3 Styles** — Inline styles forbidden. Scoped CSS (`.razor.css`) + `:root` custom properties for design tokens. Light/dark themes follow the system setting dynamically.
 - **4.4 Performance** — `Virtualize` for long lists. WebGL/Canvas for heavy visuals.
 - **4.5 Accessibility** — WCAG 2.2 AA on every interactive element.

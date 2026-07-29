@@ -83,19 +83,9 @@ public sealed class HealthAndAuthApiTests
     [SkippableFact]
     public async Task FeatureFlags_Anonymous_Returns_200()
     {
-        // MainLayout reads this before any session exists, to decide on the mock-data banner.
+        // MainLayout reads this before any session exists, to drive login-button visibility.
         var response = await E2EApiClient.GetAsync("/api/feature-flags");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [SkippableFact]
-    public async Task FeatureFlags_ExposesTheMockDataFlag()
-    {
-        // Rule 4.2 — the banner is driven by this flag, so its name is part of the contract.
-        var response = await E2EApiClient.GetAsync("/api/feature-flags");
-        var body = await response.Content.ReadAsStringAsync();
-
-        body.Should().Contain("enableMockDataForTesting");
     }
 }

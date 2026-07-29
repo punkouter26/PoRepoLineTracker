@@ -243,6 +243,14 @@ a:focus-visible, .btn-link:focus-visible {
     background: var(--bg-primary) !important;
     border-right: 1px solid var(--border-light);
     box-shadow: 2px 0 12px rgba(103, 80, 164, 0.06);
+    /* Desktop collapse animates the same way the mobile drawer does so the toggle feels
+       consistent across breakpoints. Width, not translateX — desktop layout is grid-based,
+       and shrinking the track to 0 lets .rz-body stretch into the freed column instead of
+       leaving a dead gutter. min-width/max-width 0 is what lets the flex/grid item actually
+       shrink; the explicit width above would otherwise cap it at 220px. */
+    transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 0 !important;
+    max-width: none !important;
 }
 
 .rz-sidebar-content {
@@ -258,6 +266,23 @@ a:focus-visible, .btn-link:focus-visible {
     min-height: unset !important;
     overflow-y: auto;
     background: var(--bg-secondary);
+    transition: grid-column-start 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Desktop collapsed state: when the user has toggled the sidebar shut on a wide viewport,
+   collapse its grid track to 0 and re-anchor the body to column 1. Without the
+   grid-column-start override, .rz-body stays glued to column 2 and the layout leaves a
+   220px gutter where the sidebar used to be — which is exactly the "click does nothing"
+   symptom the bug report describes. */
+.rz-sidebar.app-sidebar--collapsed {
+    width: 0 !important;
+    border-right: none !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+}
+
+.rz-layout:has(.rz-sidebar.app-sidebar--collapsed) .rz-body {
+    grid-column-start: 1 !important;
 }
 
 /* The single content well. Fluid padding replaces the old fixed `rz-p-4`, and

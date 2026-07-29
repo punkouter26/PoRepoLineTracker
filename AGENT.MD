@@ -104,7 +104,7 @@ Current counts (test cases, Theory rows included): **Unit 162 · Integration 67 
 
 - **GoF Facade**: `ApiEndpointExtensions` unifies all endpoint registration
 - **GoF Template Method**: `PrefixKeyVaultSecretManager` customizes secret loading
-- **GoF Strategy**: Mock data banner uses runtime feature flag switching
+- **GoF Strategy**: Feature flags (`/api/feature-flags`) drive runtime UI toggles like the GitHub login button
 - **SOLID — DIP**: All services registered by application-layer interfaces
 - **SOLID — OCP**: Auth providers are additive without modifying existing ones
 - **SOLID — ISP**: Each endpoint group has its own mapping method (VSA)

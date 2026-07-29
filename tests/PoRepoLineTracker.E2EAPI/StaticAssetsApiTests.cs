@@ -54,7 +54,6 @@ public sealed class StaticAssetsApiTests
     public static TheoryData<string, string> ExtractedComponentClasses() => new()
     {
         { "login-cta-btn", "Login.razor.css" },
-        { "mock-data-banner", "MockDataBanner.razor.css" },
         { "nav-section-label", "NavMenu.razor.css" },
         { "settings-title", "Settings.razor.css" },
         { "chart-display-card__title", "ChartDisplayModeCard.razor.css" },

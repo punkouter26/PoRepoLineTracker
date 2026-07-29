@@ -28,16 +28,16 @@ public class RealAuthFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                { "GitHub:ClientId", "" },
-                { "GitHub:ClientSecret", "" },
+                { "GitHub:ClientId", "test-client-id" },
+                { "GitHub:ClientSecret", "test-client-secret" },
                 { "GitHub:PAT", KnownSecret },
                 { "KeyVault:Uri", "" },
                 { "OpenTelemetry:OtlpEndpoint", "" },
                 { "EnableConsoleExporters", "false" },
                 { "APPLICATIONINSIGHTS_CONNECTION_STRING", "" },
                 { "ApplicationInsights:ConnectionString", "" },
-                { "Microsoft:ClientId", "" },
-                { "Microsoft:ClientSecret", "" },
+                { "Microsoft:ClientId", "test-microsoft-client-id" },
+                { "Microsoft:ClientSecret", "test-microsoft-client-secret" },
                 { "AzureTableStorage:ConnectionString", "UseDevelopmentStorage=true" },
                 { "GitHub:LocalReposPath", CustomWebApplicationFactory.TestRepoRoot }
             });
@@ -215,9 +215,11 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
         var response = await CreateClient().SendAsync(Get("/diag", user: "alice"));
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
 
-        var clientId = json.GetProperty("secrets").GetProperty(ConfigKeys.GitHub.ClientId);
-        clientId.GetProperty("configured").GetBoolean().Should().BeFalse();
-        clientId.GetProperty("value").GetString().Should().BeEmpty();
+        // TablesConnectionString is left empty in the test fixture alongside the other
+        // optional secrets — pick any key whose value is "" by design.
+        var tablesConn = json.GetProperty("secrets").GetProperty(ConfigKeys.AzureTableStorage.TablesConnectionString);
+        tablesConn.GetProperty("configured").GetBoolean().Should().BeFalse();
+        tablesConn.GetProperty("value").GetString().Should().BeEmpty();
     }
 
     [Fact]

@@ -89,18 +89,12 @@ internal static class SettingsEndpoints
         .WithName("GetUserFileExtensions");
 
         // Public endpoint: exposes client-visible feature flags so the Blazor WASM app
-        // can adapt its UI without requiring additional auth (e.g. MockDataBanner).
-        // Strategy Pattern (GoF): flags act as runtime strategy selectors.
-        endpoints.MapGet("/api/feature-flags", (IConfiguration configuration, IEnumerable<IMockable> mockableServices) =>
+        // can adapt its UI without requiring additional auth. Strategy Pattern (GoF):
+        // flags act as runtime strategy selectors.
+        endpoints.MapGet("/api/feature-flags", (IConfiguration configuration) =>
         {
-            // Mock mode is on when the feature flag is set OR any IMockable service is registered,
-            // so the "USING MOCK DATA" badge tracks the actual wiring, not just configuration.
-            var usingMockData = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableMockDataForTesting)
-                                || mockableServices.Any();
-
             var flags = new
             {
-                EnableMockDataForTesting = usingMockData,
                 EnableGitHubApi = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableGitHubApi),
                 EnableBackgroundAnalysis = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableBackgroundAnalysis),
                 EnableOpenTelemetryExport = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableOpenTelemetryExport)

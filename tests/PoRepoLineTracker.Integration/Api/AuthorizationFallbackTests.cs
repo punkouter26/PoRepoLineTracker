@@ -78,7 +78,7 @@ public class AuthorizationFallbackTests
     [Fact]
     public async Task FeatureFlags_Anonymous_Returns_200()
     {
-        // MainLayout reads this before a session exists, to decide on the mock-data banner.
+        // MainLayout reads this before a session exists, to drive login-button visibility.
         var response = await _anonymous.GetAsync("/api/feature-flags");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
