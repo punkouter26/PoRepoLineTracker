@@ -1,23 +1,47 @@
 #!/bin/bash
-# Azure App Service startup script for PoRepoLineTracker
-# Ensures git is available in the container before starting the .NET application.
-# The built-in DOTNETCORE|10.0 runtime image does not include git by default.
+# Azure App Service startup script for PoRepoLineTracker.
+#
+# The built-in DOTNETCORE|10.0 runtime image ships without git, but GitClient shells out to
+# the git CLI for clone/pull (LibGit2Sharp is used only for local object-store reads, because
+# its native network stack SIGABRTs in this container). Without git, every analysis fails with
+# "git is not installed or not in PATH".
+#
+# This script only takes effect once it is the App Service startup command:
+#   az webapp config set -n <app> -g <rg> --startup-file "/home/site/wwwroot/startup.sh"
 
-set -e
+# NOTE: deliberately NOT `set -e`. A failed apt-get must not stop the site from booting —
+# a running site with broken analysis beats a container that never starts.
 
-# Install git if not already present
+WWWROOT=/home/site/wwwroot
+
 if ! command -v git &> /dev/null; then
     echo "[startup] git not found — installing via apt-get..."
-    apt-get update -qq
-    apt-get install -y --no-install-recommends git
-    rm -rf /var/lib/apt/lists/*
-    echo "[startup] git installed: $(git --version)"
+    if apt-get update -qq && apt-get install -y --no-install-recommends git; then
+        rm -rf /var/lib/apt/lists/*
+        echo "[startup] git installed: $(git --version)"
+    else
+        echo "[startup] WARNING: git install FAILED. The site will start, but repository" >&2
+        echo "[startup] analysis will report 'git is not installed or not in PATH'." >&2
+    fi
 else
     echo "[startup] git already available: $(git --version)"
 fi
 
-# Configure git safe directory for the repos path (avoids 'dubious ownership' errors)
-git config --global --add safe.directory '*'
+# Avoids 'dubious ownership' when a clone is owned by a different uid than the app process.
+git config --global --add safe.directory '*' 2>/dev/null || true
 
-echo "[startup] Starting PoRepoLineTracker.Api..."
-exec dotnet /home/site/wwwroot/PoRepoLineTracker.Api.dll
+# Resolve the entry assembly by discovery rather than a hard-coded name: the project was
+# renamed .Api -> .API, and pinning either spelling breaks whichever build is deployed.
+DLL=""
+for candidate in "$WWWROOT/PoRepoLineTracker.API.dll" "$WWWROOT/PoRepoLineTracker.Api.dll"; do
+    [ -f "$candidate" ] && { DLL="$candidate"; break; }
+done
+
+if [ -z "$DLL" ]; then
+    echo "[startup] FATAL: no PoRepoLineTracker entry assembly found in $WWWROOT" >&2
+    ls -1 "$WWWROOT"/*.dll 2>/dev/null | head -20 >&2
+    exit 1
+fi
+
+echo "[startup] Starting $DLL ..."
+exec dotnet "$DLL"
