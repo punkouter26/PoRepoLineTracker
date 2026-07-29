@@ -13,23 +13,23 @@ param logAnalyticsName string
 @description('Name of the App Service (Web App)')
 param webAppName string
 
-@description('Name of the F1 (Free) Linux App Service Plan to create in this resource group')
+@description('Name of the App Service Plan that the web app binds to. Lives in the PoShared RG as a SHARED plan (consolidation target — see ADR-031). infra/resources.bicep only REFERENCES this plan via an `existing` resource; it does NOT create it.')
 param appServicePlanName string
 
 @description('Name of the Key Vault in the PoShared resource group')
 param keyVaultName string
 
-@description('Name of the PoShared resource group containing shared services')
+@description('Name of the PoShared resource group containing shared services and the App Service Plan')
 param sharedResourceGroupName string
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
-// App Service Plan (B1 Basic, Linux) and the App Service are created in THIS resource group
-// (PoRepoLineTracker), alongside the storage account — see the resources below.
-// NOTE: F1 (Free) was attempted first but this subscription's Free-tier compute pool (shared
-// per subscription/region) is already exhausted by other free apps in West US 2, so a new F1
-// plan immediately hit QuotaExceeded. B1 is a dedicated tier outside that pool — it runs
-// reliably and supports Always On. App Insights, Key Vault, and Log Analytics remain in the
-// shared PoShared RG and are referenced as existing.
+// App Service Plan (B1 Basic, Linux) is a SHARED resource in the PoShared RG; this template
+// only references it. The App Service is created in THIS resource group (PoRepoLineTracker),
+// alongside the storage account — see the resources below. App Insights, Key Vault, and Log
+// Analytics remain in the shared PoShared RG and are referenced as existing. The legacy
+// in-RG plan (asp-porepolinetracker) still hosts the existing live site; automated
+// re-parenting is blocked by Azure's home-stamp affinity (extended error 59602 on
+// cross-stamp serverFarmId patch).
 // ═════════════════════════════════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────
@@ -67,21 +67,14 @@ resource sharedKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 }
 
 // ─────────────────────────────────────────────
-// App Service Plan — B1 (Basic), Linux. Created in this resource group.
+// App Service Plan (existing, shared) — B1 (Basic), Linux. Lives in the PoShared RG.
+// This is an `existing` reference; the plan is NOT created here. Cross-RG reference is
+// required because the consolidation target lives in PoShared.
 // ─────────────────────────────────────────────
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
   name: appServicePlanName
-  location: webAppLocation
-  kind: 'linux'
-  sku: {
-    name: 'B1'
-    tier: 'Basic'
-    capacity: 1
-  }
-  properties: {
-    reserved: true // required for Linux plans
-  }
+  scope: resourceGroup(sharedResourceGroupName)
 }
 
 // ─────────────────────────────────────────────

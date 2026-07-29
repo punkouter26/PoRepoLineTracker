@@ -13,7 +13,13 @@ var storageAccountName = 'stporepolinetracker'  // Existing storage account in P
 var appInsightsName = 'poappideinsights8f9c9a4e'  // Shared App Insights in PoShared RG
 var logAnalyticsName = 'PoShared-LogAnalytics'  // Shared Log Analytics in PoShared RG
 var webAppName = 'app-porepolinetracker'  // App Service in PoRepoLineTracker RG
-var appServicePlanName = 'asp-porepolinetracker'  // B1 (Basic) Linux App Service Plan, created in PoRepoLineTracker RG
+// App Service Plan name — references the SHARED plan owned by PoShared RG (consolidation
+// target — see ADR-031). infra/resources.bicep only REFERENCES the existing plan via
+// an `existing` resource; it does NOT create, update, or delete it. The legacy in-RG
+// plans (asp-porepolinetracker) still exist and still host the existing live site until
+// a manual cross-stamp migration is performed (Azure blocks automated re-parenting
+// across home stamps with extended error 59602).
+var appServicePlanName = 'asp-PoShared-b1'
 var keyVaultName = 'kv-poshared'  // Existing Key Vault in PoShared RG
 
 // Reference the app resource group (must already exist or be created separately)
