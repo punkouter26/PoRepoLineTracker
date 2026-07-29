@@ -59,6 +59,14 @@
     font-weight: 600 !important;
 }
 
+/* Secondary provider: same footprint, quieter surface so GitHub stays the primary action. */
+.login-canvas ::deep .login-cta-btn--secondary.login-cta-btn--secondary {
+    background: transparent !important;
+    border: 1px solid var(--rz-base-300) !important;
+    color: var(--rz-text-color) !important;
+    margin-top: -0.75rem;
+}
+
 .login-canvas ::deep .login-footnote.login-footnote {
     color: var(--rz-text-disabled-color);
 }

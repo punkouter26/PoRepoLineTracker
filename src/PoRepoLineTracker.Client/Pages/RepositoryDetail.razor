@@ -1,4 +1,4 @@
-@page "/repositories/{RepositoryId:guid}"
+@page "/repositories/{Id:guid}"
 @attribute [Authorize]
 @implements IAsyncDisposable
 @inject HttpClient Http
@@ -248,7 +248,17 @@
 </RadzenStack>
 
 @code {
-    [Parameter] public RepositoryId RepositoryId { get; set; }
+    /// <summary>
+    /// The Blazor router only materialises its built-in route-constraint types, so a
+    /// {Id:guid} segment always arrives as a <see cref="Guid"/>. Declaring the parameter as
+    /// the strongly-typed <see cref="Domain.Models.RepositoryId"/> made the router try to
+    /// assign a Guid to it, throwing InvalidCastException and blanking the page. Bind the raw
+    /// Guid, then wrap it once here so the rest of the component keeps the domain type
+    /// (Rule 1.5) and cannot transpose it with a UserId.
+    /// </summary>
+    [Parameter] public Guid Id { get; set; }
+
+    private RepositoryId RepositoryId => new(Id);
 
     private GitHubRepository? _repo;
     private List<DailyLineCountDto>? _lineHistory;

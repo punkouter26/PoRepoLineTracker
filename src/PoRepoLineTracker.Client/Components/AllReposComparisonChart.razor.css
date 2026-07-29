@@ -42,17 +42,17 @@
     width: 100% !important;
 }
 
-::deep .arc-tooltip.arc-tooltip {
-    background: rgba(21, 21, 24, 0.96) !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    border-radius: 10px !important;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
-    color: #fff !important;
-}
-
-/* ─── Tooltip body (plain markup inside a Radzen template) ────────────────── */
+/* ─── Tooltip body (plain markup inside a Radzen template) ──────────────────
+   The former .arc-tooltip rule is gone with the class= that fed it: Radzen renders the
+   tooltip chrome into its own portal, so a scoped ::deep rule never reached it anyway.
+   The surface styling now rides on .arc-tip, which IS inside our template. */
 
 ::deep .arc-tip {
+    background: rgba(21, 21, 24, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    color: #fff;
     padding: 0.35rem 0.45rem;
     min-width: 170px;
 }

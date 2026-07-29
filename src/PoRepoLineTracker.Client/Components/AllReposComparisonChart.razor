@@ -90,7 +90,11 @@
                 <RadzenGridLines Visible="true" />
             </RadzenValueAxis>
             <RadzenLegend Visible="false" />
-            <RadzenChartTooltipOptions Shared="false" class="arc-tooltip" />
+            @* No class= here: RadzenChartTooltipOptions is a config component, not a rendered
+               element — it declares no [Parameter] named "class" and does not capture unmatched
+               attributes, so passing one threw InvalidOperationException and killed the render
+               tree. Tooltip styling lives on .arc-tip inside the tooltip template instead. *@
+            <RadzenChartTooltipOptions Shared="false" />
         </RadzenChart>
 
         <div class="arc-legend">
