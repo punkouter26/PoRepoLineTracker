@@ -28,7 +28,7 @@ public sealed class UserPreferencesClient(HttpClient httpClient)
             if (_cached is not null)
                 return _cached;
 
-            _cached = await httpClient.GetFromJsonAsync<UserPreferences>("/api/settings/user-preferences", cancellationToken)
+            _cached = await httpClient.GetAppJsonAsync<UserPreferences>("/api/settings/user-preferences", cancellationToken)
                 ?? new UserPreferences();
 
             return _cached;
@@ -41,14 +41,14 @@ public sealed class UserPreferencesClient(HttpClient httpClient)
 
     public async Task<UserPreferences> SaveAsync(UserPreferences preferences, CancellationToken cancellationToken = default)
     {
-        var response = await httpClient.PutAsJsonAsync("/api/settings/user-preferences", preferences, cancellationToken);
+        var response = await httpClient.PutAppJsonAsync("/api/settings/user-preferences", preferences, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync(cancellationToken);
             throw new InvalidOperationException($"Server returned {response.StatusCode}: {error}");
         }
 
-        var saved = await response.Content.ReadFromJsonAsync<UserPreferences>(cancellationToken)
+        var saved = await response.Content.ReadAppJsonAsync<UserPreferences>(cancellationToken)
             ?? preferences;
 
         // Invalidate cache so the next GetAsync reflects the persisted value.

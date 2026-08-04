@@ -58,7 +58,7 @@ else
     {
         try
         {
-            _files = await Http.GetFromJsonAsync<List<TopFileDto>>($"/api/repositories/{RepositoryId}/top-files?count=100");
+            _files = await Http.GetAppJsonAsync<List<TopFileDto>>($"/api/repositories/{RepositoryId}/top-files?count=100");
         }
         catch (Exception ex)
         {

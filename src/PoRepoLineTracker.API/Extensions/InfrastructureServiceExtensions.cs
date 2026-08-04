@@ -54,9 +54,19 @@ public static class InfrastructureServiceExtensions
             });
         });
 
-        // JSON case-insensitive deserialization
+        // Rule 1.2 — source-generated JSON metadata ahead of the reflection resolver.
+        //
+        // Inserting at index 0 means every type declared in AppJsonSerializerContext (i.e. every
+        // wire contract) is resolved from generated metadata; the default reflection resolver
+        // stays behind it as the tail so the dev-only client-log endpoint, whose payload carries
+        // a Dictionary<string, object>, still binds. Server-side there is no trimming benefit to
+        // removing that tail — the client is where the reflection-free path matters, and it uses
+        // AppJsonOptions.Default, which has no fallback at all.
+        //
+        // PropertyNameCaseInsensitive is no longer set here: JsonSerializerDefaults.Web (which
+        // minimal APIs already apply, and which the generated context declares) implies it.
         services.ConfigureHttpJsonOptions(options =>
-            options.SerializerOptions.PropertyNameCaseInsensitive = true);
+            options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default));
 
         // Rule 5.4 — HybridCache is the single caching abstraction. It is in-memory only here
         // (no IDistributedCache registered), which is correct for a single App Service instance

@@ -71,13 +71,13 @@ internal static class UploadEndpoints
                 if (file == null || file.Length == 0)
                 {
                     uploadLog.Warning("Upload rejected: no file sent or file length is zero.");
-                    return Results.BadRequest(new { error = "No file uploaded or file is empty." });
+                    return Results.BadRequest(new UploadError { Error = "No file uploaded or file is empty." });
                 }
 
                 if (!file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
                 {
                     uploadLog.Warning("Upload rejected: non-zip file. FileName={FileName} Length={Length}", file.FileName, file.Length);
-                    return Results.BadRequest(new { error = "Only .zip files are accepted." });
+                    return Results.BadRequest(new UploadError { Error = "Only .zip files are accepted." });
                 }
 
                 var repoName = form["repoName"].FirstOrDefault();
@@ -143,7 +143,7 @@ internal static class UploadEndpoints
                             "No .git folder found in uploaded zip for repository '{RepoName}'. TopLevelDirectories={TopLevelDirectories}",
                             repoName,
                             immediateDirs);
-                        return Results.BadRequest(new { error = "The uploaded zip does not contain a .git folder. Please upload a zip containing a complete repository with its .git folder." });
+                        return Results.BadRequest(new UploadError { Error = "The uploaded zip does not contain a .git folder. Please upload a zip containing a complete repository with its .git folder." });
                     }
 
                     uploadLog.Information("Detected repository root. RepoRoot={RepoRoot} GitPath={GitPath}", repoRoot, gitPath);
@@ -237,12 +237,12 @@ internal static class UploadEndpoints
                         repoName,
                         repository.Id);
 
-                    return Results.Created($"/api/repositories/{repository.Id}", new
+                    return Results.Created($"/api/repositories/{repository.Id}", new UploadResult
                     {
-                        id = repository.Id,
-                        name = repository.Name,
-                        owner = repository.Owner,
-                        message = "Repository uploaded successfully. Analysis is starting in the background."
+                        Id = repository.Id,
+                        Name = repository.Name,
+                        Owner = repository.Owner,
+                        Message = "Repository uploaded successfully. Analysis is starting in the background."
                     });
                 }
                 finally

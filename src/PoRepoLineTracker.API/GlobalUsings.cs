@@ -11,4 +11,5 @@ global using PoRepoLineTracker.API.Telemetry;
 global using PoRepoLineTracker.Domain.Models;
 global using PoRepoLineTracker.Shared.Models;
 global using PoRepoLineTracker.Shared.Models.Dtos;
+global using PoRepoLineTracker.Shared.Serialization;
 global using PoRepoLineTracker.Shared.Validation;

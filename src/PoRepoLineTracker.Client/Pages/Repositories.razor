@@ -529,7 +529,7 @@
     {
         try
         {
-            var all = await Http.GetFromJsonAsync<List<RepositoryLineCountHistoryDto>>("/api/repositories/allcharts/365");
+            var all = await Http.GetAppJsonAsync<List<RepositoryLineCountHistoryDto>>("/api/repositories/allcharts/365");
             if (all != null)
             {
                 _repoLatestLineCounts = all
@@ -636,7 +636,7 @@
         
         try
         {
-            var repositories = await Http.GetFromJsonAsync<List<GitHubRepository>>("/api/repositories");
+            var repositories = await Http.GetAppJsonAsync<List<GitHubRepository>>("/api/repositories");
             pageState.Repositories = repositories ?? new List<GitHubRepository>();
             Logger.LogInformation("Loaded {Count} repositories.", pageState.Repositories.Count);
         }
@@ -768,7 +768,7 @@
             {
                 try
                 {
-                    var repos = await Http.GetFromJsonAsync<List<GitHubRepository>>("/api/repositories", cts.Token);
+                    var repos = await Http.GetAppJsonAsync<List<GitHubRepository>>("/api/repositories", cts.Token);
                     if (repos == null) continue;
 
                     // For any pending repo, try to fetch live progress
@@ -777,7 +777,7 @@
                     {
                         try
                         {
-                            var prog = await Http.GetFromJsonAsync<AnalysisProgressDto>(
+                            var prog = await Http.GetAppJsonAsync<AnalysisProgressDto>(
                                 $"/api/repositories/{pending.Id}/analysis-progress", cts.Token);
                             if (prog != null && (prog.IsRunning || !string.IsNullOrEmpty(prog.ErrorMessage)))
                             {
@@ -861,7 +861,7 @@
                     // Fetch progress details from the dedicated endpoint
                     try
                     {
-                        var prog = await Http.GetFromJsonAsync<AnalysisProgressDto>(
+                        var prog = await Http.GetAppJsonAsync<AnalysisProgressDto>(
                             $"/api/repositories/{repositoryId}/analysis-progress", cts.Token);
                         if (prog != null)
                         {
@@ -874,7 +874,7 @@
                         Logger.LogDebug(progEx, "Progress poll fetch failed for {RepositoryId} — ignoring", repositoryId);
                     }
 
-                    var repos = await Http.GetFromJsonAsync<List<GitHubRepository>>("/api/repositories", cts.Token);
+                    var repos = await Http.GetAppJsonAsync<List<GitHubRepository>>("/api/repositories", cts.Token);
                     var updated = repos?.FirstOrDefault(r => r.Id == repositoryId);
 
                     if (updated?.LastAnalyzedCommitDate != null && updated.LastAnalyzedCommitDate != priorDate)

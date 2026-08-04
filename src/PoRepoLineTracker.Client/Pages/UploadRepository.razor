@@ -285,7 +285,7 @@
                 UploadResult? result = null;
                 if (!string.IsNullOrWhiteSpace(responseText))
                 {
-                    result = System.Text.Json.JsonSerializer.Deserialize<UploadResult>(responseText);
+                    result = System.Text.Json.JsonSerializer.Deserialize<UploadResult>(responseText, AppJsonOptions.Default);
                 }
 
                 var bytesMatched = bytesUploaded >= totalBytesToUpload && totalBytesToUpload > 0;
@@ -323,7 +323,7 @@
                 {
                     try
                     {
-                        var errorObj = System.Text.Json.JsonSerializer.Deserialize<UploadError>(responseText);
+                        var errorObj = System.Text.Json.JsonSerializer.Deserialize<UploadError>(responseText, AppJsonOptions.Default);
                         errorMessage = errorObj?.Error ?? errorMessage;
                     }
                     catch { /* ignore */ }
@@ -446,18 +446,8 @@
         return $"{size:0.##} {sizes[order]}";
     }
 
-    private class UploadResult
-    {
-        public RepositoryId Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Owner { get; set; } = string.Empty;
-        public string Message { get; set; } = string.Empty;
-    }
-
-    private class UploadError
-    {
-        public string? Error { get; set; }
-    }
+    // UploadResult / UploadError moved to Shared (Rule 2.2): the API returned anonymous types that
+    // these two mirrored by hand, and an anonymous type cannot be source-generated (Rule 1.2).
 
     private sealed class ProgressStreamContent(Stream source, long totalBytes, Func<long, long, Task> onProgress, int bufferSize) : HttpContent
     {

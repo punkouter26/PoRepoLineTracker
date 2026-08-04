@@ -50,7 +50,7 @@ internal static class DiagnosticsEndpoints
     /// Non-secret keys (table names, endpoints, environment) are returned verbatim because the
     /// point of /diag is confirming a deploy read the settings it was supposed to.
     /// </summary>
-    internal static object BuildMaskedConfiguration(IConfiguration configuration, IWebHostEnvironment env)
+    internal static MaskedConfigurationResponse BuildMaskedConfiguration(IConfiguration configuration, IWebHostEnvironment env)
     {
         // Secrets are reported as Configured yes/no plus a masked hint, never a usable value.
         var secrets = new[]
@@ -78,13 +78,17 @@ internal static class DiagnosticsEndpoints
             ConfigKeys.GitHub.CallbackPath,
         };
 
-        return new
+        return new MaskedConfigurationResponse
         {
             Environment = env.EnvironmentName,
             Timestamp = DateTime.UtcNow,
             Secrets = secrets.ToDictionary(
                 key => key,
-                key => new { Configured = !string.IsNullOrEmpty(configuration[key]), Value = Mask(configuration[key]) }),
+                key => new MaskedSecret
+                {
+                    Configured = !string.IsNullOrEmpty(configuration[key]),
+                    Value = Mask(configuration[key])
+                }),
             Configuration = nonSecrets.ToDictionary(
                 key => key,
                 key => configuration[key] ?? string.Empty)
@@ -130,32 +134,32 @@ internal static class DiagnosticsEndpoints
         if (!string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.Pat])) configuredCount++;
         if (!string.IsNullOrEmpty(configuration[ConfigKeys.Telemetry.OtlpEndpoint])) configuredCount++;
 
-        var externalConnections = new
+        var externalConnections = new ExternalConnectionsData
         {
-            Azure = new[]
-            {
-                new { Name = "Azure Key Vault", Type = "Secret Storage", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.KeyVault.Uri]) ? "Configured" : "Not configured", Purpose = "Securely stores secrets" },
-                new { Name = "Azure Table Storage", Type = "Data Storage", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ServiceUrl]) || !string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ConnectionString]) ? "Configured" : "Not configured", Purpose = "Stores repository analysis data" },
-                new { Name = "Azure Application Insights", Type = "Telemetry", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.Telemetry.AppInsightsConnectionString]) ? "Configured" : "Not configured", Purpose = "Performance monitoring" }
-            },
-            GitHub = new[]
-            {
-                new { Name = "GitHub OAuth", Type = "Authentication", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.ClientId]) ? "Configured" : "Not configured", Purpose = "User authentication" },
-                new { Name = "GitHub REST API", Type = "External API", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.Pat]) ? "PAT Configured" : "Rate Limited", Purpose = "Repository data access" }
-            },
-            OpenTelemetry = new[]
-            {
-                new { Name = "OTLP Exporter", Type = "Telemetry Export", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.Telemetry.OtlpEndpoint]) ? "Configured" : "Not configured", Purpose = "Distributed tracing" }
-            }
+            Azure =
+            [
+                new ExternalConnectionInfo { Name = "Azure Key Vault", Type = "Secret Storage", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.KeyVault.Uri]) ? "Configured" : "Not configured", Purpose = "Securely stores secrets" },
+                new ExternalConnectionInfo { Name = "Azure Table Storage", Type = "Data Storage", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ServiceUrl]) || !string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ConnectionString]) ? "Configured" : "Not configured", Purpose = "Stores repository analysis data" },
+                new ExternalConnectionInfo { Name = "Azure Application Insights", Type = "Telemetry", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.Telemetry.AppInsightsConnectionString]) ? "Configured" : "Not configured", Purpose = "Performance monitoring" }
+            ],
+            GitHub =
+            [
+                new ExternalConnectionInfo { Name = "GitHub OAuth", Type = "Authentication", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.ClientId]) ? "Configured" : "Not configured", Purpose = "User authentication" },
+                new ExternalConnectionInfo { Name = "GitHub REST API", Type = "External API", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.Pat]) ? "PAT Configured" : "Rate Limited", Purpose = "Repository data access" }
+            ],
+            OpenTelemetry =
+            [
+                new ExternalConnectionInfo { Name = "OTLP Exporter", Type = "Telemetry Export", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.Telemetry.OtlpEndpoint]) ? "Configured" : "Not configured", Purpose = "Distributed tracing" }
+            ]
         };
 
-        return Results.Ok(new
+        return Results.Ok(new DiagnosticsResponse
         {
             Environment = env.EnvironmentName,
             Timestamp = DateTime.UtcNow,
             OverallHealth = report.Status.ToString(),
             ExternalConnections = externalConnections,
-            Summary = new
+            Summary = new DiagnosticsSummary
             {
                 TotalConnections = 6,
                 ConfiguredCount = configuredCount,

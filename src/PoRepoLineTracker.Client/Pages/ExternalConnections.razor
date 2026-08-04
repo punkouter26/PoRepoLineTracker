@@ -56,17 +56,17 @@
                     <RadzenText TextStyle="TextStyle.H6" class="xc-section-title">Azure Services</RadzenText>
                 </RadzenStack>
 
-                <RadzenDataGrid Data="@_diagnostics.ExternalConnections.Azure" TItem="ConnectionInfo" class="xc-grid">
+                <RadzenDataGrid Data="@_diagnostics.ExternalConnections.Azure" TItem="ExternalConnectionInfo" class="xc-grid">
                     <Columns>
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Name" Title="Service" Width="25%" />
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Type" Title="Type" Width="15%" />
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Status" Title="Status" Width="15%">
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Name" Title="Service" Width="25%" />
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Type" Title="Type" Width="15%" />
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Status" Title="Status" Width="15%">
                             <Template Context="data">
                                 <RadzenBadge BadgeStyle="@(data.Status == "Configured" ? BadgeStyle.Success : BadgeStyle.Warning)" 
                                             Text="@data.Status" />
                             </Template>
                         </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Purpose" Title="Purpose" Width="45%" />
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Purpose" Title="Purpose" Width="45%" />
                     </Columns>
                 </RadzenDataGrid>
             </RadzenStack>
@@ -80,17 +80,17 @@
                     <RadzenText TextStyle="TextStyle.H6" class="xc-section-title">GitHub Integrations</RadzenText>
                 </RadzenStack>
 
-                <RadzenDataGrid Data="@_diagnostics.ExternalConnections.GitHub" TItem="ConnectionInfo" class="xc-grid">
+                <RadzenDataGrid Data="@_diagnostics.ExternalConnections.GitHub" TItem="ExternalConnectionInfo" class="xc-grid">
                     <Columns>
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Name" Title="Service" Width="25%" />
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Type" Title="Type" Width="15%" />
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Status" Title="Status" Width="15%">
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Name" Title="Service" Width="25%" />
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Type" Title="Type" Width="15%" />
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Status" Title="Status" Width="15%">
                             <Template Context="data">
                                 <RadzenBadge BadgeStyle="@(data.Status.Contains("Configured") || data.Status.Contains("PAT") ? BadgeStyle.Success : BadgeStyle.Warning)" 
                                             Text="@data.Status" />
                             </Template>
                         </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Purpose" Title="Purpose" Width="45%" />
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Purpose" Title="Purpose" Width="45%" />
                     </Columns>
                 </RadzenDataGrid>
             </RadzenStack>
@@ -104,17 +104,17 @@
                     <RadzenText TextStyle="TextStyle.H6" class="xc-section-title">Observability</RadzenText>
                 </RadzenStack>
 
-                <RadzenDataGrid Data="@_diagnostics.ExternalConnections.OpenTelemetry" TItem="ConnectionInfo" class="xc-grid">
+                <RadzenDataGrid Data="@_diagnostics.ExternalConnections.OpenTelemetry" TItem="ExternalConnectionInfo" class="xc-grid">
                     <Columns>
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Name" Title="Service" Width="25%" />
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Type" Title="Type" Width="15%" />
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Status" Title="Status" Width="15%">
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Name" Title="Service" Width="25%" />
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Type" Title="Type" Width="15%" />
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Status" Title="Status" Width="15%">
                             <Template Context="data">
                                 <RadzenBadge BadgeStyle="@(data.Status == "Configured" ? BadgeStyle.Success : BadgeStyle.Warning)" 
                                             Text="@data.Status" />
                             </Template>
                         </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="ConnectionInfo" Property="Purpose" Title="Purpose" Width="45%" />
+                        <RadzenDataGridColumn TItem="ExternalConnectionInfo" Property="Purpose" Title="Purpose" Width="45%" />
                     </Columns>
                 </RadzenDataGrid>
             </RadzenStack>
@@ -148,7 +148,7 @@
 
         try
         {
-            _diagnostics = await Http.GetFromJsonAsync<DiagnosticsResponse>("/api/diagnostics");
+            _diagnostics = await Http.GetAppJsonAsync<DiagnosticsResponse>("/api/diagnostics");
             if (_diagnostics == null)
             {
                 _error = "Failed to load diagnostics data.";
@@ -166,34 +166,8 @@
         }
     }
 
-    public class DiagnosticsResponse
-    {
-        public string Environment { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; }
-        public string OverallHealth { get; set; } = string.Empty;
-        public ExternalConnectionsData ExternalConnections { get; set; } = new();
-        public SummaryData Summary { get; set; } = new();
-    }
-
-    public class ExternalConnectionsData
-    {
-        public List<ConnectionInfo> Azure { get; set; } = new();
-        public List<ConnectionInfo> GitHub { get; set; } = new();
-        public List<ConnectionInfo> OpenTelemetry { get; set; } = new();
-    }
-
-    public class ConnectionInfo
-    {
-        public string Name { get; set; } = string.Empty;
-        public string Type { get; set; } = string.Empty;
-        public string Status { get; set; } = string.Empty;
-        public string Purpose { get; set; } = string.Empty;
-    }
-
-    public class SummaryData
-    {
-        public int TotalConnections { get; set; }
-        public int ConfiguredCount { get; set; }
-        public string ApplicationPurpose { get; set; } = string.Empty;
-    }
+    // DiagnosticsResponse / ExternalConnectionsData / ExternalConnectionInfo / DiagnosticsSummary used to
+    // be declared here, as a hand-maintained mirror of the anonymous types the API returned —
+    // nothing but a passing integration test kept the two in step. They are now one contract in
+    // Shared (Rule 2.2), which is also what lets the payload be source-generated (Rule 1.2).
 }

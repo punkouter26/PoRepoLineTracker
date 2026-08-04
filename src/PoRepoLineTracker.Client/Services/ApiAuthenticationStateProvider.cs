@@ -32,7 +32,7 @@ public sealed class ApiAuthenticationStateProvider : AuthenticationStateProvider
 
             if (response.IsSuccessStatusCode)
             {
-                _cachedUser = await response.Content.ReadFromJsonAsync<AuthResponse>();
+                _cachedUser = await response.Content.ReadAppJsonAsync<AuthResponse>();
 
                 if (_cachedUser?.IsAuthenticated == true && !string.IsNullOrEmpty(_cachedUser.UserId))
                 {

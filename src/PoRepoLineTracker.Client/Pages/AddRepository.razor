@@ -98,7 +98,7 @@
             
             if (response.IsSuccessStatusCode)
             {
-                var gitHubRepos = await response.Content.ReadFromJsonAsync<List<GitHubUserRepositoryDto>>();
+                var gitHubRepos = await response.Content.ReadAppJsonAsync<List<GitHubUserRepositoryDto>>();
                 // Sort repositories alphabetically by name
                 pageState.GitHubUserRepositories = gitHubRepos?.OrderBy(r => r.Name).ToList() ?? new List<GitHubUserRepositoryDto>();
                 Logger.LogInformation("Loaded {Count} GitHub user repositories.", pageState.GitHubUserRepositories.Count);
@@ -226,7 +226,7 @@
                 await Task.Delay(500);
 
                 Logger.LogInformation("Reading response content as JSON...");
-                var bulkResult = await response.Content.ReadFromJsonAsync<BulkAddResult>();
+                var bulkResult = await response.Content.ReadAppJsonAsync<BulkAddResult>();
 
                 var addedCount = bulkResult?.Added.Count ?? 0;
                 var alreadyTrackedCount = bulkResult?.AlreadyTracked.Count ?? 0;
