@@ -311,7 +311,7 @@
     {
         try
         {
-            var repos = await Http.GetAppJsonAsync<List<GitHubRepository>>("/api/repositories");
+            var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository);
             _repo = repos?.FirstOrDefault(r => r.Id == RepositoryId);
             if (_repo != null)
             {
@@ -363,7 +363,7 @@
         StateHasChanged();
         try
         {
-            _lineHistory = await Http.GetAppJsonAsync<List<DailyLineCountDto>>($"/api/repositories/{RepositoryId}/linehistory/{days}");
+            _lineHistory = await Http.GetAppJsonAsync($"/api/repositories/{RepositoryId}/linehistory/{days}", AppJsonSerializerContext.Default.ListDailyLineCountDto);
             if (_lineHistory?.Any() == true)
                 _repoLatestLines = _lineHistory.OrderByDescending(d => d.Date).First().TotalLines;
             else if (_repo?.LastAnalyzedCommitDate == null)
@@ -387,7 +387,7 @@
     {
         try
         {
-            _extensions = await Http.GetAppJsonAsync<List<FileExtensionPercentageDto>>($"/api/repositories/{RepositoryId}/file-extension-percentages");
+            _extensions = await Http.GetAppJsonAsync($"/api/repositories/{RepositoryId}/file-extension-percentages", AppJsonSerializerContext.Default.ListFileExtensionPercentageDto);
         }
         catch (Exception ex)
         {
@@ -399,7 +399,7 @@
     {
         try
         {
-            _topFiles = await Http.GetAppJsonAsync<List<TopFileDto>>($"/api/repositories/{RepositoryId}/top-files?count=10");
+            _topFiles = await Http.GetAppJsonAsync($"/api/repositories/{RepositoryId}/top-files?count=10", AppJsonSerializerContext.Default.ListTopFileDto);
         }
         catch (Exception ex)
         {
@@ -477,7 +477,7 @@
             {
                 try
                 {
-                    var repos = await Http.GetAppJsonAsync<List<GitHubRepository>>("/api/repositories", cts.Token);
+                    var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository, cts.Token);
                     var updated = repos?.FirstOrDefault(r => r.Id == RepositoryId);
                     if (updated?.LastAnalyzedCommitDate != null && updated.LastAnalyzedCommitDate != priorDate)
                     {

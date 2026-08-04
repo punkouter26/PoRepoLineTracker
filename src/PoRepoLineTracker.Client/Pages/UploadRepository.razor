@@ -285,7 +285,7 @@
                 UploadResult? result = null;
                 if (!string.IsNullOrWhiteSpace(responseText))
                 {
-                    result = System.Text.Json.JsonSerializer.Deserialize<UploadResult>(responseText, AppJsonOptions.Default);
+                    result = System.Text.Json.JsonSerializer.Deserialize(responseText, AppJsonSerializerContext.Default.UploadResult);
                 }
 
                 var bytesMatched = bytesUploaded >= totalBytesToUpload && totalBytesToUpload > 0;
@@ -323,7 +323,7 @@
                 {
                     try
                     {
-                        var errorObj = System.Text.Json.JsonSerializer.Deserialize<UploadError>(responseText, AppJsonOptions.Default);
+                        var errorObj = System.Text.Json.JsonSerializer.Deserialize(responseText, AppJsonSerializerContext.Default.UploadError);
                         errorMessage = errorObj?.Error ?? errorMessage;
                     }
                     catch { /* ignore */ }

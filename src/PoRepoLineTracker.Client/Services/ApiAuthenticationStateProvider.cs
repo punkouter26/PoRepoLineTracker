@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
 using PoRepoLineTracker.Shared.Models;
+using PoRepoLineTracker.Shared.Serialization;
 
 namespace PoRepoLineTracker.Client.Services;
 
@@ -32,7 +33,7 @@ public sealed class ApiAuthenticationStateProvider : AuthenticationStateProvider
 
             if (response.IsSuccessStatusCode)
             {
-                _cachedUser = await response.Content.ReadAppJsonAsync<AuthResponse>();
+                _cachedUser = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.AuthResponse);
 
                 if (_cachedUser?.IsAuthenticated == true && !string.IsNullOrEmpty(_cachedUser.UserId))
                 {

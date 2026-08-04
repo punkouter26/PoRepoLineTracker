@@ -83,8 +83,8 @@ internal sealed class AntiforgeryHandler(IServiceProvider services) : Delegating
             // A bare HttpClient, not the one this handler is attached to — routing the fetch back
             // through the pipeline would re-enter SendAsync and deadlock on _gate.
             var http = services.GetRequiredService<IHttpClientFactory>().CreateClient("ApiRaw");
-            var response = await http.GetFromJsonAsync<AntiforgeryTokenResponse>(
-                "/api/antiforgery/token", AppJsonOptions.Default, cancellationToken);
+            var response = await http.GetFromJsonAsync(
+                "/api/antiforgery/token", AppJsonSerializerContext.Default.AntiforgeryTokenResponse, cancellationToken);
 
             _token = response?.Token;
             return _token;

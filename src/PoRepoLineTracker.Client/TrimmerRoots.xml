@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Trimmer roots for the WASM client (Rule 1.2).
+
+  Blazor reaches components, layouts and their [Parameter] setters by reflection: the router
+  activates a page from a Type, LayoutView instantiates a layout from typeof(MainLayout), and the
+  renderer assigns parameters by name. None of that is a static call the trimmer can follow, which
+  is exactly what produced the historical 'CtorNotLocated' failure for MainLayout when trimming was
+  first attempted (see AGENT.MD).
+
+  Rooting these two assemblies whole is deliberate rather than lazy. They are the small part of the
+  output — the size that matters is the framework and Radzen.Blazor, which stay fully trimmed —
+  and a per-type root list would have to be edited every time a page or component is added, with
+  the failure mode being a runtime error in the browser rather than a build break.
+
+  Shared is rooted for the same reason at one remove: its DTOs are reached through generated JSON
+  metadata, and its strongly-typed IDs carry JsonConverter attributes instantiated by the
+  serializer.
+-->
+<linker>
+  <assembly fullname="PoRepoLineTracker.Client" preserve="all" />
+  <assembly fullname="PoRepoLineTracker.Shared" preserve="all" />
+</linker>

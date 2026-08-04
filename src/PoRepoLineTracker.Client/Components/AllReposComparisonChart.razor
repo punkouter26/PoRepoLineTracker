@@ -184,7 +184,7 @@
         StateHasChanged();
         try
         {
-            var result = await Http.GetAppJsonAsync<List<RepositoryLineCountHistoryDto>>($"/api/repositories/allcharts/{days}");
+            var result = await Http.GetAppJsonAsync($"/api/repositories/allcharts/{days}", AppJsonSerializerContext.Default.ListRepositoryLineCountHistoryDto);
             _historyData = result ?? [];
         }
         catch (Exception ex)

@@ -4,12 +4,28 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- AOT and trimming are BOTH disabled: this app activates Blazor components and
-         (de)serializes JSON via reflection. Trimming strips the reflected constructors/metadata
-         (observed at runtime as 'CtorNotLocated' for MainLayout), so the published WASM must not
-         be trimmed. (Rule 6.6 asks for trimming, but it is incompatible with this app's reflection use.) -->
+    <!-- Rule 1.2 — trimming enabled.
+         The former blocker was reflection-based JSON: with the reflection resolver reachable, the
+         trimmer had to keep member metadata alive for anything that might be serialized, and the
+         published app failed at runtime with 'CtorNotLocated' for MainLayout. AppJsonSerializerContext
+         removed that resolver from the client entirely (see AppJsonOptions), so the only remaining
+         reflection is Blazor's own component activation — which the SDK roots for us, plus the
+         explicit roots in TrimmerRoots.xml for the types reached only from markup.
+         AOT stays off: it is a separate switch with a large build-time cost and no rule requiring it. -->
     <IsAotCompatible>false</IsAotCompatible>
-    <PublishTrimmed>false</PublishTrimmed>
+    <PublishTrimmed>true</PublishTrimmed>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <!-- Report every trim warning, including those originating in referenced assemblies (Radzen).
+         Without this the analyzer is silent about exactly the code most likely to break. -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <!-- IL2110/IL2111: raised against Razor-generated code for <Router NotFoundPage> and
+         <LayoutView Layout="typeof(MainLayout)">. Both are Blazor's own reflection over types
+         carrying [DynamicallyAccessedMembers], in code this project does not author and cannot
+         annotate. They are suppressed only because TrimmerRoots.xml preserves both app assemblies
+         outright, so the members the trimmer cannot prove reachable are in fact kept — remove the
+         roots and these must be un-suppressed with them. -->
+    <NoWarn>$(NoWarn);IL2110;IL2111</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,6 +40,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PoRepoLineTracker.Shared\PoRepoLineTracker.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
   </ItemGroup>
 
 </Project>

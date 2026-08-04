@@ -167,7 +167,7 @@
 
         try
         {
-            _contributors = await Http.GetAppJsonAsync<List<ContributorStatsDto>>($"/api/repositories/{RepositoryId}/contributors/{_chartDays}?topN=10");
+            _contributors = await Http.GetAppJsonAsync($"/api/repositories/{RepositoryId}/contributors/{_chartDays}?topN=10", AppJsonSerializerContext.Default.ListContributorStatsDto);
         }
         catch (Exception ex)
         {

@@ -148,7 +148,7 @@
 
         try
         {
-            _diagnostics = await Http.GetAppJsonAsync<DiagnosticsResponse>("/api/diagnostics");
+            _diagnostics = await Http.GetAppJsonAsync("/api/diagnostics", AppJsonSerializerContext.Default.DiagnosticsResponse);
             if (_diagnostics == null)
             {
                 _error = "Failed to load diagnostics data.";

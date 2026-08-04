@@ -98,7 +98,7 @@
             
             if (response.IsSuccessStatusCode)
             {
-                var gitHubRepos = await response.Content.ReadAppJsonAsync<List<GitHubUserRepositoryDto>>();
+                var gitHubRepos = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.ListGitHubUserRepositoryDto);
                 // Sort repositories alphabetically by name
                 pageState.GitHubUserRepositories = gitHubRepos?.OrderBy(r => r.Name).ToList() ?? new List<GitHubUserRepositoryDto>();
                 Logger.LogInformation("Loaded {Count} GitHub user repositories.", pageState.GitHubUserRepositories.Count);
@@ -212,7 +212,9 @@
             Logger.LogInformation("Making POST request to /api/repositories/bulk with {Count} repositories", repositoriesToAdd.Count);
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/repositories/bulk")
             {
-                Content = JsonContent.Create(repositoriesToAdd)
+                // JsonContent.Create's options-taking overload is RequiresUnreferencedCode; the
+                // JsonTypeInfo one is the trim-safe form (Rule 1.2).
+                Content = JsonContent.Create(repositoriesToAdd, AppJsonSerializerContext.Default.ListBulkRepositoryDto)
             };
             var response = await Http.SendAsync(request, _addCts!.Token);
             
@@ -226,7 +228,7 @@
                 await Task.Delay(500);
 
                 Logger.LogInformation("Reading response content as JSON...");
-                var bulkResult = await response.Content.ReadAppJsonAsync<BulkAddResult>();
+                var bulkResult = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.BulkAddResult);
 
                 var addedCount = bulkResult?.Added.Count ?? 0;
                 var alreadyTrackedCount = bulkResult?.AlreadyTracked.Count ?? 0;

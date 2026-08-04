@@ -4,8 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- Not marked trimmable: the WASM app that consumes these DTOs serializes them via
-         reflection and is published untrimmed (see .Client). -->
+    <!-- Rule 1.2 — trimmable. This became true rather than aspirational once
+         AppJsonSerializerContext replaced reflection-based serialization: the DTOs here are
+         reached through generated metadata, so the trimmer can see every member that is
+         actually used instead of having to assume all of them are. -->
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
   </PropertyGroup>
 
   <ItemGroup>

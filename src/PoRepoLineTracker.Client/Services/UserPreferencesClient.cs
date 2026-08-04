@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using PoRepoLineTracker.Domain.Models;
+using PoRepoLineTracker.Shared.Serialization;
 
 namespace PoRepoLineTracker.Client.Services;
 
@@ -28,7 +29,7 @@ public sealed class UserPreferencesClient(HttpClient httpClient)
             if (_cached is not null)
                 return _cached;
 
-            _cached = await httpClient.GetAppJsonAsync<UserPreferences>("/api/settings/user-preferences", cancellationToken)
+            _cached = await httpClient.GetAppJsonAsync("/api/settings/user-preferences", AppJsonSerializerContext.Default.UserPreferences, cancellationToken)
                 ?? new UserPreferences();
 
             return _cached;
@@ -41,14 +42,15 @@ public sealed class UserPreferencesClient(HttpClient httpClient)
 
     public async Task<UserPreferences> SaveAsync(UserPreferences preferences, CancellationToken cancellationToken = default)
     {
-        var response = await httpClient.PutAppJsonAsync("/api/settings/user-preferences", preferences, cancellationToken);
+        var response = await httpClient.PutAppJsonAsync(
+            "/api/settings/user-preferences", preferences, AppJsonSerializerContext.Default.UserPreferences, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync(cancellationToken);
             throw new InvalidOperationException($"Server returned {response.StatusCode}: {error}");
         }
 
-        var saved = await response.Content.ReadAppJsonAsync<UserPreferences>(cancellationToken)
+        var saved = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.UserPreferences, cancellationToken)
             ?? preferences;
 
         // Invalidate cache so the next GetAsync reflects the persisted value.
