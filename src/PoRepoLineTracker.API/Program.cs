@@ -148,6 +148,14 @@ namespace PoRepoLineTracker.API
             // In Development this is a no-op (GUEST mode and local testing still work).
             app.UseMiddleware<ProductionAuthEnforcementMiddleware>();
 
+            // Rule 4.2 — antiforgery on every state-changing /api endpoint.
+            //
+            // Ordered AFTER UseAuthorization deliberately: an unauthenticated POST then still
+            // answers 401 rather than 400, which is both the more useful diagnosis and what the
+            // API tier asserts. It also has to sit after UseRouting (implicit here) so that
+            // GetEndpoint() can see the SkipAntiforgery metadata for the matched endpoint.
+            app.UseMiddleware<AntiforgeryMiddleware>();
+
             // All API route mappings - MUST come BEFORE fallback file
             app.MapApiEndpoints();
 

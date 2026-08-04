@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Mvc.Testing.Handlers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -66,6 +67,31 @@ namespace PoRepoLineTracker.Integration
         /// </summary>
         internal static readonly string TestRepoRoot =
             Path.Combine(Path.GetTempPath(), $"PoRepoLineTracker.Tests-{Environment.ProcessId}");
+
+        /// <summary>
+        /// A client that performs the antiforgery token dance on state-changing calls (Rule 4.2).
+        ///
+        /// Tests that assert on write endpoints use this; tests asserting that an *unauthenticated*
+        /// write is rejected keep using <see cref="WebApplicationFactory{TEntryPoint}.CreateClient"/>,
+        /// since the point there is the 401 that authorization raises before antiforgery is reached.
+        /// </summary>
+        public HttpClient CreateAntiforgeryClient()
+        {
+            // The redirect + cookie handlers must be listed explicitly. CreateClient() adds them
+            // via WebApplicationFactoryClientOptions, but the CreateDefaultClient(handlers)
+            // overload does not — and without CookieContainerHandler the antiforgery cookie set
+            // by /api/antiforgery/token is dropped, so the token half arrives with nothing to
+            // pair against and every write answers 400.
+            //
+            // Order matters: AntiforgeryTestHandler outermost so it can add the header, and the
+            // cookie container innermost so it sees Set-Cookie from the raw server response.
+            var options = new WebApplicationFactoryClientOptions();
+            return CreateDefaultClient(
+                options.BaseAddress,
+                new AntiforgeryTestHandler(),
+                new RedirectHandler(options.MaxAutomaticRedirections),
+                new CookieContainerHandler());
+        }
 
         private UserPreferences _storedPreferences = new()
         {

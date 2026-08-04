@@ -1,4 +1,5 @@
 using PoRepoLineTracker.API.Features.AiDetection;
+using PoRepoLineTracker.API.Features.Antiforgery;
 using PoRepoLineTracker.API.Features.Auth;
 using PoRepoLineTracker.API.Features.Diagnostics;
 using PoRepoLineTracker.API.Features.GitHub;
@@ -25,6 +26,7 @@ public static class ApiEndpointExtensions
     {
         var isDevelopment = app.Environment.IsDevelopment();
 
+        app.MapAntiforgeryEndpoints();
         app.MapAuthEndpoints();
         app.MapRepositoryEndpoints(isDevelopment);
         app.MapSettingsEndpoints();

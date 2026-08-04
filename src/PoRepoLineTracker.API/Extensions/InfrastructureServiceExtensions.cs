@@ -68,6 +68,21 @@ public static class InfrastructureServiceExtensions
         services.ConfigureHttpJsonOptions(options =>
             options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default));
 
+        // Rule 4.2 — antiforgery for every state-changing endpoint (see AntiforgeryMiddleware).
+        //
+        // HeaderName is what makes this work for a JSON SPA at all: the default validator reads
+        // the request token from a form field, and none of these endpoints post a form. With a
+        // header configured the pair becomes a standard double-submit — the cookie half stays
+        // HttpOnly, and the client echoes the other half from /api/antiforgery/token.
+        services.AddAntiforgery(options =>
+        {
+            options.HeaderName = "X-CSRF-TOKEN";
+            options.Cookie.Name = "__Host-PoRepoLineTracker.Antiforgery";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        });
+
         // Rule 5.4 — HybridCache is the single caching abstraction. It is in-memory only here
         // (no IDistributedCache registered), which is correct for a single App Service instance
         // and gains an L2 for free if Redis is ever added. Its stampede protection matters more

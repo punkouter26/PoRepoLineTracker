@@ -16,6 +16,9 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" PrivateAssets="all" />
+    <!-- IHttpClientFactory: lets AntiforgeryHandler be composed into the pipeline as a named
+         client (Rule 4.2) instead of every call site constructing its own HttpClient. -->
+    <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Radzen.Blazor" />
   </ItemGroup>
 

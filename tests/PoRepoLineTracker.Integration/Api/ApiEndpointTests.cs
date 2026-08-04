@@ -20,7 +20,9 @@ public class ApiEndpointTests
     public ApiEndpointTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
+        // Antiforgery-aware (Rule 4.2): this class exercises write endpoints, which now require
+        // a token. The handler fetches one the same way the WASM client does.
+        _client = factory.CreateAntiforgeryClient();
     }
 
     // ─── Health & Diagnostics ───────────────────────────────────────────
