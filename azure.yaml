@@ -11,6 +11,6 @@ infra:
 
 services:
   api:
-    project: ./src/PoRepoLineTracker.Api
+    project: ./src/PoRepoLineTracker.API
     language: dotnet
     host: appservice

@@ -28,7 +28,8 @@ permissions:
 env:
   DOTNET_VERSION: '10.0.x'
   AZURE_WEBAPP_NAME: app-porepolinetracker
-  API_PROJECT_PATH: src/PoRepoLineTracker.Api/PoRepoLineTracker.Api.csproj
+  # Casing matters: the runner is Linux, and the project is .API (not .Api).
+  API_PROJECT_PATH: src/PoRepoLineTracker.API/PoRepoLineTracker.API.csproj
 
 jobs:
   # Compile every Bicep file to ARM on every run — fast, no Azure login, and it

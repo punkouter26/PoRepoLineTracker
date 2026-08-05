@@ -101,7 +101,7 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
       // The workflow sets this AFTER code deployment to avoid a race condition where
       // provision restarts the app before startup.sh exists in wwwroot.
       // DO NOT rely on azd provision alone to set this — run the CI/CD pipeline.
-      appCommandLine: 'dotnet PoRepoLineTracker.Api.dll'
+      appCommandLine: 'dotnet PoRepoLineTracker.API.dll'
       // B1 supports Always On — keep the app warm (avoids cold-start 5xx on first hit).
       alwaysOn: true
       ftpsState: 'Disabled'
