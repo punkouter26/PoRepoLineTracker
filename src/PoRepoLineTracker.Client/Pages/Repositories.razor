@@ -153,64 +153,11 @@
            value is read from UserPreferencesClient below and pushed by its Changed event. *@
         <AllReposComparisonChart @ref="_comparisonChart" ChartDisplayMode="@_chartDisplayMode" />
 
-        @* ─── Stats cards ────────────────────────────────────────────────────────
-           An auto-fit grid rather than a 3-column RadzenRow: the tiles reflow from 3 → 2 → 1
-           across the range on their own, without a breakpoint per step, and never leave a
-           half-empty final row. *@
-        <div class="app-dashboard app-dashboard--tiles rp-stat-grid">
-            <RadzenCard class="stat-card rp-stat rp-stat--repos">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                    <RadzenIcon Icon="folder" class="rp-stat-icon rp-stat-icon--repos" />
-                    <div class="rp-stat-body">
-                        <div class="stat-value">@pageState.Repositories.Count</div>
-                        <div class="stat-label">Repositories</div>
-                    </div>
-                </RadzenStack>
-            </RadzenCard>
-            <RadzenCard class="stat-card rp-stat rp-stat--lines">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                    <RadzenIcon Icon="code" class="rp-stat-icon rp-stat-icon--lines" />
-                    <div class="rp-stat-body">
-                        <div class="stat-value">@(_repoLatestLineCounts.Values.Sum().ToString("N0"))</div>
-                        <div class="stat-label">Total Lines</div>
-                    </div>
-                    @* The 365-day history is already in hand from LoadLatestLineCounts, so the
-                       trend costs no extra request. *@
-                    @if (TotalLinesTrend.Count > 1)
-                    {
-                        <div class="rp-stat-spark">
-                            <RadzenSparkline Data="@TotalLinesTrend"
-                                             CategoryProperty="Date"
-                                             ValueProperty="TotalLines"
-                                             Stroke="#0891b2"
-                                             Fill="rgba(8, 145, 178, 0.16)" />
-                        </div>
-                    }
-                </RadzenStack>
-            </RadzenCard>
-            <RadzenCard class="stat-card rp-stat rp-stat--analyzed">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                    <RadzenIcon Icon="check_circle" class="rp-stat-icon rp-stat-icon--analyzed" />
-                    <div class="rp-stat-body">
-                        <div class="stat-value">@AnalyzedCount</div>
-                        <div class="stat-label">Analyzed</div>
-                    </div>
-                    @* Completion at a glance — a gauge reads faster than "7" next to a count of 9. *@
-                    @if (pageState.Repositories.Count > 0)
-                    {
-                        <div class="rp-stat-gauge">
-                            <RadzenArcGauge>
-                                <RadzenArcGaugeScale Min="0" Max="@pageState.Repositories.Count"
-                                                     Step="@Math.Max(1, pageState.Repositories.Count / 4d)"
-                                                     ShowTickLabels="false" TickPosition="GaugeTickPosition.None">
-                                    <RadzenArcGaugeScaleValue Value="@AnalyzedCount" ShowValue="false" Fill="#059669" />
-                                </RadzenArcGaugeScale>
-                            </RadzenArcGauge>
-                        </div>
-                    }
-                </RadzenStack>
-            </RadzenCard>
-        </div>
+        @* ─── Stats cards ─────────────────────────────────────────────────────── *@
+        <PortfolioStatTiles RepositoryCount="@pageState.Repositories.Count"
+                            TotalLines="@_repoLatestLineCounts.Values.Sum()"
+                            AnalyzedCount="@AnalyzedCount"
+                            Trend="@TotalLinesTrend" />
 
         <RadzenCard>
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rp-searchbar">
@@ -324,101 +271,13 @@
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Status" Width="200px" Filterable="false" Sortable="false">
                         <Template Context="row">
-                            @{
-                                var prog = _analysisProgress.TryGetValue(row.Id, out var p) ? p : null;
-                            }
-                            @if (reanalyzingRepositoryId == row.Id || (prog != null && prog.IsRunning))
-                            {
-                                <RadzenStack Gap="0.25rem">
-                                    @* Step badge + spin icon *@
-                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
-                                        <RadzenIcon Icon="sync" class="spin-icon rp-sync-icon" />
-                                        <RadzenBadge BadgeStyle="@(prog?.IsStuck == true ? BadgeStyle.Danger : BadgeStyle.Info)"
-                                                     Text="@(prog?.StepName ?? "Analyzing")" />
-                                    </RadzenStack>
-
-                                    @* Detailed step description *@
-                                    @if (prog != null)
-                                    {
-                                        <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-note">
-                                            @prog.StepDescription
-                                        </RadzenText>
-
-                                        @* Progress bar — determinate when commit count is known *@
-                                        @if (prog.CommitsTotal > 0)
-                                        {
-                                            <div class="reanalysis-progress-wrap">
-                                                <RadzenProgressBar Mode="ProgressBarMode.Determinate"
-                                                                   Value="@prog.ProgressPercent"
-                                                                   class="rp-prog-bar" />
-                                            </div>
-                                            <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-sub">
-                                                @prog.CommitsProcessed / @prog.CommitsTotal commits (@prog.ProgressPercent%)
-                                            </RadzenText>
-                                        }
-                                        else
-                                        {
-                                            <div class="reanalysis-progress-wrap">
-                                                <RadzenProgressBar Mode="ProgressBarMode.Indeterminate"
-                                                                   Value="100"
-                                                                   class="rp-prog-bar" />
-                                            </div>
-                                        }
-
-                                        @* Stuck warning *@
-                                        @if (prog.IsStuck)
-                                        {
-                                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.2rem">
-                                                <RadzenIcon Icon="warning" class="rp-warn-icon" />
-                                                <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub">
-                                                    No progress in 3+ min — may be stuck
-                                                </RadzenText>
-                                            </RadzenStack>
-                                        }
-
-                                        @* Error message *@
-                                        @if (!string.IsNullOrEmpty(prog.ErrorMessage))
-                                        {
-                                            <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub" title="@prog.ErrorMessage">
-                                                Error: @(prog.ErrorMessage.Length > 40 ? prog.ErrorMessage[..40] + "…" : prog.ErrorMessage)
-                                            </RadzenText>
-                                        }
-                                    }
-                                    else if (_reanalysisStartTimes.TryGetValue(row.Id, out var startTime))
-                                    {
-                                        <div class="reanalysis-progress-wrap">
-                                            <RadzenProgressBar Mode="ProgressBarMode.Indeterminate"
-                                                               Value="100"
-                                                               class="rp-prog-bar" />
-                                        </div>
-                                        <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-note">
-                                            @GetReanalysisElapsed(startTime)
-                                        </RadzenText>
-                                    }
-                                </RadzenStack>
-                            }
-                            else if (prog != null && !string.IsNullOrEmpty(prog.ErrorMessage))
-                            {
-                                <RadzenStack Gap="0.2rem">
-                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
-                                        <RadzenIcon Icon="error_outline" class="rp-error-icon" />
-                                        <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" />
-                                    </RadzenStack>
-                                    <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub" title="@prog.ErrorMessage">
-                                        @(prog.ErrorMessage.Length > 50 ? prog.ErrorMessage[..50] + "…" : prog.ErrorMessage)
-                                    </RadzenText>
-                                </RadzenStack>
-                            }
-                            else if (!row.LastAnalyzedCommitDate.HasValue)
-                            {
-                                <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Pending" />
-                            }
-                            else
-                            {
-                                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Done" />
-                            }
+                            <AnalysisStatusCell Progress="@(_analysisProgress.TryGetValue(row.Id, out var p) ? p : null)"
+                                                IsReanalyzing="@(reanalyzingRepositoryId == row.Id)"
+                                                HasBeenAnalyzed="@row.LastAnalyzedCommitDate.HasValue"
+                                                StartedUtc="@(_reanalysisStartTimes.TryGetValue(row.Id, out var st) ? st : null)" />
                         </Template>
                     </RadzenDataGridColumn>
+
                     <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Actions" Width="80px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
                         <Template Context="row">
                             <span @onclick:stopPropagation="true">
@@ -750,14 +609,6 @@
     /// </summary>
     private Task ReloadComparisonChartAsync() =>
         _comparisonChart is null ? Task.CompletedTask : InvokeAsync(_comparisonChart.ReloadAsync);
-
-    private static string GetReanalysisElapsed(DateTime startTime)
-    {
-        var elapsed = DateTime.UtcNow - startTime;
-        if (elapsed.TotalMinutes < 1) return "just started";
-        if (elapsed.TotalMinutes < 60) return $"started {(int)elapsed.TotalMinutes} min ago";
-        return $"started {(int)elapsed.TotalHours}h ago";
-    }
 
     private async Task LoadRepositories()
     {

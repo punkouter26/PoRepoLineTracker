@@ -1,0 +1,53 @@
+/* Scoped styles for AnalysisStatusCell.
+
+   Moved here with the markup, for the reason set out in PortfolioStatTiles.razor.css: a rule that
+   stays behind in the page's stylesheet is compiled against the page's scope id and stops
+   matching the moment the element it targets renders from a different component.
+
+   Every rule is ::deep + doubled: each target is a Radzen component (RadzenIcon, RadzenText,
+   RadzenProgressBar), so nothing they render carries this file's scope id, and the doubled class
+   raises specificity over the theme's own declarations — with one exception, the root below,
+   which is a plain element this file's own markup emits. */
+
+/* display: contents so the scope anchor adds no box of its own: the cell's children lay out
+   directly in the grid cell, exactly as they did when the markup was inline on the page. */
+.status-cell {
+    display: contents;
+}
+
+::deep .rp-sync-icon.rp-sync-icon {
+    font-size: 0.9rem !important;
+    color: var(--rz-info) !important;
+    flex-shrink: 0 !important;
+}
+
+::deep .rp-prog-bar.rp-prog-bar {
+    height: 5px !important;
+    border-radius: 4px !important;
+}
+
+::deep .rp-prog-note.rp-prog-note {
+    color: var(--rz-text-secondary-color) !important;
+    font-size: 0.68rem !important;
+    line-height: 1.3 !important;
+}
+
+::deep .rp-prog-sub.rp-prog-sub {
+    color: var(--rz-text-secondary-color) !important;
+    font-size: 0.65rem !important;
+}
+
+::deep .rp-danger-sub.rp-danger-sub {
+    color: var(--rz-danger) !important;
+    font-size: 0.65rem !important;
+}
+
+::deep .rp-warn-icon.rp-warn-icon {
+    font-size: 0.8rem !important;
+    color: var(--rz-danger) !important;
+}
+
+::deep .rp-error-icon.rp-error-icon {
+    font-size: 0.9rem !important;
+    color: var(--rz-danger) !important;
+}

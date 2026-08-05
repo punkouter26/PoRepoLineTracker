@@ -1,0 +1,137 @@
+@using PoRepoLineTracker.Shared.Models
+@using Radzen
+@using Radzen.Blazor
+
+@* One repository's analysis state, as it appears in the grid's Status column.
+
+   Lifted verbatim out of an inline <Template> in Repositories.razor that ran to about a hundred
+   lines of nested conditionals inside a column definition — the single densest thing on the page,
+   and impossible to read alongside five other column templates. Its inputs are now explicit
+   parameters rather than three page-level dictionaries reached through a closure. *@
+
+@{
+    // Local alias only. This is a parameter now, not a dictionary lookup per row as it was on the
+    // page — the name is kept short because it appears a dozen times in the branches below.
+    var progress = Progress;
+}
+@* A plain <div> root, not the bare <RadzenStack> this started as.
+
+   Nothing a Radzen component renders carries this file's scope id, so with a component at the
+   root every rule in AnalysisStatusCell.razor.css would have compiled to `.rp-x[b-…]` against an
+   attribute no element had, and the whole file would have applied to nothing — the exact failure
+   this codebase has already hit twice. The div is display:contents so it adds no box of its own
+   inside the grid cell. *@
+<div class="status-cell">
+    @if (IsReanalyzing || (progress != null && progress.IsRunning))
+        {
+            <RadzenStack Gap="0.25rem">
+                @* Step badge + spin icon *@
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
+                    <RadzenIcon Icon="sync" class="spin-icon rp-sync-icon" />
+                    <RadzenBadge BadgeStyle="@(progress?.IsStuck == true ? BadgeStyle.Danger : BadgeStyle.Info)"
+                                 Text="@(progress?.StepName ?? "Analyzing")" />
+                </RadzenStack>
+
+                @* Detailed step description *@
+                @if (progress != null)
+                {
+                    <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-note">
+                        @progress.StepDescription
+                    </RadzenText>
+
+                    @* Progress bar — determinate when commit count is known *@
+                    @if (progress.CommitsTotal > 0)
+                    {
+                        <div class="reanalysis-progress-wrap">
+                            <RadzenProgressBar Mode="ProgressBarMode.Determinate"
+                                               Value="@progress.ProgressPercent"
+                                               class="rp-prog-bar" />
+                        </div>
+                        <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-sub">
+                            @progress.CommitsProcessed / @progress.CommitsTotal commits (@progress.ProgressPercent%)
+                        </RadzenText>
+                    }
+                    else
+                    {
+                        <div class="reanalysis-progress-wrap">
+                            <RadzenProgressBar Mode="ProgressBarMode.Indeterminate"
+                                               Value="100"
+                                               class="rp-prog-bar" />
+                        </div>
+                    }
+
+                    @* Stuck warning *@
+                    @if (progress.IsStuck)
+                    {
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.2rem">
+                            <RadzenIcon Icon="warning" class="rp-warn-icon" />
+                            <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub">
+                                No progress in 3+ min — may be stuck
+                            </RadzenText>
+                        </RadzenStack>
+                    }
+
+                    @* Error message *@
+                    @if (!string.IsNullOrEmpty(progress.ErrorMessage))
+                    {
+                        <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub" title="@progress.ErrorMessage">
+                            Error: @(progress.ErrorMessage.Length > 40 ? progress.ErrorMessage[..40] + "…" : progress.ErrorMessage)
+                        </RadzenText>
+                    }
+                }
+                else if (StartedUtc is { } startTime)
+                {
+                    <div class="reanalysis-progress-wrap">
+                        <RadzenProgressBar Mode="ProgressBarMode.Indeterminate"
+                                           Value="100"
+                                           class="rp-prog-bar" />
+                    </div>
+                    <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-note">
+                        @Elapsed(startTime)
+                    </RadzenText>
+                }
+            </RadzenStack>
+        }
+        else if (progress != null && !string.IsNullOrEmpty(progress.ErrorMessage))
+        {
+            <RadzenStack Gap="0.2rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
+                    <RadzenIcon Icon="error_outline" class="rp-error-icon" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" />
+                </RadzenStack>
+                <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub" title="@progress.ErrorMessage">
+                    @(progress.ErrorMessage.Length > 50 ? progress.ErrorMessage[..50] + "…" : progress.ErrorMessage)
+                </RadzenText>
+            </RadzenStack>
+        }
+        else if (!HasBeenAnalyzed)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Pending" />
+        }
+        else
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Done" />
+        }
+</div>
+
+@code {
+    /// <summary>The latest frame for this repository, from the hub or the fallback poll. Null when none has arrived.</summary>
+    [Parameter] public AnalysisProgressDto? Progress { get; set; }
+
+    /// <summary>True between queueing a re-analysis and the first frame coming back.</summary>
+    [Parameter] public bool IsReanalyzing { get; set; }
+
+    /// <summary>Whether the repository has ever completed an analysis — drives Pending vs Done.</summary>
+    [Parameter] public bool HasBeenAnalyzed { get; set; }
+
+    /// <summary>When the current re-analysis was requested, for the elapsed caption while no frame has arrived yet.</summary>
+    [Parameter] public DateTime? StartedUtc { get; set; }
+
+    private static string Elapsed(DateTime startedUtc)
+    {
+        var elapsed = DateTime.UtcNow - startedUtc;
+        if (elapsed.TotalMinutes < 1) return "just started";
+        if (elapsed.TotalMinutes < 60) return $"started {(int)elapsed.TotalMinutes} min ago";
+        return $"started {(int)elapsed.TotalHours}h ago";
+    }
+}

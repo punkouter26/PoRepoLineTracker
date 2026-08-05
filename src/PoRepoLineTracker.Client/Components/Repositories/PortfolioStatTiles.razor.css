@@ -1,0 +1,83 @@
+/* Scoped styles for PortfolioStatTiles.
+
+   Moved here with the markup. Left in Repositories.razor.css they would have compiled against
+   that page's scope id and matched nothing once the tiles rendered from their own component —
+   the same failure mode documented in AnalysisActivityFeed.razor.css. The component roots at a
+   plain <div class="app-dashboard ...">, so that element carries this file's scope id and the
+   ::deep rules below can reach what Radzen renders. */
+
+/* The grid itself is `.app-dashboard app-dashboard--tiles` in the markup now. This was the third
+   verbatim copy of the same auto-fit declaration (with `.ins-kpis` and `.app-dashboard`),
+   differing only in the minimum track — which is a `--dash-min` token on the shared class.
+   What stays here is the one thing genuinely local to this page: the tiles' own trailing space. */
+.rp-stat-grid {
+    margin-bottom: 0.25rem;
+}
+
+::deep .rp-stat.rp-stat {
+    padding: 1rem !important;
+}
+
+/* Lets the value/label block shrink so the sparkline beside it is never squeezed to zero. */
+.rp-stat-body {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.rp-stat-spark {
+    width: 72px;
+    height: 28px;
+    flex: 0 0 auto;
+}
+
+.rp-stat-gauge {
+    width: 56px;
+    height: 40px;
+    flex: 0 0 auto;
+}
+
+/* The sparkline and gauge are decoration on top of a number that is already stated in text;
+   drop them before the number itself has to shrink.
+
+   Container query, not `@media (max-width: 400px)`: these tiles sit in an auto-fit grid inside
+   the content well, so what decides whether a sparkline fits is the well's width — which the
+   sidebar changes by 220px without the viewport moving at all. The old rule kept the sparkline
+   on a 900px viewport whose well was only 680px, and hid it on a 390px viewport where the
+   sidebar was a drawer and the tile actually had the full width. */
+@container appwell (max-width: 560px) {
+    .rp-stat-spark,
+    .rp-stat-gauge {
+        display: none;
+    }
+}
+
+/* --stat-accent is consumed by .stat-card in app.css; it used to be set per card through the
+   style attribute and is now carried by these modifiers. */
+::deep .rp-stat--repos.rp-stat--repos {
+    --stat-accent: var(--rz-primary);
+}
+
+::deep .rp-stat--lines.rp-stat--lines {
+    --stat-accent: #0891b2;
+}
+
+::deep .rp-stat--analyzed.rp-stat--analyzed {
+    --stat-accent: #059669;
+}
+
+::deep .rp-stat-icon.rp-stat-icon {
+    font-size: 1.6rem !important;
+    opacity: 0.7 !important;
+}
+
+::deep .rp-stat-icon--repos.rp-stat-icon--repos {
+    color: var(--rz-primary) !important;
+}
+
+::deep .rp-stat-icon--lines.rp-stat-icon--lines {
+    color: #0891b2 !important;
+}
+
+::deep .rp-stat-icon--analyzed.rp-stat-icon--analyzed {
+    color: #059669 !important;
+}

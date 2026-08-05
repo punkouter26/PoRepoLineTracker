@@ -1,0 +1,82 @@
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using Radzen
+@using Radzen.Blazor
+
+@* The three portfolio summary tiles above the repository grid.
+
+   An auto-fit grid rather than a 3-column RadzenRow: the tiles reflow from 3 → 2 → 1 across the
+   range on their own, without a breakpoint per step, and never leave a half-empty final row.
+
+   Extracted from Repositories.razor, which was 1,200 lines and rendered the hero, the add panel,
+   the onboarding state, the comparison chart, these tiles, a search bar, a six-column grid and all
+   of the progress plumbing. Everything here is presentational — it takes numbers and draws them. *@
+
+<div class="app-dashboard app-dashboard--tiles rp-stat-grid">
+    <RadzenCard class="stat-card rp-stat rp-stat--repos">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenIcon Icon="folder" class="rp-stat-icon rp-stat-icon--repos" />
+            <div class="rp-stat-body">
+                <div class="stat-value">@RepositoryCount</div>
+                <div class="stat-label">Repositories</div>
+            </div>
+        </RadzenStack>
+    </RadzenCard>
+    <RadzenCard class="stat-card rp-stat rp-stat--lines">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenIcon Icon="code" class="rp-stat-icon rp-stat-icon--lines" />
+            <div class="rp-stat-body">
+                <div class="stat-value">@(TotalLines.ToString("N0"))</div>
+                <div class="stat-label">Total Lines</div>
+            </div>
+            @* The 365-day history is already in hand from LoadLatestLineCounts, so the
+               trend costs no extra request. *@
+            @if (Trend.Count > 1)
+            {
+                <div class="rp-stat-spark">
+                    <RadzenSparkline Data="@Trend"
+                                     CategoryProperty="Date"
+                                     ValueProperty="TotalLines"
+                                     Stroke="#0891b2"
+                                     Fill="rgba(8, 145, 178, 0.16)" />
+                </div>
+            }
+        </RadzenStack>
+    </RadzenCard>
+    <RadzenCard class="stat-card rp-stat rp-stat--analyzed">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenIcon Icon="check_circle" class="rp-stat-icon rp-stat-icon--analyzed" />
+            <div class="rp-stat-body">
+                <div class="stat-value">@AnalyzedCount</div>
+                <div class="stat-label">Analyzed</div>
+            </div>
+            @* Completion at a glance — a gauge reads faster than "7" next to a count of 9. *@
+            @if (RepositoryCount > 0)
+            {
+                <div class="rp-stat-gauge">
+                    <RadzenArcGauge>
+                        <RadzenArcGaugeScale Min="0" Max="@RepositoryCount"
+                                             Step="@Math.Max(1, RepositoryCount / 4d)"
+                                             ShowTickLabels="false" TickPosition="GaugeTickPosition.None">
+                            <RadzenArcGaugeScaleValue Value="@AnalyzedCount" ShowValue="false" Fill="#059669" />
+                        </RadzenArcGaugeScale>
+                    </RadzenArcGauge>
+                </div>
+            }
+        </RadzenStack>
+    </RadzenCard>
+</div>
+
+@code {
+    [Parameter] public int RepositoryCount { get; set; }
+
+    /// <summary>Sum of every tracked repository's current size. See RepositoryTotals for the definition.</summary>
+    [Parameter] public int TotalLines { get; set; }
+
+    [Parameter] public int AnalyzedCount { get; set; }
+
+    /// <summary>
+    /// Portfolio-wide daily totals for the sparkline. Comes from history the page already fetched
+    /// for the figures above, so the trend costs no extra request.
+    /// </summary>
+    [Parameter] public IReadOnlyList<DailyLineCountDto> Trend { get; set; } = [];
+}
