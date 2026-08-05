@@ -51,6 +51,12 @@ public class GetAllRepositoriesLineCountHistoryQueryHandler : IRequestHandler<Ge
                 RepositoryId = r.repo.Id,
                 RepositoryName = r.repo.Name,
                 Owner = r.repo.Owner,
+                // From the UNFILTERED commit list, on purpose. The series above is windowed
+                // because that is what a chart wants; the current size is not, because a
+                // repository whose last commit predates the window still has its code. Deriving
+                // this from the last point of the series is what made the Repositories page and
+                // Insights print different numbers under the same label.
+                TotalLines = RepositoryTotals.LatestTotalLines(r.commits),
                 DailyLineCounts = dailyLineCounts
             };
         });

@@ -61,16 +61,19 @@ public sealed class GetPortfolioInsightsQueryHandler(
         {
             if (commits.Count == 0) continue;
 
-            // TotalLines is a whole-repository snapshot taken at each commit, so "now" is the last
-            // commit's value and "30 days ago" is the last commit at or before that date — not a
-            // sum, which would count the same lines once per commit.
+            // Via RepositoryTotals so this page and the Repositories grid cannot drift: TotalLines
+            // is a whole-repository snapshot taken at each commit, so "now" is the newest commit's
+            // value and "30 days ago" is the newest at or before that date — never a sum, which
+            // would count the same lines once per commit. `commits` is ordered, so commits[^1] is
+            // the same value; the call is what documents and pins the definition.
             var latest = commits[^1];
-            var baseline30 = LastSnapshotOnOrBefore(commits, recentCutoff);
-            var baseline7 = LastSnapshotOnOrBefore(commits, today.AddDays(-7));
+            var latestTotal = RepositoryTotals.LatestTotalLines(commits);
+            var baseline30 = RepositoryTotals.TotalLinesAsOf(commits, recentCutoff);
+            var baseline7 = RepositoryTotals.TotalLinesAsOf(commits, today.AddDays(-7));
 
-            insights.TotalLines += latest.TotalLines;
-            insights.NetLines30Days += latest.TotalLines - baseline30;
-            insights.NetLines7Days += latest.TotalLines - baseline7;
+            insights.TotalLines += latestTotal;
+            insights.NetLines30Days += latestTotal - baseline30;
+            insights.NetLines7Days += latestTotal - baseline7;
 
             foreach (var (extension, lines) in latest.LinesByFileType)
                 languageTotals[extension] = languageTotals.GetValueOrDefault(extension) + lines;
@@ -85,8 +88,8 @@ public sealed class GetPortfolioInsightsQueryHandler(
                 RepositoryId = repo.Id,
                 Owner = repo.Owner,
                 Name = repo.Name,
-                TotalLines = latest.TotalLines,
-                NetChange30Days = latest.TotalLines - baseline30,
+                TotalLines = latestTotal,
+                NetChange30Days = latestTotal - baseline30,
                 Commits30Days = recent.Count,
                 AiPercentage30Days = WeightedAiShare(recent)
             });
@@ -130,17 +133,6 @@ public sealed class GetPortfolioInsightsQueryHandler(
     /// </para>
     /// <paramref name="commits"/> must be ordered by date ascending.
     /// </summary>
-    private static int LastSnapshotOnOrBefore(List<CommitLineCount> commits, DateTime cutoff)
-    {
-        var baseline = 0;
-        foreach (var commit in commits)
-        {
-            if (commit.CommitDate > cutoff) break;
-            baseline = commit.TotalLines;
-        }
-        return baseline;
-    }
-
     private static double WeightedAiShare(List<CommitLineCount> commits)
     {
         var added = commits.Sum(c => (double)c.LinesAdded);

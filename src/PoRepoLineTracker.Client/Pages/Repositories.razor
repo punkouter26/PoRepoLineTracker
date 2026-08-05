@@ -649,11 +649,14 @@
             var all = await Http.GetAppJsonAsync("/api/repositories/allcharts/365", AppJsonSerializerContext.Default.ListRepositoryLineCountHistoryDto);
             if (all != null)
             {
+                // r.TotalLines, NOT the last point of the windowed series. The server computes it
+                // from every commit the repository has (see RepositoryTotals), so a repository
+                // untouched for longer than the 365-day window still reports its real size here.
+                // Reading it off the series is what made this page's "Total Lines" smaller than
+                // the identically-labelled figure on Insights.
                 _repoLatestLineCounts = all
-                    .Where(r => r.DailyLineCounts.Any())
-                    .ToDictionary(
-                        r => r.RepositoryId,
-                        r => r.DailyLineCounts.OrderByDescending(d => d.Date).First().TotalLines);
+                    .Where(r => r.TotalLines > 0)
+                    .ToDictionary(r => r.RepositoryId, r => r.TotalLines);
                 _repoTrends = all
                     .Where(r => r.DailyLineCounts.Any())
                     .ToDictionary(
