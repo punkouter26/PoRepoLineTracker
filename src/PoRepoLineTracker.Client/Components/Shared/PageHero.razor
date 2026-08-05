@@ -1,22 +1,21 @@
-@* Page title strip: heading on the left, actions on the right, stacking on narrow viewports.
+@* Page title strip: heading on the left, actions on the right, stacking on narrow containers.
 
    Repositories.razor and RepositoryDetail.razor carried the same Size="12" SizeMD="8" / "4"
    row with a right-aligned action stack. Both also pinned the action column to
    `rz-text-align-end` at every width, so on a phone the buttons stayed jammed against the right
-   edge under a left-aligned title; here they go full-width instead. *@
+   edge under a left-aligned title; here they go full-width instead.
+
+   The RadzenRow/RadzenColumn split it used to use is gone — see PageHero.razor.css for why a
+   12-column grid was the wrong tool for a two-item row. *@
 
 <div class="page-hero">
-    <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" RowGap="0.5rem">
-        <RadzenColumn Size="12" SizeMD="8">
-            <div class="page-hero__heading">@Heading</div>
-        </RadzenColumn>
+    <div class="page-hero__row">
+        <div class="page-hero__heading">@Heading</div>
         @if (Actions is not null)
         {
-            <RadzenColumn Size="12" SizeMD="4">
-                <div class="page-hero__actions">@Actions</div>
-            </RadzenColumn>
+            <div class="page-hero__actions">@Actions</div>
         }
-    </RadzenRow>
+    </div>
 </div>
 
 @code {

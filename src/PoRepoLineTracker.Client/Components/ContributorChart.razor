@@ -28,17 +28,10 @@
             var top = TopContributors.ToList();
         }
 
-        @* Legend *@
-        <div class="cc-legend">
-            @foreach (var contributor in top)
-            {
-                var swatchClass = GetAuthorColorClass(contributor.AuthorName);
-                <div class="cc-legend__item">
-                    <div class="cc-swatch @swatchClass"></div>
-                    <span class="cc-legend__label">@DisplayName(contributor) (@contributor.TotalLinesAdded.ToString("N0") lines)</span>
-                </div>
-            }
-        </div>
+        @* The hand-rolled .cc-legend that used to sit here is gone. It rendered ABOVE a chart
+           that also emitted <RadzenLegend Position="Bottom">, so every author appeared twice and
+           the panel paid for two legends' worth of vertical space. RadzenLegend already carries
+           the series titles and colours set below, so it is the one that stays. *@
 
         @* Chart *@
         <RadzenChart>
@@ -86,7 +79,7 @@
         @* Summary Table *@
         <div class="cc-table-section">
             <RadzenText TextStyle="TextStyle.Subtitle2" class="cc-table-title">All Contributors</RadzenText>
-            <div class="cc-grid-scroll">
+            <div class="u-scroll-x">
                 <RadzenDataGrid Data="@_contributors!.OrderByDescending(c => c.TotalLinesAdded)"
                                 TItem="ContributorStatsDto"
                                 Responsive="true"
@@ -144,7 +137,17 @@
     private string _chartError = string.Empty;
     private int _chartDays = 90;
 
-    private static readonly string[] _colors = { "#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316" };
+    /// <summary>
+    /// Series colours for the chart. These are Radzen Stroke/Fill parameter values — attribute
+    /// content, not CSS — so they cannot be `var(--series-N)` and stay as literals.
+    ///
+    /// Realigned onto the same eight hues as the shared --series-* tokens (app.css) so the chart
+    /// line, the legend swatch in the grid and the progress bar for a given author are the same
+    /// colour. Previously this list and the stylesheet held two unrelated palettes that merely
+    /// happened to be indexed the same way.
+    /// </summary>
+    private static readonly string[] _colors =
+        { "#5b3df5", "#d46ae8", "#ff7a59", "#ffb84d", "#f95d9b", "#34c3b3", "#5aa9ff", "#9b7bff" };
 
     /// <summary>The five plotted authors. Ordering and Take were repeated three times inline.</summary>
     private IEnumerable<ContributorStatsDto> TopContributors =>

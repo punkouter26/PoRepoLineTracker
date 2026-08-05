@@ -1,26 +1,16 @@
 /* Rule 4.3 — scoped styles for TimelineScrubber.
    See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
 
-::deep .ts-card.ts-card {
-    padding: 1rem 1.5rem !important;
-}
+/* ts-card / ts-toolbar / ts-title / ts-description / ts-empty are gone: this component now
+   renders through <ChartCard>, which owns that chrome. */
 
-::deep .ts-toolbar.ts-toolbar {
-    margin-bottom: 0.75rem !important;
-}
-
-::deep .ts-title.ts-title {
-    margin: 0 !important;
-    font-weight: 700 !important;
-}
-
-::deep .ts-description.ts-description {
-    color: var(--rz-text-secondary-color) !important;
-    margin: 0 !important;
-}
-
-::deep .ts-empty.ts-empty {
-    color: var(--rz-text-disabled-color) !important;
+/* Auto-fit grid replaces four RadzenColumn Size="6" SizeMD="3" cells. The fixed 6/3 split forced
+   exactly two-up then four-up with nothing between, so at the awkward widths a metric's value
+   wrapped under its own label. Keyed to the content well, not the viewport. */
+.ts-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+    gap: var(--space-sm);
 }
 
 ::deep .ts-slider.ts-slider {
@@ -43,6 +33,10 @@
     background: var(--rz-base-100) !important;
     border-radius: 8px !important;
     text-align: center !important;
+    /* Was the rz-p-2 utility on the markup; owning it here keeps the padding on the same fluid
+       scale as every other surface. */
+    padding: var(--space-sm) !important;
+    min-width: 0 !important;
 }
 
 ::deep .ts-metric__label.ts-metric__label {
@@ -59,8 +53,10 @@
     color: var(--rz-primary) !important;
 }
 
+/* Was #22c55e on --rz-base-100: 2.09:1, failing even the 3:1 large-text floor at this H5 size,
+   and unchanged in dark mode. --status-pos is defined per theme in app.css. */
 ::deep .ts-metric__value--added.ts-metric__value--added {
-    color: #22c55e !important;
+    color: var(--status-pos) !important;
 }
 
 ::deep .ts-tags.ts-tags {
@@ -75,19 +71,22 @@
     margin-bottom: 1rem;
 }
 
-/* AI-share severity, previously interpolated per render (see GetAiSeverityClass). */
+/* AI-share severity, previously interpolated per render (see GetAiSeverityClass).
+   The four literals these replace were the worst contrast in the app — #eab308 measured 1.74:1
+   against the light metric tile, so the "moderate" reading was effectively unreadable, and none
+   of them changed for dark mode. */
 ::deep .ts-metric__value--ai-high.ts-metric__value--ai-high {
-    color: #ef4444 !important;
+    color: var(--status-crit) !important;
 }
 
 ::deep .ts-metric__value--ai-elevated.ts-metric__value--ai-elevated {
-    color: #f97316 !important;
+    color: var(--status-neg) !important;
 }
 
 ::deep .ts-metric__value--ai-moderate.ts-metric__value--ai-moderate {
-    color: #eab308 !important;
+    color: var(--status-warn) !important;
 }
 
 ::deep .ts-metric__value--ai-low.ts-metric__value--ai-low {
-    color: #22c55e !important;
+    color: var(--status-pos) !important;
 }

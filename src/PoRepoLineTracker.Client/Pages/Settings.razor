@@ -6,16 +6,18 @@
 @using Radzen.Blazor
 
 <RadzenStack Gap="1rem">
-    <div class="repo-hero">
-        <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-            <RadzenColumn Size="12">
+    @* <PageHero> rather than a hand-rolled hero div — same strip Repositories and
+       RepositoryDetail already use (Rule 4.3 consolidation). *@
+    <PageHero>
+        <Heading>
+            <RadzenStack Gap="0.15rem">
                 <RadzenText TextStyle="TextStyle.H3" class="settings-title">Settings</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body1" class="settings-subtitle">
                     Configure PoRepoLineTracker to match your workflow
                 </RadzenText>
-            </RadzenColumn>
-        </RadzenRow>
-    </div>
+            </RadzenStack>
+        </Heading>
+    </PageHero>
 
     <ExtensionsCounted ShowPageHeader="false" ShowChartDisplaySettings="true" />
 

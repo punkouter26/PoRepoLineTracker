@@ -6,34 +6,24 @@
 @using Radzen
 @using Radzen.Blazor
 
-@* Rule 4.3 — the wrapper <div> is this component's CSS-isolation anchor: Radzen renders its own
-   markup outside the scope, so ::deep needs a real HTML element in our markup to hang off. *@
-<div class="chart-display-card">
-<RadzenCard class="chart-display-card__surface">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.75rem">
-        <RadzenStack Gap="0.15rem">
-            <RadzenText TextStyle="TextStyle.Subtitle2" class="chart-display-card__title">@Title</RadzenText>
-            @if (!string.IsNullOrWhiteSpace(Description))
-            {
-                <RadzenText TextStyle="TextStyle.Caption" class="chart-display-card__description">@Description</RadzenText>
-            }
-        </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenSelectBar TValue="ChartDisplayMode" Value="@_value" Change="OnChange" Size="ButtonSize.Small" Disabled="@_isSaving"
-                              aria-label="Chart display mode">
-                <Items>
-                    <RadzenSelectBarItem Text="True Data" Value="ChartDisplayMode.TrueData" />
-                    <RadzenSelectBarItem Text="Moving Average" Value="ChartDisplayMode.MovingAverage" />
-                </Items>
-            </RadzenSelectBar>
-            @if (_isSaving)
-            {
-                <RadzenProgressBarCircular Mode="ProgressBarMode.Indeterminate" ShowValue="false" Size="ProgressBarCircularSize.ExtraSmall" />
-            }
-        </RadzenStack>
-    </RadzenStack>
-</RadzenCard>
-</div>
+@* Renders through <ChartCard> (Rule 4.3 consolidation). The surface, the title/description pair
+   and the right-aligned toolbar row were a third re-implementation of chrome ChartCard already
+   owns; the chart-display-card__* rules that styled them are gone with it. *@
+<ChartCard Title="@Title" Description="@Description">
+    <Toolbar>
+        <RadzenSelectBar TValue="ChartDisplayMode" Value="@_value" Change="OnChange" Size="ButtonSize.Small" Disabled="@_isSaving"
+                         aria-label="Chart display mode">
+            <Items>
+                <RadzenSelectBarItem Text="True Data" Value="ChartDisplayMode.TrueData" />
+                <RadzenSelectBarItem Text="Moving Average" Value="ChartDisplayMode.MovingAverage" />
+            </Items>
+        </RadzenSelectBar>
+        @if (_isSaving)
+        {
+            <RadzenProgressBarCircular Mode="ProgressBarMode.Indeterminate" ShowValue="false" Size="ProgressBarCircularSize.ExtraSmall" />
+        }
+    </Toolbar>
+</ChartCard>
 
 @code {
     [Parameter] public string Title { get; set; } = "Chart Display";

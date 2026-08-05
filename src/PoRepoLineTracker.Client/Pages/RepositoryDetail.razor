@@ -169,11 +169,50 @@
             </ChildContent>
         </ChartCard>
 
+        @* ─── Language composition over time ────────────────────────────────────
+           The donut below answers "what is this repo made of"; this answers "how did that
+           change", which is the more interesting question and was already answerable from data
+           the page fetches (see ExtensionTimeSeries — no extra request). *@
+        <ChartCard Title="Composition Over Time"
+                   Description="Lines by file type across the selected range"
+                   IsEmpty="@(ExtensionTimeSeries.Count == 0)"
+                   EmptyIcon="layers"
+                   EmptyText="No per-extension history yet."
+                   EmptyHint="Re-analyze the repository to populate the file-type breakdown.">
+            <RadzenChart>
+                @{ var extSeries = ExtensionTimeSeries; }
+                @for (var i = 0; i < extSeries.Count; i++)
+                {
+                    var s = extSeries[i];
+                    <RadzenStackedAreaSeries Data="@s.Points"
+                                             CategoryProperty="Date"
+                                             ValueProperty="Lines"
+                                             Title="@s.Label"
+                                             Fill="@SeriesFill(i)"
+                                             Stroke="@SeriesStroke(i)"
+                                             StrokeWidth="1" />
+                }
+                <RadzenCategoryAxis FormatString="{0:MMM d}"
+                                    Step="@ChartFormat.DateAxisStep(DisplayedLineHistory.Select(d => d.Date))"
+                                    LabelAutoRotation="-45">
+                    <RadzenAxisTitle Text="Date" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenCategoryAxis>
+                <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                    <RadzenAxisTitle Text="Lines of Code" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenValueAxis>
+                <RadzenLegend Position="LegendPosition.Bottom" />
+            </RadzenChart>
+        </ChartCard>
+
         @* ─── Extensions + Top Files ────────────────────────────────────────────
-           `align-items: stretch` via .rd-panel keeps the two cards the same height so the row
-           does not leave a ragged gap under the shorter one. *@
-        <RadzenRow Gap="1rem" RowGap="1rem">
-            <RadzenColumn Size="12" SizeMD="5">
+           An auto-fit dashboard grid replaces the RadzenRow Size="12" SizeMD="5"/"7" split.
+           The 5/7 ratio was arbitrary and only ever produced one desktop layout; the grid fills
+           whatever width the well actually has, which is the point of raising the content cap
+           for landscape desktops. ChartCard's height:100% still keeps the cards bottom-aligned. *@
+        <div class="app-dashboard">
+            <div>
                 <ChartCard Title="By Extension"
                            Description="Share of tracked lines per file type"
                            IsEmpty="@(_extensions is null || !_extensions.Any())"
@@ -207,8 +246,8 @@
                         }
                     </div>
                 </ChartCard>
-            </RadzenColumn>
-            <RadzenColumn Size="12" SizeMD="7">
+            </div>
+            <div>
                 <ChartCard Title="Largest Files"
                            Description="Files contributing the most lines"
                            IsEmpty="@(_topFiles is null || !_topFiles.Any())"
@@ -219,6 +258,31 @@
                                       Size="ButtonSize.Small" Click="@OpenTopFilesModal" />
                     </Toolbar>
                     <ChildContent>
+                        @* A horizontal bar chart rather than the badge list this used to be.
+                           "Which files are biggest" is a ranked-magnitude question, and a bar's
+                           length answers it pre-attentively — the reader no longer has to compare
+                           formatted numbers down a column to see that one file dwarfs the rest.
+                           RadzenBarSeries (not ColumnSeries) because the category labels are file
+                           paths, which need horizontal room to stay readable. *@
+                        <RadzenChart>
+                            <RadzenBarSeries Data="@TopFileBars"
+                                             CategoryProperty="Label"
+                                             ValueProperty="LineCount"
+                                             Title="Lines"
+                                             Fill="var(--rz-primary)" />
+                            <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                                <RadzenAxisTitle Text="Lines" />
+                                <RadzenGridLines Visible="true" />
+                            </RadzenValueAxis>
+                            <RadzenCategoryAxis>
+                                <RadzenAxisTitle Text="File" />
+                            </RadzenCategoryAxis>
+                            <RadzenLegend Visible="false" />
+                        </RadzenChart>
+
+                        @* The exact paths and counts stay in text beneath the chart: the bar
+                           categories are truncated to stay legible, and a screen reader gets the
+                           full name here rather than an axis label. *@
                         @foreach (var f in _topFiles!)
                         {
                             <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center"
@@ -230,8 +294,8 @@
                         }
                     </ChildContent>
                 </ChartCard>
-            </RadzenColumn>
-        </RadzenRow>
+            </div>
+        </div>
 
         @* ─── Top Contributors Chart ──────────────────────────────────────────────── *@
         <ContributorChart RepositoryId="@RepositoryId" />
@@ -298,6 +362,122 @@
     }
 
     private sealed record ExtensionSlice(string Label, double Percentage);
+
+    /// <summary>
+    /// Bars for the "Largest Files" panel. Only the top eight are plotted — beyond that the bars
+    /// are too thin to compare and the point of the chart is lost; the full list is still printed
+    /// underneath.
+    ///
+    /// The category is the file NAME, not its full path: a repository path can be 80 characters
+    /// and Radzen draws category labels at a fixed size, so full paths overlap into an unreadable
+    /// smear. Where two files share a name the parent directory is prefixed, so the labels stay
+    /// distinguishable without going back to the full path.
+    /// </summary>
+    private IReadOnlyList<TopFileBar> TopFileBars
+    {
+        get
+        {
+            if (_topFiles is null || _topFiles.Count == 0) return [];
+
+            var top = _topFiles.OrderByDescending(f => f.LineCount).Take(8).ToList();
+            var leafCounts = top
+                .GroupBy(f => LeafName(f.FileName))
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            return top
+                .Select(f =>
+                {
+                    var leaf = LeafName(f.FileName);
+                    var label = leafCounts[leaf] > 1 ? WithParent(f.FileName) : leaf;
+                    return new TopFileBar(Truncate(label), f.LineCount);
+                })
+                .ToList();
+        }
+    }
+
+    private static string LeafName(string path) => path.Split('/', '\\')[^1];
+
+    private static string WithParent(string path)
+    {
+        var parts = path.Split('/', '\\');
+        return parts.Length >= 2 ? $"{parts[^2]}/{parts[^1]}" : parts[^1];
+    }
+
+    private static string Truncate(string value) =>
+        value.Length <= 28 ? value : "…" + value[^27..];
+
+    private sealed record TopFileBar(string Label, int LineCount);
+
+    /// <summary>
+    /// Series for the language-composition-over-time chart: one stacked band per file extension,
+    /// so the reader sees not just what the repository is made of today but how that mix changed.
+    ///
+    /// This needs no new endpoint. <see cref="DailyLineCountDto.LinesByFileType"/> is already
+    /// carried on every point the line-history call returns and was, until now, only ever used
+    /// for a single-day snapshot — the time dimension was being fetched and thrown away.
+    ///
+    /// Capped at the six largest extensions with the rest folded into "Other", for the same
+    /// reason the donut caps at eight: a stacked area with twenty bands is unreadable.
+    /// </summary>
+    private IReadOnlyList<ExtensionSeries> ExtensionTimeSeries
+    {
+        get
+        {
+            var history = DisplayedLineHistory;
+            if (history.Count == 0) return [];
+
+            var totals = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            foreach (var day in history)
+                foreach (var (ext, lines) in day.LinesByFileType)
+                    totals[ext] = totals.GetValueOrDefault(ext) + lines;
+
+            if (totals.Count == 0) return [];
+
+            var top = totals.OrderByDescending(kv => kv.Value).Take(6).Select(kv => kv.Key).ToList();
+            var topSet = top.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var hasOther = totals.Keys.Any(k => !topSet.Contains(k));
+
+            var series = top
+                .Select(ext => new ExtensionSeries(ext, history
+                    .Select(d => new ExtensionPoint(d.Date, d.LinesByFileType.GetValueOrDefault(ext)))
+                    .ToList()))
+                .ToList();
+
+            if (hasOther)
+            {
+                series.Add(new ExtensionSeries("Other", history
+                    .Select(d => new ExtensionPoint(
+                        d.Date,
+                        d.LinesByFileType.Where(kv => !topSet.Contains(kv.Key)).Sum(kv => kv.Value)))
+                    .ToList()));
+            }
+
+            return series;
+        }
+    }
+
+    private sealed record ExtensionSeries(string Label, IReadOnlyList<ExtensionPoint> Points);
+    private sealed record ExtensionPoint(DateTime Date, int Lines);
+
+    /// <summary>
+    /// Categorical palette for the composition chart. Radzen's Fill/Stroke are attribute values,
+    /// not CSS, so these cannot be <c>var(--series-N)</c> — they are the same seven hues as the
+    /// shared --series-* tokens in app.css, kept in step by hand.
+    /// </summary>
+    private static readonly string[] _seriesHues =
+        { "#5b3df5", "#d46ae8", "#ff7a59", "#ffb84d", "#f95d9b", "#34c3b3", "#5aa9ff" };
+
+    private static string SeriesStroke(int index) => _seriesHues[index % _seriesHues.Length];
+
+    /// <summary>Same hue at 78% opacity — stacked bands need fills that read as a set, not seven flat blocks.</summary>
+    private static string SeriesFill(int index)
+    {
+        var hex = SeriesStroke(index);
+        var r = Convert.ToInt32(hex.Substring(1, 2), 16);
+        var g = Convert.ToInt32(hex.Substring(3, 2), 16);
+        var b = Convert.ToInt32(hex.Substring(5, 2), 16);
+        return $"rgba({r}, {g}, {b}, 0.78)";
+    }
 
     private string ChartDescription => _chartDisplayMode == ChartDisplayMode.MovingAverage
         ? "Rolling 90-day moving average of total lines of code"

@@ -58,13 +58,41 @@
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 
-    /* Spacing scale */
-    --space-xs: 0.25rem;
-    --space-sm: 0.5rem;
-    --space-md: 1rem;
-    --space-lg: 1.5rem;
-    --space-xl: 2rem;
-    --space-2xl: 3rem;
+    /* Spacing scale — fluid, so one token covers phone through desktop instead of every
+       component hardcoding a literal and drifting out of rhythm with its neighbours. The
+       clamp floors are the old phone values and the ceilings the old desktop ones, so
+       nothing jumps at a breakpoint. */
+    --space-xs: clamp(0.2rem, 0.5vw, 0.25rem);
+    --space-sm: clamp(0.375rem, 0.9vw, 0.5rem);
+    --space-md: clamp(0.625rem, 1.6vw, 1rem);
+    --space-lg: clamp(0.875rem, 2.4vw, 1.5rem);
+    --space-xl: clamp(1.25rem, 3.2vw, 2rem);
+    --space-2xl: clamp(1.75rem, 4.5vw, 3rem);
+
+    /* Status colours. Previously hardcoded hex scattered across five scoped stylesheets, none
+       of which flipped for dark mode — measured at 1.74:1 (ai-moderate on --rz-base-100) and
+       2.09:1 (added), both failing WCAG 2.2 AA. These pairs are picked to clear 4.5:1 for body
+       text against the surface each theme actually paints. */
+    --status-pos: #15803d;
+    --status-neg: #b91c1c;
+    --status-warn: #a16207;
+    --status-info: #0e7490;
+    --status-crit: #b91c1c;
+
+    /* Categorical series palette — one source for the chart legends that previously kept two
+       independent index-keyed lists (.cc-swatch--N and .arc-legend__swatch--N). */
+    --series-0: #5b3df5;
+    --series-1: #d46ae8;
+    --series-2: #ff7a59;
+    --series-3: #ffb84d;
+    --series-4: #f95d9b;
+    --series-5: #34c3b3;
+    --series-6: #5aa9ff;
+    --series-7: #9b7bff;
+    --series-8: #8bc34a;
+    --series-9: #ffd54f;
+    --series-10: #ec407a;
+    --series-11: #26a69a;
 
     /* Type scale */
     --text-xs: 0.75rem;
@@ -99,7 +127,15 @@
    The token list is duplicated across the two selectors on purpose: a media
    query cannot be merged into a plain selector list. Keep the two in step. The
    media block is a fallback only — the boot script always stamps data-theme. */
+/* color-scheme must track data-theme, not the OS. index.html declares
+   `<meta name="color-scheme" content="light dark">`, which tells the UA to follow the SYSTEM
+   preference — but this app paints from data-theme (saved choice first, OS only as the default).
+   Toggling to dark on a light OS therefore left every UA-rendered surface light: scrollbars,
+   form controls, and the native <progress> bars used for the extension breakdown and the
+   contributor bars. Setting it per theme is what makes those follow the app. */
 :root[data-theme="dark"] {
+    color-scheme: dark;
+
     --bg-primary: #0f172a;
     --bg-secondary: #1e293b;
     --bg-tertiary: #334155;
@@ -108,10 +144,23 @@
     --text-muted: #94a3b8;
     --border-light: #334155;
     --border-medium: #475569;
+
+    /* Lightened so they clear 4.5:1 against the dark card surface rather than the light one. */
+    --status-pos: #4ade80;
+    --status-neg: #f87171;
+    --status-warn: #fbbf24;
+    --status-info: #38bdf8;
+    --status-crit: #fb7185;
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
+        color-scheme: dark;
+
         --bg-primary: #0f172a;
         --bg-secondary: #1e293b;
         --bg-tertiary: #334155;
@@ -120,6 +169,12 @@
         --text-muted: #94a3b8;
         --border-light: #334155;
         --border-medium: #475569;
+
+        --status-pos: #4ade80;
+        --status-neg: #f87171;
+        --status-warn: #fbbf24;
+        --status-info: #38bdf8;
+        --status-crit: #fb7185;
     }
 }
 
@@ -131,10 +186,24 @@ html, body {
     margin: 0;
     padding: 0;
     line-height: 1.6;
-    overflow-x: hidden;
     font-size: var(--text-base);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+/* `overflow-x: hidden` used to live on html/body. It did not fix overflow, it concealed it —
+   and concealed it from the E2E test that checks for horizontal scroll, so real overflow could
+   ship unnoticed. The two places that genuinely overflow (the wide data grids) now contain it
+   themselves via .u-scroll-x, and `min-width: 0` on the flex/grid parents lets children shrink
+   instead of forcing the page wider. */
+
+/* Shared horizontal-scroll container. Was duplicated verbatim as .rp-grid-scroll and
+   .cc-grid-scroll in two scoped stylesheets. */
+.u-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Contain the scroll chaining so swiping a wide grid does not drag the page behind it. */
+    overscroll-behavior-x: contain;
 }
 
 #app {
@@ -259,14 +328,25 @@ a:focus-visible, .btn-link:focus-visible {
     padding: 0.5rem 0 1rem;
 }
 
+/* `container-type: inline-size` is the load-bearing declaration on this element.
+   Every breakpoint in the app used to be a viewport media query, but content does not live in
+   the viewport — it lives in this well, which is 220px narrower whenever the sidebar is open.
+   At a 900px viewport the well is 680px yet `@media (min-width: 769px)` still called it desktop;
+   collapse the sidebar and the well gains 220px with no style change at all. Component rules
+   now ask `@container appwell (...)` and get the width they are actually being laid out in. */
 .rz-body {
     grid-column: 2 !important;
     grid-row: 2 !important;
     margin: 0 !important;
     min-height: unset !important;
     overflow-y: auto;
+    /* Belt and braces with .u-scroll-x: the well itself must never scroll sideways. */
+    overflow-x: hidden;
     background: var(--bg-secondary);
     transition: grid-column-start 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    container: appwell / inline-size;
+    /* Without this a wide grid child can force the grid track wider than its 1fr share. */
+    min-width: 0;
 }
 
 /* Desktop collapsed state: when the user has toggled the sidebar shut on a wide viewport,
@@ -288,12 +368,34 @@ a:focus-visible, .btn-link:focus-visible {
 /* The single content well. Fluid padding replaces the old fixed `rz-p-4`, and
    the max-width stops dashboards stretching to unreadable line lengths on wide
    monitors while staying edge-to-edge on a phone. */
+/* The 1600px cap left ~740px of dead gutter on a 2560px monitor while every page below it was
+   still a single stacked column — the worst of both, empty sides and a long scroll. Raised so
+   wide screens are used, with the readable-line-length concern handled where it actually
+   applies (prose blocks cap themselves) rather than by starving the dashboards. */
 .app-content {
     padding: clamp(0.75rem, 2.5vw, 1.75rem);
-    max-width: 1600px;
+    max-width: min(2100px, 100%);
     margin-inline: auto;
     width: 100%;
     box-sizing: border-box;
+}
+
+/* ─── Dashboard grid ─────────────────────────────────────────────────────────
+   Fills the width a landscape desktop actually has. auto-fit + minmax reflows on its own, and
+   the container query promotes to an explicit asymmetric layout once there is room for one —
+   keyed to the well, so collapsing the sidebar genuinely changes the layout. */
+.app-dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+    gap: var(--space-md);
+    align-items: start;
+}
+
+/* Spans for panels that deserve more room than an equal share. */
+.app-dashboard__wide { grid-column: span 2; }
+
+@container appwell (max-width: 900px) {
+    .app-dashboard__wide { grid-column: auto; }
 }
 
 /* ─── Shell: mobile ──────────────────────────────────────────────────────────
@@ -307,10 +409,16 @@ a:focus-visible, .btn-link:focus-visible {
         grid-template-rows: var(--shell-header-height) 1fr !important;
     }
 
+    /* Fixed height, not `height: auto; min-height`. The scrim below is positioned with
+       `inset: var(--shell-header-height) 0 0 0`, so an auto-height header that grew (long brand
+       text wrapping) put the scrim's top edge above the header's real bottom and the drawer
+       overlay painted across the header. Keeping the row exactly one --shell-header-height tall
+       makes the scrim offset correct by construction; the brand truncates instead of wrapping. */
     .rz-header {
         grid-column: 1 !important;
-        height: auto;
+        height: var(--shell-header-height);
         min-height: var(--shell-header-height);
+        overflow: hidden;
     }
 
     .rz-sidebar,
@@ -543,11 +651,30 @@ a:focus-visible, .btn-link:focus-visible {
    visible` and no padding it paints onto whatever card follows. Reserving the strip below the
    plot lets the title render inside the card either way. */
 .rz-chart {
-    height: clamp(220px, 38vh, 380px) !important;
+    height: clamp(220px, 38dvh, 380px) !important;
     min-height: 0 !important;
     width: 100% !important;
     padding: 0.25rem 0.25rem 1.5rem;
     box-sizing: border-box;
+}
+
+/* Landscape phone. The clamp above has a 220px FLOOR, so on a rotated phone (844x390) the chart
+   alone claimed 220px of the ~330px left under the header — add the card padding and toolbar and
+   the panel filled the viewport, pushing everything else off-screen. Height-based, not
+   width-based: a short viewport is the actual constraint, and a 1024x400 window has the same
+   problem as a phone. */
+@media (orientation: landscape) and (max-height: 520px) {
+    .rz-layout {
+        grid-template-rows: 48px 1fr !important;
+    }
+
+    .rz-chart {
+        height: clamp(140px, 52dvh, 240px) !important;
+        padding-bottom: 1.1rem;
+    }
+
+    /* Reclaim the vertical space the hero gradient and its padding were taking. */
+    .app-content { padding-block: 0.5rem; }
 }
 
 .rz-chart svg {
@@ -656,8 +783,9 @@ a:focus-visible, .btn-link:focus-visible {
     margin-top: 26px;
 }
 
-/* The connector is dead weight once the steps wrap onto their own rows. */
-@media (max-width: 640px) {
+/* The connector is dead weight once the steps wrap onto their own rows — and whether they wrap
+   depends on the content well, not the viewport. */
+@container appwell (max-width: 640px) {
     .onboarding-connector { display: none; }
 }
 

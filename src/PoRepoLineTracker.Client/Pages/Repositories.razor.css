@@ -110,6 +110,13 @@
     flex: 0 0 auto;
 }
 
+/* Sparkline inside a grid cell. Needs an explicit box: Radzen sizes the SVG to its container,
+   and a table cell has no intrinsic height to inherit, so without this the chart collapses. */
+.rp-row-spark {
+    width: 90px;
+    height: 26px;
+}
+
 .rp-stat-gauge {
     width: 56px;
     height: 40px;
@@ -117,8 +124,14 @@
 }
 
 /* The sparkline and gauge are decoration on top of a number that is already stated in text;
-   drop them before the number itself has to shrink. */
-@media (max-width: 400px) {
+   drop them before the number itself has to shrink.
+
+   Container query, not `@media (max-width: 400px)`: these tiles sit in an auto-fit grid inside
+   the content well, so what decides whether a sparkline fits is the well's width — which the
+   sidebar changes by 220px without the viewport moving at all. The old rule kept the sparkline
+   on a 900px viewport whose well was only 680px, and hid it on a 390px viewport where the
+   sidebar was a drawer and the tile actually had the full width. */
+@container appwell (max-width: 560px) {
     .rp-stat-spark,
     .rp-stat-gauge {
         display: none;
@@ -178,12 +191,8 @@
     height: auto !important;
 }
 
-/* Radzen's Responsive mode stacks rows into cards on narrow viewports, so this is now only a
-   safety net for the in-between widths where the columns still exceed the card. */
-.rp-grid-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-}
+/* The .rp-grid-scroll rule that lived here was byte-identical to .cc-grid-scroll in
+   ContributorChart.razor.css. Both are now the shared .u-scroll-x utility in app.css. */
 
 /* ─── Grid cell contents (rendered inside Radzen column templates) ────────── */
 

@@ -2,29 +2,45 @@
 
 .page-hero {
     background: linear-gradient(135deg, rgba(103, 80, 164, 0.07) 0%, transparent 70%);
-    padding: 0.75rem 0.75rem 0.875rem;
-    margin-bottom: 0.25rem;
+    padding: var(--space-sm) var(--space-sm) var(--space-md);
+    margin-bottom: var(--space-xs);
     border-bottom: 1px solid rgba(103, 80, 164, 0.08);
     border-radius: 8px 8px 0 0;
 }
 
+/* Flex with intrinsic sizing, not the 12-column Size="12" SizeMD="8"/"4" split this used to be.
+   The fixed split gave the actions exactly a third between 768px and 991px, so a long
+   `owner/repository` title wrapped the buttons raggedly at precisely the widths a laptop uses.
+   `flex: 1 1 22rem` lets the heading take what it needs and drop the actions to their own row
+   only when they genuinely do not fit — no breakpoint involved, at any container width. */
+.page-hero__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm) var(--space-md);
+}
+
 .page-hero__heading {
+    flex: 1 1 22rem;
     min-width: 0;
 }
 
-/* Desktop: actions hug the right edge. */
 .page-hero__actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: var(--space-sm);
+    flex: 0 1 auto;
+    margin-inline-start: auto;
 }
 
-/* Phone: the actions get their own row, so stretch them edge to edge rather than leaving them
-   right-aligned under a left-aligned title. Buttons split the row evenly. */
-@media (max-width: 767px) {
+/* Once the actions have wrapped to their own line they own the full width, so stretch them
+   rather than leaving them right-aligned under a left-aligned title. Keyed to the container:
+   the trigger is the actions having wrapped, which depends on the well, not the viewport. */
+@container appwell (max-width: 640px) {
     .page-hero__actions {
+        width: 100%;
         justify-content: stretch;
     }
 

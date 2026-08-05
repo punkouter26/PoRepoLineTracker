@@ -8,6 +8,10 @@
 @inject IJSRuntime JSRuntime
 @inject HttpClient Http
 
+@* Radzen's own matchMedia wrapper — see OnMobileChanged for why this replaced a one-shot
+   JS interop call. Rendered outside RadzenLayout because it draws nothing. *@
+<RadzenMediaQuery Query="@($"(max-width: {MobileBreakpointPx}px)")" Change="@OnMobileChanged" />
+
 <RadzenLayout>
     <RadzenHeader>
         @* Rule 4.1 header contract — Left (Branding) | Center (Actions) | Right (Session).
@@ -149,12 +153,27 @@
         var theme = await JSRuntime.InvokeAsync<string>("getEffectiveTheme");
         _isDarkMode = theme == "dark";
 
-        // The drawer defaults to expanded, which is right for the desktop grid but would
-        // cover the page on a phone. Collapse it once we know the viewport.
-        var width = await JSRuntime.InvokeAsync<int>("getViewportWidth");
-        _isMobile = width <= MobileBreakpointPx;
-        if (_isMobile) sidebarExpanded = false;
+        StateHasChanged();
+    }
 
+    /// <summary>
+    /// Fired by <c>&lt;RadzenMediaQuery&gt;</c> whenever the match state changes.
+    ///
+    /// This replaces a one-shot <c>getViewportWidth</c> JS interop call in OnAfterRenderAsync,
+    /// which was a live bug rather than merely verbose: <c>_isMobile</c> was sampled once on
+    /// first render and never re-evaluated, so rotating a phone to landscape (or dragging a
+    /// desktop window narrow) left the drawer behaving for the wrong breakpoint until reload.
+    /// RadzenMediaQuery subscribes to the underlying matchMedia listener, so the state now
+    /// tracks the viewport for the lifetime of the layout — and the custom JS function is gone.
+    /// </summary>
+    private void OnMobileChanged(bool matched)
+    {
+        _isMobile = matched;
+
+        // The drawer defaults to expanded, which is right for the desktop grid but would cover
+        // the page on a phone. Collapse on entering mobile; restore on leaving it, so a rotate
+        // back to landscape does not leave the user staring at a hidden nav.
+        sidebarExpanded = !matched;
         StateHasChanged();
     }
 

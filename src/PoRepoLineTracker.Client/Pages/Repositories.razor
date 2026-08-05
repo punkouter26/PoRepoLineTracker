@@ -225,7 +225,7 @@
                the lambda set only `cursor: pointer`, leaving rows unreachable by keyboard even
                though OnRowRender — which adds tabindex, role and Enter/Space handling — was
                already written and simply never wired up. *@
-            <div class="rp-grid-scroll">
+            <div class="u-scroll-x">
             <RadzenDataGrid @ref="grid"
                             Data="@FilteredRepositories"
                             TItem="RepositoryGridRow"
@@ -271,6 +271,28 @@
                             else if (row.LastAnalyzedCommitDate.HasValue)
                             {
                                 <RadzenSkeleton Width="70px" Height="18px" />
+                            }
+                            else
+                            {
+                                <RadzenText class="rp-disabled">—</RadzenText>
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
+                    @* Trend column. The 45-point series comes from the /allcharts/365 response the
+                       page already fetches for the Total Lines figures, so this adds a per-row
+                       trend for zero extra network cost. Sortable="false": a sparkline has no
+                       meaningful ordering, and the adjacent Total Lines column already sorts. *@
+                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Trend" Width="110px" Sortable="false" Filterable="false">
+                        <Template Context="row">
+                            @if (row.HasTrend)
+                            {
+                                <div class="rp-row-spark">
+                                    <RadzenSparkline Data="@row.Trend"
+                                                     CategoryProperty="Date"
+                                                     ValueProperty="TotalLines"
+                                                     Stroke="var(--rz-primary)"
+                                                     Fill="rgba(103, 80, 164, 0.16)" />
+                                </div>
                             }
                             else
                             {
@@ -451,6 +473,14 @@
     private string? _lastSyncedQ;
     private Dictionary<RepositoryId, DateTime> _reanalysisStartTimes = new();
     private Dictionary<RepositoryId, int> _repoLatestLineCounts = new();
+
+    /// <summary>
+    /// Per-repository daily totals for the grid sparkline column. Built from the SAME
+    /// /allcharts/365 response that already feeds the line-count figures, so a trend beside every
+    /// row costs no additional request — the series was being fetched and discarded.
+    /// Trimmed to the last 45 points: a ~90px sparkline cannot resolve more.
+    /// </summary>
+    private Dictionary<RepositoryId, IReadOnlyList<DailyLineCountDto>> _repoTrends = new();
     private Dictionary<RepositoryId, AnalysisProgressDto> _analysisProgress = new();
     private readonly CancellationTokenSource _disposeCts = new();
     private ChartDisplayMode _chartDisplayMode = ChartDisplayMode.TrueData;
@@ -464,7 +494,8 @@
 
     private IEnumerable<RepositoryGridRow> RepositoryRows => pageState.Repositories.Select(repository => new RepositoryGridRow(
         repository,
-        _repoLatestLineCounts.TryGetValue(repository.Id, out var totalLines) ? totalLines : null));
+        _repoLatestLineCounts.TryGetValue(repository.Id, out var totalLines) ? totalLines : null,
+        _repoTrends.TryGetValue(repository.Id, out var trend) ? trend : []));
 
     private int AnalyzedCount => pageState.Repositories.Count(r => r.LastAnalyzedCommitDate.HasValue);
 
@@ -537,6 +568,15 @@
                     .ToDictionary(
                         r => r.RepositoryId,
                         r => r.DailyLineCounts.OrderByDescending(d => d.Date).First().TotalLines);
+                _repoTrends = all
+                    .Where(r => r.DailyLineCounts.Any())
+                    .ToDictionary(
+                        r => r.RepositoryId,
+                        r => (IReadOnlyList<DailyLineCountDto>)r.DailyLineCounts
+                            .OrderBy(d => d.Date)
+                            .TakeLast(45)
+                            .ToList());
+
                 Logger.LogInformation("Loaded latest line counts for {Count} repositories", _repoLatestLineCounts.Count);
 
                 // Sum every repo's per-day total into one portfolio series for the sparkline.
@@ -925,12 +965,18 @@
         _disposeCts.Dispose();
     }
 
-    private sealed record RepositoryGridRow(GitHubRepository Repository, int? TotalLinesSortValue)
+    private sealed record RepositoryGridRow(
+        GitHubRepository Repository,
+        int? TotalLinesSortValue,
+        IReadOnlyList<DailyLineCountDto> Trend)
     {
         public RepositoryId Id => Repository.Id;
         public string Owner => Repository.Owner;
         public string Name => Repository.Name;
         public DateTime? LastAnalyzedCommitDate => Repository.LastAnalyzedCommitDate;
+
+        /// <summary>A sparkline of one or two points is a dot, not a trend — hide it below three.</summary>
+        public bool HasTrend => Trend.Count > 2;
     }
 
     private async Task DeleteRepository(RepositoryId repositoryId)

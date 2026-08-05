@@ -4,27 +4,23 @@
 
 @* InstantReplay: Timeline scrubber that lets users "scrub through time" to see repo state at any date *@
 
-<RadzenCard class="ts-card">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="ts-toolbar">
-        <RadzenStack Gap="0.15rem">
-            <RadzenText TextStyle="TextStyle.H6" class="ts-title">⏪ Timeline Scrubber</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption" class="ts-description">
-                Drag to see repository state at any point in time
-            </RadzenText>
-        </RadzenStack>
+@* Adopts <ChartCard> (Rule 4.3 consolidation): the card surface, the heading/description pair,
+   the toolbar row and the empty state were each re-implemented here, duplicating what ChartCard
+   already owns — along with the ts-card / ts-toolbar / ts-title / ts-description / ts-empty
+   rules that dressed them. *@
+<ChartCard Title="⏪ Timeline Scrubber"
+           Description="Drag to see repository state at any point in time"
+           IsEmpty="@(DailyData == null || !DailyData.Any())"
+           EmptyIcon="history"
+           EmptyText="No history data available for timeline scrubbing.">
+    <Toolbar>
         @if (_selectedDate.HasValue)
         {
             <RadzenButton Text="Reset" Icon="replay" Variant="Variant.Text" ButtonStyle="ButtonStyle.Light"
                           Size="ButtonSize.Small" Click="@ResetScrubber" />
         }
-    </RadzenStack>
-
-    @if (DailyData == null || !DailyData.Any())
-    {
-        <RadzenText TextStyle="TextStyle.Body2" class="ts-empty">No history data available for timeline scrubbing.</RadzenText>
-    }
-    else
-    {
+    </Toolbar>
+    <ChildContent>
         @* Timeline Slider *@
         <div class="ts-slider-row">
             @* One-way Value + Change rather than @bind-Value. The bind system would also write to
@@ -59,32 +55,24 @@
         @* Snapshot metrics at selected date *@
         @if (_snapshot != null)
         {
-            <RadzenRow Gap="1rem">
-                <RadzenColumn Size="6" SizeMD="3">
-                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2 ts-metric">
-                        <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">Total Lines</RadzenText>
-                        <RadzenText TextStyle="TextStyle.H5" class="ts-metric__value ts-metric__value--primary">@_snapshot.TotalLines.ToString("N0")</RadzenText>
-                    </RadzenStack>
-                </RadzenColumn>
-                <RadzenColumn Size="6" SizeMD="3">
-                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2 ts-metric">
-                        <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">Commits</RadzenText>
-                        <RadzenText TextStyle="TextStyle.H5" class="ts-metric__value">@_snapshot.CommitCount</RadzenText>
-                    </RadzenStack>
-                </RadzenColumn>
-                <RadzenColumn Size="6" SizeMD="3">
-                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2 ts-metric">
-                        <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">Lines Added</RadzenText>
-                        <RadzenText TextStyle="TextStyle.H5" class="ts-metric__value ts-metric__value--added">+@_snapshot.TotalLinesAdded.ToString("N0")</RadzenText>
-                    </RadzenStack>
-                </RadzenColumn>
-                <RadzenColumn Size="6" SizeMD="3">
-                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-p-2 ts-metric">
-                        <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">AI %</RadzenText>
-                        <RadzenText TextStyle="TextStyle.H5" class="@($"ts-metric__value {GetAiSeverityClass(_snapshot.AverageAiPercentage)}")">@_snapshot.AverageAiPercentage.ToString("F1")%</RadzenText>
-                    </RadzenStack>
-                </RadzenColumn>
-            </RadzenRow>
+            <div class="ts-metrics">
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="ts-metric">
+                    <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">Total Lines</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" class="ts-metric__value ts-metric__value--primary">@_snapshot.TotalLines.ToString("N0")</RadzenText>
+                </RadzenStack>
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="ts-metric">
+                    <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">Commits</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" class="ts-metric__value">@_snapshot.CommitCount</RadzenText>
+                </RadzenStack>
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="ts-metric">
+                    <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">Lines Added</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" class="ts-metric__value ts-metric__value--added">+@_snapshot.TotalLinesAdded.ToString("N0")</RadzenText>
+                </RadzenStack>
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem" class="ts-metric">
+                    <RadzenText TextStyle="TextStyle.Caption" class="ts-metric__label">AI %</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" class="@($"ts-metric__value {GetAiSeverityClass(_snapshot.AverageAiPercentage)}")">@_snapshot.AverageAiPercentage.ToString("F1")%</RadzenText>
+                </RadzenStack>
+            </div>
 
             @* CommitTagger badges for this day *@
             @if (_snapshot.Tags.Any())
@@ -97,8 +85,8 @@
                 </RadzenStack>
             }
         }
-    }
-</RadzenCard>
+    </ChildContent>
+</ChartCard>
 
 @code {
     /// <summary>

@@ -46,16 +46,18 @@
 /* ─── Legend ──────────────────────────────────────────────────────────────── */
 
 /* min() on the track keeps the grid from forcing a 220px column — and a horizontal
-   scrollbar — inside a narrower card on a phone. */
+   scrollbar — inside a narrower card on a phone.
+
+   The former `max-height: 112px; overflow-y: auto` is gone: a scrollbar nested inside a card
+   inside the page scroller hides series behind a gesture most users never try, and on a phone
+   112px is barely three rows. The legend now flows to its natural height and the page scrolls,
+   which is the one scroll surface the user already knows about. */
 .arc-legend {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
     gap: 0.45rem 0.9rem;
     margin-top: 0.9rem;
-    max-height: 112px;
-    overflow-y: auto;
     align-items: start;
-    padding-right: 0.25rem;
 }
 
 .arc-legend__item {
@@ -82,17 +84,20 @@
     min-width: 0;
 }
 
-/* Series palette. Index-for-index with _seriesPalette in the .razor file — the swatch colour was
-   previously interpolated into the style attribute (see GetSeriesColorClass). */
-.arc-legend__swatch--0  { background: #5b3df5; }
-.arc-legend__swatch--1  { background: #d46ae8; }
-.arc-legend__swatch--2  { background: #ff7a59; }
-.arc-legend__swatch--3  { background: #ffb84d; }
-.arc-legend__swatch--4  { background: #f95d9b; }
-.arc-legend__swatch--5  { background: #34c3b3; }
-.arc-legend__swatch--6  { background: #5aa9ff; }
-.arc-legend__swatch--7  { background: #9b7bff; }
-.arc-legend__swatch--8  { background: #8bc34a; }
-.arc-legend__swatch--9  { background: #ffd54f; }
-.arc-legend__swatch--10 { background: #ec407a; }
-.arc-legend__swatch--11 { background: #26a69a; }
+/* Series palette. Index-for-index with _seriesPalette in the .razor file — that array feeds
+   Radzen's Stroke/Fill parameters, which are attribute values rather than CSS, so it stays.
+   The swatch colours here are no longer a second copy of those hex values: they read the
+   --series-N tokens from app.css, which are now the single definition shared with every other
+   categorical legend in the app. */
+.arc-legend__swatch--0  { background: var(--series-0); }
+.arc-legend__swatch--1  { background: var(--series-1); }
+.arc-legend__swatch--2  { background: var(--series-2); }
+.arc-legend__swatch--3  { background: var(--series-3); }
+.arc-legend__swatch--4  { background: var(--series-4); }
+.arc-legend__swatch--5  { background: var(--series-5); }
+.arc-legend__swatch--6  { background: var(--series-6); }
+.arc-legend__swatch--7  { background: var(--series-7); }
+.arc-legend__swatch--8  { background: var(--series-8); }
+.arc-legend__swatch--9  { background: var(--series-9); }
+.arc-legend__swatch--10 { background: var(--series-10); }
+.arc-legend__swatch--11 { background: var(--series-11); }

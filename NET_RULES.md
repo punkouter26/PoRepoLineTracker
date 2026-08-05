@@ -7,8 +7,12 @@ Authoritative rules for `Po{Name}` .NET solutions. Deviations must be recorded i
 - **1.1 Naming** — Solution, projects, and root namespaces use the `Po{Name}` prefix (`PoWatch`, `PoWalker`).
 - **1.2 Stack** — .NET 10 / C# 15. Dependencies centralized in `/Directory.Packages.props`.
 - **1.3 Compiler** — Every project: `<Nullable>enable</Nullable>`, `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`. Zero warnings.
-- **1.4 Git** — Trunk-based on `master`. No other branches unless explicitly requested.
-- **1.5 Domain Integrity** — No primitive obsession. Strongly-typed IDs (`readonly record struct`) and enums. Zero magic strings.
+- **1.4 Performance & Trimming** — `<IsTrimmable>true</IsTrimmable>` and `<EnableTrimAnalyzer>true</EnableTrimAnalyzer>`. Standardize on `System.Text.Json` source generators (`JsonSerializerContext`) in `Po{Name}.Shared` for zero-reflection serialization across API and WASM.
+  - Use the `JsonTypeInfo<T>` overloads at call sites, not the `JsonSerializerOptions` ones — the latter carry `RequiresUnreferencedCode` on the method, so they fail the trim analyzer regardless of what the options contain.
+  - A wire contract must be a concrete named type. Anonymous types cannot be source-generated, so an endpoint returning one silently forces the reflection path.
+- **1.5 Git** — Trunk-based on `master`. No other branches unless explicitly requested.
+- **1.6 Domain Integrity** — No primitive obsession. Strongly-typed IDs (`readonly record struct`) and enums. Zero magic strings.
+- **1.7 AI Provider Selection** — Default to the most cost-effective model across Azure, Google, or Hugging Face that can fulfil the task.
 
 ## 2. Directory & Architecture Layout
 
@@ -48,10 +52,16 @@ Authoritative rules for `Po{Name}` .NET solutions. Deviations must be recorded i
 ## 4. UI/UX & Blazor WASM
 
 - **4.1 Layout Contract** — Header: left = branding, center = actions, right = session/logout.
-- **4.2 State Visibility** — Persistent "USING MOCK DATA" banner whenever local mock data is active. *(Deprecated — no mock-data plumbing is wired in this app.)*
-- **4.3 Styles** — Inline styles forbidden. Scoped CSS (`.razor.css`) + `:root` custom properties for design tokens. Light/dark themes follow the system setting dynamically.
-- **4.4 Performance** — `Virtualize` for long lists. WebGL/Canvas for heavy visuals.
-- **4.5 Accessibility** — WCAG 2.2 AA on every interactive element.
+- **4.2 State & Security** — Antiforgery validation on every state-changing Minimal API endpoint (POST/PUT/DELETE/PATCH). Enforce state isolation in Blazor WASM with explicit `IDisposable`/`IAsyncDisposable` cleanups so nothing leaks across sessions.
+  - `app.UseAntiforgery()` alone does **not** satisfy this: it validates only endpoints whose metadata requests it, which the framework adds just for form-binding endpoints. A JSON API needs middleware that validates unsafe methods by default and requires an explicit, reasoned opt-out.
+- **4.3 State Visibility** — Persistent "USING MOCK DATA" banner whenever local mock data is active. *(Deprecated — no mock-data plumbing is wired in this app.)*
+- **4.4 Components** — Radzen Blazor is the primary UI library; prefer its advanced interactive components over hand-rolled equivalents. Before building a control, check whether Radzen already ships it — `RadzenMediaQuery`, `RadzenBreadCrumb` and `RadzenSplitter` in particular replace custom JS interop and markup.
+- **4.5 Styles** — Inline styles forbidden. Scoped CSS (`.razor.css`) + `:root` custom properties for design tokens. Light/dark themes follow the system setting dynamically.
+  - `color-scheme` must track the app's own theme attribute, not just the OS, or UA-rendered surfaces (scrollbars, form controls, `<progress>`) disagree with the page.
+  - Prefer `@container` over `@media` for anything sized by the content well rather than the viewport — a sidebar changes the well's width without the viewport moving.
+  - Status and series colours belong in theme-aware tokens. A hardcoded hex cannot pass contrast in both themes.
+- **4.6 Performance** — `Virtualize` for long lists. WebGL/Canvas for heavy visuals.
+- **4.7 Accessibility** — WCAG 2.2 AA on every interactive element, including measured text contrast (4.5:1 body, 3:1 large text and UI components).
 
 ## 5. Local AI, Observability & Performance
 

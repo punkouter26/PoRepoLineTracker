@@ -4,24 +4,8 @@
    ChartCard / app.css when this component adopted <ChartCard>. What remains is the legend, the
    author palette and the summary grid — all this component's own markup. */
 
-.cc-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1rem;
-    margin-bottom: 1rem;
-}
-
-.cc-legend__item {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
-}
-
-.cc-legend__label {
-    font-size: 0.85rem;
-    overflow-wrap: anywhere;
-}
+/* .cc-legend / __item / __label removed with the duplicate legend markup — the chart
+   renders <RadzenLegend Position="Bottom"> and that is now the only legend. */
 
 .cc-table-section {
     margin-top: 1.5rem;
@@ -36,12 +20,7 @@
     font-size: 0.85rem !important;
 }
 
-/* The percentage columns keep the grid wider than a phone even in Radzen's responsive mode;
-   contain the overflow here rather than letting it push the page sideways. */
-.cc-grid-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-}
+/* .cc-grid-scroll replaced by the shared .u-scroll-x utility in app.css. */
 
 /* Grid cells are rendered inside Radzen column templates. */
 ::deep .cc-cell-row {
@@ -63,13 +42,17 @@
     height: 10px;
 }
 
+/* Was #16a34a / #dc2626 — hardcoded, and neither flipped for dark mode. Measured 3.30:1 for
+   the green on white at this 0.85rem size (AA needs 4.5:1) and 2.83:1 for the red against the
+   dark card. The --status-* tokens in app.css are defined per theme to clear 4.5:1 on the
+   surface each one actually paints. */
 ::deep .cc-added {
-    color: #16a34a;
+    color: var(--status-pos);
     font-weight: 600;
 }
 
 ::deep .cc-removed {
-    color: #dc2626;
+    color: var(--status-neg);
 }
 
 /* A native <progress> carries the percentage in its value attribute, so no inline style is
@@ -96,32 +79,35 @@
 
 /* Author palette. Index-for-index with _colors in the .razor file (see GetAuthorColorClass).
    .cc-swatch--N colours the legend dot; the matching progress rules colour the bar. */
-.cc-swatch--0, ::deep .cc-swatch--0 { background: #3b82f6; }
-.cc-swatch--1, ::deep .cc-swatch--1 { background: #ef4444; }
-.cc-swatch--2, ::deep .cc-swatch--2 { background: #22c55e; }
-.cc-swatch--3, ::deep .cc-swatch--3 { background: #f59e0b; }
-.cc-swatch--4, ::deep .cc-swatch--4 { background: #8b5cf6; }
-.cc-swatch--5, ::deep .cc-swatch--5 { background: #ec4899; }
-.cc-swatch--6, ::deep .cc-swatch--6 { background: #14b8a6; }
-.cc-swatch--7, ::deep .cc-swatch--7 { background: #f97316; }
+/* Author palette. Index-for-index with _colors in the .razor file (see GetAuthorColorClass).
+   .cc-swatch--N colours the legend dot in the grid; the matching progress rules colour the bar.
+   Both now read the shared --series-N tokens from app.css rather than repeating hex values that
+   had to be kept in step with a second list by hand. */
+.cc-swatch--0, ::deep .cc-swatch--0 { background: var(--series-0); }
+.cc-swatch--1, ::deep .cc-swatch--1 { background: var(--series-1); }
+.cc-swatch--2, ::deep .cc-swatch--2 { background: var(--series-2); }
+.cc-swatch--3, ::deep .cc-swatch--3 { background: var(--series-3); }
+.cc-swatch--4, ::deep .cc-swatch--4 { background: var(--series-4); }
+.cc-swatch--5, ::deep .cc-swatch--5 { background: var(--series-5); }
+.cc-swatch--6, ::deep .cc-swatch--6 { background: var(--series-6); }
+.cc-swatch--7, ::deep .cc-swatch--7 { background: var(--series-7); }
+::deep .cc-bar.cc-swatch--0::-webkit-progress-value { background: var(--series-0); }
+::deep .cc-bar.cc-swatch--1::-webkit-progress-value { background: var(--series-1); }
+::deep .cc-bar.cc-swatch--2::-webkit-progress-value { background: var(--series-2); }
+::deep .cc-bar.cc-swatch--3::-webkit-progress-value { background: var(--series-3); }
+::deep .cc-bar.cc-swatch--4::-webkit-progress-value { background: var(--series-4); }
+::deep .cc-bar.cc-swatch--5::-webkit-progress-value { background: var(--series-5); }
+::deep .cc-bar.cc-swatch--6::-webkit-progress-value { background: var(--series-6); }
+::deep .cc-bar.cc-swatch--7::-webkit-progress-value { background: var(--series-7); }
 
-::deep .cc-bar.cc-swatch--0::-webkit-progress-value { background: #3b82f6; }
-::deep .cc-bar.cc-swatch--1::-webkit-progress-value { background: #ef4444; }
-::deep .cc-bar.cc-swatch--2::-webkit-progress-value { background: #22c55e; }
-::deep .cc-bar.cc-swatch--3::-webkit-progress-value { background: #f59e0b; }
-::deep .cc-bar.cc-swatch--4::-webkit-progress-value { background: #8b5cf6; }
-::deep .cc-bar.cc-swatch--5::-webkit-progress-value { background: #ec4899; }
-::deep .cc-bar.cc-swatch--6::-webkit-progress-value { background: #14b8a6; }
-::deep .cc-bar.cc-swatch--7::-webkit-progress-value { background: #f97316; }
-
-::deep .cc-bar.cc-swatch--0::-moz-progress-bar { background: #3b82f6; }
-::deep .cc-bar.cc-swatch--1::-moz-progress-bar { background: #ef4444; }
-::deep .cc-bar.cc-swatch--2::-moz-progress-bar { background: #22c55e; }
-::deep .cc-bar.cc-swatch--3::-moz-progress-bar { background: #f59e0b; }
-::deep .cc-bar.cc-swatch--4::-moz-progress-bar { background: #8b5cf6; }
-::deep .cc-bar.cc-swatch--5::-moz-progress-bar { background: #ec4899; }
-::deep .cc-bar.cc-swatch--6::-moz-progress-bar { background: #14b8a6; }
-::deep .cc-bar.cc-swatch--7::-moz-progress-bar { background: #f97316; }
+::deep .cc-bar.cc-swatch--0::-moz-progress-bar { background: var(--series-0); }
+::deep .cc-bar.cc-swatch--1::-moz-progress-bar { background: var(--series-1); }
+::deep .cc-bar.cc-swatch--2::-moz-progress-bar { background: var(--series-2); }
+::deep .cc-bar.cc-swatch--3::-moz-progress-bar { background: var(--series-3); }
+::deep .cc-bar.cc-swatch--4::-moz-progress-bar { background: var(--series-4); }
+::deep .cc-bar.cc-swatch--5::-moz-progress-bar { background: var(--series-5); }
+::deep .cc-bar.cc-swatch--6::-moz-progress-bar { background: var(--series-6); }
+::deep .cc-bar.cc-swatch--7::-moz-progress-bar { background: var(--series-7); }
 
 ::deep .cc-bar__value {
     min-width: 40px;

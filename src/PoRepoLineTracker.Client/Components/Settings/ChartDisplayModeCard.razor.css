@@ -1,15 +1,9 @@
-/* Rule 4.3 — scoped styles for ChartDisplayModeCard. */
+/* Intentionally minimal.
 
-.chart-display-card ::deep .chart-display-card__surface {
-    padding: 1rem 1.25rem;
-}
+   The chart-display-card__surface / __title / __description rules that lived here are gone: this
+   component renders through <ChartCard>, which owns the card chrome. Nothing in its own markup
+   needs styling any more, but the file stays as the scope anchor so adding a rule later does not
+   require re-establishing the isolation.
 
-.chart-display-card ::deep .chart-display-card__title {
-    margin: 0;
-    font-weight: 700;
-}
-
-.chart-display-card ::deep .chart-display-card__description {
-    margin: 0;
-    color: var(--rz-text-secondary-color);
-}
+   ChartCard's title is an H6 where this card used a Subtitle2; that is the intended direction —
+   it now matches every other panel heading in the app instead of being one step smaller. */
