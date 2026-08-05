@@ -21,7 +21,6 @@
                 <RadzenSelectBarItem Text="Stacked" Value="true" />
             </Items>
         </RadzenSelectBar>
-        <ChartRangeSelector Days="@_chartDays" DaysChanged="@OnChartRangeChanged" />
     </Toolbar>
     <ChildContent>
         @{
@@ -144,7 +143,12 @@
     private bool _isLoading = false;
     private bool _stacked = false;
     private string _chartError = string.Empty;
-    private int _chartDays = 90;
+
+    /// <summary>Window in days, owned by the page so every chart on it agrees.</summary>
+    [Parameter] public int Days { get; set; } = 90;
+
+    /// <summary>Last value actually fetched — see OnParametersSetAsync.</summary>
+    private int _loadedDays = -1;
 
     /// <summary>
     /// Series colours for the chart. These are Radzen Stroke/Fill parameter values — attribute
@@ -166,8 +170,14 @@
     private static string DisplayName(ContributorStatsDto contributor) =>
         string.IsNullOrWhiteSpace(contributor.AuthorName) ? "(Unknown)" : contributor.AuthorName;
 
-    protected override async Task OnInitializedAsync()
+    /// <summary>
+    /// Loads on first set and on every subsequent change of <see cref="Days"/>. Replaces an
+    /// OnInitializedAsync + local range selector; the range belongs to the page now.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
     {
+        if (_loadedDays == Days) return;
+        _loadedDays = Days;
         await LoadContributorStats();
     }
 
@@ -179,7 +189,7 @@
 
         try
         {
-            _contributors = await Http.GetAppJsonAsync($"/api/repositories/{RepositoryId}/contributors/{_chartDays}?topN=10", AppJsonSerializerContext.Default.ListContributorStatsDto);
+            _contributors = await Http.GetAppJsonAsync($"/api/repositories/{RepositoryId}/contributors/{Days}?topN=10", AppJsonSerializerContext.Default.ListContributorStatsDto);
         }
         catch (Exception ex)
         {
@@ -191,12 +201,6 @@
             _isLoading = false;
             StateHasChanged();
         }
-    }
-
-    private async Task OnChartRangeChanged(int days)
-    {
-        _chartDays = days;
-        await LoadContributorStats();
     }
 
     private void OnStackedChanged(bool stacked) => _stacked = stacked;

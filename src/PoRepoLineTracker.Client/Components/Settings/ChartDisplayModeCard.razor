@@ -26,9 +26,11 @@
 </ChartCard>
 
 @code {
+    // No ValueChanged callback. This card writes the preference and nothing else; pages that
+    // render charts read the value from UserPreferencesClient and subscribe to its Changed
+    // event, so there is exactly one place the mode is stored and one place it is edited.
     [Parameter] public string Title { get; set; } = "Chart Display";
     [Parameter] public string? Description { get; set; }
-    [Parameter] public EventCallback<ChartDisplayMode> ValueChanged { get; set; }
 
     private UserPreferences _preferences = new();
     private ChartDisplayMode _value = ChartDisplayMode.TrueData;
@@ -40,13 +42,11 @@
         {
             _preferences = await PreferencesClient.GetAsync();
             _value = _preferences.ChartDisplayMode;
-            await ValueChanged.InvokeAsync(_value);
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not load chart display mode preference. Using true data.");
             _value = ChartDisplayMode.TrueData;
-            await ValueChanged.InvokeAsync(_value);
         }
     }
 
@@ -55,7 +55,6 @@
         var previousValue = _value;
         _value = chartDisplayMode;
         _isSaving = true;
-        await ValueChanged.InvokeAsync(_value);
         StateHasChanged();
 
         try
@@ -69,7 +68,6 @@
         catch (Exception ex)
         {
             _value = previousValue;
-            await ValueChanged.InvokeAsync(_value);
             Logger.LogError(ex, "Failed to save chart display mode preference {ChartDisplayMode}", chartDisplayMode);
             NotificationService.Notify(new NotificationMessage
             {

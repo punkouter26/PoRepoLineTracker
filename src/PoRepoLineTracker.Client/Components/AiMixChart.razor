@@ -31,7 +31,6 @@
                 <RadzenSelectBarItem Text="Share" Value="AiViewMode.Share" />
             </Items>
         </RadzenSelectBar>
-        <ChartRangeSelector Days="@_days" DaysChanged="@OnRangeChanged" />
     </Toolbar>
     <ChildContent>
         @* ─── Headline ─────────────────────────────────────────────────────────────
@@ -159,13 +158,15 @@
     /// </summary>
     [Parameter] public EventCallback<double> OverallShareChanged { get; set; }
 
+    /// <summary>Window in days, owned by the page so every chart on it agrees.</summary>
+    [Parameter] public int Days { get; set; } = 90;
+
     [Inject] HttpClient Http { get; set; } = null!;
     [Inject] ILogger<AiMixChart> Logger { get; set; } = null!;
 
     public enum AiViewMode { Lines, Share }
 
     private AiViewMode _mode = AiViewMode.Lines;
-    private int _days = 90;
     private bool _isLoading;
     private string _error = string.Empty;
 
@@ -245,7 +246,23 @@
         _ => BadgeStyle.Light
     };
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    /// <summary>
+    /// Tracks the value last fetched, so OnParametersSetAsync reloads on a genuine range change
+    /// and not on every re-render the parent triggers for an unrelated reason.
+    /// </summary>
+    private int _loadedDays = -1;
+
+    /// <summary>
+    /// Loads on first set and on every subsequent change of <see cref="Days"/>. This replaces an
+    /// OnInitializedAsync + local range selector: the range is the page's now, not this card's, so
+    /// the trigger has to be a parameter change rather than a click handler in here.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedDays == Days) return;
+        _loadedDays = Days;
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -258,10 +275,10 @@
             // Issued together: neither depends on the other and the card renders both at once, so
             // serialising them would only add a round-trip to the time-to-first-paint.
             var authorsTask = Http.GetAppJsonAsync(
-                $"/api/repositories/{RepositoryId}/ai-stats/{_days}",
+                $"/api/repositories/{RepositoryId}/ai-stats/{Days}",
                 AppJsonSerializerContext.Default.ListAiStatsByUserDto);
             var dailyTask = Http.GetAppJsonAsync(
-                $"/api/repositories/{RepositoryId}/ai-daily/{_days}",
+                $"/api/repositories/{RepositoryId}/ai-daily/{Days}",
                 AppJsonSerializerContext.Default.ListDailyAiDetectionDto);
 
             await Task.WhenAll(authorsTask, dailyTask);
@@ -281,12 +298,6 @@
             _isLoading = false;
             StateHasChanged();
         }
-    }
-
-    private async Task OnRangeChanged(int days)
-    {
-        _days = days;
-        await LoadAsync();
     }
 
     private void OnModeChanged(AiViewMode mode) => _mode = mode;

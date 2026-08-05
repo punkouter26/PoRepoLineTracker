@@ -8,6 +8,8 @@
 @inject Radzen.DialogService DialogService
 @inject Radzen.NotificationService NotificationService
 @inject AnalysisFeedClient Feed
+@inject UserPreferencesClient PreferencesClient
+@using PoRepoLineTracker.Client.Services
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Domain.Models
 @using PoRepoLineTracker.Shared.Models.Dtos
@@ -144,11 +146,11 @@
     }
     else
     {
-        @* ─── Multi-repo comparison chart ─────────────────────────────────────── *@
-        <ChartDisplayModeCard Title="Chart Display"
-                              Description="Switch between true values and a rolling 90-day moving average."
-                              ValueChanged="OnChartDisplayModeChanged" />
-
+        @* ─── Multi-repo comparison chart ───────────────────────────────────────
+           No <ChartDisplayModeCard> here. It is a saved account-wide preference, not a property
+           of this page, and rendering the control in two places meant two independent copies of
+           the state: changing it in Settings left this page on the old mode until a reload. The
+           value is read from UserPreferencesClient below and pushed by its Changed event. *@
         <AllReposComparisonChart @ref="_comparisonChart" ChartDisplayMode="@_chartDisplayMode" />
 
         @* ─── Stats cards ────────────────────────────────────────────────────────
@@ -530,10 +532,12 @@
     protected override async Task OnInitializedAsync()
     {
         Feed.ProgressReceived += OnAnalysisProgressAsync;
+        PreferencesClient.Changed += OnPreferencesChangedAsync;
 
         await Task.WhenAll(
             LoadRepositories(),
             LoadLatestLineCounts(),
+            LoadChartDisplayMode(),
             Feed.EnsureConnectedAsync());
 
         StartPassivePendingPollIfNeeded();
@@ -612,9 +616,29 @@
         await _comparisonChart.PrimeAsync();
     }
 
-    private async Task OnChartDisplayModeChanged(ChartDisplayMode chartDisplayMode)
+    private async Task LoadChartDisplayMode()
     {
-        _chartDisplayMode = chartDisplayMode;
+        try
+        {
+            var preferences = await PreferencesClient.GetAsync();
+            _chartDisplayMode = preferences?.ChartDisplayMode ?? ChartDisplayMode.TrueData;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load chart display mode; defaulting to true data");
+            _chartDisplayMode = ChartDisplayMode.TrueData;
+        }
+    }
+
+    /// <summary>
+    /// Applies a preference saved anywhere in the app — in practice, the card on the Settings
+    /// page — without a reload. The comparison chart re-transforms from data it already holds,
+    /// so this costs no request.
+    /// </summary>
+    private async Task OnPreferencesChangedAsync(UserPreferences preferences)
+    {
+        if (_chartDisplayMode == preferences.ChartDisplayMode) return;
+        _chartDisplayMode = preferences.ChartDisplayMode;
         await InvokeAsync(StateHasChanged);
     }
 
@@ -1033,6 +1057,7 @@
         // Unsubscribe only. AnalysisFeedClient is container-owned and shared with the activity
         // feed, so disposing it here would take the feed's connection down with the page.
         Feed.ProgressReceived -= OnAnalysisProgressAsync;
+        PreferencesClient.Changed -= OnPreferencesChangedAsync;
 
         await _disposeCts.CancelAsync();
         _disposeCts.Dispose();

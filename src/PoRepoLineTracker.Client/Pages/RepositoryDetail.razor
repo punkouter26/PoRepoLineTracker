@@ -74,6 +74,14 @@
             </RadzenStack>
         </Heading>
         <Actions>
+            @* One range for the whole page. Every chart below reads _chartDays.
+
+               There used to be three independent selectors — this card's, AiMixChart's and
+               ContributorChart's — defaulting to 365, 90 and 90. The page therefore opened showing
+               a year of line history above two 90-day authorship charts, and moving any one of
+               them left the other two where they were. Whatever else that is, it is not a
+               comparison. *@
+            <ChartRangeSelector Days="@_chartDays" DaysChanged="@OnChartRangeChanged" />
             <RadzenButton Text="Re-analyze" Icon="refresh"
                           ButtonStyle="ButtonStyle.Warning"
                           Variant="Variant.Outlined"
@@ -141,9 +149,6 @@
                    EmptyIcon="bar_chart"
                    EmptyText="No history data yet."
                    EmptyHint="Click Re-analyze to start scanning this repository.">
-            <Toolbar>
-                <ChartRangeSelector Days="@_chartDays" DaysChanged="@OnChartRangeChanged" />
-            </Toolbar>
             <ChildContent>
                 <RadzenChart>
                     <RadzenAreaSeries Data="@DisplayedLineHistory"
@@ -314,8 +319,8 @@
            directions, so they pair — and `--dash-min: 560px` means the pair only forms when both
            date axes still have room to label themselves, otherwise they stack as before. *@
         <div class="app-dashboard app-dashboard--panels">
-            <AiMixChart RepositoryId="@RepositoryId" OverallShareChanged="@OnAiShareChanged" />
-            <ContributorChart RepositoryId="@RepositoryId" />
+            <AiMixChart RepositoryId="@RepositoryId" Days="@_chartDays" OverallShareChanged="@OnAiShareChanged" />
+            <ContributorChart RepositoryId="@RepositoryId" Days="@_chartDays" />
         </div>
 
         @* ─── InstantReplay: Timeline Scrubber ────────────────────────────────────── *@
@@ -343,7 +348,12 @@
     private bool _isPageLoading = true;
     private bool _isLoadingChart = false;
     private bool _isReanalyzing = false;
-    private int _chartDays = 365;
+    /// <summary>
+    /// The one range for the page. 90 rather than the 365 this used to hold: the two authorship
+    /// charts have always defaulted to 90, and ChartRangeSelector's own default is 90, so 365 was
+    /// the odd value out — and the one that made the page's three charts disagree on open.
+    /// </summary>
+    private int _chartDays = 90;
     private int _repoLatestLines = 0;
     private double _aiShare;
     private string _errorMessage = string.Empty;
@@ -508,6 +518,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        PreferencesClient.Changed += OnPreferencesChangedAsync;
+
         try
         {
             var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository);
@@ -547,6 +559,17 @@
             Logger.LogWarning(ex, "RepositoryDetail: failed to load chart display mode for {Id}; defaulting to true data", RepositoryId);
             _chartDisplayMode = ChartDisplayMode.TrueData;
         }
+    }
+
+    /// <summary>
+    /// Applies a chart-display-mode change saved on the Settings page without a reload. Every
+    /// chart here re-transforms from history already in hand, so this costs no request.
+    /// </summary>
+    private async Task OnPreferencesChangedAsync(UserPreferences preferences)
+    {
+        if (_chartDisplayMode == preferences.ChartDisplayMode) return;
+        _chartDisplayMode = preferences.ChartDisplayMode;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task OnChartRangeChanged(int days)
@@ -781,6 +804,8 @@
 
     public async ValueTask DisposeAsync()
     {
+        PreferencesClient.Changed -= OnPreferencesChangedAsync;
+
         await _disposeCts.CancelAsync();
         _disposeCts.Dispose();
     }
