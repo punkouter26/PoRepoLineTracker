@@ -139,9 +139,6 @@ namespace PoRepoLineTracker.Integration
                     // Disable App Insights
                     {"APPLICATIONINSIGHTS_CONNECTION_STRING", ""},
                     {"ApplicationInsights:ConnectionString", ""},
-                    // Disable Microsoft OAuth
-                    {"Microsoft:ClientId", ""},
-                    {"Microsoft:ClientSecret", ""}
                 };
                 config.AddInMemoryCollection(inMemorySettings);
 

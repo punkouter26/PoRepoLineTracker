@@ -1,0 +1,30 @@
+{
+  "//": [
+    "Copy this file to 'appsettings.Development.local.json' (drop the .template suffix) and fill in",
+    "the two values below. That filename is gitignored, so your secrets never leave this machine.",
+    "",
+    "WHY THIS FILE EXISTS",
+    "A GitHub OAuth App has exactly ONE Authorization callback URL, and GitHub requires the",
+    "redirect_uri's host AND port to match it exactly (subdirectories are allowed; different hosts",
+    "and ports are not). The production OAuth App Ov23liKNXw9OAOkwgDNG is registered against",
+    "https://app-porepolinetracker.azurewebsites.net/signin-github, so it can never authorize",
+    "http://localhost:5000/signin-github. Local development therefore needs its own OAuth App.",
+    "",
+    "Program.cs loads this file AFTER Azure Key Vault, so whatever you put here wins locally while",
+    "production keeps using the Key Vault values. Nothing about the deployed app changes.",
+    "",
+    "HOW TO CREATE THE DEV OAUTH APP (about a minute, browser only — GitHub has no API for this)",
+    "  1. https://github.com/settings/developers  ->  OAuth Apps  ->  New OAuth App",
+    "  2. Application name:         PoRepoLineTracker (local dev)",
+    "     Homepage URL:             http://localhost:5000",
+    "     Authorization callback:   http://localhost:5000/signin-github",
+    "  3. Register application, then Generate a new client secret",
+    "  4. Paste the Client ID and the secret below",
+    "",
+    "The callback path must stay /signin-github — it is what GitHub:CallbackPath resolves to."
+  ],
+  "GitHub": {
+    "ClientId": "",
+    "ClientSecret": ""
+  }
+}

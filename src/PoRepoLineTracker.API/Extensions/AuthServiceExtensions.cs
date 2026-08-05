@@ -25,23 +25,14 @@ public static class AuthServiceExtensions
             .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(
                 environment.ContentRootPath, "..", "dataprotection-keys")));
 
-        // Rule 13 — In Production, default to Microsoft OAuth as the primary challenge.
-        // In Development, GitHub OAuth remains the default for backwards compatibility.
-        // SOLID — OCP: the production auth enforcement middleware handles the redirect,
-        // so this just sets the default challenge scheme.
-        // If neither provider is configured (e.g. local dev without secrets), fall back to
-        // the cookie scheme so GUEST mode and other non-OAuth flows still work.
+        // GitHub is the only OAuth provider (see the note further down for why Microsoft was
+        // removed). If it is not configured — local dev without secrets — fall back to the cookie
+        // scheme so GUEST mode and other non-OAuth flows still work rather than throwing at boot.
         var ghClientId = configuration[ConfigKeys.GitHub.ClientId];
-        var msClientId = configuration[ConfigKeys.Microsoft.ClientId];
-        var msClientSecret = configuration[ConfigKeys.Microsoft.ClientSecret];
 
-        string defaultChallengeScheme;
-        if (environment.IsDevelopment() && !string.IsNullOrEmpty(ghClientId))
-            defaultChallengeScheme = GitHubAuthenticationDefaults.AuthenticationScheme;
-        else if (!string.IsNullOrEmpty(msClientId) && !string.IsNullOrEmpty(msClientSecret))
-            defaultChallengeScheme = "Microsoft";
-        else
-            defaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        var defaultChallengeScheme = !string.IsNullOrEmpty(ghClientId)
+            ? GitHubAuthenticationDefaults.AuthenticationScheme
+            : CookieAuthenticationDefaults.AuthenticationScheme;
 
         // Outside Production the default scheme is a policy scheme that forwards to
         // FakeAuthHandler when X-Fake-User is present and to the cookie otherwise. Selecting here
@@ -190,115 +181,17 @@ public static class AuthServiceExtensions
             });
         }
 
-        // Microsoft OAuth — available in both dev and prod (personal & work Microsoft accounts).
-        // Uses the generic OAuth2 handler pointing at the Microsoft identity platform v2 endpoints.
-        // Requires Microsoft:ClientId and Microsoft:ClientSecret in configuration / Key Vault.
-        // SOLID — OCP: extending auth without modifying GitHub provider configuration.
-        if (!string.IsNullOrEmpty(msClientId) && !string.IsNullOrEmpty(msClientSecret))
-        {
-            services.AddAuthentication()
-                .AddOAuth("Microsoft", "Microsoft Account", options =>
-                {
-                    options.ClientId = msClientId;
-                    options.ClientSecret = msClientSecret;
-                    options.CallbackPath = "/signin-microsoft";
-                    options.AuthorizationEndpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
-                    options.TokenEndpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-                    options.UserInformationEndpoint = "https://graph.microsoft.com/v1.0/me";
-                    options.Scope.Add("openid");
-                    options.Scope.Add("profile");
-                    options.Scope.Add("email");
-                    options.Scope.Add("User.Read");
-                    options.SaveTokens = true;
-
-                    options.CorrelationCookie.SecurePolicy = environment.IsDevelopment()
-                        ? CookieSecurePolicy.SameAsRequest
-                        : CookieSecurePolicy.Always;
-                    options.CorrelationCookie.SameSite = SameSiteMode.Lax;
-                    options.CorrelationCookie.HttpOnly = true;
-
-                    options.Events.OnRemoteFailure = context =>
-                    {
-                        context.Response.Redirect("/?error=ms_auth_failed");
-                        context.HandleResponse();
-                        return Task.CompletedTask;
-                    };
-
-                    // Fetch user info from Microsoft Graph after token exchange, map claims,
-                    // then upsert the user in our storage.
-                    // SOLID — DIP: resolve IUserService from the DI container at runtime
-                    options.Events.OnCreatingTicket = async context =>
-                    {
-                        // Rule 4.3 — shape-based issuer validation against an allowed tenant-ID list.
-                        // /common accepts every Entra tenant + personal MSAs; without this any tenant
-                        // could sign in. Equivalent to TokenValidationParameters.ValidateIssuer, but
-                        // applied here because the generic OAuth handler does not validate the id_token.
-                        // Empty allow-list = accept all (single-tenant deployments leave it unset).
-                        var allowedTenants = (configuration[ConfigKeys.Microsoft.AllowedTenants] ?? string.Empty)
-                            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                        if (allowedTenants.Length > 0)
-                        {
-                            var tenantId = ReadTenantId(context.AccessToken)
-                                ?? ReadTenantId(context.TokenResponse.Response?.RootElement
-                                    .TryGetProperty("id_token", out var idTok) == true ? idTok.GetString() : null);
-                            if (tenantId is null || !allowedTenants.Contains(tenantId, StringComparer.OrdinalIgnoreCase))
-                            {
-                                var log = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                                log.LogWarning("Rejected Microsoft sign-in: tenant {TenantId} not in allow-list.", tenantId ?? "<unknown>");
-                                context.Fail("Tenant not allowed.");
-                                return;
-                            }
-                        }
-
-                        using var request = new HttpRequestMessage(HttpMethod.Get, context.Options.UserInformationEndpoint);
-                        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", context.AccessToken);
-                        using var httpResponse = await context.Backchannel.SendAsync(request, context.HttpContext.RequestAborted);
-                        httpResponse.EnsureSuccessStatusCode();
-
-                        using var graphDoc = System.Text.Json.JsonDocument.Parse(await httpResponse.Content.ReadAsStringAsync(context.HttpContext.RequestAborted));
-                        var root = graphDoc.RootElement;
-
-                        var nameId = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
-                        var displayName = root.TryGetProperty("displayName", out var dnProp) ? dnProp.GetString() : null;
-                        var mail = root.TryGetProperty("mail", out var mailProp) ? mailProp.GetString() : null;
-                        var upn = root.TryGetProperty("userPrincipalName", out var upnProp) ? upnProp.GetString() : null;
-                        var email = mail ?? upn;
-
-                        // Add standard claims to the identity
-                        var identity = (ClaimsIdentity?)context.Principal?.Identity;
-                        if (identity != null)
-                        {
-                            if (nameId != null) identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, nameId));
-                            if (displayName != null) identity.AddClaim(new Claim(ClaimTypes.Name, displayName));
-                            if (email != null) identity.AddClaim(new Claim(ClaimTypes.Email, email));
-                        }
-
-                        if (!string.IsNullOrEmpty(nameId))
-                        {
-                            try
-                            {
-                                var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
-                                var savedUser = await userService.UpsertUserAsync(new User
-                                {
-                                    GitHubId = $"ms:{nameId}",
-                                    Username = email ?? displayName ?? nameId,
-                                    DisplayName = displayName ?? email ?? nameId,
-                                    Email = email,
-                                    AvatarUrl = string.Empty,
-                                    AccessToken = context.AccessToken ?? string.Empty
-                                });
-                                identity?.AddClaim(new Claim("UserId", savedUser.Id.ToString()));
-                            }
-                            catch (Exception ex)
-                            {
-                                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                                logger.LogWarning(ex, "Failed to upsert user during Microsoft OAuth. NameId: {NameId}", nameId);
-                                identity?.AddClaim(new Claim("UserId", Guid.NewGuid().ToString()));
-                            }
-                        }
-                    };
-                });
-        }
+        // Microsoft/Entra OAuth was removed here. It is a deliberate, recorded deviation from
+        // NET_RULES 3.3 ("Entra ID OAuth uses the /common endpoint") — see AGENT.MD.
+        //
+        // The short version: this app's entire purpose is reading GitHub repositories, and a
+        // Microsoft-authenticated principal has no GitHub credential. The handler used to store
+        // the Microsoft access token in User.AccessToken — a field documented as "GitHub OAuth
+        // access token ... used to access GitHub API on behalf of the user" — and a synthetic
+        // "ms:{oid}" string in User.GitHubId. Every GitHub call then sent a Microsoft token to
+        // api.github.com and got a 401, so "Select from GitHub" failed for those users with no
+        // explanation. A second sign-in button that cannot reach the app's only data source is
+        // worse than no second button.
 
         // Rule 3.3 — server-side FallbackPolicy: every endpoint that carries no authorization
         // metadata of its own is authenticated by default. Endpoints that must stay public

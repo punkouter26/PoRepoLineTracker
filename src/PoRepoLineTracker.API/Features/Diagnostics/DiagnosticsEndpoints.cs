@@ -58,8 +58,6 @@ internal static class DiagnosticsEndpoints
             ConfigKeys.GitHub.ClientId,
             ConfigKeys.GitHub.ClientSecret,
             ConfigKeys.GitHub.Pat,
-            ConfigKeys.Microsoft.ClientId,
-            ConfigKeys.Microsoft.ClientSecret,
             ConfigKeys.AzureTableStorage.ConnectionString,
             ConfigKeys.AzureTableStorage.TablesConnectionString,
             ConfigKeys.Telemetry.AppInsightsConnectionString,

@@ -31,21 +31,16 @@
 
             <hr class="login-divider" />
 
-            @* Both providers are wired server-side; only GitHub had a button, so the working
-               Microsoft path (/auth/login/microsoft) was unreachable from the UI. *@
+            @* GitHub is the only provider. The Microsoft button that used to sit below this one
+               is gone along with its server-side handler — a Microsoft principal carries no
+               GitHub credential, so it could sign in but not read a single repository. See
+               AuthServiceExtensions for the full rationale. *@
             <RadzenButton Text="Sign in with GitHub"
                           Icon="login"
                           aria-label="Sign in with GitHub"
                           ButtonStyle="ButtonStyle.Primary"
                           class="login-cta-btn"
                           Click="@(() => Navigation.NavigateTo("auth/login", forceLoad: true))" />
-
-            <RadzenButton Text="Sign in with Microsoft"
-                          Icon="window"
-                          aria-label="Sign in with Microsoft"
-                          ButtonStyle="ButtonStyle.Light"
-                          class="login-cta-btn login-cta-btn--secondary"
-                          Click="@(() => Navigation.NavigateTo("auth/login/microsoft", forceLoad: true))" />
 
             <RadzenText TextStyle="TextStyle.Caption" class="login-footnote">
                 Your data stays in your own Azure Table Storage

@@ -21,8 +21,6 @@ public class ConfigKeysTests
         { ConfigKeys.GitHub.ClientId, "GitHub:ClientId" },
         { ConfigKeys.GitHub.ClientSecret, "GitHub:ClientSecret" },
         { ConfigKeys.GitHub.Pat, "GitHub:PAT" },
-        { ConfigKeys.Microsoft.ClientId, "Microsoft:ClientId" },
-        { ConfigKeys.Microsoft.AllowedTenants, "Microsoft:AllowedTenants" },
         { ConfigKeys.Telemetry.AppInsightsConnectionString, "APPLICATIONINSIGHTS_CONNECTION_STRING" },
         { ConfigKeys.Telemetry.OtlpEndpoint, "OpenTelemetry:OtlpEndpoint" },
         

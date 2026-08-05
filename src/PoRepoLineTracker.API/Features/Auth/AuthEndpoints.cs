@@ -19,39 +19,27 @@ internal static class AuthEndpoints
         auth.MapGet("/login", (string? returnUrl, IConfiguration config) =>
         {
             var ghClientId = config[ConfigKeys.GitHub.ClientId];
-            var msClientId = config[ConfigKeys.Microsoft.ClientId];
-            var msClientSecret = config[ConfigKeys.Microsoft.ClientSecret];
 
-            // Prefer GitHub OAuth when configured; fall back to Microsoft OAuth.
-            // If neither is configured, return 503 so the client can show a helpful message
-            // instead of a generic 500 "No authentication handler is registered".
+            // GitHub is the only provider. If it is not configured, return 503 so the client can
+            // show a helpful message instead of a generic 500 "No authentication handler is
+            // registered".
             if (!string.IsNullOrEmpty(ghClientId))
             {
                 return Results.Challenge(
                     new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },
                     [GitHubAuthenticationDefaults.AuthenticationScheme]);
             }
-            if (!string.IsNullOrEmpty(msClientId) && !string.IsNullOrEmpty(msClientSecret))
-            {
-                return Results.Challenge(
-                    new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },
-                    ["Microsoft"]);
-            }
 
             return Results.Problem(
                 title: "No OAuth provider configured",
-                detail: "Neither GitHub nor Microsoft OAuth is configured. Set GitHub:ClientId (and GitHub:ClientSecret) or Microsoft:ClientId (and Microsoft:ClientSecret) in configuration.",
+                detail: "GitHub OAuth is not configured. Set GitHub:ClientId and GitHub:ClientSecret in configuration (user-secrets, appsettings.Development.local.json, or Key Vault).",
                 statusCode: StatusCodes.Status503ServiceUnavailable);
         })
         .WithName("Login");
 
-        // Microsoft OAuth login — challenges Microsoft account provider
-        // "Microsoft" is MicrosoftAccountDefaults.AuthenticationScheme (scheme name string)
-        auth.MapGet("/login/microsoft", (string? returnUrl) =>
-            Results.Challenge(
-                new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },
-                ["Microsoft"]))
-            .WithName("LoginMicrosoft");
+        // The /auth/login/microsoft route is gone with the Microsoft provider — see
+        // AuthServiceExtensions for why. Left as a comment rather than a 410 handler because
+        // nothing links to it: the login page's second button was removed in the same change.
 
         auth.MapGet("/logout", async (HttpContext context) =>
         {

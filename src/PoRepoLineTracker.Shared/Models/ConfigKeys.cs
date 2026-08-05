@@ -43,15 +43,8 @@ public static class ConfigKeys
         public const string LocalReposPath = "GitHub:LocalReposPath";
     }
 
-    /// <summary>Microsoft / Entra ID OAuth (the <c>/common</c> endpoint, Rule 3.3).</summary>
-    public static class Microsoft
-    {
-        public const string ClientId = "Microsoft:ClientId";
-        public const string ClientSecret = "Microsoft:ClientSecret";
-
-        /// <summary>Comma-separated tenant allow-list; empty accepts every tenant.</summary>
-        public const string AllowedTenants = "Microsoft:AllowedTenants";
-    }
+    // The Microsoft / Entra ID key group was removed with the Microsoft OAuth provider — a
+    // recorded deviation from NET_RULES 3.3, see AGENT.MD. GitHub is the only provider.
 
     /// <summary>Telemetry export targets.</summary>
     public static class Telemetry

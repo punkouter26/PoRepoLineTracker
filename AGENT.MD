@@ -118,12 +118,28 @@ Current counts (test cases, Theory rows included): **Unit 162 · Integration 67 
   so without the script every analysis fails with "git is not installed or not in PATH".
   The script also resolves the entry assembly by discovery, which keeps the `.Api` -> `.API`
   rename from breaking the boot on case-sensitive Linux.
-- **OAuth**: the Microsoft app registration `PoRepoLineTracker-WebAuth`
-  (`7db2fe07-0780-41d0-b11f-3712297d4daf`, audience AzureADandPersonalMicrosoftAccount) already
-  carries both the prod and `http://localhost:5000` `/signin-microsoft` redirect URIs; its secret
-  runs to 2028-06-14. The GitHub OAuth App (`Ov23liKNXw9OAOkwgDNG`) must have
+- **OAuth**: GitHub is the ONLY provider. The GitHub OAuth App (`Ov23liKNXw9OAOkwgDNG`) must have
   `https://app-porepolinetracker.azurewebsites.net/signin-github` registered as its callback —
   that lives on github.com, not in Azure.
+  - **DEVIATION from NET_RULES 3.3** ("Entra ID OAuth uses the `/common` endpoint with a
+    server-side `FallbackPolicy`"): Microsoft/Entra sign-in was removed. This app exists to read
+    GitHub repositories and a Microsoft principal carries no GitHub credential. The handler stored
+    the Microsoft access token in `User.AccessToken` — documented as *"GitHub OAuth access token…
+    used to access GitHub API on behalf of the user"* — and a synthetic `ms:{oid}` in
+    `User.GitHubId`. `GitHubService.GetUserRepositoriesAsync` then sent that Microsoft token to
+    `api.github.com` as a Bearer credential, which 401s, so "Select from GitHub" failed with no
+    explanation for anyone who used that button. The `FallbackPolicy` half of 3.3 is unaffected
+    and still enforced. The Microsoft app registration `PoRepoLineTracker-WebAuth`
+    (`7db2fe07-0780-41d0-b11f-3712297d4daf`) is now unused by this app.
+  - **Local development needs its own OAuth App.** A GitHub OAuth App has exactly one callback
+    URL and GitHub matches `redirect_uri` on host *and* port, so the production app can never
+    authorize `http://localhost:5000/signin-github` — the browser gets GitHub's "The redirect_uri
+    is not associated with this application". Create a second OAuth App pointing at
+    `http://localhost:5000/signin-github` and put its ClientId/Secret in
+    `src/PoRepoLineTracker.API/appsettings.Development.local.json` (gitignored; loaded after Key
+    Vault, so it overrides prod locally and changes nothing about the deployment). See
+    `appsettings.Development.local.json.template` for the exact steps. GitHub exposes **no API**
+    for creating OAuth Apps and `gh` has no command for it, so this step is browser-only.
 
 - Resource group: `PoShared` (shared services) + `PoRepoLineTracker` (app resources)
 - Key Vault: `kv-poshared` in PoShared RG

@@ -36,8 +36,6 @@ public class RealAuthFactory : WebApplicationFactory<Program>
                 { "EnableConsoleExporters", "false" },
                 { "APPLICATIONINSIGHTS_CONNECTION_STRING", "" },
                 { "ApplicationInsights:ConnectionString", "" },
-                { "Microsoft:ClientId", "test-microsoft-client-id" },
-                { "Microsoft:ClientSecret", "test-microsoft-client-secret" },
                 { "AzureTableStorage:ConnectionString", "UseDevelopmentStorage=true" },
                 { "GitHub:LocalReposPath", CustomWebApplicationFactory.TestRepoRoot }
             });
