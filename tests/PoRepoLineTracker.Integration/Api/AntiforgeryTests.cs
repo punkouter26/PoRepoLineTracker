@@ -44,9 +44,9 @@ public class AntiforgeryTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Post_Without_Token_Is_Rejected()
     {
-        var repo = new GitHubRepository { Owner = "octocat", Name = "hello-world", CloneUrl = "https://github.com/octocat/hello-world.git" };
+        var repo = new[] { new BulkRepositoryDto { Owner = "octocat", RepoName = "hello-world", CloneUrl = "https://github.com/octocat/hello-world.git" } };
 
-        var response = await UntokenedClient.PostAsJsonAsync("/api/repositories", repo);
+        var response = await UntokenedClient.PostAsJsonAsync("/api/repositories/bulk", repo);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -92,9 +92,9 @@ public class AntiforgeryTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Post_With_Token_Is_Accepted()
     {
-        var repo = new GitHubRepository { Owner = "octocat", Name = "tokened", CloneUrl = "https://github.com/octocat/tokened.git" };
+        var repo = new[] { new BulkRepositoryDto { Owner = "octocat", RepoName = "tokened", CloneUrl = "https://github.com/octocat/tokened.git" } };
 
-        var response = await TokenedClient.PostAsJsonAsync("/api/repositories", repo);
+        var response = await TokenedClient.PostAsJsonAsync("/api/repositories/bulk", repo);
 
         response.StatusCode.Should().NotBe(HttpStatusCode.BadRequest);
     }

@@ -8,7 +8,7 @@ namespace PoRepoLineTracker.API.Features.Repositories;
 
 internal static class RepositoryEndpoints
 {
-    internal static void MapRepositoryEndpoints(this IEndpointRouteBuilder endpoints, bool isDevelopment)
+    internal static void MapRepositoryEndpoints(this IEndpointRouteBuilder endpoints)
     {
         // Rule 3.1 — one group carries the prefix and the authorization requirement for the whole
         // slice. Every route below is authenticated because the group says so, not because each
@@ -17,15 +17,13 @@ internal static class RepositoryEndpoints
             .WithTags("Repositories")
             .RequireAuthorization();
 
-        repos.MapPost("/", async (GitHubRepository newRepo, HttpContext ctx, IMediator mediator) =>
-        {
-            if (!ctx.User.TryGetUserId(out var userId))
-                return Results.Unauthorized();
-
-            var repo = await mediator.Send(new AddRepositoryCommand(newRepo.Owner, newRepo.Name, newRepo.CloneUrl, userId));
-            return Results.Created($"/api/repositories/{repo.Id}", repo);
-        })
-        .WithName("AddRepository");
+        // There is no POST "/" for a single repository. /bulk is the one write path, and takes a
+        // one-element array for the single case. The two were not merely redundant, they behaved
+        // differently on the case that matters: /bulk checks GetRepositoryByOwnerAndNameAsync and
+        // buckets a repeat into AlreadyTracked, while the single-add handler inserted
+        // unconditionally — so adding the same repository twice through it produced two rows for
+        // one GitHub repo. /bulk also validates through the shared FluentValidation rules and
+        // queues analysis for what it actually added; neither happened here.
 
         repos.MapGet("/", async (HttpContext ctx, IMediator mediator) =>
         {
@@ -351,33 +349,5 @@ internal static class RepositoryEndpoints
         })
         .WithName("GetRepositoryAnalysisProgress");
 
-        // DEV-ONLY: Patch the LocalPath for a local-upload repository whose LocalPath was lost
-        // before GitHubRepositoryEntity.LocalPath was added. Remove after data is fixed.
-        if (isDevelopment)
-        {
-            var devRepos = endpoints.MapGroup("/api/dev/repositories")
-                .WithTags("Dev")
-                .RequireAuthorization();
-
-            devRepos.MapPost("/{repositoryId}/fix-local-path", async (
-                RepositoryId repositoryId,
-                [FromQuery] string localPath,
-                HttpContext ctx,
-                IRepositoryDataService repoDataService) =>
-            {
-                if (!ctx.User.TryGetUserId(out var userId))
-                    return Results.Unauthorized();
-
-                var repo = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-                if (repo == null) return Results.NotFound($"Repository {repositoryId} not found.");
-                if (repo.UserId != userId) return Results.Forbid();
-
-                repo.LocalPath = localPath;
-                await repoDataService.UpdateRepositoryAsync(repo);
-                Log.Information("DEV: Patched LocalPath for repository {RepositoryId} to {LocalPath}", repositoryId, localPath);
-                return Results.Ok(new { repositoryId, localPath });
-            })
-            .WithName("DevFixLocalPath");
-        }
     }
 }

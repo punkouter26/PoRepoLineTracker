@@ -70,4 +70,19 @@ public static class ConfigKeys
     {
         public const string MaxLinesOfCode = "ChartSettings:MaxLinesOfCode";
     }
+
+    /// <summary>Cookie and transport hardening.</summary>
+    public static class Security
+    {
+        /// <summary>
+        /// Whether this host is reached over HTTPS, and so whether cookies may carry <c>Secure</c>
+        /// and the <c>__Host-</c> prefix. Defaults to true everywhere except Development.
+        ///
+        /// <para>Set it to <c>false</c> for any host that genuinely serves plain HTTP — the http
+        /// launch profile, or a test server. A <c>__Host-</c> cookie without <c>Secure</c> is
+        /// rejected outright, and one WITH <c>Secure</c> is never returned over http, so getting
+        /// this wrong makes every state-changing request fail antiforgery while reads look fine.</para>
+        /// </summary>
+        public const string RequireSecureCookies = "Security:RequireSecureCookies";
+    }
 }

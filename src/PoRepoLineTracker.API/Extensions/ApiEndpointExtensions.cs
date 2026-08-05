@@ -29,7 +29,7 @@ public static class ApiEndpointExtensions
 
         app.MapAntiforgeryEndpoints();
         app.MapAuthEndpoints();
-        app.MapRepositoryEndpoints(isDevelopment);
+        app.MapRepositoryEndpoints();
         app.MapSettingsEndpoints();
         app.MapGitHubEndpoints();
         app.MapDiagnosticsEndpoints();

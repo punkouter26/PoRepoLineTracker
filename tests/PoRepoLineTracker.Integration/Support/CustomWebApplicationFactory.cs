@@ -111,6 +111,19 @@ namespace PoRepoLineTracker.Integration
             // from the API project output directory (which contains real Azure Key Vault URI)
             builder.UseContentRoot(System.IO.Path.GetTempPath());
 
+            // UseSetting, NOT the inMemorySettings below. This one is read at REGISTRATION time
+            // by AddInfrastructure, and ConfigureAppConfiguration delegates do not run until
+            // after Program.cs has already executed its top-level statements — so a key added
+            // there arrives too late to be seen. Everything else in this factory is read lazily
+            // at request time, which is why only this one needs the earlier hook.
+            //
+            // What it declares: TestServer speaks plain http://localhost, and this factory runs
+            // under the environment name "Test" rather than "Development". Left to the secure
+            // default, antiforgery registers Cookie.SecurePolicy = Always and then throws
+            // outright on the first non-SSL request ("the current request is not an SSL
+            // request"), so every state-changing test in the tier fails with a 500.
+            builder.UseSetting(ConfigKeys.Security.RequireSecureCookies, "false");
+
             // Configure app configuration FIRST - this must happen before services are registered
             builder.ConfigureAppConfiguration((context, config) =>
             {

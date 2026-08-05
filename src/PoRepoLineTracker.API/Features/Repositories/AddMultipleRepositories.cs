@@ -1,8 +1,17 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Trace;
+using PoRepoLineTracker.API.Telemetry;
+using System.Diagnostics;
 
 namespace PoRepoLineTracker.API.Features.Repositories;
 
+/// <summary>
+/// The single write path for tracking repositories. A one-element list is the "add one" case —
+/// there is no separate AddRepositoryCommand, and deliberately so: the one that used to exist
+/// inserted without checking for an existing row, so adding the same repository twice through it
+/// produced two records for one GitHub repo.
+/// </summary>
 public record AddMultipleRepositoriesCommand(IEnumerable<BulkRepositoryDto> Repositories, UserId UserId) : IRequest<BulkAddResult>;
 
 public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultipleRepositoriesCommand, BulkAddResult>
@@ -20,6 +29,11 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
 
     public async Task<BulkAddResult> Handle(AddMultipleRepositoriesCommand request, CancellationToken cancellationToken)
     {
+        // Span and metrics carried over from the deleted single-add handler, which was the only
+        // add path that reported any. Now that this is the only one, it is where they belong.
+        using var activity = AppTelemetry.ActivitySource.StartActivity("AddRepositories");
+        var stopwatch = Stopwatch.StartNew();
+
         _logger.LogInformation("=== START AddMultipleRepositoriesCommandHandler ===");
         _logger.LogInformation("Received request to add {Count} repositories", request.Repositories.Count());
 
@@ -79,17 +93,36 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
 
                 _logger.LogInformation("Successfully saved repository {Owner}/{Name}.", newRepo.Owner, newRepo.Name);
                 added.Add(newRepo);
+
+                AppTelemetry.RepositoriesAdded.Add(1,
+                    new KeyValuePair<string, object?>("status", "success"),
+                    new KeyValuePair<string, object?>("owner", repo.Owner));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "EXCEPTION while adding repository {Owner}/{Name}: {Message}",
                     repo.Owner ?? "NULL", repo.RepoName ?? "NULL", ex.Message);
+
+                AppTelemetry.RepositoriesAdded.Add(1,
+                    new KeyValuePair<string, object?>("status", "failure"),
+                    new KeyValuePair<string, object?>("owner", repo.Owner ?? "unknown"),
+                    new KeyValuePair<string, object?>("error.type", ex.GetType().Name));
+
                 // Continue with other repositories even if one fails
             }
         }
 
-        _logger.LogInformation("=== COMPLETED AddMultipleRepositoriesCommandHandler === Added={Added}, AlreadyTracked={AlreadyTracked}",
-            added.Count, alreadyTracked.Count);
+        stopwatch.Stop();
+        AppTelemetry.AddRepositoryDuration.Record(stopwatch.ElapsedMilliseconds,
+            new KeyValuePair<string, object?>("count", repoList.Count));
+
+        activity?.SetTag("repositories.requested", repoList.Count);
+        activity?.SetTag("repositories.added", added.Count);
+        activity?.SetTag("repositories.already_tracked", alreadyTracked.Count);
+        activity?.SetStatus(ActivityStatusCode.Ok);
+
+        _logger.LogInformation("=== COMPLETED AddMultipleRepositoriesCommandHandler === Added={Added}, AlreadyTracked={AlreadyTracked} in {ElapsedMs}ms",
+            added.Count, alreadyTracked.Count, stopwatch.ElapsedMilliseconds);
 
         return new BulkAddResult
         {

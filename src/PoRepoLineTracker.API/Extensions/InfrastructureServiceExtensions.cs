@@ -83,26 +83,35 @@ public static class InfrastructureServiceExtensions
         // cookie is not present". That made the whole app read-only on the http profile — adding
         // a repository, re-analysing, deleting, saving settings — with a 400 the only symptom.
         //
-        // Keyed to the environment rather than to the request scheme because the cookie name is
-        // fixed at registration, long before a request exists. This mirrors what the auth cookie
-        // in AuthServiceExtensions already does, and is why signing in worked while every write
-        // did not. The prefix defends against a sibling subdomain overwriting the cookie, which is
-        // a real concern for the deployed origin and not one on localhost.
+        // The decision has to be made here, at registration, long before any request exists, so
+        // it cannot key off the request scheme. What it keys off instead is one question: will
+        // this host be reached over HTTPS? Not "is this Development" — the integration tier runs
+        // under the environment name "Test" on plain http://localhost, so an IsDevelopment() test
+        // hands it __Host- + Always, TestServer's cookie container dutifully withholds a Secure
+        // cookie from an http request, and every write in the suite fails. Config-driven with a
+        // secure default keeps deployed slots (including Staging) hardened while letting any
+        // plain-HTTP host — the http launch profile, the test server — say so explicitly.
+        var requireSecureCookies = configuration.GetValue(
+            ConfigKeys.Security.RequireSecureCookies,
+            defaultValue: !environment.IsDevelopment());
+
         services.AddAntiforgery(options =>
         {
             options.HeaderName = "X-CSRF-TOKEN";
             options.Cookie.HttpOnly = true;
             options.Cookie.SameSite = SameSiteMode.Strict;
 
-            if (environment.IsDevelopment())
+            if (requireSecureCookies)
             {
-                options.Cookie.Name = "PoRepoLineTracker.Antiforgery";
-                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                // The prefix defends against a sibling subdomain overwriting the cookie — a real
+                // concern for a deployed origin, and not one on localhost.
+                options.Cookie.Name = "__Host-PoRepoLineTracker.Antiforgery";
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
             }
             else
             {
-                options.Cookie.Name = "__Host-PoRepoLineTracker.Antiforgery";
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.Name = "PoRepoLineTracker.Antiforgery";
+                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
             }
         });
 

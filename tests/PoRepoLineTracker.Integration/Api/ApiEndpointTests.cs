@@ -200,32 +200,35 @@ public class ApiEndpointTests
     }
 
     // ─── CRUD: Add Repository ───────────────────────────────────────────
+    //
+    // /bulk is the only write path. It replaced a POST "/" that took one repository and inserted
+    // it without checking for an existing row, so the same repo added twice produced two records.
 
     [Fact]
-    public async Task AddRepository_Returns_Created_With_Location()
+    public async Task AddRepositories_Returns_Ok_With_Added_Bucket()
     {
-        var newRepo = new { Owner = "testowner", Name = "testrepo", CloneUrl = "https://github.com/testowner/testrepo.git" };
-        var response = await _client.PostAsJsonAsync("/api/repositories", newRepo);
+        var newRepos = new[]
+        {
+            new { Owner = "testowner", RepoName = "testrepo", CloneUrl = "https://github.com/testowner/testrepo.git" }
+        };
+        var response = await _client.PostAsJsonAsync("/api/repositories/bulk", newRepos);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
-        response.Headers.Location.Should().NotBeNull();
-        response.Headers.Location!.ToString().Should().Contain("/api/repositories/");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        json.TryGetProperty("added", out var added).Should().BeTrue();
+        added.GetArrayLength().Should().Be(1);
+        added[0].GetProperty("owner").GetString().Should().Be("testowner");
+        added[0].GetProperty("name").GetString().Should().Be("testrepo");
     }
 
     [Fact]
-    public async Task AddRepository_Returns_Repository_Object()
+    public async Task AddRepositories_Rejects_An_Invalid_Entry()
     {
-        var newRepo = new { Owner = "owner2", Name = "repo2", CloneUrl = "https://github.com/owner2/repo2.git" };
-        var response = await _client.PostAsJsonAsync("/api/repositories", newRepo);
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var newRepos = new[] { new { Owner = "", RepoName = "", CloneUrl = "not-a-url" } };
+        var response = await _client.PostAsJsonAsync("/api/repositories/bulk", newRepos);
 
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        // Verify essential properties come back
-        json.TryGetProperty("owner", out var owner).Should().BeTrue();
-        owner.GetString().Should().Be("owner2");
-
-        json.TryGetProperty("name", out var name).Should().BeTrue();
-        name.GetString().Should().Be("repo2");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     // ─── CRUD: Delete Single Repository ─────────────────────────────────

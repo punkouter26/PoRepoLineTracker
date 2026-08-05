@@ -36,7 +36,7 @@ public sealed class AuthorizationApiTests
     [SkippableFact]
     public async Task ProtectedPost_Anonymous_IsRefused()
     {
-        var response = await E2EApiClient.PostAsync("/api/repositories");
+        var response = await E2EApiClient.PostAsync("/api/repositories/bulk");
 
         ShouldBeRefused(response);
     }
