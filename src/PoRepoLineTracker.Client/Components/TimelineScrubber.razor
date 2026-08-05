@@ -73,17 +73,6 @@
                     <RadzenText TextStyle="TextStyle.H5" class="@($"ts-metric__value {GetAiSeverityClass(_snapshot.AverageAiPercentage)}")">@_snapshot.AverageAiPercentage.ToString("F1")%</RadzenText>
                 </RadzenStack>
             </div>
-
-            @* CommitTagger badges for this day *@
-            @if (_snapshot.Tags.Any())
-            {
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.35rem" class="ts-tags" Wrap="FlexWrap.Wrap">
-                    @foreach (var tag in _snapshot.Tags.Distinct())
-                    {
-                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@tag" class="ts-tag" />
-                    }
-                </RadzenStack>
-            }
         }
     </ChildContent>
 </ChartCard>

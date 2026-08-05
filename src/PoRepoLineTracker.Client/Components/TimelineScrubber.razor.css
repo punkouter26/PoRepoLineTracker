@@ -59,14 +59,6 @@
     color: var(--status-pos) !important;
 }
 
-::deep .ts-tags.ts-tags {
-    margin-top: 0.75rem !important;
-}
-
-::deep .ts-tag.ts-tag {
-    font-size: 0.75rem !important;
-}
-
 .ts-slider-row {
     margin-bottom: 1rem;
 }

@@ -13,10 +13,6 @@ public class CommitStatsDto
     public string AuthorName { get; set; } = string.Empty;
     public string AuthorEmail { get; set; } = string.Empty;
 
-    /// <summary>
-    /// CommitTagger: Auto-generated tags classifying this commit.
-    /// </summary>
-    public List<string> Tags { get; set; } = new();
 
     /// <summary>
     /// Heuristic AI-authorship score (0–100) for the lines this commit ADDED.

@@ -7,7 +7,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using System;
-using static PoRepoLineTracker.API.Features.Repositories.CommitTaggerService;
 
 namespace PoRepoLineTracker.API.Features.Repositories;
 
@@ -346,8 +345,6 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                         AiPercentage = commitStat.AiPercentage
                     };
 
-                    // CommitTagger: classify the commit with algorithmic tags
-                    commitLineCount.Tags = ClassifyCommit(commitLineCount);
 
                     await _repositoryDataService.AddCommitLineCountAsync(commitLineCount);
                     _logger.ProcessedCommit(commitStat.Sha, totalLines, commitStat.LinesAdded, commitStat.LinesRemoved);

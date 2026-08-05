@@ -10,11 +10,6 @@ public class DailyLineCountDto
     public Dictionary<string, int> LinesByFileType { get; set; } = new();
     public int CommitCount { get; set; }
 
-    /// <summary>
-    /// CommitTagger: Aggregated tags from all commits on this day.
-    /// Used by InstantReplay timeline scrubber to show tag badges per day.
-    /// </summary>
-    public List<string> Tags { get; set; } = new();
 
     /// <summary>
     /// Average AI percentage across commits on this day.
