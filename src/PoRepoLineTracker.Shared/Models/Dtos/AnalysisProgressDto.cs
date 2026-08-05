@@ -1,5 +1,5 @@
-using PoRepoLineTracker.Domain.Models;
-namespace PoRepoLineTracker.Shared.Models;
+using PoRepoLineTracker.Shared.Domain;
+namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
 /// Represents live progress for a repository analysis job.

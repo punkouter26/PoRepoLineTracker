@@ -1,10 +1,13 @@
 using System.Text.Json.Serialization;
 
 // Rule 2.2 — shared API contract enum: consumed by DTOs in this (leaf) assembly AND by the
-// Blazor client. It lives in Shared so it no longer needs a reference to Domain, but keeps the
-// PoRepoLineTracker.Domain.Models namespace so every existing using-directive across the
-// solution resolves unchanged. Domain references Shared to use it.
-namespace PoRepoLineTracker.Domain.Models;
+// Blazor client.
+//
+// Namespace note: this and everything else under Domain/ used to declare
+// PoRepoLineTracker.Domain.Models — the namespace of a project that has not existed since the
+// domain types were folded into .Shared. It was kept "so existing using-directives resolve
+// unchanged", which only meant the misdirection outlived the reason for it.
+namespace PoRepoLineTracker.Shared.Domain;
 
 // The generic JsonStringEnumConverter<T>, not the open-ended JsonStringEnumConverter: the
 // non-generic form constructs its per-enum converter reflectively at runtime, which defeats the

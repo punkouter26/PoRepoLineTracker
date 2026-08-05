@@ -1,0 +1,65 @@
+@using Radzen
+@using Radzen.Blazor
+
+@* The empty state for the repositories list: what the app is for, in three steps, and one CTA.
+
+   Extracted from Repositories.razor, where 45 lines of static onboarding markup sat inside the
+   `else if (!Repositories.Any())` arm of the page's render tree — read on every render of a page
+   that, once the user has any repositories at all, never shows it again.
+
+   Rooted at a plain <div> so ::deep in the scoped stylesheet has an ancestor carrying the
+   isolation attribute (see ChartCard for the full explanation). *@
+
+<div class="rp-onboarding">
+    <RadzenCard class="rp-onboarding-card">
+        <RadzenStack AlignItems="AlignItems.Center" Gap="1.5rem">
+            <RadzenStack Gap="0.5rem" AlignItems="AlignItems.Center">
+                <RadzenIcon Icon="code" class="rp-onboarding-icon" />
+                <RadzenText TextStyle="TextStyle.H5" class="rp-onboarding-title">No repositories yet</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="rp-onboarding-lede">
+                    Add your first GitHub repository and start tracking lines of code over time.
+                </RadzenText>
+            </RadzenStack>
+
+            <div class="rp-onboarding-steps">
+                @foreach (var step in Steps)
+                {
+                    @* The connector is drawn before every step but the first, which is what the
+                       three hand-written <div class="onboarding-connector"> elements did — one of
+                       them by sitting between two copies of an otherwise identical block. *@
+                    @if (step != Steps[0])
+                    {
+                        <div class="onboarding-connector" aria-hidden="true"></div>
+                    }
+                    <div class="onboarding-step">
+                        <div class="onboarding-step-icon">
+                            <RadzenIcon Icon="@step.Icon" />
+                        </div>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rp-step-title">@step.Title</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="rp-step-caption">@step.Caption</RadzenText>
+                    </div>
+                }
+            </div>
+
+            <RadzenButton Text="Add Your First Repository"
+                          Icon="add_circle"
+                          ButtonStyle="ButtonStyle.Primary"
+                          class="onboarding-cta-pulse rp-onboarding-cta"
+                          Click="@OnAddClicked" />
+        </RadzenStack>
+    </RadzenCard>
+</div>
+
+@code {
+    /// <summary>Invoked by the CTA. The host opens its add-repository panel.</summary>
+    [Parameter] public EventCallback OnAddClicked { get; set; }
+
+    private sealed record Step(string Icon, string Title, string Caption);
+
+    private static readonly Step[] Steps =
+    [
+        new("add_link", "Add Repo", "Connect your GitHub repository"),
+        new("manage_search", "Auto-Analyze", "Commits scanned in background"),
+        new("trending_up", "Track Trends", "Charts, extensions & top files"),
+    ];
+}

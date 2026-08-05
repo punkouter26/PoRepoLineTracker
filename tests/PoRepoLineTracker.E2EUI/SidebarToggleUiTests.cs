@@ -16,7 +16,15 @@ public sealed class SidebarToggleUiTests
 
     public SidebarToggleUiTests(E2EUiFixture fixture) => _fixture = fixture;
 
-    private const string Toggle = "button[title='Toggle navigation']";
+    // The button's label states what the click will DO, so it flips with the sidebar: "Hide
+    // navigation" when expanded, "Show navigation" when collapsed. Matching either is what makes
+    // the reversibility test able to click the same control twice.
+    //
+    // This was `button[title='Toggle navigation']` — a title no element in the app has ever
+    // carried. Every test in this class timed out waiting 25s for it, so the file that exists to
+    // prove "a toggle that silently did nothing looks perfectly healthy" was itself doing nothing
+    // for seven tests and four minutes a run.
+    private const string Toggle = "button[aria-label='Hide navigation'], button[aria-label='Show navigation']";
 
     /// <summary>
     /// Waits for the shell to exist, NOT for the sidebar to be visible. On a mobile viewport the

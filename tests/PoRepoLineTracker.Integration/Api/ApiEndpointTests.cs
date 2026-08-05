@@ -73,28 +73,6 @@ public class ApiEndpointTests
         content.Should().NotContain("AccountKey");
     }
 
-    // ─── File Extensions Settings ───────────────────────────────────────
-
-    [Fact]
-    public async Task GetFileExtensions_Returns_200_With_Array()
-    {
-        var response = await _client.GetAsync("/api/settings/file-extensions");
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var extensions = await response.Content.ReadFromJsonAsync<List<string>>();
-        extensions.Should().NotBeNull();
-        extensions!.Should().NotBeEmpty();
-    }
-
-    // ─── Chart Settings ─────────────────────────────────────────────────
-
-    [Fact]
-    public async Task GetChartMaxLines_Returns_200()
-    {
-        var response = await _client.GetAsync("/api/settings/chart/max-lines");
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
     [Fact]
     public async Task GetUserPreferences_Returns_DefaultChartDisplayMode()
     {
@@ -195,7 +173,7 @@ public class ApiEndpointTests
     [Fact]
     public async Task Api_Endpoints_Return_Json_ContentType()
     {
-        var response = await _client.GetAsync("/api/settings/file-extensions");
+        var response = await _client.GetAsync("/api/settings/user-preferences");
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
     }
 
@@ -280,10 +258,12 @@ public class ApiEndpointTests
     [Fact]
     public async Task TriggerAnalysis_Returns_SuccessOrNotFound()
     {
+        // /reanalyze is the only route that queues analysis; the parallel POST /{id}/analyses
+        // this test used to call was removed as an unused duplicate of it.
         var repoId = RepositoryId.New();
-        var response = await _client.PostAsync($"/api/repositories/{repoId}/analyses?force=false", null);
+        var response = await _client.PostAsync($"/api/repositories/{repoId}/reanalyze", null);
 
-        // With mocked mediator this may return 200 or may throw which gets caught by middleware
+        // With mocked mediator this may return 202 or may throw which gets caught by middleware
         ((int)response.StatusCode).Should().BeLessThan(500, "Analysis endpoint should not produce server errors with valid GUIDs");
     }
 }

@@ -249,8 +249,6 @@ namespace PoRepoLineTracker.Integration
                     .Returns(Task.CompletedTask);
                 mockRepoDataService.DeleteTopFilesForRepositoryAsync(Arg.Any<RepositoryId>())
                     .Returns(Task.CompletedTask);
-                mockRepoDataService.GetConfiguredFileExtensionsAsync()
-                    .Returns(Task.FromResult<IEnumerable<string>>(new[] { ".cs", ".razor", ".js", ".ts", ".py", ".html", ".css" }));
                 mockRepoDataService.CheckConnectionAsync()
                     .Returns(Task.CompletedTask);
 

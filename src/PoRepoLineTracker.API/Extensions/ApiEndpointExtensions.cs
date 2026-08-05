@@ -40,7 +40,6 @@ public static class ApiEndpointExtensions
 
         if (isDevelopment)
         {
-            app.MapDevOnlyEndpoints();
             // Writes arbitrary history to the caller's account, so it is gated exactly like
             // FakeAuthHandler — see SeedEndpoints for why the UI tier needs it.
             app.MapSeedEndpoints();

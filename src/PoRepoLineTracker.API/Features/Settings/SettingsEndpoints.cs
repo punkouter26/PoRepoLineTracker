@@ -1,4 +1,3 @@
-using MediatR;
 using Serilog;
 
 namespace PoRepoLineTracker.API.Features.Settings;
@@ -14,24 +13,11 @@ internal static class SettingsEndpoints
             .WithTags("Settings")
             .RequireAuthorization();
 
-        settings.MapGet("/file-extensions", async (IMediator mediator) =>
-        {
-            try
-            {
-                var extensions = await mediator.Send(new GetConfiguredFileExtensionsQuery());
-                return Results.Ok(extensions);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error retrieving configured file extensions.");
-                return Results.Problem($"Error retrieving configured file extensions: {ex.Message}", statusCode: 500);
-            }
-        })
-        .WithName("GetConfiguredFileExtensions");
-
-        settings.MapGet("/chart/max-lines", (IConfiguration configuration) =>
-            Results.Ok(configuration.GetValue<int>(ConfigKeys.ChartSettings.MaxLinesOfCode, 50000)))
-        .WithName("GetChartMaxLines");
+        // User preferences are the whole slice. Four sibling routes were removed because nothing
+        // called them: /file-extensions and /chart/max-lines (config echoes the client never read),
+        // /user-extensions (the analysis handler reads preferences directly through
+        // IUserPreferencesService), and the anonymous /api/feature-flags — whose comments claimed
+        // "the layout calls this on every page load" long after the layout had stopped.
 
         settings.MapGet("/user-preferences", async (HttpContext ctx, IUserPreferencesService preferencesService) =>
         {
@@ -69,39 +55,5 @@ internal static class SettingsEndpoints
             }
         })
         .WithName("SaveUserPreferences");
-
-        settings.MapGet("/user-extensions", async (HttpContext ctx, IUserPreferencesService preferencesService) =>
-        {
-            try
-            {
-                if (!ctx.User.TryGetUserId(out var userId))
-                    return Results.Unauthorized();
-
-                var extensions = await preferencesService.GetFileExtensionsAsync(userId);
-                return Results.Ok(extensions);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error retrieving user file extensions");
-                return Results.Problem($"Error retrieving user file extensions: {ex.Message}", statusCode: 500);
-            }
-        })
-        .WithName("GetUserFileExtensions");
-
-        // Public endpoint: exposes client-visible feature flags so the Blazor WASM app
-        // can adapt its UI without requiring additional auth. Strategy Pattern (GoF):
-        // flags act as runtime strategy selectors.
-        endpoints.MapGet("/api/feature-flags", (IConfiguration configuration) =>
-        {
-            var flags = new
-            {
-                EnableGitHubApi = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableGitHubApi),
-                EnableBackgroundAnalysis = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableBackgroundAnalysis),
-                EnableOpenTelemetryExport = configuration.GetValue<bool>(ConfigKeys.FeatureFlags.EnableOpenTelemetryExport)
-            };
-            return Results.Ok(flags);
-        })
-        .AllowAnonymous()
-        .WithName("GetFeatureFlags");
     }
 }

@@ -1,24 +1,22 @@
-﻿@attribute [Authorize]
+@attribute [Authorize]
 @inject HttpClient Http
-@inject ILogger<AddRepository> Logger
-@inject NavigationManager Navigation
-@inject DialogService DialogService
+@inject ILogger<AddRepositoryPanel> Logger
 @inject NotificationService NotificationService
 @implements IAsyncDisposable
 @using PoRepoLineTracker.Client.Models
-@using PoRepoLineTracker.Domain.Models
+@using PoRepoLineTracker.Shared.Domain
 @using PoRepoLineTracker.Shared.Models.Dtos
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 @using Radzen
-@* Rule 4.3 — the wrapper <div> is this component's CSS-isolation anchor for ::deep rules. *@
+@* The repository-picking panel Repositories.razor expands inline. It used to live in Pages/ with
+   no @page directive and an IsInline flag: false meant "I am a page or a dialog" and switched on a
+   heading, a DialogService.Close and a NavigateTo. Nothing ever passed false, so that whole second
+   mode was unreachable code guarding against a host that did not exist.
+
+   Rule 4.3 — the wrapper <div> is this component's CSS-isolation anchor for ::deep rules. *@
 <div class="add-repo">
 <RadzenStack Gap="1rem">
-    @if (!IsInline)
-    {
-        <RadzenText TextStyle="TextStyle.H4" class="add-repo-title">Add Repositories</RadzenText>
-    }
-
     @if (!string.IsNullOrEmpty(pageState.ErrorMessage) && !pageState.ShowRepositorySelector)
     {
         <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Flat"
@@ -49,8 +47,6 @@
                                   OnCancel="HideRepositorySelection" />
     }
 
-    @* Single repository mode removed as requested *@
-
     @if (pageState.IsAddingRepository)
     {
         <RadzenCard>
@@ -61,8 +57,9 @@
 </RadzenStack>
 </div>
 @code {
-    [Parameter] public bool IsInline { get; set; } = false;
-    [Parameter] public EventCallback OnInlineCompleted { get; set; }
+    /// <summary>Raised when the panel is finished — on a successful add or on cancel. The host
+    /// collapses it and refreshes.</summary>
+    [Parameter] public EventCallback OnCompleted { get; set; }
 
     private RepositoryPageState pageState = new();
     private CancellationTokenSource? _addCts;
@@ -259,17 +256,8 @@
 
                 _selected = Enumerable.Empty<GitHubUserRepositoryDto>(); // Clear selections
 
-                Logger.LogInformation("Closing dialog / navigating to repositories page...");
                 await Task.Delay(1500); // Brief delay to show success message
-                if (IsInline)
-                {
-                    await OnInlineCompleted.InvokeAsync();
-                }
-                else
-                {
-                    DialogService.Close(true);
-                    Navigation.NavigateTo("/repositories");
-                }
+                await OnCompleted.InvokeAsync();
             }
             else
             {
@@ -324,28 +312,13 @@
         }
     }
 
-    private async Task ShowRepositorySelection()
-    {
-        Logger.LogInformation("ShowRepositorySelection called. Current ShowRepositorySelector: {ShowRepositorySelector}", pageState.ShowRepositorySelector);
-        pageState.ShowRepositorySelector = true;
-        Logger.LogInformation("ShowRepositorySelector set to true. New value: {ShowRepositorySelector}", pageState.ShowRepositorySelector);
-        await LoadGitHubRepositories();
-        Logger.LogInformation("LoadGitHubRepositories completed. Calling StateHasChanged.");
-        StateHasChanged();
-    }
+    // ShowRepositorySelection() used to sit here as a third entry point. OnInitializedAsync
+    // already opens the selector and loads, so nothing called it.
 
     private void HideRepositorySelection()
     {
         _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
-        if (IsInline)
-        {
-            _ = OnInlineCompleted.InvokeAsync();
-            return;
-        }
-
-        pageState.ShowRepositorySelector = false;
-        DialogService.Close(false);
-        StateHasChanged();
+        _ = OnCompleted.InvokeAsync();
     }
 }
 

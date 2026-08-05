@@ -19,13 +19,13 @@ namespace PoRepoLineTracker.Unit;
 /// <para>Each test gets its own directory under the session scratch root, so a bug in the handler
 /// cannot reach anything shared.</para>
 /// </summary>
-public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
+public sealed class DeleteAllRepositoriesCommandHandlerTests : IDisposable
 {
     private readonly IRepositoryDataService _dataService = Substitute.For<IRepositoryDataService>();
     private readonly UserId _userId = UserId.New();
     private readonly string _sandbox;
 
-    public RemoveAllRepositoriesCommandHandlerTests()
+    public DeleteAllRepositoriesCommandHandlerTests()
     {
         _sandbox = Path.Combine(Path.GetTempPath(), $"PoRepoLineTracker.RemoveAllTests-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_sandbox);
@@ -37,19 +37,19 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
         catch { /* best-effort teardown; the OS reclaims temp anyway */ }
     }
 
-    private RemoveAllRepositoriesCommandHandler HandlerFor(string? localReposPath)
+    private DeleteAllRepositoriesCommandHandler HandlerFor(string? localReposPath)
     {
         var settings = new Dictionary<string, string?>();
         if (localReposPath is not null) settings[ConfigKeys.GitHub.LocalReposPath] = localReposPath;
 
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
 
-        return new RemoveAllRepositoriesCommandHandler(
-            _dataService, configuration, Substitute.For<ILogger<RemoveAllRepositoriesCommandHandler>>());
+        return new DeleteAllRepositoriesCommandHandler(
+            _dataService, configuration, Substitute.For<ILogger<DeleteAllRepositoriesCommandHandler>>());
     }
 
-    private Task<MediatR.Unit> WhenRemovingAll(RemoveAllRepositoriesCommandHandler handler) =>
-        handler.Handle(new RemoveAllRepositoriesCommand(_userId), CancellationToken.None);
+    private Task<MediatR.Unit> WhenRemovingAll(DeleteAllRepositoriesCommandHandler handler) =>
+        handler.Handle(new DeleteAllRepositoriesCommand(_userId), CancellationToken.None);
 
     private string GivenRepositoryTree()
     {
@@ -70,8 +70,8 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
 
         await WhenRemovingAll(handler);
 
-        await _dataService.Received(1).RemoveAllRepositoriesAsync(_userId);
-        await _dataService.DidNotReceive().RemoveAllRepositoriesAsync(Arg.Is<UserId>(id => id != _userId));
+        await _dataService.Received(1).DeleteAllRepositoriesAsync(_userId);
+        await _dataService.DidNotReceive().DeleteAllRepositoriesAsync(Arg.Is<UserId>(id => id != _userId));
     }
 
     /// <summary>
@@ -81,7 +81,7 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
     [Fact]
     public async Task WhenStorageFails_TheFailurePropagates()
     {
-        _dataService.RemoveAllRepositoriesAsync(_userId).ThrowsAsync(new InvalidOperationException("Table unavailable"));
+        _dataService.DeleteAllRepositoriesAsync(_userId).ThrowsAsync(new InvalidOperationException("Table unavailable"));
         var handler = HandlerFor(GivenRepositoryTree());
 
         var act = async () => await WhenRemovingAll(handler);
@@ -131,7 +131,7 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
         var act = async () => await WhenRemovingAll(handler);
 
         await act.Should().NotThrowAsync();
-        await _dataService.Received(1).RemoveAllRepositoriesAsync(_userId);
+        await _dataService.Received(1).DeleteAllRepositoriesAsync(_userId);
     }
 
     /// <summary>
@@ -148,7 +148,7 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
         var act = async () => await WhenRemovingAll(handler);
 
         await act.Should().NotThrowAsync();
-        await _dataService.Received(1).RemoveAllRepositoriesAsync(_userId);
+        await _dataService.Received(1).DeleteAllRepositoriesAsync(_userId);
     }
 
     /// <summary>
@@ -170,6 +170,6 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
 
         // The point is the absence of a throw: the storage purge is what the caller asked for and
         // it completed. Whether the locked file survived is up to the OS.
-        await _dataService.Received(1).RemoveAllRepositoriesAsync(_userId);
+        await _dataService.Received(1).DeleteAllRepositoriesAsync(_userId);
     }
 }

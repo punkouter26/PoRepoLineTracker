@@ -31,7 +31,9 @@
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
-    <PackageReference Include="Radzen.Blazor" />
+    <!-- No Radzen.Blazor here. The API renders no components — it serves the WASM client, which
+         carries its own reference. The direct one only duplicated that and put a UI package in
+         the server's dependency graph. -->
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="Serilog.Sinks.File" />

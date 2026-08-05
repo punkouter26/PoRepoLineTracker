@@ -1032,21 +1032,6 @@ a:focus-visible, .btn-link:focus-visible {
     border: 2px solid #fff;
 }
 
-.login-feature-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.72rem;
-    font-weight: 600;
-    padding: 0.25rem 0.6rem;
-    border-radius: 20px;
-    background: rgba(103, 80, 164, 0.08);
-    color: var(--primary-color);
-    border: 1px solid rgba(103, 80, 164, 0.15);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
 .login-cta-btn {
     animation: ctaIdlePulse 3s ease-in-out infinite;
     border-radius: 12px !important;

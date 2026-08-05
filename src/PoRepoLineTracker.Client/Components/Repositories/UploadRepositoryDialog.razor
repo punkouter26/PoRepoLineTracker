@@ -1,15 +1,18 @@
 @attribute [Authorize]
 @inject HttpClient Http
-@inject ILogger<UploadRepository> Logger
+@inject ILogger<UploadRepositoryDialog> Logger
 @inject NavigationManager Navigation
 @inject DialogService DialogService
 @using System.Net
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 
+@* Opened only through DialogService.OpenAsync<UploadRepositoryDialog>, never routed — it used to
+   live in Pages/ with no @page directive, which is what the name now says.
+
+   The dialog supplies its own title bar, so the H4 that used to head this markup is gone: it
+   restated the title one line below itself. *@
 <div class="app-stack">
-    <RadzenText TextStyle="TextStyle.H4" class="ul-title">Upload Local Repository</RadzenText>
-    
     <RadzenText TextStyle="TextStyle.Body2" class="ul-subtitle">
         Upload a zipped folder containing your code and .git folder for analysis.
         The zip must contain a complete repository with a .git folder.
@@ -133,9 +136,11 @@
         </RadzenCard>
     }
 
-    <RadzenButton Text="Back to Repositories"
+    @* Closes the dialog rather than navigating. NavigateTo("/repositories") from inside a dialog
+       left the overlay mounted over the page it had just navigated to. *@
+    <RadzenButton Text="Close"
                   Icon="arrow_back"
-                  Click="@(() => Navigation.NavigateTo("/repositories"))"
+                  Click="@(() => DialogService.Close(false))"
                   Variant="Variant.Outlined"
                   ButtonStyle="ButtonStyle.Secondary" />
 </div>

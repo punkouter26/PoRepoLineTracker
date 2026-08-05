@@ -28,7 +28,7 @@ public class UserPreferencesEntity : ITableEntity
     /// <summary>
     /// Preferred chart rendering mode.
     /// </summary>
-    public string ChartDisplayMode { get; set; } = Domain.Models.ChartDisplayMode.TrueData.ToString();
+    public string ChartDisplayMode { get; set; } = Shared.Domain.ChartDisplayMode.TrueData.ToString();
 
     /// <summary>
     /// When preferences were last updated.
@@ -37,7 +37,7 @@ public class UserPreferencesEntity : ITableEntity
 
     public UserPreferencesEntity() { }
 
-    public UserPreferencesEntity(PoRepoLineTracker.Domain.Models.UserPreferences prefs)
+    public UserPreferencesEntity(PoRepoLineTracker.Shared.Domain.UserPreferences prefs)
     {
         PartitionKey = "PREFS";
         RowKey = prefs.UserId.ToString();
@@ -47,17 +47,17 @@ public class UserPreferencesEntity : ITableEntity
         LastUpdated = prefs.LastUpdated;
     }
 
-    public PoRepoLineTracker.Domain.Models.UserPreferences ToDomainModel()
+    public PoRepoLineTracker.Shared.Domain.UserPreferences ToDomainModel()
     {
-        var chartDisplayMode = Enum.TryParse<PoRepoLineTracker.Domain.Models.ChartDisplayMode>(ChartDisplayMode, true, out var parsedChartDisplayMode)
+        var chartDisplayMode = Enum.TryParse<PoRepoLineTracker.Shared.Domain.ChartDisplayMode>(ChartDisplayMode, true, out var parsedChartDisplayMode)
             ? parsedChartDisplayMode
-            : PoRepoLineTracker.Domain.Models.ChartDisplayMode.TrueData;
+            : PoRepoLineTracker.Shared.Domain.ChartDisplayMode.TrueData;
 
-        return new PoRepoLineTracker.Domain.Models.UserPreferences
+        return new PoRepoLineTracker.Shared.Domain.UserPreferences
         {
-            UserId = new PoRepoLineTracker.Domain.Models.UserId(UserId),
+            UserId = new PoRepoLineTracker.Shared.Domain.UserId(UserId),
             FileExtensions = string.IsNullOrEmpty(FileExtensions)
-                ? PoRepoLineTracker.Domain.Models.UserPreferences.DefaultFileExtensions
+                ? PoRepoLineTracker.Shared.Domain.UserPreferences.DefaultFileExtensions
                 : FileExtensions.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
             ChartDisplayMode = chartDisplayMode,
             LastUpdated = LastUpdated

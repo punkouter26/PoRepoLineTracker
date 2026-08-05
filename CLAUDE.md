@@ -21,7 +21,8 @@ PoRepoLineTracker.Client   Blazor WASM. Depends on Shared only; talks to the API
 ```
 
 Vertical slices under `API/Features/{Name}/` own their endpoints, commands/queries and handlers
-together. **Slices must not reference each other** — `GlobalUsings.cs` deliberately omits
+together. One file per request type, named for it: `{Verb}{Noun}{Query|Command}.cs`. Delete is the
+verb for removal everywhere — there is no `Remove*` twin. **Slices must not reference each other** — `GlobalUsings.cs` deliberately omits
 `Features.*` so cross-slice coupling needs an explicit `using`, and only `Extensions/` (the
 composition root) has one.
 
@@ -33,8 +34,8 @@ dotnet run --project src/PoRepoLineTracker.API --launch-profile https   # https:
 
 dotnet build
 dotnet test tests/PoRepoLineTracker.Unit          # 214 — no external deps
-dotnet test tests/PoRepoLineTracker.Integration   # 76  — WebApplicationFactory + Testcontainers Azurite
-dotnet test tests/PoRepoLineTracker.E2EAPI        # 62  — needs the app running
+dotnet test tests/PoRepoLineTracker.Integration   # 72  — WebApplicationFactory + Testcontainers Azurite
+dotnet test tests/PoRepoLineTracker.E2EAPI        # 61  — needs the app running
 dotnet test tests/PoRepoLineTracker.E2EUI         # 64  — needs the app running + Playwright (~3m30s)
 ```
 
@@ -67,6 +68,14 @@ cookie gets `__Host-` + `Secure`. A `__Host-` cookie without `Secure` is rejecte
 one *with* `Secure` never comes back over http — either way every state-changing request fails
 while reads look fine. The integration tier runs as environment `"Test"` over plain HTTP and opts
 out explicitly.
+
+**Client folders name their consumer.** `Pages/` holds routable components only — three files
+there once had no `@page` directive and were rendered inline, as a dialog, and by a wrapper page.
+`Components/` is foldered by the page that owns them (`Repositories/`, `RepositoryDetail/`,
+`Settings/`, `Diagnostics/`), with `Shared/` reserved for components more than one page renders.
+Domain types live in `Shared/Domain` under `PoRepoLineTracker.Shared.Domain`; wire types live in
+`Shared/Models/Dtos` under `...Shared.Models.Dtos`. The old `PoRepoLineTracker.Domain.Models`
+namespace named a project that no longer exists.
 
 **Scoped CSS needs a plain element at the component root.** A `.razor.css` rule compiles to
 `.foo[b-xxx]`, and nothing a Radzen component renders carries that attribute. Root at a plain
@@ -131,3 +140,9 @@ Do not reintroduce these without asking — each was removed for a stated reason
 - **`POST /api/repositories`** (single add) — `/bulk` is the only write path, and it dedupes where
   the single-add path did not.
 - **SmartAlerts**, **Failed Operations**, the **AI model selector** — see AGENT.MD.
+- **`/api/feature-flags`, `/api/settings/file-extensions`, `/api/settings/chart/max-lines`,
+  `/api/settings/user-extensions`, `POST /api/log/client`** — no client called any of them; only
+  their own tests kept them alive. `FeatureFlags` and `ChartSettings` went from `ConfigKeys` and
+  appsettings with them, and `/api/feature-flags` came out of the production auth allowlist.
+- **`POST /api/repositories/{id}/analyses`** — an unused duplicate of `/reanalyze`, which is now
+  the one route that queues analysis.

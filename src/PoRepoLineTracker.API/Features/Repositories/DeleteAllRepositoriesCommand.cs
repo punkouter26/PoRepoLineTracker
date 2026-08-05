@@ -11,37 +11,37 @@ namespace PoRepoLineTracker.API.Features.Repositories;
 /// Command Pattern: Command to remove all repositories for a user, their commit data, and local file system data.
 /// This is a destructive operation that cleans up all repository-related data for the specified user.
 /// </summary>
-public record RemoveAllRepositoriesCommand(UserId UserId) : IRequest<Unit>;
+public record DeleteAllRepositoriesCommand(UserId UserId) : IRequest<Unit>;
 
 /// <summary>
-/// Command Pattern: Handler for RemoveAllRepositoriesCommand.
+/// Command Pattern: Handler for DeleteAllRepositoriesCommand.
 /// Implements comprehensive cleanup of all repository data including Azure Table Storage and local file system.
 /// Uses Repository Pattern via IRepositoryDataService for storage operations.
 /// </summary>
-public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepositoriesCommand, Unit>
+public class DeleteAllRepositoriesCommandHandler : IRequestHandler<DeleteAllRepositoriesCommand, Unit>
 {
     private readonly IRepositoryDataService _repositoryDataService;
     private readonly IConfiguration _configuration;
-    private readonly ILogger<RemoveAllRepositoriesCommandHandler> _logger;
+    private readonly ILogger<DeleteAllRepositoriesCommandHandler> _logger;
 
-    public RemoveAllRepositoriesCommandHandler(
+    public DeleteAllRepositoriesCommandHandler(
         IRepositoryDataService repositoryDataService,
         IConfiguration configuration,
-        ILogger<RemoveAllRepositoriesCommandHandler> logger)
+        ILogger<DeleteAllRepositoriesCommandHandler> logger)
     {
         _repositoryDataService = repositoryDataService;
         _configuration = configuration;
         _logger = logger;
     }
 
-    public async Task<Unit> Handle(RemoveAllRepositoriesCommand request, CancellationToken cancellationToken)
+    public async Task<Unit> Handle(DeleteAllRepositoriesCommand request, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting removal of all repositories and associated data for user {UserId}.", request.UserId);
 
         try
         {
             // Step 1: Remove all data from Azure Table Storage for this user
-            await _repositoryDataService.RemoveAllRepositoriesAsync(request.UserId);
+            await _repositoryDataService.DeleteAllRepositoriesAsync(request.UserId);
             _logger.LogInformation("All repository data for user {UserId} removed from Azure Table Storage successfully.", request.UserId);
 
             // Step 2: Remove all local repository directories (best effort - don't fail if this doesn't work)

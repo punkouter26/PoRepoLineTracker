@@ -11,12 +11,20 @@
 @inject UserPreferencesClient PreferencesClient
 @using PoRepoLineTracker.Client.Services
 @using PoRepoLineTracker.Client.Models
-@using PoRepoLineTracker.Domain.Models
+@using PoRepoLineTracker.Shared.Domain
 @using PoRepoLineTracker.Shared.Models.Dtos
 @using PoRepoLineTracker.Shared.Models
 @using Radzen
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
+
+@* The home page. It owns loading, analysis state and the actions; the onboarding empty state, the
+   grid and the fallback poll are their own units (RepositoryOnboarding, RepositoryGrid,
+   AnalysisFallbackPoll). This file was 1078 lines with the column templates and the poll loop
+   inlined into it.
+
+   What did NOT move: OnAnalysisProgressAsync. Analysis completion has exactly one path, and both
+   the hub and the poll reach it through that method. *@
 
 <div class="app-stack">
     <PageHero>
@@ -49,15 +57,13 @@
         </Actions>
     </PageHero>
 
-    @* Inline Add Repository Panel *@
     @if (_showAddPanel)
     {
         <RadzenCard class="rp-inline-card">
-            <AddRepository IsInline="true" OnInlineCompleted="@HandleAddCompleted" />
+            <AddRepositoryPanel OnCompleted="@HandleAddCompleted" />
         </RadzenCard>
     }
 
-    @* Notification Messages *@
     @if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
     {
         <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true" AllowClose="true" Close="@(() => pageState.AddRepoMessage = string.Empty)">
@@ -75,7 +81,6 @@
        actually starts. *@
     <AnalysisActivityFeed />
 
-    @* Repository Data Grid *@
     @if (pageState.IsLoadingRepositories)
     {
         <RadzenCard>
@@ -98,51 +103,7 @@
     }
     else if (!pageState.Repositories.Any())
     {
-        @* Animated onboarding empty state — step indicators + CTA *@
-        <RadzenCard class="rp-onboarding-card">
-            <RadzenStack AlignItems="AlignItems.Center" Gap="1.5rem">
-                <RadzenStack Gap="0.5rem" AlignItems="AlignItems.Center">
-                    <RadzenIcon Icon="code" class="rp-onboarding-icon" />
-                    <RadzenText TextStyle="TextStyle.H5" class="rp-onboarding-title">No repositories yet</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Body1" class="rp-onboarding-lede">
-                        Add your first GitHub repository and start tracking lines of code over time.
-                    </RadzenText>
-                </RadzenStack>
-
-                @* How it works — 3-step flow *@
-                <div class="rp-onboarding-steps">
-                    <div class="onboarding-step">
-                        <div class="onboarding-step-icon">
-                            <RadzenIcon Icon="add_link" />
-                        </div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rp-step-title">Add Repo</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" class="rp-step-caption">Connect your GitHub repository</RadzenText>
-                    </div>
-                    <div class="onboarding-connector" aria-hidden="true"></div>
-                    <div class="onboarding-step">
-                        <div class="onboarding-step-icon">
-                            <RadzenIcon Icon="manage_search" />
-                        </div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rp-step-title">Auto-Analyze</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" class="rp-step-caption">Commits scanned in background</RadzenText>
-                    </div>
-                    <div class="onboarding-connector" aria-hidden="true"></div>
-                    <div class="onboarding-step">
-                        <div class="onboarding-step-icon">
-                            <RadzenIcon Icon="trending_up" />
-                        </div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rp-step-title">Track Trends</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" class="rp-step-caption">Charts, extensions & top files</RadzenText>
-                    </div>
-                </div>
-
-                <RadzenButton Text="Add Your First Repository"
-                              Icon="add_circle"
-                              ButtonStyle="ButtonStyle.Primary"
-                              class="onboarding-cta-pulse rp-onboarding-cta"
-                              Click="@ToggleAddPanel" />
-            </RadzenStack>
-        </RadzenCard>
+        <RepositoryOnboarding OnAddClicked="@ToggleAddPanel" />
     }
     else
     {
@@ -153,192 +114,36 @@
            value is read from UserPreferencesClient below and pushed by its Changed event. *@
         <AllReposComparisonChart @ref="_comparisonChart" ChartDisplayMode="@_chartDisplayMode" />
 
-        @* ─── Stats cards ─────────────────────────────────────────────────────── *@
         <PortfolioStatTiles RepositoryCount="@pageState.Repositories.Count"
                             TotalLines="@_repoLatestLineCounts.Values.Sum()"
                             AnalyzedCount="@AnalyzedCount"
                             Trend="@TotalLinesTrend" />
 
-        <RadzenCard>
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rp-searchbar">
-                <RadzenIcon Icon="search" class="rp-muted-icon" aria-hidden="true" />
-                <RadzenTextBox Value="@searchText" ValueChanged="@OnSearchTextChanged"
-                               Placeholder="Search owner or repository..."
-                               aria-label="Search repositories by owner or name"
-                               class="rp-search-input" />
-                @if (!string.IsNullOrEmpty(searchText))
-                {
-                    <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
-                                  Click="@(() => OnSearchTextChanged(string.Empty))" title="Clear search"
-                                  aria-label="Clear repository search" />
-                }
-            </RadzenStack>
-
-            @* Responsive="true" makes Radzen stack each row into a labelled card below its
-               breakpoint. Without it the fixed column widths summed to ~736px, so on a phone the
-               grid scrolled sideways and the Actions column sat permanently off-screen.
-
-               RowRender is bound to OnRowRender rather than the inline lambda it used to carry:
-               the lambda set only `cursor: pointer`, leaving rows unreachable by keyboard even
-               though OnRowRender — which adds tabindex, role and Enter/Space handling — was
-               already written and simply never wired up. *@
-            <div class="u-scroll-x">
-            <RadzenDataGrid @ref="grid"
-                            Data="@FilteredRepositories"
-                            TItem="RepositoryGridRow"
-                            AllowFiltering="false"
-                            AllowSorting="true"
-                            AllowPaging="true"
-                            PageSize="10"
-                            PagerHorizontalAlign="HorizontalAlign.Center"
-                            ShowPagingSummary="true"
-                            PagingSummaryFormat="Showing {0} to {1} of {2} repositories"
-                            AllowColumnResize="true"
-                            Responsive="true"
-                            RowRender="@OnRowRender"
-                            RowClick="@OnRowClick"
-                            Density="Density.Default"
-                            class="rp-grid">
-                <Columns>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Repository" MinWidth="160px" Width="180px">
-                        <Template Context="row">
-                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
-                                <RadzenText class="rp-repo-name" title="@($"{row.Owner}/{row.Name}")">@($"{row.Owner}/{row.Name}")</RadzenText>
-                                <span @onclick:stopPropagation="true">
-                                    <a href="@($"https://github.com/{row.Owner}/{row.Name}")" target="_blank"
-                                       title="Open on GitHub"
-                                       aria-label="@($"Open {row.Owner}/{row.Name} on GitHub in a new tab")"
-                                       class="rp-github-link">
-                                        @* RadzenIcon, not a bare <span class="material-icons">: the glyph
-                                           comes from Radzen's bundled font rather than the Google Fonts
-                                           CDN, so a failed CDN request cannot leave the literal text
-                                           "open_in_new" in the middle of the grid row. *@
-                                        <RadzenIcon Icon="open_in_new" class="rp-github-link__icon" />
-                                    </a>
-                                </span>
-                            </RadzenStack>
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false">
-                        <Template Context="row">
-                            @if (row.TotalLinesSortValue.HasValue)
-                            {
-                                <RadzenText class="rp-lines-value">@row.TotalLinesSortValue.Value.ToString("N0")</RadzenText>
-                            }
-                            else if (row.LastAnalyzedCommitDate.HasValue)
-                            {
-                                <RadzenSkeleton Width="70px" Height="18px" />
-                            }
-                            else
-                            {
-                                <RadzenText class="rp-disabled">—</RadzenText>
-                            }
-                        </Template>
-                    </RadzenDataGridColumn>
-                    @* Trend column. The 45-point series comes from the /allcharts/365 response the
-                       page already fetches for the Total Lines figures, so this adds a per-row
-                       trend for zero extra network cost. Sortable="false": a sparkline has no
-                       meaningful ordering, and the adjacent Total Lines column already sorts. *@
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Trend" Width="80px" Sortable="false" Filterable="false">
-                        <Template Context="row">
-                            @if (row.HasTrend)
-                            {
-                                <div class="rp-row-spark">
-                                    <RadzenSparkline Data="@row.Trend"
-                                                     CategoryProperty="Date"
-                                                     ValueProperty="TotalLines"
-                                                     Stroke="var(--rz-primary)"
-                                                     Fill="rgba(103, 80, 164, 0.16)" />
-                                </div>
-                            }
-                            else
-                            {
-                                <RadzenText class="rp-disabled">—</RadzenText>
-                            }
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last Analyzed" Width="120px" Sortable="true">
-                        <Template Context="row">
-                            @if (row.LastAnalyzedCommitDate.HasValue)
-                            {
-                                <RadzenStack Gap="0.1rem">
-                                    <RadzenText class="rp-relative-time">@ChartFormat.RelativeTime(row.LastAnalyzedCommitDate)</RadzenText>
-                                    <RadzenText TextStyle="TextStyle.Caption" class="rp-muted">@row.LastAnalyzedCommitDate.Value.ToString("MM/dd/yy HH:mm")</RadzenText>
-                                </RadzenStack>
-                            }
-                            else
-                            {
-                                <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Never" />
-                            }
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Status" Width="130px" Filterable="false" Sortable="false">
-                        <Template Context="row">
-                            <AnalysisStatusCell Progress="@(_analysisProgress.TryGetValue(row.Id, out var p) ? p : null)"
-                                                IsReanalyzing="@(reanalyzingRepositoryId == row.Id)"
-                                                HasBeenAnalyzed="@row.LastAnalyzedCommitDate.HasValue"
-                                                StartedUtc="@(_reanalysisStartTimes.TryGetValue(row.Id, out var st) ? st : null)" />
-                        </Template>
-                    </RadzenDataGridColumn>
-
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Actions" Width="80px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
-                        <Template Context="row">
-                            <span @onclick:stopPropagation="true">
-                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
-                                    <RadzenButton Icon="refresh" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Outlined"
-                                                  Click="@(() => ConfirmReanalyze(row.Repository))"
-                                                  title="Re-analyze from scratch"
-                                                  aria-label="@($"Re-analyze {row.Owner}/{row.Name}")"
-                                                  Disabled="@(reanalyzingRepositoryId == row.Id)" />
-                                    <RadzenButton Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined"
-                                                  Click="@(() => ConfirmDeleteRepository(row.Repository))"
-                                                  title="Delete repository"
-                                                  aria-label="@($"Delete {row.Owner}/{row.Name}")" />
-                                </RadzenStack>
-                            </span>
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="" Width="36px" Filterable="false" Sortable="false">
-                        <HeaderTemplate>
-                            <span class="visually-hidden">Open repository</span>
-                        </HeaderTemplate>
-                        <Template>
-                            <RadzenIcon Icon="chevron_right" class="rp-chevron" aria-hidden="true" />
-                        </Template>
-                    </RadzenDataGridColumn>
-                </Columns>
-            </RadzenDataGrid>
-            </div>
-
-            @* Danger Zone — separated from primary actions *@
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
-                         class="rp-danger-zone">
-                <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-zone__label">Danger Zone</RadzenText>
-                <RadzenButton Text="Remove All Repositories"
-                              Icon="delete_forever"
-                              ButtonStyle="ButtonStyle.Danger"
-                              Variant="Variant.Outlined"
-                              Size="ButtonSize.Small"
-                              Click="@ConfirmRemoveAll"
-                              IsBusy="@isRemovingAll"
-                              BusyText="Removing..." />
-            </RadzenStack>
-        </RadzenCard>
+        <RepositoryGrid @ref="_grid"
+                        Rows="@FilteredRepositories"
+                        SearchText="@searchText"
+                        SearchTextChanged="@OnSearchTextChanged"
+                        AnalysisProgress="@_analysisProgress"
+                        ReanalysisStartTimes="@_reanalysisStartTimes"
+                        ReanalyzingRepositoryId="@reanalyzingRepositoryId"
+                        IsDeletingAll="@isDeletingAll"
+                        OnRowActivated="@OnRowActivated"
+                        OnReanalyze="@ConfirmReanalyze"
+                        OnDelete="@ConfirmDeleteRepository"
+                        OnDeleteAll="@ConfirmDeleteAll" />
     }
 </div>
-
-
 
 @code {
     [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
 
     private RepositoryPageState pageState = new();
-    private RadzenDataGrid<RepositoryGridRow>? grid;
+    private RepositoryGrid? _grid;
     private AllReposComparisonChart? _comparisonChart;
     private bool _chartPrimed;
     private RepositoryId? reanalyzingRepositoryId;
     private bool _showAddPanel = false;
-    private bool isRemovingAll = false;
+    private bool isDeletingAll = false;
     private string searchText = string.Empty;
     // Tracks the last Q value we wrote to the URL ourselves, so OnParametersSet
     // does not overwrite searchText after our own NavigateTo call.
@@ -356,6 +161,7 @@
     private Dictionary<RepositoryId, AnalysisProgressDto> _analysisProgress = new();
     private readonly CancellationTokenSource _disposeCts = new();
     private ChartDisplayMode _chartDisplayMode = ChartDisplayMode.TrueData;
+
     /// <summary>
     /// True after <see cref="DisposeAsync"/> has run. Radzen charts and grids capture
     /// <c>DotNetObjectReference</c>s the JS module can still call into for a frame or two after
@@ -364,6 +170,25 @@
     /// flag rather than touching torn-down state.
     /// </summary>
     private bool _disposed;
+
+    /// <summary>
+    /// The one fallback for a hub that cannot be reached. It publishes frames through
+    /// <see cref="OnAnalysisProgressAsync"/> and decides nothing itself — see the class comment
+    /// for why that separation is load-bearing.
+    /// </summary>
+    private AnalysisFallbackPoll? _fallbackPoll;
+
+    private AnalysisFallbackPoll FallbackPoll => _fallbackPoll ??= new AnalysisFallbackPoll(
+        Http,
+        Logger,
+        isFeedConnected: () => Feed.IsConnected,
+        publish: OnAnalysisProgressAsync,
+        onRepositoryRefreshed: updated =>
+        {
+            var index = pageState.Repositories.FindIndex(r => r.Id == updated.Id);
+            if (index >= 0) pageState.Repositories[index] = updated;
+        },
+        seenProgress: () => _analysisProgress);
 
     private IEnumerable<RepositoryGridRow> FilteredRepositories =>
         string.IsNullOrWhiteSpace(searchText)
@@ -386,7 +211,6 @@
     /// 365 and the extra nodes are pure render cost.
     /// </summary>
     private List<DailyLineCountDto> TotalLinesTrend { get; set; } = [];
-
 
     protected override void OnParametersSet()
     {
@@ -417,7 +241,9 @@
     }
 
     /// <summary>
-    /// Applies a pushed progress frame to the grid.
+    /// Applies a progress frame to the grid. THE completion path — both the SignalR hub and
+    /// <see cref="AnalysisFallbackPoll"/> arrive here, which is the whole reason the poll
+    /// synthesises frames instead of handling completion itself.
     ///
     /// <para>This is the same state the poll used to fetch, arriving as it happens rather than up
     /// to five seconds later — and without the request-per-pending-repository that produced it.
@@ -449,7 +275,7 @@
 
         if (reanalyzingRepositoryId == progress.RepositoryId) reanalyzingRepositoryId = null;
         _reanalysisStartTimes.Remove(progress.RepositoryId);
-        _awaitingAnalysis.Remove(progress.RepositoryId);
+        FallbackPoll.StopWatching(progress.RepositoryId);
 
         if (progress.ErrorMessage is null)
         {
@@ -469,7 +295,7 @@
         }
 
         await InvokeAsync(StateHasChanged);
-        if (grid is not null) await InvokeAsync(grid.Reload);
+        await ReloadGridAsync();
     }
 
     /// <summary>
@@ -571,24 +397,7 @@
         Navigation.NavigateTo(uri, replace: true);
     }
 
-    private void OnRowClick(DataGridRowMouseEventArgs<RepositoryGridRow> args)
-    {
-        Navigation.NavigateTo($"/repositories/{args.Data.Id}");
-    }
-
-    /// <summary>
-    /// Adds tabindex + role="button" + aria-label + Enter/Space keyboard activation
-    /// to each row so screen readers and keyboard users can navigate the repo
-    /// list without falling back to the chevron column. (#5 + #9)
-    /// </summary>
-    private void OnRowRender(RowRenderEventArgs<RepositoryGridRow> args)
-    {
-        args.Attributes["style"] = "cursor: pointer;";
-        args.Attributes["tabindex"] = "0";
-        args.Attributes["role"] = "button";
-        args.Attributes["aria-label"] = $"Open repository {args.Data.Owner}/{args.Data.Name}";
-        args.Attributes["onkeydown"] = "if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}";
-    }
+    private void OnRowActivated(RepositoryGridRow row) => Navigation.NavigateTo($"/repositories/{row.Id}");
 
     // ToRelativeTime moved to ChartFormat — it was duplicated verbatim on RepositoryDetail.
 
@@ -599,7 +408,7 @@
 
     private async Task ShowUploadDialog()
     {
-        await DialogService.OpenAsync<UploadRepository>("Upload Local Repository",
+        await DialogService.OpenAsync<UploadRepositoryDialog>("Upload Local Repository",
             new Dictionary<string, object> { },
             new DialogOptions
             {
@@ -626,6 +435,22 @@
     /// </summary>
     private Task ReloadComparisonChartAsync() =>
         _comparisonChart is null ? Task.CompletedTask : InvokeAsync(_comparisonChart.ReloadAsync);
+
+    /// <summary>Same contract as the chart above: no-op until the grid exists.</summary>
+    private Task ReloadGridAsync() =>
+        _grid is null ? Task.CompletedTask : InvokeAsync(_grid.ReloadAsync);
+
+    /// <summary>
+    /// The _disposed guard is load-bearing. OnInitializedAsync awaits four loads and then calls
+    /// this; navigating away in between disposes _disposeCts, and the continuation still arrives.
+    /// The CTS is handed over whole rather than as a Token so nothing reads .Token on a disposed
+    /// source — see AnalysisFallbackPoll.StartIfNeeded.
+    /// </summary>
+    private void StartFallbackPollIfNeeded()
+    {
+        if (_disposed) return;
+        FallbackPoll.StartIfNeeded(pageState.Repositories, _disposeCts);
+    }
 
     private async Task LoadRepositories()
     {
@@ -711,12 +536,11 @@
 
                 // Register the wait and let the one fallback loop cover it. It no-ops while the
                 // hub is connected, and the hub's frames clear the entry through the same handler.
-                _awaitingAnalysis[repo.Id] = priorDate;
+                FallbackPoll.Watch(repo.Id, priorDate);
                 StartFallbackPollIfNeeded();
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
                 NotificationService.Notify(new NotificationMessage
                 {
                     Severity = NotificationSeverity.Error,
@@ -740,196 +564,16 @@
         }
         finally
         {
-            // Only clear the badge immediately if the API call failed — on success polling handles cleanup
+            // Only clear the badge immediately if the API call failed — on success the fallback
+            // poll or the hub handles cleanup.
             if (!successfullyQueued)
             {
                 reanalyzingRepositoryId = null;
                 _reanalysisStartTimes.Remove(repo.Id);
-                _awaitingAnalysis.Remove(repo.Id);
+                FallbackPoll.StopWatching(repo.Id);
                 StateHasChanged();
             }
         }
-    }
-
-    // ─── Fallback poll ──────────────────────────────────────────────────────────
-    //
-    // ONE loop, and it does not decide anything. It turns whatever the server says into the same
-    // AnalysisProgressDto frames the hub pushes and hands them to OnAnalysisProgressAsync — so
-    // "a job finished" is handled in exactly one place whether the news arrived by push or by
-    // poll.
-    //
-    // It replaces two loops that each re-implemented that handling: a 15-second poll for
-    // repositories that had never been analysed, and a 5-second poll started per re-analysis.
-    // Between them and the hub handler, "reload repositories, reload line counts, reload the
-    // comparison chart, clear the badge, notify" was written out three times, guarded by
-    // Feed.IsConnected checks in four separate methods. They had already drifted: only the hub
-    // path removed the entry from _analysisProgress on success, and only the re-analysis poll
-    // cleared the badge on its own timeout.
-
-    /// <summary>
-    /// Repositories whose analysis this page is waiting on, each with the LastAnalyzedCommitDate
-    /// it had when the wait began — that value changing is the completion signal.
-    /// </summary>
-    private readonly Dictionary<RepositoryId, DateTime?> _awaitingAnalysis = [];
-
-    private bool _fallbackPollRunning;
-
-    /// <summary>
-    /// Starts the fallback loop if anything is being waited on and the hub is not carrying it.
-    ///
-    /// <para>The hub reports every step of every job the user owns, so polling on top of it would
-    /// fetch the same data twice. This exists for the cases the hub cannot cover: a proxy that
-    /// blocks WebSockets, or a failed handshake.</para>
-    /// </summary>
-    private void StartFallbackPollIfNeeded()
-    {
-        foreach (var pending in pageState.Repositories.Where(r => r.LastAnalyzedCommitDate is null))
-            _awaitingAnalysis.TryAdd(pending.Id, null);
-
-        if (_fallbackPollRunning) return;
-        if (Feed.IsConnected) return;
-        if (_awaitingAnalysis.Count == 0) return;
-
-        _ = FallbackPollAsync();
-    }
-
-    private async Task FallbackPollAsync()
-    {
-        _fallbackPollRunning = true;
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
-        // Hard stop. A very large repository must not leave a timer running for the whole session.
-        cts.CancelAfter(TimeSpan.FromMinutes(60));
-
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-        Logger.LogInformation("Fallback analysis poll started for {Count} repositories", _awaitingAnalysis.Count);
-
-        try
-        {
-            while (_awaitingAnalysis.Count > 0 && await timer.WaitForNextTickAsync(cts.Token))
-            {
-                // The hub may come back mid-job — a reconnect is exactly what WithAutomaticReconnect
-                // is for. Stand down when it does rather than duplicating its frames.
-                if (Feed.IsConnected)
-                {
-                    Logger.LogInformation("Analysis feed reconnected — stopping fallback poll");
-                    break;
-                }
-
-                try
-                {
-                    await PollTickAsync(cts.Token);
-                }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning(ex, "Fallback poll tick failed — will retry");
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            Logger.LogInformation("Fallback analysis poll cancelled");
-        }
-        finally
-        {
-            _fallbackPollRunning = false;
-        }
-    }
-
-    private async Task PollTickAsync(CancellationToken cancellationToken)
-    {
-        var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository, cancellationToken);
-        if (repos is null) return;
-
-        foreach (var (repositoryId, baseline) in _awaitingAnalysis.ToList())
-        {
-            var updated = repos.FirstOrDefault(r => r.Id == repositoryId);
-
-            // Deleted from under us — stop waiting rather than polling a 404 for an hour.
-            if (updated is null)
-            {
-                _awaitingAnalysis.Remove(repositoryId);
-                continue;
-            }
-
-            // A changed LastAnalyzedCommitDate is the completion signal. Checked BEFORE the
-            // progress endpoint because a finished job's progress entry expires, and reading
-            // "no progress" as "still working" is what used to leave badges spinning.
-            if (updated.LastAnalyzedCommitDate is not null && updated.LastAnalyzedCommitDate != baseline)
-            {
-                var index = pageState.Repositories.FindIndex(r => r.Id == repositoryId);
-                if (index >= 0) pageState.Repositories[index] = updated;
-
-                await PublishTerminalFrameAsync(repositoryId, error: null);
-                continue;
-            }
-
-            // Still in flight. Mirror the running frame the hub would have pushed, so the step
-            // name, commit counts and stuck/error flags reach the grid by the same route.
-            AnalysisProgressDto? progress = null;
-            try
-            {
-                progress = await Http.GetAppJsonAsync(
-                    $"/api/repositories/{repositoryId}/analysis-progress",
-                    AppJsonSerializerContext.Default.AnalysisProgressDto,
-                    cancellationToken);
-            }
-            catch (OperationCanceledException) { throw; }
-            catch
-            {
-                // 404 until the job registers itself. Not an error — just nothing to report yet.
-            }
-
-            if (progress is null) continue;
-
-            if (progress.IsRunning || progress.ErrorMessage is not null)
-            {
-                await OnAnalysisProgressAsync(progress);
-                if (!progress.IsRunning) _awaitingAnalysis.Remove(repositoryId);
-            }
-
-            // A terminal frame with no error and no date change yet means the write has not
-            // landed. Leave it outstanding and pick the completion up on a later tick.
-        }
-    }
-
-    /// <summary>
-    /// Synthesises the terminal frame the hub would have pushed and routes it through the one
-    /// handler, so completion does the same work by either path.
-    /// </summary>
-    private async Task PublishTerminalFrameAsync(RepositoryId repositoryId, string? error)
-    {
-        _awaitingAnalysis.Remove(repositoryId);
-
-        var repo = pageState.Repositories.FirstOrDefault(r => r.Id == repositoryId);
-
-        // The handler only acts on a running → finished transition, so a repository never seen
-        // running needs its running frame first. Without this, the completion of a job the poll
-        // only ever caught at the end would be silently dropped.
-        if (!(_analysisProgress.TryGetValue(repositoryId, out var seen) && seen.IsRunning))
-        {
-            await OnAnalysisProgressAsync(new AnalysisProgressDto
-            {
-                RepositoryId = repositoryId,
-                Owner = repo?.Owner ?? string.Empty,
-                Name = repo?.Name ?? string.Empty,
-                IsRunning = true,
-                StepName = "Analyzing",
-                StepDescription = "Working…"
-            });
-        }
-
-        await OnAnalysisProgressAsync(new AnalysisProgressDto
-        {
-            RepositoryId = repositoryId,
-            Owner = repo?.Owner ?? string.Empty,
-            Name = repo?.Name ?? string.Empty,
-            IsRunning = false,
-            StepName = error is null ? "Complete" : "Failed",
-            StepDescription = error ?? "Analysis complete",
-            ErrorMessage = error
-        });
     }
 
     public async ValueTask DisposeAsync()
@@ -943,20 +587,6 @@
 
         await _disposeCts.CancelAsync();
         _disposeCts.Dispose();
-    }
-
-    private sealed record RepositoryGridRow(
-        GitHubRepository Repository,
-        int? TotalLinesSortValue,
-        IReadOnlyList<DailyLineCountDto> Trend)
-    {
-        public RepositoryId Id => Repository.Id;
-        public string Owner => Repository.Owner;
-        public string Name => Repository.Name;
-        public DateTime? LastAnalyzedCommitDate => Repository.LastAnalyzedCommitDate;
-
-        /// <summary>A sparkline of one or two points is a dot, not a trend — hide it below three.</summary>
-        public bool HasTrend => Trend.Count > 2;
     }
 
     private async Task DeleteRepository(RepositoryId repositoryId)
@@ -981,13 +611,11 @@
                     });
                 }
 
-                if (grid is not null)
-                    await grid.Reload();
+                await ReloadGridAsync();
                 Logger.LogInformation("Repository {RepositoryId} deleted successfully", repositoryId);
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
                 NotificationService.Notify(new NotificationMessage
                 {
                     Severity = NotificationSeverity.Error,
@@ -1011,28 +639,28 @@
         }
     }
 
-    private async Task ConfirmRemoveAll()
+    private async Task ConfirmDeleteAll()
     {
         var confirmed = await DialogService.Confirm(
-            "Are you sure you want to remove ALL repositories? This action cannot be undone.",
-            "Remove All Repositories",
-            new ConfirmOptions { OkButtonText = "Remove All", CancelButtonText = "Cancel" });
+            "Are you sure you want to delete ALL repositories? This action cannot be undone.",
+            "Delete All Repositories",
+            new ConfirmOptions { OkButtonText = "Delete All", CancelButtonText = "Cancel" });
 
         if (confirmed == true)
         {
-            await RemoveAllRepositories();
+            await DeleteAllRepositories();
         }
     }
 
-    private async Task RemoveAllRepositories()
+    private async Task DeleteAllRepositories()
     {
         try
         {
-            isRemovingAll = true;
-            Logger.LogInformation("Starting removal of all repositories via API endpoint.");
-            
+            isDeletingAll = true;
+            Logger.LogInformation("Starting deletion of all repositories via API endpoint.");
+
             var response = await Http.DeleteAsync("/api/repositories/all");
-            
+
             if (response.IsSuccessStatusCode)
             {
                 pageState.Repositories.Clear();
@@ -1041,22 +669,21 @@
                 {
                     Severity = NotificationSeverity.Success,
                     Summary = "Success",
-                    Detail = "All repositories and data have been successfully removed!",
+                    Detail = "All repositories and data have been successfully deleted!",
                     Duration = 4000
                 });
-                Logger.LogInformation("All repositories removed successfully.");
+                Logger.LogInformation("All repositories deleted successfully.");
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
                 NotificationService.Notify(new NotificationMessage
                 {
                     Severity = NotificationSeverity.Error,
                     Summary = "Error",
-                    Detail = $"Error removing repositories: {response.StatusCode}",
+                    Detail = $"Error deleting repositories: {response.StatusCode}",
                     Duration = 6000
                 });
-                Logger.LogError("Failed to remove all repositories. Status: {StatusCode}", response.StatusCode);
+                Logger.LogError("Failed to delete all repositories. Status: {StatusCode}", response.StatusCode);
             }
         }
         catch (Exception ex)
@@ -1065,14 +692,14 @@
             {
                 Severity = NotificationSeverity.Error,
                 Summary = "Error",
-                Detail = $"Error removing all repositories: {ex.Message}",
+                Detail = $"Error deleting all repositories: {ex.Message}",
                 Duration = 6000
             });
-            Logger.LogError(ex, "Error removing all repositories: {Message}", ex.Message);
+            Logger.LogError(ex, "Error deleting all repositories: {Message}", ex.Message);
         }
         finally
         {
-            isRemovingAll = false;
+            isDeletingAll = false;
         }
     }
 }

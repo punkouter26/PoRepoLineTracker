@@ -1,8 +1,14 @@
 /* Scoped styles for the Settings page.
 
-   `.repo-hero` is gone — the page now uses <PageHero>, whose own scoped stylesheet owns the
-   strip. These two rules survive because the heading text is this page's markup, passed into
-   PageHero as a RenderFragment, so it carries THIS component's scope id, not PageHero's. */
+   `.repo-hero` is gone — the page uses <PageHero>, whose own scoped stylesheet owns the strip.
+   The two heading rules survive because the heading text is this page's markup, passed into
+   PageHero as a RenderFragment, so it carries THIS component's scope id, not PageHero's.
+
+   The `.ext-*` rules below arrived with ExtensionsCounted.razor.css when that component was
+   folded into this page. Moving markup between components without moving its scoped CSS leaves
+   the rules compiled against the old scope id, where they match nothing — so they came across
+   with it. The `.ext-title` / `.ext-subtitle` pair did not: they styled the suppressed second
+   page header, which no longer exists. */
 
 ::deep .settings-title.settings-title {
     margin: 0 !important;
@@ -11,4 +17,30 @@
 ::deep .settings-subtitle.settings-subtitle {
     margin: 0 !important;
     color: var(--rz-text-secondary-color) !important;
+}
+
+/* Suppresses the `margin-bottom: var(--space-lg)` app.css puts on every h1–h6. Without it the
+   heading pushes its own toolbar row open by an extra 1.5rem and the "Add Extension" button no
+   longer sits on the heading's baseline. */
+::deep .ext-count-title.ext-count-title {
+    margin: 0 !important;
+}
+
+::deep .ext-grid.ext-grid {
+    height: auto !important;
+}
+
+::deep .ext-code {
+    font-size: 1rem;
+}
+
+::deep .ext-input.ext-input {
+    width: 100% !important;
+}
+
+/* The "Add Extension" dialog body is rendered into Radzen's dialog host, outside this component's
+   DOM subtree — but the markup is still compiled here, so its own elements carry the isolation
+   attribute and these selectors resolve. */
+::deep .ext-dialog.ext-dialog {
+    padding: 1rem !important;
 }

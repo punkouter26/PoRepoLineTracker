@@ -1,0 +1,58 @@
+/* Rule 4.3 — scoped styles for the onboarding empty state.
+   See AddRepositoryPanel.razor.css for the ::deep / doubled-class / !important pattern.
+
+   These rules came across from Repositories.razor.css with the markup they style. Left behind,
+   they would have stayed compiled against the page's scope id and matched nothing — a silent
+   failure this project has shipped before.
+
+   `.onboarding-step`, `.onboarding-connector`, `.onboarding-step-icon`, `.onboarding-cta-pulse`
+   and the fadeSlideUp keyframes remain in app.css: they are global, and referenced from there. */
+
+.rp-onboarding ::deep .rp-onboarding-card.rp-onboarding-card {
+    padding: 1.75rem 1.5rem !important;
+}
+
+.rp-onboarding ::deep .rp-onboarding-icon.rp-onboarding-icon {
+    font-size: 2rem !important;
+    color: var(--rz-primary) !important;
+    animation: fadeSlideUp 0.4s ease both !important;
+}
+
+.rp-onboarding ::deep .rp-onboarding-title.rp-onboarding-title {
+    margin: 0 !important;
+    animation: fadeSlideUp 0.4s ease 0.05s both !important;
+}
+
+.rp-onboarding ::deep .rp-onboarding-lede.rp-onboarding-lede {
+    color: var(--rz-text-secondary-color) !important;
+    text-align: center !important;
+    max-width: 380px !important;
+    animation: fadeSlideUp 0.4s ease 0.1s both !important;
+}
+
+.rp-onboarding ::deep .rp-step-title.rp-step-title {
+    margin: 0 !important;
+    text-align: center !important;
+}
+
+.rp-onboarding ::deep .rp-step-caption.rp-step-caption {
+    color: var(--rz-text-secondary-color) !important;
+    text-align: center !important;
+}
+
+.rp-onboarding ::deep .rp-onboarding-cta.rp-onboarding-cta {
+    padding: 0.75rem 2rem !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    border-radius: 12px !important;
+}
+
+.rp-onboarding-steps {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 520px;
+}

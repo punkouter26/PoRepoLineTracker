@@ -1,11 +1,9 @@
-/* Rule 4.3 — scoped styles for the ZIP upload page.
-   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. Plain HTML
-   elements in this page's own markup (dropzone, log, grid) need neither, so they are written as
-   ordinary rules. */
+/* Rule 4.3 — scoped styles for the ZIP upload dialog.
+   See AddRepositoryPanel.razor.css for the ::deep / doubled-class / !important pattern. Plain HTML
+   elements in this component's own markup (dropzone, log, grid) need neither, so they are written
+   as ordinary rules.
 
-::deep .ul-title.ul-title {
-    margin: 0 !important;
-}
+   The .ul-title rule went with the H4 it styled — the dialog renders its own title bar. */
 
 ::deep .ul-subtitle.ul-subtitle {
     color: var(--rz-text-secondary-color) !important;

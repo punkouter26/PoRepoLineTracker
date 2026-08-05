@@ -115,30 +115,12 @@
     border-radius: inherit;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   2. AMBIENT GRADIENT
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Drifting mesh, used behind the page hero strip. Three radial stops over a
-   base, with `background-position` doing the drift — position is a
-   compositor-friendly property here because the layer is already promoted. */
-.u-grad-mesh {
-    background-color: var(--bg-secondary);
-    background-image:
-        radial-gradient(ellipse 60% 80% at 15% 20%, rgba(103, 80, 164, 0.18), transparent 60%),
-        radial-gradient(ellipse 50% 70% at 85% 30%, rgba(124, 58, 237, 0.14), transparent 55%),
-        radial-gradient(ellipse 70% 60% at 50% 95%, rgba(167, 139, 250, 0.12), transparent 60%);
-    background-size: 160% 160%, 150% 150%, 170% 170%;
-    animation: meshDrift 24s var(--ease-standard) infinite alternate;
-}
-
-@keyframes meshDrift {
-    from { background-position: 0% 0%,   100% 0%,  50% 100%; }
-    to   { background-position: 20% 15%, 80% 20%,  40% 80%; }
-}
+/* .u-grad-mesh and its meshDrift keyframes stood here, described as "used behind the page hero
+   strip". No markup carried the class — PageHero draws its own background — so the browser parsed
+   a three-stop animated gradient on every load and never painted it once. */
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   3. MOTION PRIMITIVES
+   2. MOTION PRIMITIVES
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Lift on hover. `translate3d` rather than `translateY` to force the layer onto
@@ -207,14 +189,12 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   4. REDUCED MOTION / REDUCED TRANSPARENCY
+   3. REDUCED MOTION / REDUCED TRANSPARENCY
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* app.css already zeroes durations globally. What it cannot do is stop the
-   engine from repainting a drifting three-stop gradient every frame, so the
-   ambient decoration is switched off outright here. */
+/* app.css already zeroes durations globally; this stops the looping decorations
+   outright rather than running them at zero duration. */
 @media (prefers-reduced-motion: reduce) {
-    .u-grad-mesh,
     .u-pulse-dot {
         animation: none !important;
     }

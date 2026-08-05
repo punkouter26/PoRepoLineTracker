@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.Shared.Models;
+namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
 /// Represents the authentication status response returned by /auth/me.

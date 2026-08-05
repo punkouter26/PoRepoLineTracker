@@ -61,23 +61,28 @@ public sealed class StaticAssetsApiTests
         // survives only as a scope anchor and contributes nothing to the bundle. This row asserted
         // the old class and had been failing ever since.
         { "login-display__avatar", "LoginDisplay.razor.css" },
-        { "add-repo-title", "AddRepository.razor.css" },
+        { "add-repo-progress-message", "AddRepositoryPanel.razor.css" },
         { "top-files-dialog__grid", "TopFilesDialog.razor.css" },
         { "brand-wordmark", "MainLayout.razor.css" },
-        { "ext-code", "ExtensionsCounted.razor.css" },
+        // ExtensionsCounted.razor(.css) was folded into the Settings page, taking its .ext-* rules
+        // with it — see Settings.razor.css. "settings-title" above already covers that file.
+        { "ext-code", "Settings.razor.css" },
         { "ghsel-list", "GitHubRepositorySelector.razor.css" },
         // MobileRepoCard.razor(.css) was deleted: no page ever referenced the component, and the
         // `.mobile-only` / `.desktop-only` classes written to switch it in were unused too.
         // Radzen's own responsive DataGrid covers the case it was built for.
-        { "xc-env-card", "ExternalConnections.razor.css" },
-        { "ul-dropzone", "UploadRepository.razor.css" },
+        { "xc-env-card", "Diagnostics.razor.css" },
+        { "ul-dropzone", "UploadRepositoryDialog.razor.css" },
         { "arc-legend__swatch", "AllReposComparisonChart.razor.css" },
         { "chart-card__title", "ChartCard.razor.css" },
         { "page-hero__actions", "PageHero.razor.css" },
         { "cc-bar", "ContributorChart.razor.css" },
         { "ts-metric__value", "TimelineScrubber.razor.css" },
         { "rd-ext-bar", "RepositoryDetail.razor.css" },
-        { "rp-row-spark", "Repositories.razor.css" },
+        { "rp-inline-card", "Repositories.razor.css" },
+        // The page shed its grid and its empty state; their rules went with the markup.
+        { "rp-row-spark", "RepositoryGrid.razor.css" },
+        { "rp-onboarding-cta", "RepositoryOnboarding.razor.css" },
         { "rp-stat-icon", "PortfolioStatTiles.razor.css" },
         { "status-cell", "AnalysisStatusCell.razor.css" },
     };

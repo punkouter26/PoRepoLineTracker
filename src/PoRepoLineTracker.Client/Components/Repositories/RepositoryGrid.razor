@@ -1,0 +1,228 @@
+@using PoRepoLineTracker.Client.Models
+@using PoRepoLineTracker.Shared.Domain
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using Radzen
+@using Radzen.Blazor
+
+@* The repositories table: search bar, grid, danger zone.
+
+   Extracted from Repositories.razor, which held ~165 lines of column templates inline and was the
+   largest file in the client by a wide margin. This component renders and raises events; it owns
+   no loading, no polling and no analysis state — the page passes in what a row should show and
+   handles what a click means. *@
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rp-searchbar">
+        <RadzenIcon Icon="search" class="rp-muted-icon" aria-hidden="true" />
+        <RadzenTextBox Value="@SearchText" ValueChanged="@OnSearchTextChanged"
+                       Placeholder="Search owner or repository..."
+                       aria-label="Search repositories by owner or name"
+                       class="rp-search-input" />
+        @if (!string.IsNullOrEmpty(SearchText))
+        {
+            <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
+                          Click="@(() => OnSearchTextChanged(string.Empty))" title="Clear search"
+                          aria-label="Clear repository search" />
+        }
+    </RadzenStack>
+
+    @* Responsive="true" makes Radzen stack each row into a labelled card below its
+       breakpoint. Without it the fixed column widths summed to ~736px, so on a phone the
+       grid scrolled sideways and the Actions column sat permanently off-screen.
+
+       RowRender is bound to OnRowRender rather than the inline lambda it used to carry:
+       the lambda set only `cursor: pointer`, leaving rows unreachable by keyboard even
+       though OnRowRender — which adds tabindex, role and Enter/Space handling — was
+       already written and simply never wired up. *@
+    <div class="u-scroll-x">
+    <RadzenDataGrid @ref="_grid"
+                    Data="@Rows"
+                    TItem="RepositoryGridRow"
+                    AllowFiltering="false"
+                    AllowSorting="true"
+                    AllowPaging="true"
+                    PageSize="10"
+                    PagerHorizontalAlign="HorizontalAlign.Center"
+                    ShowPagingSummary="true"
+                    PagingSummaryFormat="Showing {0} to {1} of {2} repositories"
+                    AllowColumnResize="true"
+                    Responsive="true"
+                    RowRender="@OnRowRender"
+                    RowClick="@OnRowClick"
+                    Density="Density.Default"
+                    class="rp-grid">
+        <Columns>
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Repository" MinWidth="160px" Width="180px">
+                <Template Context="row">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
+                        <RadzenText class="rp-repo-name" title="@($"{row.Owner}/{row.Name}")">@($"{row.Owner}/{row.Name}")</RadzenText>
+                        <span @onclick:stopPropagation="true">
+                            <a href="@($"https://github.com/{row.Owner}/{row.Name}")" target="_blank"
+                               title="Open on GitHub"
+                               aria-label="@($"Open {row.Owner}/{row.Name} on GitHub in a new tab")"
+                               class="rp-github-link">
+                                @* RadzenIcon, not a bare <span class="material-icons">: the glyph
+                                   comes from Radzen's bundled font rather than the Google Fonts
+                                   CDN, so a failed CDN request cannot leave the literal text
+                                   "open_in_new" in the middle of the grid row. *@
+                                <RadzenIcon Icon="open_in_new" class="rp-github-link__icon" />
+                            </a>
+                        </span>
+                    </RadzenStack>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false">
+                <Template Context="row">
+                    @if (row.TotalLinesSortValue.HasValue)
+                    {
+                        <RadzenText class="rp-lines-value">@row.TotalLinesSortValue.Value.ToString("N0")</RadzenText>
+                    }
+                    else if (row.LastAnalyzedCommitDate.HasValue)
+                    {
+                        <RadzenSkeleton Width="70px" Height="18px" />
+                    }
+                    else
+                    {
+                        <RadzenText class="rp-disabled">—</RadzenText>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            @* Trend column. The 45-point series comes from the /allcharts/365 response the
+               page already fetches for the Total Lines figures, so this adds a per-row
+               trend for zero extra network cost. Sortable="false": a sparkline has no
+               meaningful ordering, and the adjacent Total Lines column already sorts. *@
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Trend" Width="80px" Sortable="false" Filterable="false">
+                <Template Context="row">
+                    @if (row.HasTrend)
+                    {
+                        <div class="rp-row-spark">
+                            <RadzenSparkline Data="@row.Trend"
+                                             CategoryProperty="Date"
+                                             ValueProperty="TotalLines"
+                                             Stroke="var(--rz-primary)"
+                                             Fill="rgba(103, 80, 164, 0.16)" />
+                        </div>
+                    }
+                    else
+                    {
+                        <RadzenText class="rp-disabled">—</RadzenText>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last Analyzed" Width="120px" Sortable="true">
+                <Template Context="row">
+                    @if (row.LastAnalyzedCommitDate.HasValue)
+                    {
+                        <RadzenStack Gap="0.1rem">
+                            <RadzenText class="rp-relative-time">@ChartFormat.RelativeTime(row.LastAnalyzedCommitDate)</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption" class="rp-muted">@row.LastAnalyzedCommitDate.Value.ToString("MM/dd/yy HH:mm")</RadzenText>
+                        </RadzenStack>
+                    }
+                    else
+                    {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Never" />
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Status" Width="130px" Filterable="false" Sortable="false">
+                <Template Context="row">
+                    <AnalysisStatusCell Progress="@(AnalysisProgress.TryGetValue(row.Id, out var p) ? p : null)"
+                                        IsReanalyzing="@(ReanalyzingRepositoryId == row.Id)"
+                                        HasBeenAnalyzed="@row.LastAnalyzedCommitDate.HasValue"
+                                        StartedUtc="@(ReanalysisStartTimes.TryGetValue(row.Id, out var st) ? st : null)" />
+                </Template>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Actions" Width="80px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
+                <Template Context="row">
+                    <span @onclick:stopPropagation="true">
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
+                            <RadzenButton Icon="refresh" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Outlined"
+                                          Click="@(() => OnReanalyze.InvokeAsync(row.Repository))"
+                                          title="Re-analyze from scratch"
+                                          aria-label="@($"Re-analyze {row.Owner}/{row.Name}")"
+                                          Disabled="@(ReanalyzingRepositoryId == row.Id)" />
+                            <RadzenButton Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined"
+                                          Click="@(() => OnDelete.InvokeAsync(row.Repository))"
+                                          title="Delete repository"
+                                          aria-label="@($"Delete {row.Owner}/{row.Name}")" />
+                        </RadzenStack>
+                    </span>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="" Width="36px" Filterable="false" Sortable="false">
+                <HeaderTemplate>
+                    <span class="visually-hidden">Open repository</span>
+                </HeaderTemplate>
+                <Template>
+                    <RadzenIcon Icon="chevron_right" class="rp-chevron" aria-hidden="true" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+    </div>
+
+    @* Danger Zone — separated from primary actions *@
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
+                 class="rp-danger-zone">
+        <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-zone__label">Danger Zone</RadzenText>
+        <RadzenButton Text="Delete All Repositories"
+                      Icon="delete_forever"
+                      ButtonStyle="ButtonStyle.Danger"
+                      Variant="Variant.Outlined"
+                      Size="ButtonSize.Small"
+                      Click="@OnDeleteAll"
+                      IsBusy="@IsDeletingAll"
+                      BusyText="Deleting..." />
+    </RadzenStack>
+</RadzenCard>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<RepositoryGridRow> Rows { get; set; } = [];
+
+    [Parameter] public string SearchText { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> SearchTextChanged { get; set; }
+
+    /// <summary>Live progress frames keyed by repository, straight from the page's one handler.</summary>
+    [Parameter] public IReadOnlyDictionary<RepositoryId, AnalysisProgressDto> AnalysisProgress { get; set; } =
+        new Dictionary<RepositoryId, AnalysisProgressDto>();
+
+    [Parameter] public IReadOnlyDictionary<RepositoryId, DateTime> ReanalysisStartTimes { get; set; } =
+        new Dictionary<RepositoryId, DateTime>();
+
+    [Parameter] public RepositoryId? ReanalyzingRepositoryId { get; set; }
+    [Parameter] public bool IsDeletingAll { get; set; }
+
+    [Parameter] public EventCallback<RepositoryGridRow> OnRowActivated { get; set; }
+    [Parameter] public EventCallback<GitHubRepository> OnReanalyze { get; set; }
+    [Parameter] public EventCallback<GitHubRepository> OnDelete { get; set; }
+    [Parameter] public EventCallback OnDeleteAll { get; set; }
+
+    private RadzenDataGrid<RepositoryGridRow>? _grid;
+
+    /// <summary>
+    /// Re-reads <see cref="Rows"/> into the grid. Public for the same reason
+    /// AllReposComparisonChart.ReloadAsync is: the parent owns the data and has to be able to say
+    /// "it changed" without the child re-fetching anything.
+    /// </summary>
+    public Task ReloadAsync() => _grid is null ? Task.CompletedTask : _grid.Reload();
+
+    private Task OnSearchTextChanged(string value) => SearchTextChanged.InvokeAsync(value);
+
+    private Task OnRowClick(DataGridRowMouseEventArgs<RepositoryGridRow> args) =>
+        OnRowActivated.InvokeAsync(args.Data);
+
+    /// <summary>
+    /// Adds tabindex + role="button" + aria-label + Enter/Space keyboard activation
+    /// to each row so screen readers and keyboard users can navigate the repo
+    /// list without falling back to the chevron column.
+    /// </summary>
+    private static void OnRowRender(RowRenderEventArgs<RepositoryGridRow> args)
+    {
+        args.Attributes["style"] = "cursor: pointer;";
+        args.Attributes["tabindex"] = "0";
+        args.Attributes["role"] = "button";
+        args.Attributes["aria-label"] = $"Open repository {args.Data.Owner}/{args.Data.Name}";
+        args.Attributes["onkeydown"] = "if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}";
+    }
+}

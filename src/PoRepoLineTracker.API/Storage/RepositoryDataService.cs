@@ -244,16 +244,6 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
-    public async Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync()
-    {
-        // Canonical fallback when a user has no stored preferences.
-        // Keep in sync with UserPreferences.DefaultFileExtensions — that list
-        // is the source of truth for new users.
-        _logger.LogInformation("Returning {Count} configured file extensions for line counting",
-            UserPreferences.DefaultFileExtensions.Count);
-        return await Task.FromResult(UserPreferences.DefaultFileExtensions.AsEnumerable());
-    }
-
     public async Task AnalyzeRepositoryCommitsAsync(RepositoryId repositoryId)
     {
         _logger.LogInformation("Starting analysis for repository ID: {RepositoryId}", repositoryId);
@@ -322,7 +312,7 @@ public class RepositoryDataService : IRepositoryDataService
     /// Removes all data from both repository and commit line count tables in Azure Table Storage.
     /// Uses batch operations for optimal performance.
     /// </summary>
-    public async Task RemoveAllRepositoriesAsync(UserId userId)
+    public async Task DeleteAllRepositoriesAsync(UserId userId)
     {
         _logger.LogInformation("Starting removal of all repositories and commit data for user {UserId} from Azure Table Storage.", userId);
 

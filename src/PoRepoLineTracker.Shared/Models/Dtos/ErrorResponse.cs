@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.Shared.Models;
+namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
 /// Standard error payload returned by the API for 4xx/5xx responses.

@@ -2,10 +2,10 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-// Namespace note: these types physically live in .Shared (the leaf assembly, Rule 2.2) because
-// both the DTOs here and the Domain entities need them, but they keep the Domain namespace so
-// they read as domain vocabulary — the same arrangement already used by SharedContractEnums.
-namespace PoRepoLineTracker.Domain.Models;
+// These live in .Shared (the leaf assembly, Rule 2.2) because both the DTOs here and the domain
+// entities need them — see ChartDisplayMode.cs for why the namespace is Shared.Domain and not
+// the PoRepoLineTracker.Domain.Models it used to claim.
+namespace PoRepoLineTracker.Shared.Domain;
 
 /// <summary>
 /// Identity of a tracked repository (Rule 1.5 — no primitive obsession).

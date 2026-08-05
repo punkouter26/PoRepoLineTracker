@@ -55,7 +55,8 @@ public sealed class SecurityAndRoutingApiTests
     [SkippableFact]
     public async Task WrongVerbOnKnownRoute_IsAClientError()
     {
-        var response = await E2EApiClient.DeleteAsync("/api/feature-flags");
+        // DELETE on a GET-only route: the 405 must come from routing, before any auth or handler.
+        var response = await E2EApiClient.DeleteAsync("/api/antiforgery/token");
 
         ((int)response.StatusCode).Should().BeLessThan(500);
     }
@@ -83,7 +84,9 @@ public sealed class SecurityAndRoutingApiTests
     [SkippableFact]
     public async Task JsonEndpoint_ReturnsJsonContentType()
     {
-        var response = await E2EApiClient.GetAsync("/api/feature-flags");
+        // The antiforgery token route is the one anonymous JSON endpoint left — it has to be
+        // reachable before a session exists, or no state-changing call could ever be made.
+        var response = await E2EApiClient.GetAsync("/api/antiforgery/token");
 
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
     }

@@ -15,9 +15,8 @@ public interface IRepositoryDataService
     Task<bool> CommitExistsAsync(RepositoryId repositoryId, string commitSha);
     Task DeleteCommitLineCountsForRepositoryAsync(RepositoryId repositoryId); // Added for temporary endpoint
     Task DeleteRepositoryAsync(RepositoryId repositoryId);
-    Task RemoveAllRepositoriesAsync(UserId userId); // Removes all repositories for a specific user
+    Task DeleteAllRepositoriesAsync(UserId userId); // Removes all repositories for a specific user
     Task CheckConnectionAsync();
-    Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync(); // Added for file extensions
     Task AnalyzeRepositoryCommitsAsync(RepositoryId repositoryId); // Added for commit analysis
 
     // Top files storage (calculated during analysis, stored for retrieval without local git clone)

@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.Domain.Models;
+namespace PoRepoLineTracker.Shared.Domain;
 
 /// <summary>
 /// The one definition of "how many lines does this repository have right now".

@@ -1,4 +1,4 @@
-/* Rule 4.3 — scoped styles for AddRepository.
+/* Rule 4.3 — scoped styles for AddRepositoryPanel.
 
    Pattern used across the extracted components:
      .anchor ::deep .cls.cls { ... !important }
@@ -8,9 +8,9 @@
    inline style had. Without that an extracted rule can match and still lose to the Radzen theme,
    silently dropping the styling. */
 
-.add-repo ::deep .add-repo-title.add-repo-title {
-    margin: 0 0 0.5rem 0 !important;
-}
+/* .add-repo-title went with the H4 it styled. That heading only rendered in the IsInline="false"
+   mode, which no host ever selected — the panel is expanded under a heading its host already
+   draws. */
 
 .add-repo ::deep .add-repo-progress-message.add-repo-progress-message {
     text-align: center !important;

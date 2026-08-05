@@ -1,10 +1,17 @@
 @page "/diag"
 @attribute [Authorize]
 @inject HttpClient Http
-@inject ILogger<ExternalConnections> Logger
+@inject ILogger<Diagnostics> Logger
 @using Radzen
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
+
+@* The /diag page. It was called ExternalConnections.razor, which matched neither its route, nor
+   the endpoint it reads (/api/diagnostics), nor the DTO it binds (DiagnosticsResponse) —
+   "external connections" is one of the three cards on it.
+
+   Deliberately absent from NavMenu: this is an operator's page for confirming a deploy read its
+   configuration, not part of the tracking workflow. It is reached by typing /diag. *@
 
 <div class="app-stack">
     @* <PageHero> — this was the last page still hand-rolling its header, around a `.page-header`

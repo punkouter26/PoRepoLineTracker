@@ -2,7 +2,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
-using PoRepoLineTracker.Shared.Models;
+using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Shared.Serialization;
 
 namespace PoRepoLineTracker.Client.Services;

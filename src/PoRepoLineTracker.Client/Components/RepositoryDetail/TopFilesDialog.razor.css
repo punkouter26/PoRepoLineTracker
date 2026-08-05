@@ -1,4 +1,4 @@
-/* Rule 4.3 — scoped styles for TopFilesDialog. See AddRepository.razor.css for the pattern. */
+/* Rule 4.3 — scoped styles for TopFilesDialog. See AddRepositoryPanel.razor.css for the pattern. */
 
 .top-files-dialog ::deep .top-files-dialog__loading.top-files-dialog__loading {
     height: 320px !important;

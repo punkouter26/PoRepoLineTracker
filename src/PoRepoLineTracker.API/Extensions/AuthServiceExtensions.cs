@@ -195,7 +195,7 @@ public static class AuthServiceExtensions
 
         // Rule 3.3 — server-side FallbackPolicy: every endpoint that carries no authorization
         // metadata of its own is authenticated by default. Endpoints that must stay public
-        // (/auth/*, /health, /api/feature-flags, the Blazor fallback file, OpenAPI/Scalar in
+        // (/auth/*, /health, the Blazor fallback file, OpenAPI/Scalar in
         // Development) opt out explicitly with .AllowAnonymous(). Deny-by-default means a new
         // endpoint added without a RequireAuthorization() call fails closed, not open.
         services.AddAuthorization(options =>

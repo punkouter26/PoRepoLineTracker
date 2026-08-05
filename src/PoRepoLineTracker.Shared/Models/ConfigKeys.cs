@@ -57,19 +57,9 @@ public static class ConfigKeys
         public const string EnableConsoleExporters = "EnableConsoleExporters";
     }
 
-    /// <summary>Runtime strategy selectors (GoF Strategy).</summary>
-    public static class FeatureFlags
-    {
-        public const string EnableGitHubApi = "FeatureFlags:EnableGitHubApi";
-        public const string EnableBackgroundAnalysis = "FeatureFlags:EnableBackgroundAnalysis";
-        public const string EnableOpenTelemetryExport = "FeatureFlags:EnableOpenTelemetryExport";
-    }
-
-    /// <summary>Client-facing chart tuning.</summary>
-    public static class ChartSettings
-    {
-        public const string MaxLinesOfCode = "ChartSettings:MaxLinesOfCode";
-    }
+    // FeatureFlags and ChartSettings were removed with the endpoints that echoed them back
+    // (/api/feature-flags, /api/settings/chart/max-lines). Nothing read either value except those
+    // two routes, and nothing called those two routes.
 
     /// <summary>Cookie and transport hardening.</summary>
     public static class Security

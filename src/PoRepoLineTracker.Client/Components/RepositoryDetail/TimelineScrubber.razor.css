@@ -1,5 +1,5 @@
 /* Rule 4.3 — scoped styles for TimelineScrubber.
-   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+   See AddRepositoryPanel.razor.css for the ::deep / doubled-class / !important pattern. */
 
 /* ts-card / ts-toolbar / ts-title / ts-description / ts-empty are gone: this component now
    renders through <ChartCard>, which owns that chrome. */

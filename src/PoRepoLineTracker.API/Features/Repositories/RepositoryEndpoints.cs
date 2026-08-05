@@ -122,22 +122,22 @@ internal static class RepositoryEndpoints
             {
                 if (!ctx.User.TryGetUserId(out var userId))
                 {
-                    Log.Warning("Remove all repositories failed: No valid UserId claim found");
+                    Log.Warning("Delete all repositories failed: No valid UserId claim found");
                     return Results.Unauthorized();
                 }
 
-                Log.Information("Starting removal of all repositories for user {UserId}", userId);
-                await mediator.Send(new RemoveAllRepositoriesCommand(userId));
-                Log.Information("All repositories for user {UserId} removed successfully via API.", userId);
+                Log.Information("Starting deletion of all repositories for user {UserId}", userId);
+                await mediator.Send(new DeleteAllRepositoriesCommand(userId));
+                Log.Information("All repositories for user {UserId} deleted successfully via API.", userId);
                 return Results.NoContent();
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error removing all repositories: {ErrorType} - {ErrorMessage}", ex.GetType().Name, ex.Message);
-                return Results.Problem($"Error removing all repositories: {ex.GetType().Name} - {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                Log.Error(ex, "Error deleting all repositories: {ErrorType} - {ErrorMessage}", ex.GetType().Name, ex.Message);
+                return Results.Problem($"Error deleting all repositories: {ex.GetType().Name} - {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
-        .WithName("RemoveAllRepositories");
+        .WithName("DeleteAllRepositories");
 
         repos.MapPost("/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory, IValidator<BulkRepositoryDto> repoValidator) =>
         {
@@ -206,39 +206,10 @@ internal static class RepositoryEndpoints
         })
         .WithName("AddMultipleRepositories");
 
-        // #6 fix: added RequireAuthorization() - was unprotected
-        repos.MapPost("/{repositoryId}/analyses", async (RepositoryId repositoryId, [FromQuery] bool force, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
-        {
-            if (!ctx.User.TryGetUserId(out var userId))
-                return Results.Unauthorized();
-
-            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
-            if (existing.UserId != userId)
-            {
-                Log.Warning("IDOR attempt: user {UserId} tried to trigger analysis for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
-                return Results.Forbid();
-            }
-
-            Log.Information("Background analysis queued for repository {RepositoryId} (force={Force})", repositoryId, force);
-            _ = Task.Run(async () =>
-            {
-                using var scope = scopeFactory.CreateScope();
-                var bgMediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-                try
-                {
-                    await bgMediator.Send(new AnalyzeRepositoryCommitsCommand(repositoryId, ForceReanalysis: force));
-                    Log.Information("Background analysis completed for repository {RepositoryId}", repositoryId);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Background analysis failed for repository {RepositoryId}", repositoryId);
-                }
-            });
-            return Results.Accepted();
-        })
-        .WithName("CreateRepositoryAnalysis");
-
+        // The one route that queues analysis. There used to be a second, POST /{id}/analyses?force=,
+        // which differed only in passing ForceReanalysis instead of ClearExistingData — no client
+        // ever called it, and two ways to start the same background job meant two ownership checks
+        // and two log vocabularies to keep in step.
         repos.MapPost("/{repositoryId}/reanalyze", async (RepositoryId repositoryId, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))

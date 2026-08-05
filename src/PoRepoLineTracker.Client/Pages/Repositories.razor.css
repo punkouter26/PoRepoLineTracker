@@ -1,14 +1,14 @@
 /* Rule 4.3 — scoped styles for the repositories list (the app's home page).
-   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern.
-   Shared visuals that other pages also use (.stat-card, .onboarding-step, the fadeSlideUp
-   keyframes) stay in app.css; only what used to sit on a style= attribute here lives below. */
+   See AddRepositoryPanel.razor.css for the ::deep / doubled-class / !important pattern.
+
+   Only the page's own chrome lives here now. The onboarding empty state and the grid moved into
+   RepositoryOnboarding and RepositoryGrid, and their rules moved with them — a .razor.css rule
+   compiles to `.foo[b-scope]`, so a rule left behind after its markup moves silently matches
+   nothing. Shared visuals other pages also use (.stat-card, .onboarding-step, the fadeSlideUp
+   keyframes) stay in app.css. */
 
 ::deep .rp-title.rp-title {
     margin: 0 !important;
-}
-
-::deep .rp-muted.rp-muted {
-    color: var(--rz-text-secondary-color) !important;
 }
 
 ::deep .rp-muted-tight.rp-muted-tight {
@@ -16,187 +16,9 @@
     margin: 0 !important;
 }
 
-::deep .rp-muted-icon.rp-muted-icon {
-    color: var(--rz-text-secondary-color) !important;
-}
-
-::deep .rp-disabled.rp-disabled {
-    color: var(--rz-text-disabled-color) !important;
-}
-
 /* ─── Inline add-repository panel ─────────────────────────────────────────── */
 
 ::deep .rp-inline-card.rp-inline-card {
     border-left: 3px solid var(--rz-primary) !important;
     animation: fadeSlideUp 0.25s ease both !important;
-}
-
-/* ─── Onboarding empty state ──────────────────────────────────────────────── */
-
-::deep .rp-onboarding-card.rp-onboarding-card {
-    padding: 1.75rem 1.5rem !important;
-}
-
-::deep .rp-onboarding-icon.rp-onboarding-icon {
-    font-size: 2rem !important;
-    color: var(--rz-primary) !important;
-    animation: fadeSlideUp 0.4s ease both !important;
-}
-
-::deep .rp-onboarding-title.rp-onboarding-title {
-    margin: 0 !important;
-    animation: fadeSlideUp 0.4s ease 0.05s both !important;
-}
-
-::deep .rp-onboarding-lede.rp-onboarding-lede {
-    color: var(--rz-text-secondary-color) !important;
-    text-align: center !important;
-    max-width: 380px !important;
-    animation: fadeSlideUp 0.4s ease 0.1s both !important;
-}
-
-::deep .rp-step-title.rp-step-title {
-    margin: 0 !important;
-    text-align: center !important;
-}
-
-::deep .rp-step-caption.rp-step-caption {
-    color: var(--rz-text-secondary-color) !important;
-    text-align: center !important;
-}
-
-::deep .rp-onboarding-cta.rp-onboarding-cta {
-    padding: 0.75rem 2rem !important;
-    font-size: 1rem !important;
-    font-weight: 600 !important;
-    border-radius: 12px !important;
-}
-
-.rp-onboarding-steps {
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 0;
-    flex-wrap: wrap;
-    width: 100%;
-    max-width: 520px;
-}
-
-/* Sparkline inside a grid cell. Needs an explicit box: Radzen sizes the SVG to its container,
-   and a table cell has no intrinsic height to inherit, so without this the chart collapses. */
-.rp-row-spark {
-    width: 90px;
-    height: 26px;
-}
-
-/* ─── Search + grid ───────────────────────────────────────────────────────── */
-
-::deep .rp-searchbar.rp-searchbar {
-    margin-bottom: 1rem !important;
-}
-
-/* Was a hard 280px, which overflowed the card on a 375px phone once the icon and clear button
-   were accounted for. Grows to fill the bar, capped so it does not sprawl on a wide screen. */
-::deep .rp-search-input.rp-search-input {
-    width: 100% !important;
-    max-width: 280px !important;
-    min-width: 0 !important;
-}
-
-::deep .rp-searchbar .rz-textbox {
-    min-width: 0;
-}
-
-::deep .rp-grid.rp-grid {
-    height: auto !important;
-    /* Radzen's grid cells carry overflow:hidden and white-space:nowrap — without `width: max-content`
-       here the table shrinks to fit its parent and columns get clipped at "punkouter26/Pol". The
-       .u-scroll-x wrapper around the grid already provides overflow-x:auto for any columns that
-       don't fit. The 100% min-width keeps the wrapper from showing a horizontal scrollbar at
-       desktop widths where the columns fit naturally. */
-    width: max-content !important;
-    min-width: 100%;
-}
-
-/* The inner table needs the same treatment — it is what actually sizes to its column widths. */
-::deep .rp-grid.rp-grid > .rz-datatable-scrollable-wrapper,
-::deep .rp-grid.rp-grid .rz-grid-table {
-    width: max-content !important;
-    min-width: 100%;
-}
-
-/* The reflow card variant — Radzen only switches to it at <768px viewport, but the sidebar
-   alone eats 220px, so the well is already narrow at 949px. Make the responsive switch track
-   the wrapper instead of the viewport. Below 720px the grid reflows into a card per row, above
-   it the column layout stays but the .u-scroll-x wrapper takes over for horizontal overflow. */
-@media (max-width: 720px) {
-    ::deep .rp-grid.rp-grid {
-        width: 100% !important;
-        min-width: 0 !important;
-    }
-}
-
-/* The .rp-grid-scroll rule that lived here was byte-identical to .cc-grid-scroll in
-   ContributorChart.razor.css. Both are now the shared .u-scroll-x utility in app.css. */
-
-/* ─── Grid cell contents (rendered inside Radzen column templates) ────────── */
-
-::deep .rp-repo-name.rp-repo-name {
-    font-weight: 600 !important;
-}
-
-::deep .rp-lines-value.rp-lines-value {
-    font-weight: 600 !important;
-    color: var(--rz-primary) !important;
-}
-
-::deep .rp-relative-time.rp-relative-time {
-    font-weight: 500 !important;
-}
-
-/* The icon glyph alone measured ~15px, below the WCAG 2.2 AA 2.5.8 minimum of 24x24. The link
-   box is padded out to 24px rather than the glyph being enlarged, so the target grows without
-   the icon visually dominating the repository name beside it. */
-::deep .rp-github-link {
-    color: var(--rz-text-disabled-color);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    min-width: 24px;
-    min-height: 24px;
-    border-radius: 6px;
-    flex: 0 0 auto;
-}
-
-::deep .rp-github-link:hover {
-    color: var(--rz-primary);
-    background: rgba(103, 80, 164, 0.08);
-}
-
-::deep .rp-github-link__icon {
-    font-size: 0.95rem;
-}
-
-::deep .rp-chevron.rp-chevron {
-    color: var(--rz-text-disabled-color) !important;
-    font-size: 1.1rem !important;
-}
-
-/* ─── Danger zone ─────────────────────────────────────────────────────────── */
-
-/* --rz-border-disabled-color is not defined by either Radzen theme in use (it computes to the
-   empty string in both), which made this declaration invalid and the separator never render.
-   --border-light is defined by app.css for both themes. */
-::deep .rp-danger-zone.rp-danger-zone {
-    margin-top: 1rem !important;
-    padding-top: 0.75rem !important;
-    border-top: 1px solid var(--border-light) !important;
-    flex-wrap: wrap !important;
-    gap: 0.5rem !important;
-}
-
-::deep .rp-danger-zone__label.rp-danger-zone__label {
-    color: var(--text-muted) !important;
-    font-style: italic !important;
 }

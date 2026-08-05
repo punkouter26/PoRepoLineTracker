@@ -1,5 +1,5 @@
 /* Rule 4.3 — scoped styles for GitHubRepositorySelector.
-   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+   See AddRepositoryPanel.razor.css for the ::deep / doubled-class / !important pattern. */
 
 ::deep .ghsel-row-mb1.ghsel-row-mb1 {
     margin-bottom: 1rem !important;

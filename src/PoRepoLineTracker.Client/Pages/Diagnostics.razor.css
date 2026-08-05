@@ -1,5 +1,5 @@
 /* Rule 4.3 — scoped styles for the /diag page.
-   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+   See AddRepositoryPanel.razor.css for the ::deep / doubled-class / !important pattern. */
 
 ::deep .xc-title-icon.xc-title-icon {
     font-size: 1.5rem !important;

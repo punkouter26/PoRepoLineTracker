@@ -81,10 +81,12 @@ public sealed class HealthAndAuthApiTests
     }
 
     [SkippableFact]
-    public async Task FeatureFlags_Anonymous_Returns_200()
+    public async Task AntiforgeryToken_Anonymous_Returns_200()
     {
-        // MainLayout reads this before any session exists, to drive login-button visibility.
-        var response = await E2EApiClient.GetAsync("/api/feature-flags");
+        // Replaces the old /api/feature-flags check. That route was justified by "MainLayout reads
+        // this before any session exists" — which had stopped being true — so the anonymous surface
+        // it guarded is now exactly this one endpoint, which genuinely must precede a session.
+        var response = await E2EApiClient.GetAsync("/api/antiforgery/token");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
