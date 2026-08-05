@@ -161,8 +161,11 @@
 
         <RadzenCard>
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rp-searchbar">
-                <RadzenIcon Icon="search" class="rp-muted-icon" />
-                <RadzenTextBox Value="@searchText" ValueChanged="@OnSearchTextChanged" Placeholder="Search owner or repository..." class="rp-search-input" />
+                <RadzenIcon Icon="search" class="rp-muted-icon" aria-hidden="true" />
+                <RadzenTextBox Value="@searchText" ValueChanged="@OnSearchTextChanged"
+                               Placeholder="Search owner or repository..."
+                               aria-label="Search repositories by owner or name"
+                               class="rp-search-input" />
                 @if (!string.IsNullOrEmpty(searchText))
                 {
                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
@@ -197,7 +200,7 @@
                             Density="Density.Default"
                             class="rp-grid">
                 <Columns>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Repository" MinWidth="160px">
+                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Repository" MinWidth="160px" Width="180px">
                         <Template Context="row">
                             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
                                 <RadzenText class="rp-repo-name" title="@($"{row.Owner}/{row.Name}")">@($"{row.Owner}/{row.Name}")</RadzenText>
@@ -216,7 +219,7 @@
                             </RadzenStack>
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="130px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false">
+                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false">
                         <Template Context="row">
                             @if (row.TotalLinesSortValue.HasValue)
                             {
@@ -236,7 +239,7 @@
                        page already fetches for the Total Lines figures, so this adds a per-row
                        trend for zero extra network cost. Sortable="false": a sparkline has no
                        meaningful ordering, and the adjacent Total Lines column already sorts. *@
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Trend" Width="110px" Sortable="false" Filterable="false">
+                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Trend" Width="80px" Sortable="false" Filterable="false">
                         <Template Context="row">
                             @if (row.HasTrend)
                             {
@@ -254,7 +257,7 @@
                             }
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last Analyzed" Width="130px" Sortable="true">
+                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last Analyzed" Width="120px" Sortable="true">
                         <Template Context="row">
                             @if (row.LastAnalyzedCommitDate.HasValue)
                             {
@@ -269,7 +272,7 @@
                             }
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Status" Width="200px" Filterable="false" Sortable="false">
+                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Status" Width="130px" Filterable="false" Sortable="false">
                         <Template Context="row">
                             <AnalysisStatusCell Progress="@(_analysisProgress.TryGetValue(row.Id, out var p) ? p : null)"
                                                 IsReanalyzing="@(reanalyzingRepositoryId == row.Id)"
@@ -296,8 +299,11 @@
                         </Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="RepositoryGridRow" Title="" Width="36px" Filterable="false" Sortable="false">
+                        <HeaderTemplate>
+                            <span class="visually-hidden">Open repository</span>
+                        </HeaderTemplate>
                         <Template>
-                            <RadzenIcon Icon="chevron_right" class="rp-chevron" />
+                            <RadzenIcon Icon="chevron_right" class="rp-chevron" aria-hidden="true" />
                         </Template>
                     </RadzenDataGridColumn>
                 </Columns>
@@ -350,6 +356,14 @@
     private Dictionary<RepositoryId, AnalysisProgressDto> _analysisProgress = new();
     private readonly CancellationTokenSource _disposeCts = new();
     private ChartDisplayMode _chartDisplayMode = ChartDisplayMode.TrueData;
+    /// <summary>
+    /// True after <see cref="DisposeAsync"/> has run. Radzen charts and grids capture
+    /// <c>DotNetObjectReference</c>s the JS module can still call into for a frame or two after
+    /// disposal, which surfaced in the browser console as *"There is no tracked object with id
+    /// '6'"* when navigating away from this page. Every async continuation early-exits on this
+    /// flag rather than touching torn-down state.
+    /// </summary>
+    private bool _disposed;
 
     private IEnumerable<RepositoryGridRow> FilteredRepositories =>
         string.IsNullOrWhiteSpace(searchText)
@@ -412,6 +426,8 @@
     /// </summary>
     private async Task OnAnalysisProgressAsync(AnalysisProgressDto progress)
     {
+        if (_disposed) return;
+
         var wasRunning = _analysisProgress.TryGetValue(progress.RepositoryId, out var previous) && previous.IsRunning;
         _analysisProgress[progress.RepositoryId] = progress;
 
@@ -504,6 +520,7 @@
 
     private async Task LoadLatestLineCounts()
     {
+        if (_disposed) return;
         try
         {
             var all = await Http.GetAppJsonAsync("/api/repositories/allcharts/365", AppJsonSerializerContext.Default.ListRepositoryLineCountHistoryDto);
@@ -612,9 +629,11 @@
 
     private async Task LoadRepositories()
     {
+        if (_disposed) return;
+
         pageState.IsLoadingRepositories = true;
         pageState.ClearMessages();
-        
+
         try
         {
             var repositories = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository);
@@ -628,7 +647,13 @@
         }
         finally
         {
-            pageState.IsLoadingRepositories = false;
+            // Guarded rather than an early `return`: control cannot leave a finally block
+            // (CS0157). Same intent — do not touch component state after disposal.
+            if (!_disposed)
+            {
+                pageState.IsLoadingRepositories = false;
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 
@@ -909,6 +934,8 @@
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
+
         // Unsubscribe only. AnalysisFeedClient is container-owned and shared with the activity
         // feed, so disposing it here would take the feed's connection down with the page.
         Feed.ProgressReceived -= OnAnalysisProgressAsync;

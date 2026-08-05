@@ -134,6 +134,8 @@
     </ChildContent>
 </ChartCard>
 
+@implements IAsyncDisposable
+
 @code {
     [Parameter] public RepositoryId RepositoryId { get; set; }
     [Inject] HttpClient Http { get; set; } = null!;
@@ -149,6 +151,15 @@
 
     /// <summary>Last value actually fetched — see OnParametersSetAsync.</summary>
     private int _loadedDays = -1;
+
+    /// <summary>
+    /// True after <see cref="DisposeAsync"/> has run. The Radzen <c>Change</c> callback captured
+    /// by the toolbar select-bar holds a <c>DotNetObjectReference</c> the JS module can still
+    /// call into for a frame or two after disposal, which surfaced in the console as
+    /// *"There is no tracked object with id '6'"*. Every async continuation early-exits on this
+    /// flag instead of touching torn-down state.
+    /// </summary>
+    private bool _disposed;
 
     /// <summary>
     /// Series colours for the chart. These are Radzen Stroke/Fill parameter values — attribute
@@ -183,6 +194,8 @@
 
     private async Task LoadContributorStats()
     {
+        if (_disposed) return;
+
         _isLoading = true;
         _chartError = string.Empty;
         StateHasChanged();
@@ -198,12 +211,27 @@
         }
         finally
         {
-            _isLoading = false;
-            StateHasChanged();
+            // Guarded rather than an early `return`: control cannot leave a finally block
+            // (CS0157). Same intent — do not touch component state after disposal.
+            if (!_disposed)
+            {
+                _isLoading = false;
+                StateHasChanged();
+            }
         }
     }
 
-    private void OnStackedChanged(bool stacked) => _stacked = stacked;
+    private void OnStackedChanged(bool stacked)
+    {
+        if (_disposed) return;
+        _stacked = stacked;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        return ValueTask.CompletedTask;
+    }
 
     private string GetColorForAuthor(string authorName)
     {

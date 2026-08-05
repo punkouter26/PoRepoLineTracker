@@ -16,14 +16,19 @@
 
 <RadzenLayout>
     <RadzenHeader>
-        @* Rule 4.1 header contract — Left (Branding) | Center (Actions) | Right (Session).
+        @* Rule 4.1 header contract — Left (Branding) | Center (Toggle + Theme) | Right (Session).
            Three explicit regions rather than SpaceBetween, so the centre stays centred whatever
-           it contains and the session controls stay isolated on the right. *@
+           it contains and the session controls stay isolated on the right.
+
+           The previous header also carried Repositories / Insights / Settings buttons; those were
+           byte-identical to the items in <NavMenu>, so the layout paid for two copies of the same
+           nav and on phones the three buttons crowded the brand wordmark. The drawer is the only
+           nav surface now — the header carries the controls that are not navigation. *@
         <div class="app-header">
             <div class="app-header__brand">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem"
                              class="brand-link" @onclick="@(() => Navigation.NavigateTo("/"))">
-                    <span class="brand-icon-wrap">
+                    <span class="brand-icon-wrap" aria-hidden="true">
                         <RadzenIcon Icon="code" class="brand-icon-main" />
                         <RadzenIcon Icon="trending_up" class="brand-icon-trend" />
                     </span>
@@ -36,29 +41,9 @@
                               ButtonStyle="ButtonStyle.Light"
                               Variant="Variant.Text"
                               class="header-icon-btn"
-                              title="Toggle navigation"
+                              title="@(sidebarExpanded ? "Hide navigation" : "Show navigation")"
+                              aria-label="@(sidebarExpanded ? "Hide navigation" : "Show navigation")"
                               Click="@ToggleSidebar" />
-                <RadzenButton Icon="storage"
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Text"
-                              Size="ButtonSize.Small"
-                              Text="Repositories"
-                              class="header-action-btn"
-                              Click="@(() => Navigation.NavigateTo("/"))" />
-                <RadzenButton Icon="insights"
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Text"
-                              Size="ButtonSize.Small"
-                              Text="Insights"
-                              class="header-action-btn"
-                              Click="@(() => Navigation.NavigateTo("/insights"))" />
-                <RadzenButton Icon="tune"
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Text"
-                              Size="ButtonSize.Small"
-                              Text="Settings"
-                              class="header-action-btn"
-                              Click="@(() => Navigation.NavigateTo("/settings"))" />
             </div>
 
             <div class="app-header__session">
@@ -67,6 +52,7 @@
                               Variant="Variant.Text"
                               class="header-icon-btn"
                               title="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")"
+                              aria-label="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")"
                               Click="@ToggleDarkMode" />
                 <LoginDisplay />
             </div>

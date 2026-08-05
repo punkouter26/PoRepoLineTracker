@@ -149,6 +149,8 @@
     </ChildContent>
 </ChartCard>
 
+@implements IAsyncDisposable
+
 @code {
     [Parameter] public RepositoryId RepositoryId { get; set; }
 
@@ -163,6 +165,15 @@
 
     [Inject] HttpClient Http { get; set; } = null!;
     [Inject] ILogger<AiMixChart> Logger { get; set; } = null!;
+
+    /// <summary>
+    /// True after <see cref="DisposeAsync"/> has run. Radzen's <c>&lt;RadzenSelectBar&gt;</c>
+    /// captures a <c>DotNetObjectReference</c> for the <c>Change</c> callback; the JS module can
+    /// still fire it for a frame or two after disposal, which surfaced in the console as
+    /// *"There is no tracked object with id '6'"*. Every async continuation early-exits on this
+    /// flag instead of touching torn-down state.
+    /// </summary>
+    private bool _disposed;
 
     public enum AiViewMode { Lines, Share }
 
@@ -266,6 +277,8 @@
 
     private async Task LoadAsync()
     {
+        if (_disposed) return;
+
         _isLoading = true;
         _error = string.Empty;
         StateHasChanged();
@@ -286,6 +299,7 @@
             _byAuthor = await authorsTask ?? [];
             _daily = await dailyTask ?? [];
 
+            if (_disposed) return;
             await OverallShareChanged.InvokeAsync(OverallAiShare);
         }
         catch (Exception ex)
@@ -295,10 +309,25 @@
         }
         finally
         {
-            _isLoading = false;
-            StateHasChanged();
+            // Guarded rather than an early `return`: control cannot leave a finally block
+            // (CS0157). Same intent — do not touch component state after disposal.
+            if (!_disposed)
+            {
+                _isLoading = false;
+                StateHasChanged();
+            }
         }
     }
 
-    private void OnModeChanged(AiViewMode mode) => _mode = mode;
+    private void OnModeChanged(AiViewMode mode)
+    {
+        if (_disposed) return;
+        _mode = mode;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        return ValueTask.CompletedTask;
+    }
 }

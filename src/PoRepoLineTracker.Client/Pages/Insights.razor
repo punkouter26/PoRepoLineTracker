@@ -106,9 +106,13 @@
             </RadzenCard>
 
             <RadzenCard class="ins-kpi">
-                <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">Current streak</RadzenText>
+                <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">@(StreakHeading)</RadzenText>
+                @{ var streak = Streak; }
                 <div class="ins-kpi__value">
-                    @_insights.CurrentStreakDays<span class="ins-kpi__unit">d</span>
+                    @streak.Value@if (streak.Unit is not null)
+                    {
+                        <span class="ins-kpi__unit">@streak.Unit</span>
+                    }
                 </div>
                 <div class="ins-kpi__delta">best @_insights.LongestStreakDays d this year</div>
             </RadzenCard>
@@ -261,6 +265,42 @@
             ? "Commit activity heatmap"
             : $"Commit activity heatmap: {_insights.Activity.Count(d => d.Commits > 0)} active days in the last year, " +
               $"{_insights.Activity.Sum(d => d.Commits):N0} commits total";
+
+    /// <summary>
+    /// "Current streak: 0d" is technically accurate but reads like a feature is broken. When the
+    /// streak is zero, the tile rephrases as "last active Nd ago" using the most recent
+    /// non-zero-commit day from <see cref="PortfolioInsightsDto.Activity"/>. The "best … this
+    /// year" line underneath keeps the same anchor in both states so the tile reads as one tile.
+    /// </summary>
+    private string StreakHeading =>
+        _insights is null || _insights.CurrentStreakDays > 0
+            ? "Current streak"
+            : "Last active";
+
+    /// <summary>
+    /// Figure and its unit as separate strings, rendered as separate nodes by the template. An
+    /// earlier version returned one string with the <c>&lt;span&gt;</c> baked in, which Razor
+    /// HTML-encodes — the tile printed the markup as visible text.
+    /// </summary>
+    private (string Value, string? Unit) Streak
+    {
+        get
+        {
+            if (_insights is null) return ("—", null);
+            if (_insights.CurrentStreakDays > 0) return ($"{_insights.CurrentStreakDays}", "d");
+
+            var last = _insights.Activity.LastOrDefault(d => d.Commits > 0);
+            if (last is null) return ("—", null);
+
+            var days = Math.Max(0, (int)(DateTime.UtcNow.Date - last.Date.Date).TotalDays);
+            return days switch
+            {
+                0 => ("today", null),
+                1 => ("yesterday", null),
+                _ => ($"{days}", "d ago")
+            };
+        }
+    }
 
     /// <summary>
     /// Fixed thresholds rather than quantiles of the user's own data. A relative scale would paint

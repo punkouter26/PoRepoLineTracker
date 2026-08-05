@@ -218,6 +218,20 @@ html, body {
     overscroll-behavior-x: contain;
 }
 
+/* Screen-reader-only text. Used to give a meaningful name to icon-only buttons and
+   decorative data-grid columns without giving the element visible real estate. */
+.visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
 #app {
     display: flex;
     flex-direction: column;

@@ -55,10 +55,6 @@
     color: rgba(255, 255, 255, 0.85) !important;
 }
 
-::deep .header-action-btn.header-action-btn {
-    color: rgba(255, 255, 255, 0.92) !important;
-}
-
 /* ─── Print ──────────────────────────────────────────────────────────────── */
 @media print {
     .app-breadcrumb {

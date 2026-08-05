@@ -50,10 +50,17 @@
                                 @* Supplied by AiMixChart once it has loaded, rather than fetched again here —
                                    the figure is lines-weighted and only that component holds the per-commit
                                    line counts needed to weight it. Hidden until non-zero so a repository
-                                   analysed before AI scoring existed does not advertise a misleading 0%. *@
+                                   analysed before AI scoring existed does not advertise a misleading 0%.
+
+                                   Label states "of added lines" because the same page renders an
+                                   "average AI score" bar under the human-vs-AI chart, which is the
+                                   per-commit average, not a line-weighted share — without the
+                                   qualifier the hero and the chart claimed to be the same figure
+                                   but were not. *@
                                 @if (_aiShare > 0)
                                 {
-                                    <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="@($"{_aiShare:F0}% AI-assisted")" />
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Warning"
+                                                 Text="@($"{_aiShare:F0}% AI (of added lines)")" />
                                 }
                             }
                             else if (_isReanalyzing)
@@ -567,6 +574,7 @@
     /// </summary>
     private async Task OnPreferencesChangedAsync(UserPreferences preferences)
     {
+        if (_disposed) return;
         if (_chartDisplayMode == preferences.ChartDisplayMode) return;
         _chartDisplayMode = preferences.ChartDisplayMode;
         await InvokeAsync(StateHasChanged);
@@ -590,6 +598,8 @@
 
     private async Task LoadLineHistory(int days)
     {
+        if (_disposed) return;
+
         _isLoadingChart = true;
         _chartError = string.Empty;
         StateHasChanged();
@@ -610,8 +620,13 @@
         }
         finally
         {
-            _isLoadingChart = false;
-            StateHasChanged();
+            // Guarded rather than an early `return`: control cannot leave a finally block
+            // (CS0157). Same intent — do not touch component state after disposal.
+            if (!_disposed)
+            {
+                _isLoadingChart = false;
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 
@@ -707,6 +722,7 @@
         {
             while (await timer.WaitForNextTickAsync(cts.Token))
             {
+                if (_disposed) return;
                 try
                 {
                     var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository, cts.Token);
@@ -726,6 +742,7 @@
                             Detail = $"'{updated.Owner}/{updated.Name}' has been re-analyzed.",
                             Duration = 5000
                         });
+                        if (_disposed) return;
                         await InvokeAsync(StateHasChanged);
                         return;
                     }
@@ -738,6 +755,7 @@
         }
         catch (OperationCanceledException) { }
 
+        if (_disposed) return;
         _isReanalyzing = false;
         await InvokeAsync(StateHasChanged);
     }
@@ -809,4 +827,13 @@
         await _disposeCts.CancelAsync();
         _disposeCts.Dispose();
     }
+
+    /// <summary>
+    /// True after <see cref="DisposeAsync"/> has run. The page carries five Radzen charts, each
+    /// of which holds a <c>DotNetObjectReference</c> that the JS module can still call into for
+    /// a frame or two after disposal — the browser console saw *"There is no tracked object with
+    /// id '6'"* on navigation in. Every async path below early-exits on this flag rather than
+    /// touching torn-down state.
+    /// </summary>
+    private bool _disposed => _disposeCts.IsCancellationRequested;
 }

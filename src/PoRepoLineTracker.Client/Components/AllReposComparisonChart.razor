@@ -1,5 +1,6 @@
 @inject HttpClient Http
 @inject ILogger<AllReposComparisonChart> Logger
+@implements IAsyncDisposable
 @using PoRepoLineTracker.Shared.Models.Dtos
 @using PoRepoLineTracker.Domain.Models
 @using Radzen
@@ -230,6 +231,14 @@
     private string? _errorMessage;
     private ComparisonAxis _axisMode = ComparisonAxis.Calendar;
     private List<RepositoryLineCountHistoryDto>? _historyData;
+    /// <summary>
+    /// True after <see cref="DisposeAsync"/> has run. The Radzen <c>Change</c> callback captured
+    /// by the toolbar select-bars holds a <c>DotNetObjectReference</c> the JS module can still
+    /// call into for a frame or two after disposal, which surfaced in the console as
+    /// *"There is no tracked object with id '6'"*. Every async continuation early-exits on this
+    /// flag instead of touching torn-down state.
+    /// </summary>
+    private bool _disposed;
 
     /// <summary>
     /// Deselected repositories, rather than selected ones. Tracking the exclusions means a
@@ -269,9 +278,23 @@
         await LoadData(days);
     }
 
-    private void OnStackedChanged(bool stacked) => _stacked = stacked;
+    private void OnStackedChanged(bool stacked)
+    {
+        if (_disposed) return;
+        _stacked = stacked;
+    }
 
-    private void OnAxisModeChanged(ComparisonAxis mode) => _axisMode = mode;
+    private void OnAxisModeChanged(ComparisonAxis mode)
+    {
+        if (_disposed) return;
+        _axisMode = mode;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        return ValueTask.CompletedTask;
+    }
 
     private bool IsSelected(RepositoryId id) => !_hidden.Contains(id);
 
@@ -305,6 +328,8 @@
 
     private async Task LoadData(int days)
     {
+        if (_disposed) return;
+
         _isLoading = true;
         _errorMessage = null;
         StateHasChanged();
@@ -320,8 +345,13 @@
         }
         finally
         {
-            _isLoading = false;
-            StateHasChanged();
+            // Guarded rather than an early `return`: control cannot leave a finally block
+            // (CS0157). Same intent — do not touch component state after disposal.
+            if (!_disposed)
+            {
+                _isLoading = false;
+                StateHasChanged();
+            }
         }
     }
 

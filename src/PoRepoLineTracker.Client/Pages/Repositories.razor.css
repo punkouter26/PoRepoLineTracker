@@ -109,6 +109,31 @@
 
 ::deep .rp-grid.rp-grid {
     height: auto !important;
+    /* Radzen's grid cells carry overflow:hidden and white-space:nowrap — without `width: max-content`
+       here the table shrinks to fit its parent and columns get clipped at "punkouter26/Pol". The
+       .u-scroll-x wrapper around the grid already provides overflow-x:auto for any columns that
+       don't fit. The 100% min-width keeps the wrapper from showing a horizontal scrollbar at
+       desktop widths where the columns fit naturally. */
+    width: max-content !important;
+    min-width: 100%;
+}
+
+/* The inner table needs the same treatment — it is what actually sizes to its column widths. */
+::deep .rp-grid.rp-grid > .rz-datatable-scrollable-wrapper,
+::deep .rp-grid.rp-grid .rz-grid-table {
+    width: max-content !important;
+    min-width: 100%;
+}
+
+/* The reflow card variant — Radzen only switches to it at <768px viewport, but the sidebar
+   alone eats 220px, so the well is already narrow at 949px. Make the responsive switch track
+   the wrapper instead of the viewport. Below 720px the grid reflows into a card per row, above
+   it the column layout stays but the .u-scroll-x wrapper takes over for horizontal overflow. */
+@media (max-width: 720px) {
+    ::deep .rp-grid.rp-grid {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
 }
 
 /* The .rp-grid-scroll rule that lived here was byte-identical to .cc-grid-scroll in

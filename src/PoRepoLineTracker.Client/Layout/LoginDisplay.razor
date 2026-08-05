@@ -10,7 +10,12 @@
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
             @if (!string.IsNullOrEmpty(AuthStateProvider.CurrentUser?.AvatarUrl))
             {
-                <RadzenImage Path="@AuthStateProvider.CurrentUser!.AvatarUrl" class="login-display__avatar" />
+                @* The whole value has to be ONE C# expression. Razor cannot mix an @(...) block
+                   with literal text in an attribute (RZ9986), so the concatenation goes inside an
+                   interpolated string rather than beside it. *@
+                <RadzenImage Path="@AuthStateProvider.CurrentUser!.AvatarUrl"
+                             AlternateText="@($"{AuthStateProvider.CurrentUser?.DisplayName ?? AuthStateProvider.CurrentUser?.Username ?? "User"}'s profile picture")"
+                             class="login-display__avatar" />
             }
             <RadzenText TextStyle="TextStyle.Body2" class="login-display__identity">
                 @(AuthStateProvider.CurrentUser?.Email

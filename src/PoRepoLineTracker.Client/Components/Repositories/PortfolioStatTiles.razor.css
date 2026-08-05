@@ -34,6 +34,20 @@
     width: 56px;
     height: 40px;
     flex: 0 0 auto;
+    /* Radzen's <RadzenArcGauge> renders <div class="rz-arc-gauge"><svg style="width:100%;height:100%"></svg></div>.
+       The wrapper div falls back to the SVG's intrinsic 300x300 — so a 56x40 container here is
+       overridden the moment Radzen paints. The two ::deep rules below force the wrapper and its
+       svg to honour the 56x40 box, which then collapses the gauge to fit instead of spilling
+       sideways across the page. */
+    overflow: hidden;
+}
+
+::deep .rp-stat-gauge .rz-arc-gauge,
+::deep .rp-stat-gauge .rz-arc-gauge > svg {
+    width: 56px !important;
+    height: 40px !important;
+    max-width: 56px !important;
+    max-height: 40px !important;
 }
 
 /* The sparkline and gauge are decoration on top of a number that is already stated in text;
