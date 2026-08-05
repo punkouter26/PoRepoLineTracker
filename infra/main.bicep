@@ -31,10 +31,12 @@ module resources 'resources.bicep' = {
   name: 'resources'
   scope: rg
   params: {
-    // Plan and app are both created here, so there is no pre-existing region to match —
-    // colocate them with the storage account and App Insights in East US 2 rather than
-    // keeping the West US 2 the old shared plan happened to live in.
-    webAppLocation: location
+    // West US 2, NOT the East US 2 the storage account uses. This subscription has zero Free
+    // tier quota in East US 2 — preflight fails with SubscriptionIsOverQuotaForSku and
+    // "Current Limit (Total VMs): 0" — and every other F1 plan on the subscription is West US 2
+    // for the same reason. The storage account stays in East US 2; the cross-region hop is the
+    // price of the free plan, and it is what the previous shared B1 did anyway.
+    webAppLocation: 'westus2'
     storageAccountName: storageAccountName
     appInsightsName: appInsightsName
     logAnalyticsName: logAnalyticsName

@@ -110,7 +110,8 @@ jobs:
       # nothing here ever proved they were APPLIED. The App Service went missing and every run
       # kept publishing green while the deploy step failed with "Resource app-porepolinetracker
       # of type Microsoft.Web/Sites doesn't exist" — the pipeline had no way to create it.
-      # Idempotent: a no-op when the infra already matches.
+      # Idempotent: a no-op when the infra already matches. The apply-infra job below stays as
+      # the manual path, for previewing a change with what-if before pushing it.
       - name: Provision infra (Bicep)
         run: |
           az deployment sub create \
