@@ -319,7 +319,12 @@ internal static class UploadEndpoints
         .WithName("UploadZipRepository");
     }
 
-    private static (string gitPath, string repoRoot) FindGitFolder(string basePath)
+    /// <summary>
+    /// Locates the .git directory inside an extracted upload. Internal rather than private so the
+    /// Unit tier can assert on the three layouts a real zip arrives in — repository at the root,
+    /// wrapped in a named folder (what GitHub's "Download ZIP" produces), or neither.
+    /// </summary>
+    internal static (string gitPath, string repoRoot) FindGitFolder(string basePath)
     {
         // Check at root level
         var rootGitPath = Path.Combine(basePath, ".git");
@@ -375,7 +380,16 @@ internal static class UploadEndpoints
         catch { /* Ignore cleanup errors */ }
     }
 
-    private static string SanitizeRepoName(string name)
+    /// <summary>
+    /// Reduces an arbitrary uploaded filename to a safe display name for the repository.
+    ///
+    /// <para>The result does NOT reach the filesystem today — the extracted tree lands in
+    /// <c>local_{Guid}</c> and this value is only stored and shown. It is still reduced to a leaf
+    /// name with no separators, because that is a cheap invariant to hold and the day someone does
+    /// build a path from it is the day it would otherwise become a traversal. Internal so the Unit
+    /// tier can pin that invariant.</para>
+    /// </summary>
+    internal static string SanitizeRepoName(string name)
     {
         // Remove invalid characters and limit length
         var sanitized = string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
