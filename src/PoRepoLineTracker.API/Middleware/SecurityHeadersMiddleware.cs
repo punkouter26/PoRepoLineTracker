@@ -48,7 +48,11 @@ public class SecurityHeadersMiddleware
                         "style-src 'self' 'unsafe-inline' https:; " +    // Allow inline styles
                         "img-src 'self' data: https:; " +
                         "font-src 'self' https:; " +
-                        "connect-src 'self' https:; " +
+                        // wss: is listed explicitly for the /hubs/analysis WebSocket. CSP 3 treats
+                        // 'self' as covering a same-origin ws/wss upgrade, but that was clarified
+                        // late and engines disagreed for years — an omitted scheme here fails as a
+                        // silently blocked connection, so it is named rather than assumed.
+                        "connect-src 'self' https: wss:; " +
                         "frame-ancestors 'none'; " +
                         "upgrade-insecure-requests;";
 

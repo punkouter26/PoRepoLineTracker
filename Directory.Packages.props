@@ -21,6 +21,9 @@
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.5" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.5" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
+    <!-- Live analysis feed. Client-side only: the server hub ships in the ASP.NET Core shared
+         framework, so nothing is added to the API for it. -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.5" />
     <!-- Rule 5.4 — HybridCache is the standard cache abstraction (in-memory L1 with
          stampede protection; an L2 is added by registering an IDistributedCache). -->
     <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.0.0" />

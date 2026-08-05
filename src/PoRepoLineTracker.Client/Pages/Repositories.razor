@@ -7,6 +7,7 @@
 @inject NavigationManager Navigation
 @inject Radzen.DialogService DialogService
 @inject Radzen.NotificationService NotificationService
+@inject AnalysisFeedClient Feed
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Domain.Models
 @using PoRepoLineTracker.Shared.Models.Dtos
@@ -67,6 +68,10 @@
             @pageState.ErrorMessage
         </RadzenAlert>
     }
+
+    @* Live analysis feed. Renders nothing while idle, so it costs no vertical space until a job
+       actually starts. *@
+    <AnalysisActivityFeed />
 
     @* Repository Data Grid *@
     @if (pageState.IsLoadingRepositories)
@@ -524,10 +529,67 @@
 
     protected override async Task OnInitializedAsync()
     {
+        Feed.ProgressReceived += OnAnalysisProgressAsync;
+
         await Task.WhenAll(
             LoadRepositories(),
-            LoadLatestLineCounts());
+            LoadLatestLineCounts(),
+            Feed.EnsureConnectedAsync());
+
         StartPassivePendingPollIfNeeded();
+    }
+
+    /// <summary>
+    /// Applies a pushed progress frame to the grid.
+    ///
+    /// <para>This is the same state the poll used to fetch, arriving as it happens rather than up
+    /// to five seconds later — and without the request-per-pending-repository that produced it.
+    /// The completion branch does the reload the poll used to do, which is why the poll can be
+    /// skipped entirely while the hub is up.</para>
+    /// </summary>
+    private async Task OnAnalysisProgressAsync(AnalysisProgressDto progress)
+    {
+        var wasRunning = _analysisProgress.TryGetValue(progress.RepositoryId, out var previous) && previous.IsRunning;
+        _analysisProgress[progress.RepositoryId] = progress;
+
+        if (progress.IsRunning)
+        {
+            reanalyzingRepositoryId ??= progress.RepositoryId;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        // Only act on the transition. The service pushes the terminal frame once, but a reconnect
+        // can replay state, and re-running the reload on each replay would restart the chart
+        // fetches for a job that finished minutes ago.
+        if (!wasRunning)
+        {
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (reanalyzingRepositoryId == progress.RepositoryId) reanalyzingRepositoryId = null;
+        _reanalysisStartTimes.Remove(progress.RepositoryId);
+
+        if (progress.ErrorMessage is null)
+        {
+            _analysisProgress.Remove(progress.RepositoryId);
+
+            await LoadRepositories();
+            await LoadLatestLineCounts();
+            await ReloadComparisonChartAsync();
+
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Summary = "Analysis Complete",
+                Detail = $"'{progress.Owner}/{progress.Name}' has been analyzed.",
+                Duration = 5000
+            });
+        }
+
+        await InvokeAsync(StateHasChanged);
+        if (grid is not null) await InvokeAsync(grid.Reload);
     }
 
     /// <summary>
@@ -743,8 +805,11 @@
                 });
                 Logger.LogInformation("Re-analysis queued for repository {RepositoryId}", repo.Id);
 
-                // Keep the "Re-analyzing" badge alive — poll until LastAnalyzedCommitDate changes
-                _ = PollForReanalysisCompletionAsync(repo.Id, priorDate);
+                // Keep the "Re-analyzing" badge alive until the job reports back. Over the hub
+                // that arrives as a push; without it, fall back to polling for the change in
+                // LastAnalyzedCommitDate.
+                if (!Feed.IsConnected)
+                    _ = PollForReanalysisCompletionAsync(repo.Id, priorDate);
             }
             else
             {
@@ -789,6 +854,10 @@
     private void StartPassivePendingPollIfNeeded()
     {
         if (_passivePollRunning) return;
+        // The hub reports every step of every job the user owns, so polling on top of it would be
+        // the same data fetched twice. Kept as the fallback for the cases the hub cannot cover —
+        // a proxy that blocks WebSockets, or a failed handshake.
+        if (Feed.IsConnected) return;
         if (!pageState.Repositories.Any(r => r.LastAnalyzedCommitDate == null)) return;
         _ = PollForPendingRepositoriesAsync();
     }
@@ -961,6 +1030,10 @@
 
     public async ValueTask DisposeAsync()
     {
+        // Unsubscribe only. AnalysisFeedClient is container-owned and shared with the activity
+        // feed, so disposing it here would take the feed's connection down with the page.
+        Feed.ProgressReceived -= OnAnalysisProgressAsync;
+
         await _disposeCts.CancelAsync();
         _disposeCts.Dispose();
     }

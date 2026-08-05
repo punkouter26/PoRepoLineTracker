@@ -7,6 +7,21 @@ namespace PoRepoLineTracker.API.Features.Repositories;
 /// </summary>
 public interface IAnalysisProgressService
 {
+    /// <summary>
+    /// Opens a job and records who owns it.
+    ///
+    /// <para>Every other method on this interface identifies a job by repository id alone, which
+    /// was enough while progress was only ever read back by a caller that had already proved it
+    /// owned the repository. Pushing progress inverts that: the service now has to decide who to
+    /// send an update to, and it cannot ask — the reports arrive from a detached background task
+    /// with no request, no principal and no scoped services. So ownership is recorded once here,
+    /// at the point the job starts and the repository is in hand.</para>
+    ///
+    /// <para>Calling it also clears any state left by a previous run of the same repository, so a
+    /// re-analysis does not inherit the last run's error message or commit counts.</para>
+    /// </summary>
+    void BeginJob(RepositoryId repositoryId, UserId userId, string owner, string name);
+
     /// <summary>Report that a job has reached a new step.</summary>
     void ReportStep(RepositoryId repositoryId, int stepIndex, string stepName, string stepDescription);
 

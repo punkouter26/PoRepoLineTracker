@@ -35,6 +35,9 @@
     <!-- IHttpClientFactory: lets AntiforgeryHandler be composed into the pipeline as a named
          client (Rule 4.2) instead of every call site constructing its own HttpClient. -->
     <PackageReference Include="Microsoft.Extensions.Http" />
+    <!-- Live analysis feed. Trim-safe only because the hub protocol is handed the same
+         source-generated resolver the HTTP calls use — see AnalysisFeedClient. -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <PackageReference Include="Radzen.Blazor" />
   </ItemGroup>
 

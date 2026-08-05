@@ -9,6 +9,18 @@ public sealed class AnalysisProgressDto
 {
     public RepositoryId RepositoryId { get; set; }
 
+    /// <summary>
+    /// Repository owner and name, carried on the payload rather than looked up by the receiver.
+    /// <para>
+    /// Added for the live feed: it renders events pushed over the hub, including for repositories
+    /// the page has never listed, so an id alone would leave it printing GUIDs. The polling
+    /// endpoint returns the same DTO and gets the labels for free.
+    /// </para>
+    /// </summary>
+    public string Owner { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
     /// <summary>Human-readable description of the current step, e.g. "Cloning repository (step 1/4)".</summary>
     public string StepDescription { get; set; } = string.Empty;
 
@@ -42,11 +54,21 @@ public sealed class AnalysisProgressDto
     /// <summary>Error message if the job failed.</summary>
     public string? ErrorMessage { get; set; }
 
-    /// <summary>Percentage complete (0–100), based on commits when available, or step index otherwise.</summary>
+    /// <summary>
+    /// Percentage complete (0–100), based on commits when available, or step index otherwise.
+    ///
+    /// <para>Clamped rather than trusted to stay in range. The step branch is
+    /// <c>(StepIndex - 1) / StepTotal</c>, which is negative for <c>StepIndex</c> 0 — the value a
+    /// job carries between being queued and reporting its first step. That state was unreachable
+    /// while progress was only ever polled (the first read came after step 1), but it is pushed
+    /// now, and it was observed arriving as -25%.</para>
+    /// </summary>
     public int ProgressPercent =>
-        CommitsTotal > 0
-            ? (int)Math.Round((double)CommitsProcessed / CommitsTotal * 100)
-            : StepTotal > 0
-                ? (int)Math.Round((double)(StepIndex - 1) / StepTotal * 100)
-                : 0;
+        Math.Clamp(
+            CommitsTotal > 0
+                ? (int)Math.Round((double)CommitsProcessed / CommitsTotal * 100)
+                : StepTotal > 0
+                    ? (int)Math.Round((double)(StepIndex - 1) / StepTotal * 100)
+                    : 0,
+            0, 100);
 }

@@ -1,6 +1,7 @@
 using Serilog;
 using Scalar.AspNetCore;
 using Azure.Identity;
+using PoRepoLineTracker.API.Hubs;
 
 namespace PoRepoLineTracker.API
 {
@@ -158,6 +159,12 @@ namespace PoRepoLineTracker.API
 
             // All API route mappings - MUST come BEFORE fallback file
             app.MapApiEndpoints();
+
+            // Live analysis progress. Deliberately outside /api: AntiforgeryMiddleware validates
+            // every unsafe method under that prefix, and the SignalR negotiate handshake is a POST
+            // that carries no CSRF token. The hub is [Authorize] and scopes every connection by the
+            // caller's own claim, so it is not relying on the prefix for protection.
+            app.MapHub<AnalysisHub>("/hubs/analysis");
 
             // Both must opt out of the FallbackPolicy (Rule 3.3): /health is polled by the
             // deploy smoke test and Azure's probe with no credential, and the fallback file is

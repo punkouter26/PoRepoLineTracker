@@ -1,0 +1,150 @@
+@implements IDisposable
+@inject AnalysisFeedClient Feed
+@using PoRepoLineTracker.Shared.Models
+@using Radzen
+@using Radzen.Blazor
+
+@* Live analysis log, driven by the /hubs/analysis push rather than a timer.
+
+   Renders nothing at all while idle. A permanently visible "no activity" panel would push the
+   repository grid down the page to say nothing; this appears when something starts and stays
+   until the page is left. *@
+
+@if (_entries.Count > 0)
+{
+    <RadzenCard class="feed">
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                     AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="bolt" class="feed__icon" />
+                <RadzenText TextStyle="TextStyle.H6" class="feed__title">Live activity</RadzenText>
+            </RadzenStack>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
+                <span class="@($"feed__dot {(Feed.IsConnected ? "feed__dot--on" : "feed__dot--off")}")" aria-hidden="true"></span>
+                <RadzenText TextStyle="TextStyle.Caption" class="feed__status">
+                    @(Feed.IsConnected ? "Streaming" : "Reconnecting…")
+                </RadzenText>
+            </RadzenStack>
+        </RadzenStack>
+
+        <ul class="feed__list">
+            @foreach (var entry in Ordered)
+            {
+                <li class="feed__row">
+                    <div class="feed__head">
+                        <span class="feed__repo" title="@entry.Label">@entry.Label</span>
+                        @if (entry.Error is not null)
+                        {
+                            <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" />
+                        }
+                        else if (entry.Running)
+                        {
+                            <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@entry.Step" />
+                        }
+                        else
+                        {
+                            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Done" />
+                        }
+                        <span class="feed__time">@ChartFormat.RelativeTime(entry.UpdatedUtc)</span>
+                    </div>
+
+                    <div class="feed__detail">
+                        @(entry.Error ?? entry.Detail)
+                    </div>
+
+                    @* A determinate bar only once the commit total is known — before that the job
+                       is cloning, and a bar sitting at 0% reads as stalled rather than as working. *@
+                    @if (entry.Running)
+                    {
+                        <RadzenProgressBar Mode="@(entry.Determinate ? ProgressBarMode.Determinate : ProgressBarMode.Indeterminate)"
+                                           Value="@entry.Percent"
+                                           ShowValue="false"
+                                           class="feed__bar" />
+                    }
+                </li>
+            }
+        </ul>
+    </RadzenCard>
+}
+
+@code {
+    /// <summary>
+    /// Cap on retained entries. The feed is a "what is happening now" panel, not an audit log —
+    /// past this the older rows are scrolled past rather than read, and every one of them is a
+    /// live component re-rendered on each frame.
+    /// </summary>
+    private const int MaxEntries = 12;
+
+    /// <summary>Keyed by repository so successive frames for one job update a row rather than adding one.</summary>
+    private readonly Dictionary<RepositoryId, FeedEntry> _entries = [];
+
+    private IEnumerable<FeedEntry> Ordered =>
+        _entries.Values.OrderByDescending(e => e.Running).ThenByDescending(e => e.UpdatedUtc);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Feed.ProgressReceived += OnProgressAsync;
+        await Feed.EnsureConnectedAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnProgressAsync(AnalysisProgressDto progress)
+    {
+        var label = string.IsNullOrEmpty(progress.Owner)
+            ? progress.RepositoryId.ToString()
+            : $"{progress.Owner}/{progress.Name}";
+
+        _entries[progress.RepositoryId] = new FeedEntry(
+            label,
+            string.IsNullOrEmpty(progress.StepName) ? "Working" : progress.StepName,
+            Describe(progress),
+            progress.ProgressPercent,
+            progress.CommitsTotal > 0,
+            progress.IsRunning,
+            progress.ErrorMessage,
+            DateTime.UtcNow);
+
+        // Evicted by age, and only among finished jobs — a running job pushed off the end would
+        // stop updating anywhere the user can see it.
+        if (_entries.Count > MaxEntries)
+        {
+            var stalest = _entries
+                .Where(kv => !kv.Value.Running)
+                .OrderBy(kv => kv.Value.UpdatedUtc)
+                .Select(kv => (RepositoryId?)kv.Key)
+                .FirstOrDefault();
+
+            if (stalest.HasValue) _entries.Remove(stalest.Value);
+        }
+
+        // Frames arrive on the hub's callback context, not the renderer's.
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string Describe(AnalysisProgressDto progress)
+    {
+        if (progress.ErrorMessage is not null) return progress.ErrorMessage;
+        if (!progress.IsRunning) return "Analysis complete";
+
+        return progress.CommitsTotal > 0
+            ? $"{progress.CommitsProcessed:N0} / {progress.CommitsTotal:N0} commits"
+            : progress.StepDescription;
+    }
+
+    private sealed record FeedEntry(
+        string Label,
+        string Step,
+        string Detail,
+        int Percent,
+        bool Determinate,
+        bool Running,
+        string? Error,
+        DateTime UpdatedUtc);
+
+    /// <summary>
+    /// Unsubscribes without disposing the connection — <see cref="AnalysisFeedClient"/> is shared
+    /// with the repository grid and owned by the container, so tearing it down here would kill the
+    /// grid's live updates too.
+    /// </summary>
+    public void Dispose() => Feed.ProgressReceived -= OnProgressAsync;
+}

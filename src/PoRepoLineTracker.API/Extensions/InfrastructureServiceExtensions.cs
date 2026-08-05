@@ -127,8 +127,15 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ILineCounter, DefaultLineCounter>();
         services.AddScoped<IFileIgnoreFilter, FileIgnoreFilter>();
 
-        // Singleton: tracks live analysis progress across background Task.Run jobs
+        // Singleton: tracks live analysis progress across background Task.Run jobs, and pushes
+        // each update to the owning user over AnalysisHub (hence AddSignalR below it — IHubContext
+        // has to be resolvable for the singleton above to take a dependency on it).
+        services.AddSignalR();
         services.AddSingleton<IAnalysisProgressService, AnalysisProgressService>();
+
+        // Registered ahead of GitHubService: the commit walk scores each diff as it reads it, so
+        // the detector has to be resolvable by the time the factory below runs.
+        services.AddScoped<IAiDetectionService, AiDetectionService>();
 
         services.AddScoped<IGitHubService>(sp => new GitHubService(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("GitHubClient"),
@@ -136,12 +143,12 @@ public static class InfrastructureServiceExtensions
             sp.GetRequiredService<ILogger<GitHubService>>(),
             sp.GetServices<ILineCounter>(),
             sp.GetRequiredService<IGitClient>(),
-            sp.GetRequiredService<IFileIgnoreFilter>()));
+            sp.GetRequiredService<IFileIgnoreFilter>(),
+            sp.GetRequiredService<IAiDetectionService>()));
 
         services.AddScoped<IRepositoryDataService, RepositoryDataService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IUserPreferencesService, UserPreferencesService>();
-        services.AddScoped<IAiDetectionService, AiDetectionService>();
 
         // MediatR — register every handler in this assembly (all slices live here now)
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(

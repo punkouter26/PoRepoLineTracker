@@ -1,0 +1,108 @@
+/* Scoped styles for AnalysisActivityFeed. Colours are theme tokens, not literals — the panel sits
+   on the same card surface in both themes and a fixed palette cannot hold contrast across
+   both (Rule 4.5). */
+
+.feed {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+::deep .feed__title.feed__title {
+    margin: 0 !important;
+    font-weight: 600 !important;
+}
+
+.feed__icon {
+    color: var(--status-warn);
+}
+
+::deep .feed__status.feed__status {
+    margin: 0 !important;
+    color: var(--text-muted) !important;
+}
+
+/* Connection state carries a text label beside it as well as this dot — colour alone is not an
+   accessible signal (Rule 4.7). */
+.feed__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    display: inline-block;
+}
+
+.feed__dot--on {
+    background: var(--status-pos);
+    /* Slow pulse to read as "live" rather than merely "green". */
+    animation: feed-pulse 2s ease-in-out infinite;
+}
+
+.feed__dot--off {
+    background: var(--text-muted);
+}
+
+@keyframes feed-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+}
+
+/* Respect a reduced-motion preference: the dot still changes colour, it just stops moving. */
+@media (prefers-reduced-motion: reduce) {
+    .feed__dot--on { animation: none; }
+}
+
+.feed__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.feed__row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.feed__row:last-child {
+    border-bottom: none;
+}
+
+.feed__head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.feed__repo {
+    font-weight: 600;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Lets the flex item shrink instead of pushing the badges off the row. */
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.feed__time {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.feed__detail {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+}
+
+::deep .feed__bar.feed__bar {
+    height: 4px !important;
+    margin-top: 0.15rem;
+}

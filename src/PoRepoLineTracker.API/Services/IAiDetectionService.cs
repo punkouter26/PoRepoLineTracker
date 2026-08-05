@@ -15,6 +15,17 @@ public interface IAiDetectionService
     Task<double> AnalyzeContentAsync(string content, string fileExtension);
 
     /// <summary>
+    /// Synchronous form of <see cref="AnalyzeContentAsync"/>.
+    /// <para>
+    /// The detection is CPU-bound regex work with no I/O, so the async form only ever wrapped it
+    /// in <c>Task.Run</c>. The commit-scoring loop in <c>GitHubService</c> already runs inside one
+    /// <c>Task.Run</c> over an open LibGit2Sharp repository — a handle that must not be touched
+    /// from another thread — so it needs to score in place rather than block on a nested task.
+    /// </para>
+    /// </summary>
+    double AnalyzeContent(string content, string fileExtension);
+
+    /// <summary>
     /// Analyzes multiple files and returns the average AI detection percentage.
     /// </summary>
     /// <param name="files">Dictionary of file paths to their content.</param>

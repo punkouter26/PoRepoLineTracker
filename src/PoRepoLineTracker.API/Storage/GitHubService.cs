@@ -16,13 +16,15 @@ public class GitHubService : IGitHubService
     private readonly Dictionary<string, ILineCounter> _lineCounterMap; // New field for line counter map
     private readonly IGitClient _gitClient; // Added for DIP
     private readonly IFileIgnoreFilter _fileIgnoreFilter; // Added for file filtering
+    private readonly IAiDetectionService _aiDetectionService; // Scores each commit's own diff
 
-    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, IGitClient gitClient, IFileIgnoreFilter fileIgnoreFilter)
+    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, IGitClient gitClient, IFileIgnoreFilter fileIgnoreFilter, IAiDetectionService aiDetectionService)
     {
         _httpClient = httpClient;
         _logger = logger;
         _gitClient = gitClient; // Initialize IGitClient
         _fileIgnoreFilter = fileIgnoreFilter; // Initialize file ignore filter
+        _aiDetectionService = aiDetectionService;
 
         // Determine the base path for local repositories.
         // In Azure App Service, use a path within the ephemeral storage.
@@ -157,18 +159,21 @@ public class GitHubService : IGitHubService
                 {
                     int linesAdded = 0;
                     int linesRemoved = 0;
+                    double aiPercentage;
 
                     if (commit.Parents.Any())
                     {
                         var patch = repo.Diff.Compare<Patch>(commit.Parents.First().Tree, commit.Tree);
                         linesAdded = patch.LinesAdded;
                         linesRemoved = patch.LinesDeleted;
+                        aiPercentage = ScoreCommit(patch, commit.Sha);
                     }
                     else
                     {
                         var patch = repo.Diff.Compare<Patch>(null, commit.Tree);
                         linesAdded = patch.LinesAdded;
                         linesRemoved = 0;
+                        aiPercentage = ScoreCommit(patch, commit.Sha);
                     }
 
                     commitStatsList.Add(new CommitStatsDto
@@ -178,7 +183,8 @@ public class GitHubService : IGitHubService
                         LinesAdded = linesAdded,
                         LinesRemoved = linesRemoved,
                         AuthorName = commit.Author.Name,
-                        AuthorEmail = commit.Author.Email
+                        AuthorEmail = commit.Author.Email,
+                        AiPercentage = aiPercentage
                     });
                 }
             }
@@ -488,12 +494,14 @@ public class GitHubService : IGitHubService
                 {
                     int linesAdded = 0;
                     int linesRemoved = 0;
+                    double aiPercentage;
 
                     if (commit.Parents.Any())
                     {
                         var patch = repo.Diff.Compare<Patch>(commit.Parents.First().Tree, commit.Tree);
                         linesAdded = patch.LinesAdded;
                         linesRemoved = patch.LinesDeleted;
+                        aiPercentage = ScoreCommit(patch, commit.Sha);
                         _logger.LogDebug("Commit {CommitSha}: LinesAdded={LinesAdded}, LinesRemoved={LinesRemoved}", commit.Sha, linesAdded, linesRemoved);
                     }
                     else
@@ -502,6 +510,7 @@ public class GitHubService : IGitHubService
                         var patch = repo.Diff.Compare<Patch>(null, commit.Tree);
                         linesAdded = patch.LinesAdded;
                         linesRemoved = 0; // No lines removed in initial commit
+                        aiPercentage = ScoreCommit(patch, commit.Sha);
                         _logger.LogDebug("Initial Commit {CommitSha}: LinesAdded={LinesAdded}, LinesRemoved={LinesRemoved}", commit.Sha, linesAdded, linesRemoved);
                     }
 
@@ -512,13 +521,74 @@ public class GitHubService : IGitHubService
                         LinesAdded = linesAdded,
                         LinesRemoved = linesRemoved,
                         AuthorName = commit.Author.Name,
-                        AuthorEmail = commit.Author.Email
+                        AuthorEmail = commit.Author.Email,
+                        AiPercentage = aiPercentage
                     });
                 }
             }
             _logger.LogInformation("Found {CommitCount} commit stats for repository at {LocalPath}", commitStatsList.Count, fullLocalPath);
             return commitStatsList.AsEnumerable();
         });
+    }
+
+    /// <summary>
+    /// Ceiling on the added-line text handed to the AI heuristic, mirroring the service's own cap.
+    /// Applied here as well so the intermediate string is never built beyond it — the diff of an
+    /// initial commit is the whole repository, and allocating that in full just to truncate it
+    /// afterwards is the cost this avoids.
+    /// </summary>
+    private const int AddedLinesCap = 256 * 1024;
+
+    /// <summary>
+    /// Pulls the added lines out of a commit's patch as plain text, stripped of the leading '+'.
+    /// <para>
+    /// The '+++' file headers are skipped: they carry paths, not authored code, and would let a
+    /// deep directory name read as content. Removed lines are ignored on purpose — deleting code
+    /// says nothing about who wrote what is left.
+    /// </para>
+    /// </summary>
+    private static string ExtractAddedLines(Patch patch)
+    {
+        var builder = new System.Text.StringBuilder();
+
+        foreach (var entry in patch)
+        {
+            if (builder.Length >= AddedLinesCap) break;
+            if (entry.IsBinaryComparison) continue;
+
+            foreach (var line in entry.Patch.Split('\n'))
+            {
+                if (line.Length < 2 || line[0] != '+') continue;
+                if (line.StartsWith("+++", StringComparison.Ordinal)) continue;
+
+                builder.Append(line, 1, line.Length - 1).Append('\n');
+                if (builder.Length >= AddedLinesCap) break;
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// Heuristic AI score for a commit, from the text it added. Never throws: a commit that cannot
+    /// be scored scores 0 rather than failing the whole analysis run.
+    /// </summary>
+    private double ScoreCommit(Patch patch, string commitSha)
+    {
+        try
+        {
+            var addedLines = ExtractAddedLines(patch);
+            if (addedLines.Length == 0) return 0.0;
+
+            // Extension is only used for logging inside the detector; the patch spans many files,
+            // so there is no single one to name.
+            return _aiDetectionService.AnalyzeContent(addedLines, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AI scoring failed for commit {CommitSha} — recording 0", commitSha);
+            return 0.0;
+        }
     }
 
     public async Task<long> GetTotalLinesOfCodeAsync(string localPath, IEnumerable<string> fileExtensionsToCount)

@@ -56,6 +56,12 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(CommitStatsDto))]
 [JsonSerializable(typeof(List<CommitStatsDto>))]
 
+// ─── Portfolio insights ─────────────────────────────────────────────────────────────────────
+[JsonSerializable(typeof(PortfolioInsightsDto))]
+[JsonSerializable(typeof(RepositoryMovementDto))]
+[JsonSerializable(typeof(LanguageShareDto))]
+[JsonSerializable(typeof(ActivityDayDto))]
+
 // ─── Contributor / AI-detection DTOs ────────────────────────────────────────────────────────
 [JsonSerializable(typeof(ContributorStatsDto))]
 [JsonSerializable(typeof(List<ContributorStatsDto>))]

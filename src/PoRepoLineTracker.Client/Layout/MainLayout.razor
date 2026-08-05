@@ -43,6 +43,13 @@
                               Text="Repositories"
                               class="header-action-btn"
                               Click="@(() => Navigation.NavigateTo("/"))" />
+                <RadzenButton Icon="insights"
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Text"
+                              Size="ButtonSize.Small"
+                              Text="Insights"
+                              class="header-action-btn"
+                              Click="@(() => Navigation.NavigateTo("/insights"))" />
                 <RadzenButton Icon="tune"
                               ButtonStyle="ButtonStyle.Light"
                               Variant="Variant.Text"
@@ -197,6 +204,7 @@
         (_breadcrumbCurrent, _breadcrumbParent, _breadcrumbParentPath) = path switch
         {
             "" or "/" => (null, null, null),
+            "/insights" => ("Insights", null, null),
             "/settings" => ("Settings", null, null),
             "/settings/extensions-counted" => ("Settings", null, null),
             _ when path.StartsWith("/repositories/") && path.Length > "/repositories/".Length

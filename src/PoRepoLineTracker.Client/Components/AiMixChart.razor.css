@@ -1,0 +1,127 @@
+/* Scoped styles for AiMixChart. The card shell, toolbar and empty state come from ChartCard;
+   everything here is this component's own markup.
+
+   Colours are the --status-* / --border-* tokens rather than literals, so the headline and the
+   author bars keep their contrast in both themes (Rule 4.5). The two chart series are the one
+   exception: Radzen Fill/Stroke are attribute values, not CSS, so those stay hex in the .razor
+   and are chosen to sit at the same hue as --status-warn / --series-5. */
+
+.ai-headline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+}
+
+.ai-headline__figure {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.ai-headline__value {
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-primary);
+    /* Tabular figures: the value rerenders on every range change, and proportional digits make
+       it jitter sideways as the width of "9" and "1" differ. */
+    font-variant-numeric: tabular-nums;
+}
+
+.ai-headline__label {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+/* Native <progress> rather than a div with a width — the percentage rides in the value attribute
+   so no inline style is needed (Rule 4.5) and the value is announced by screen readers. */
+.ai-headline__bar {
+    display: block;
+    width: 100%;
+    height: 8px;
+    border: none;
+    border-radius: 4px;
+    background: var(--border-light);
+    appearance: none;
+}
+
+.ai-headline__bar::-webkit-progress-bar {
+    border-radius: 4px;
+    background: var(--border-light);
+}
+
+.ai-headline__bar::-webkit-progress-value {
+    border-radius: 4px;
+    background: var(--status-warn);
+}
+
+.ai-headline__bar::-moz-progress-bar {
+    border-radius: 4px;
+    background: var(--status-warn);
+}
+
+::deep .ai-headline__caveat.ai-headline__caveat {
+    margin: 0 !important;
+    color: var(--text-muted) !important;
+}
+
+.ai-authors {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+::deep .ai-authors__title.ai-authors__title {
+    margin: 0 !important;
+    font-weight: 600 !important;
+}
+
+.ai-authors__row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+::deep .ai-authors__name.ai-authors__name {
+    margin: 0 !important;
+    font-size: var(--text-sm) !important;
+    /* Author names come from git and are unbounded; clip rather than let one wrap the row. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+::deep .ai-authors__commits.ai-authors__commits {
+    margin: 0 !important;
+    color: var(--text-muted) !important;
+    white-space: nowrap;
+}
+
+.ai-authors__bar {
+    display: block;
+    width: 100%;
+    height: 6px;
+    border: none;
+    border-radius: 3px;
+    background: var(--border-light);
+    appearance: none;
+}
+
+.ai-authors__bar::-webkit-progress-bar {
+    border-radius: 3px;
+    background: var(--border-light);
+}
+
+.ai-authors__bar::-webkit-progress-value {
+    border-radius: 3px;
+    background: var(--status-warn);
+}
+
+.ai-authors__bar::-moz-progress-bar {
+    border-radius: 3px;
+    background: var(--status-warn);
+}

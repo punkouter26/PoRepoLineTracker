@@ -1,0 +1,286 @@
+@* Human-vs-AI authorship for one repository.
+
+   Both endpoints this reads — /ai-stats and /ai-daily — already existed and had no caller at all;
+   the client only ever used /contributors. They answer different questions and both are needed
+   here: ai-stats carries per-commit LinesAdded alongside the score, which is what lets the mix be
+   weighted by volume rather than by commit count, while ai-daily carries the already-aggregated
+   daily average that the Share view plots.
+
+   Weighted by lines on purpose. A day of thirty one-line fixes and a day of one 3,000-line
+   generated file are not the same event, and averaging the per-commit percentages would rank them
+   identically. *@
+
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using Radzen
+@using Radzen.Blazor
+
+<ChartCard Title="Human vs AI"
+           Description="@Description"
+           IsLoading="@_isLoading"
+           ErrorMessage="@_error"
+           OnRetry="@LoadAsync"
+           IsEmpty="@(DailyMix.Count == 0)"
+           EmptyIcon="smart_toy"
+           EmptyText="No AI-authorship data yet."
+           EmptyHint="Re-analyze the repository — commits scanned before this feature shipped carry no score.">
+    <Toolbar>
+        <RadzenSelectBar Value="@_mode" TValue="AiViewMode" Change="@OnModeChanged" Size="ButtonSize.Small"
+                         aria-label="AI chart mode">
+            <Items>
+                <RadzenSelectBarItem Text="Lines" Value="AiViewMode.Lines" />
+                <RadzenSelectBarItem Text="Share" Value="AiViewMode.Share" />
+            </Items>
+        </RadzenSelectBar>
+        <ChartRangeSelector Days="@_days" DaysChanged="@OnRangeChanged" />
+    </Toolbar>
+    <ChildContent>
+        @* ─── Headline ─────────────────────────────────────────────────────────────
+           The single number most people come to this card for, stated before the chart
+           rather than left to be estimated from band heights. *@
+        <div class="ai-headline">
+            <div class="ai-headline__figure">
+                <span class="ai-headline__value">@OverallAiShare.ToString("F1")%</span>
+                <span class="ai-headline__label">of added lines look AI-assisted</span>
+            </div>
+            <progress class="ai-headline__bar"
+                      max="100"
+                      value="@Math.Min(OverallAiShare, 100)"
+                      aria-label="@($"{OverallAiShare:F1}% of added lines scored as AI-assisted")"></progress>
+            <RadzenText TextStyle="TextStyle.Caption" class="ai-headline__caveat">
+                Heuristic, not proof — pattern matching over each commit's diff.
+            </RadzenText>
+        </div>
+
+        @if (_mode == AiViewMode.Lines)
+        {
+            <RadzenChart>
+                <RadzenStackedColumnSeries Data="@DailyMix"
+                                           CategoryProperty="Date"
+                                           ValueProperty="HumanLines"
+                                           Title="Human"
+                                           Fill="#34c3b3" />
+                <RadzenStackedColumnSeries Data="@DailyMix"
+                                           CategoryProperty="Date"
+                                           ValueProperty="AiLines"
+                                           Title="AI-assisted"
+                                           Fill="#f97316" />
+
+                @* Whole-day Step: see ChartFormat.DateAxisStep. *@
+                <RadzenCategoryAxis FormatString="{0:MMM d}"
+                                    Step="@ChartFormat.DateAxisStep(DailyMix.Select(d => d.Date))"
+                                    LabelAutoRotation="-45">
+                    <RadzenAxisTitle Text="Date" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenCategoryAxis>
+                <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                    <RadzenAxisTitle Text="Lines Added" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenValueAxis>
+                <RadzenLegend Position="LegendPosition.Bottom" />
+            </RadzenChart>
+        }
+        else
+        {
+            @* Max fixed at 100 rather than left to autoscale: a range that grows to fit the data
+               makes a 4% day and a 40% day look alike, which is the opposite of the point. *@
+            <RadzenChart>
+                <RadzenAreaSeries Data="@DailyShare"
+                                  CategoryProperty="Date"
+                                  ValueProperty="AiPercentage"
+                                  Title="AI share"
+                                  Stroke="#f97316"
+                                  Fill="rgba(249, 115, 22, 0.18)"
+                                  StrokeWidth="2">
+                    <RadzenMarkers MarkerType="@(DailyShare.Count <= 60 ? MarkerType.Circle : MarkerType.None)" />
+                </RadzenAreaSeries>
+
+                <RadzenCategoryAxis FormatString="{0:MMM d}"
+                                    Step="@ChartFormat.DateAxisStep(DailyShare.Select(d => d.Date))"
+                                    LabelAutoRotation="-45">
+                    <RadzenAxisTitle Text="Date" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenCategoryAxis>
+                <RadzenValueAxis Min="0" Max="100" Step="25">
+                    <RadzenAxisTitle Text="AI share (%)" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenValueAxis>
+                <RadzenLegend Visible="false" />
+            </RadzenChart>
+        }
+
+        @* ─── Per-author breakdown ─────────────────────────────────────────────────
+           /ai-stats groups by author, which is the whole reason it exists as a separate
+           endpoint from /ai-daily. Sorted by score rather than by name so the answer to
+           "who leans on it most" is the first row. *@
+        @if (RankedAuthors.Count > 0)
+        {
+            <div class="ai-authors">
+                <RadzenText TextStyle="TextStyle.Subtitle2" class="ai-authors__title">By author</RadzenText>
+                @foreach (var author in RankedAuthors)
+                {
+                    <div class="ai-authors__row">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                                     AlignItems="AlignItems.Center" Gap="0.5rem">
+                            <RadzenText class="ai-authors__name" title="@author.AuthorName">
+                                @(string.IsNullOrWhiteSpace(author.AuthorName) ? "(Unknown)" : author.AuthorName)
+                            </RadzenText>
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                <RadzenText TextStyle="TextStyle.Caption" class="ai-authors__commits">
+                                    @author.TotalCommits.ToString("N0") commits
+                                </RadzenText>
+                                <RadzenBadge BadgeStyle="@BadgeFor(author.AverageAiPercentage)"
+                                             Text="@($"{author.AverageAiPercentage:F1}%")" />
+                            </RadzenStack>
+                        </RadzenStack>
+                        <progress class="ai-authors__bar"
+                                  max="100"
+                                  value="@Math.Min(author.AverageAiPercentage, 100)"
+                                  aria-label="@($"{author.AuthorName}: {author.AverageAiPercentage:F1}% average AI score")"></progress>
+                    </div>
+                }
+            </div>
+        }
+    </ChildContent>
+</ChartCard>
+
+@code {
+    [Parameter] public RepositoryId RepositoryId { get; set; }
+
+    /// <summary>
+    /// Fires whenever the overall share is recomputed, so the page hosting this card can put the
+    /// same figure in its header without issuing the request a second time.
+    /// </summary>
+    [Parameter] public EventCallback<double> OverallShareChanged { get; set; }
+
+    [Inject] HttpClient Http { get; set; } = null!;
+    [Inject] ILogger<AiMixChart> Logger { get; set; } = null!;
+
+    public enum AiViewMode { Lines, Share }
+
+    private AiViewMode _mode = AiViewMode.Lines;
+    private int _days = 90;
+    private bool _isLoading;
+    private string _error = string.Empty;
+
+    private List<AiStatsByUserDto>? _byAuthor;
+    private List<DailyAiDetectionDto>? _daily;
+
+    private string Description => _mode == AiViewMode.Lines
+        ? "Lines added per day, split by how the diff scored"
+        : "Daily average AI score across the day's commits";
+
+    /// <summary>
+    /// Authors that actually committed in the window, worst-first. Authors are kept even at 0% —
+    /// "this person's commits never score" is itself the interesting reading once someone else's
+    /// do.
+    /// </summary>
+    private List<AiStatsByUserDto> RankedAuthors =>
+        (_byAuthor ?? [])
+            .Where(a => a.TotalCommits > 0)
+            .OrderByDescending(a => a.AverageAiPercentage)
+            .ThenByDescending(a => a.TotalCommits)
+            .Take(8)
+            .ToList();
+
+    /// <summary>
+    /// Daily human/AI line split, weighted by each commit's own LinesAdded.
+    /// <para>
+    /// Built from every author's CommitHistory rather than from /ai-daily because that endpoint
+    /// reports an average percentage per day and has no line counts to weight it by.
+    /// </para>
+    /// </summary>
+    private List<AiDayPoint> DailyMix
+    {
+        get
+        {
+            if (_byAuthor is null) return [];
+
+            return _byAuthor
+                .SelectMany(a => a.CommitHistory)
+                .Where(c => c.LinesAdded > 0)
+                .GroupBy(c => c.Date.Date)
+                .Select(g =>
+                {
+                    var ai = g.Sum(c => c.LinesAdded * Math.Clamp(c.AiPercentage, 0, 100) / 100.0);
+                    var total = g.Sum(c => (double)c.LinesAdded);
+                    return new AiDayPoint(g.Key, (int)Math.Round(ai), (int)Math.Round(total - ai));
+                })
+                .OrderBy(p => p.Date)
+                .ToList();
+        }
+    }
+
+    private List<AiSharePoint> DailyShare =>
+        (_daily ?? [])
+            .OrderBy(d => d.Date)
+            .Select(d => new AiSharePoint(d.Date, d.AverageAiPercentage))
+            .ToList();
+
+    /// <summary>Lines-weighted share across the whole window — the headline figure.</summary>
+    private double OverallAiShare
+    {
+        get
+        {
+            var mix = DailyMix;
+            var total = mix.Sum(p => (double)p.AiLines + p.HumanLines);
+            return total <= 0 ? 0 : mix.Sum(p => (double)p.AiLines) / total * 100;
+        }
+    }
+
+    private sealed record AiDayPoint(DateTime Date, int AiLines, int HumanLines);
+    private sealed record AiSharePoint(DateTime Date, double AiPercentage);
+
+    private static BadgeStyle BadgeFor(double percentage) => percentage switch
+    {
+        >= 50 => BadgeStyle.Danger,
+        >= 25 => BadgeStyle.Warning,
+        > 0 => BadgeStyle.Info,
+        _ => BadgeStyle.Light
+    };
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            // Issued together: neither depends on the other and the card renders both at once, so
+            // serialising them would only add a round-trip to the time-to-first-paint.
+            var authorsTask = Http.GetAppJsonAsync(
+                $"/api/repositories/{RepositoryId}/ai-stats/{_days}",
+                AppJsonSerializerContext.Default.ListAiStatsByUserDto);
+            var dailyTask = Http.GetAppJsonAsync(
+                $"/api/repositories/{RepositoryId}/ai-daily/{_days}",
+                AppJsonSerializerContext.Default.ListDailyAiDetectionDto);
+
+            await Task.WhenAll(authorsTask, dailyTask);
+
+            _byAuthor = await authorsTask ?? [];
+            _daily = await dailyTask ?? [];
+
+            await OverallShareChanged.InvokeAsync(OverallAiShare);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "AiMixChart: failed to load AI stats for {RepositoryId}", RepositoryId);
+            _error = "Could not load AI authorship data. Please try again.";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnRangeChanged(int days)
+    {
+        _days = days;
+        await LoadAsync();
+    }
+
+    private void OnModeChanged(AiViewMode mode) => _mode = mode;
+}

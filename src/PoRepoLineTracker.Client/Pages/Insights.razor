@@ -1,0 +1,331 @@
+@page "/insights"
+@attribute [Authorize]
+@inject HttpClient Http
+@inject ILogger<Insights> Logger
+@inject NavigationManager Navigation
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using Radzen
+@using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
+
+@* Portfolio dashboard. Everything here is one GET of /api/insights/portfolio — the aggregation
+   runs where the commit data already lives rather than shipping it to the browser to be reduced
+   (see PortfolioInsightsDto for the reasoning). *@
+
+<RadzenStack Gap="1rem">
+    <PageHero>
+        <Heading>
+            <RadzenStack Gap="0.125rem">
+                <RadzenText TextStyle="TextStyle.H3" class="ins-title">Insights</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="ins-lede">
+                    @if (_isLoading)
+                    {
+                        <span>Crunching your portfolio…</span>
+                    }
+                    else if (_insights is not null)
+                    {
+                        <span>@_insights.AnalyzedCount of @_insights.RepositoryCount repositories analyzed</span>
+                    }
+                </RadzenText>
+            </RadzenStack>
+        </Heading>
+        <Actions>
+            <RadzenButton Text="Refresh" Icon="refresh" ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Outlined" Size="ButtonSize.Small"
+                          Click="@LoadAsync" Disabled="@_isLoading" />
+        </Actions>
+    </PageHero>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true" Close="@(() => _error = string.Empty)">
+            @_error
+        </RadzenAlert>
+    }
+
+    @if (_isLoading)
+    {
+        <div class="ins-kpis">
+            @for (var i = 0; i < 4; i++)
+            {
+                <RadzenCard><RadzenSkeleton Width="100%" Height="72px" /></RadzenCard>
+            }
+        </div>
+        <RadzenCard><RadzenSkeleton Width="100%" Height="220px" /></RadzenCard>
+    }
+    else if (_insights is null || _insights.RepositoryCount == 0)
+    {
+        <RadzenCard>
+            <RadzenStack AlignItems="AlignItems.Center" Gap="0.75rem" class="rz-p-8">
+                <RadzenIcon Icon="insights" class="ins-empty-icon" />
+                <RadzenText TextStyle="TextStyle.H6">Nothing to summarise yet</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="ins-muted">
+                    Add and analyze a repository and this page fills in.
+                </RadzenText>
+                <RadzenButton Text="Go to Repositories" Icon="storage" Click="@(() => Navigation.NavigateTo("/"))" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else
+    {
+        @* ─── KPI row ─────────────────────────────────────────────────────────────
+           Four figures, each with the context that makes it mean something: a total beside its
+           own change, a count beside how many days it was spread over. A bare number here would
+           be no more useful than the one already on the Repositories page. *@
+        <div class="ins-kpis">
+            <RadzenCard class="ins-kpi">
+                <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">Total lines</RadzenText>
+                <div class="ins-kpi__value">@_insights.TotalLines.ToString("N0")</div>
+                <div class="ins-kpi__delta @DeltaClass(_insights.NetLines30Days)">
+                    @DeltaText(_insights.NetLines30Days) in 30d
+                    <span class="ins-kpi__sub">· @DeltaText(_insights.NetLines7Days) in 7d</span>
+                </div>
+            </RadzenCard>
+
+            <RadzenCard class="ins-kpi">
+                <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">Commits (30d)</RadzenText>
+                <div class="ins-kpi__value">@_insights.Commits30Days.ToString("N0")</div>
+                <div class="ins-kpi__delta">
+                    across @_insights.ActiveDays30 active @(_insights.ActiveDays30 == 1 ? "day" : "days")
+                </div>
+            </RadzenCard>
+
+            <RadzenCard class="ins-kpi">
+                <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">AI-assisted (30d)</RadzenText>
+                <div class="ins-kpi__value">@_insights.AiPercentage30Days.ToString("F1")%</div>
+                <div class="ins-kpi__delta">
+                    of @_insights.LinesAdded30Days.ToString("N0") lines added
+                </div>
+            </RadzenCard>
+
+            <RadzenCard class="ins-kpi">
+                <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">Current streak</RadzenText>
+                <div class="ins-kpi__value">
+                    @_insights.CurrentStreakDays<span class="ins-kpi__unit">d</span>
+                </div>
+                <div class="ins-kpi__delta">best @_insights.LongestStreakDays d this year</div>
+            </RadzenCard>
+        </div>
+
+        @* ─── Activity heatmap ────────────────────────────────────────────────────
+           A year of commit activity at a glance. Rendered as a plain CSS grid rather than a
+           Radzen chart: 365 cells with no axes is a calendar, and every charting primitive that
+           could draw it would first have to be told not to behave like a chart. *@
+        <RadzenCard class="ins-card">
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                         AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem">
+                <RadzenStack Gap="0.15rem">
+                    <RadzenText TextStyle="TextStyle.H6" class="ins-card__title">Activity</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
+                        Commits per day across every tracked repository, last 12 months
+                    </RadzenText>
+                </RadzenStack>
+                <div class="ins-heat__legend">
+                    <span class="ins-muted">Less</span>
+                    <span class="ins-heat__cell ins-heat--0"></span>
+                    <span class="ins-heat__cell ins-heat--1"></span>
+                    <span class="ins-heat__cell ins-heat--2"></span>
+                    <span class="ins-heat__cell ins-heat--3"></span>
+                    <span class="ins-heat__cell ins-heat--4"></span>
+                    <span class="ins-muted">More</span>
+                </div>
+            </RadzenStack>
+
+            <div class="u-scroll-x ins-heat__scroll">
+                <div class="ins-heat" role="img" aria-label="@HeatmapSummary">
+                    @* Leading blanks so the first real cell lands on its own weekday row and every
+                       column below is a genuine Sunday-to-Saturday week. *@
+                    @for (var i = 0; i < LeadingBlanks; i++)
+                    {
+                        <span class="ins-heat__cell ins-heat--blank"></span>
+                    }
+                    @foreach (var day in _insights.Activity)
+                    {
+                        <span class="ins-heat__cell @IntensityClass(day.Commits)"
+                              title="@($"{day.Date:MMM d, yyyy} — {day.Commits} commit{(day.Commits == 1 ? "" : "s")}, +{day.LinesAdded:N0} lines")"></span>
+                    }
+                </div>
+            </div>
+        </RadzenCard>
+
+        <div class="app-dashboard">
+            @* ─── Movers ──────────────────────────────────────────────────────────
+               Gainers and losers from the same ranked list, taken from each end. Shrinkage is
+               worth surfacing rather than filtering out: a repo that lost 4,000 lines is usually
+               the most interesting thing that happened all month. *@
+            <div>
+                <RadzenCard class="ins-card">
+                    <RadzenStack Gap="0.15rem">
+                        <RadzenText TextStyle="TextStyle.H6" class="ins-card__title">Movers (30 days)</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
+                            Largest net change in lines, either direction
+                        </RadzenText>
+                    </RadzenStack>
+
+                    @if (Movers.Count == 0)
+                    {
+                        <RadzenText TextStyle="TextStyle.Body2" class="ins-muted ins-empty-inline">
+                            No commits in the last 30 days.
+                        </RadzenText>
+                    }
+                    else
+                    {
+                        <div class="ins-movers">
+                            @foreach (var mover in Movers)
+                            {
+                                <button type="button" class="ins-mover"
+                                        @onclick="@(() => Navigation.NavigateTo($"/repositories/{mover.RepositoryId}"))">
+                                    <span class="ins-mover__name" title="@($"{mover.Owner}/{mover.Name}")">
+                                        @mover.Owner/@mover.Name
+                                    </span>
+                                    <span class="ins-mover__meta">
+                                        @mover.Commits30Days commits · @mover.TotalLines.ToString("N0") lines
+                                    </span>
+                                    <span class="ins-mover__delta @DeltaClass(mover.NetChange30Days)">
+                                        @DeltaText(mover.NetChange30Days)
+                                    </span>
+                                </button>
+                            }
+                        </div>
+                    }
+                </RadzenCard>
+            </div>
+
+            @* ─── Language mix ────────────────────────────────────────────────────
+               Portfolio-wide, from each repository's most recent snapshot. The per-repo version of
+               this already existed on the detail page; the aggregate did not. *@
+            <div>
+                <RadzenCard class="ins-card">
+                    <RadzenStack Gap="0.15rem">
+                        <RadzenText TextStyle="TextStyle.H6" class="ins-card__title">Language mix</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
+                            Share of current lines by file type
+                        </RadzenText>
+                    </RadzenStack>
+
+                    @if (_insights.LanguageMix.Count == 0)
+                    {
+                        <RadzenText TextStyle="TextStyle.Body2" class="ins-muted ins-empty-inline">
+                            No per-extension data yet — re-analyze a repository to populate it.
+                        </RadzenText>
+                    }
+                    else
+                    {
+                        <RadzenChart>
+                            <RadzenDonutSeries Data="@_insights.LanguageMix"
+                                               CategoryProperty="Extension"
+                                               ValueProperty="Percentage"
+                                               Title="Share of lines">
+                                <RadzenSeriesDataLabels Visible="false" />
+                            </RadzenDonutSeries>
+                            <RadzenLegend Position="LegendPosition.Bottom" />
+                        </RadzenChart>
+
+                        <div class="ins-langs">
+                            @foreach (var language in _insights.LanguageMix)
+                            {
+                                <div class="ins-lang">
+                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                                                 AlignItems="AlignItems.Center" Gap="0.5rem">
+                                        <code class="ins-lang__code">@language.Extension</code>
+                                        <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
+                                            @language.Lines.ToString("N0") · @language.Percentage.ToString("F1")%
+                                        </RadzenText>
+                                    </RadzenStack>
+                                    <progress class="ins-lang__bar" max="100"
+                                              value="@Math.Min(language.Percentage, 100)"
+                                              aria-label="@($"{language.Extension}: {language.Percentage:F1}% of lines")"></progress>
+                                </div>
+                            }
+                        </div>
+                    }
+                </RadzenCard>
+            </div>
+        </div>
+    }
+</RadzenStack>
+
+@code {
+    private PortfolioInsightsDto? _insights;
+    private bool _isLoading = true;
+    private string _error = string.Empty;
+
+    /// <summary>Gainers off the front of the ranked list, losers off the back, no repo counted twice.</summary>
+    private List<RepositoryMovementDto> Movers
+    {
+        get
+        {
+            var ranked = (_insights?.Movers ?? []).Where(m => m.Commits30Days > 0).ToList();
+            if (ranked.Count <= 6) return ranked;
+
+            return ranked.Take(4).Concat(ranked.TakeLast(2)).ToList();
+        }
+    }
+
+    /// <summary>
+    /// Blank cells before the first day so each grid column is one calendar week.
+    /// <see cref="DayOfWeek.Sunday"/> is 0, which is exactly the offset needed.
+    /// </summary>
+    private int LeadingBlanks =>
+        _insights?.Activity.Count > 0 ? (int)_insights.Activity[0].Date.DayOfWeek : 0;
+
+    private string HeatmapSummary =>
+        _insights is null
+            ? "Commit activity heatmap"
+            : $"Commit activity heatmap: {_insights.Activity.Count(d => d.Commits > 0)} active days in the last year, " +
+              $"{_insights.Activity.Sum(d => d.Commits):N0} commits total";
+
+    /// <summary>
+    /// Fixed thresholds rather than quantiles of the user's own data. A relative scale would paint
+    /// a quiet year the same shade as a busy one, and the point of the grid is to compare days
+    /// against a constant.
+    /// </summary>
+    private static string IntensityClass(int commits) => commits switch
+    {
+        0 => "ins-heat--0",
+        <= 2 => "ins-heat--1",
+        <= 5 => "ins-heat--2",
+        <= 10 => "ins-heat--3",
+        _ => "ins-heat--4"
+    };
+
+    private static string DeltaText(int value) => value switch
+    {
+        > 0 => $"+{value:N0}",
+        < 0 => value.ToString("N0"),
+        _ => "no change"
+    };
+
+    private static string DeltaClass(int value) => value switch
+    {
+        > 0 => "ins-delta--pos",
+        < 0 => "ins-delta--neg",
+        _ => "ins-delta--flat"
+    };
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            _insights = await Http.GetAppJsonAsync(
+                "/api/insights/portfolio",
+                AppJsonSerializerContext.Default.PortfolioInsightsDto);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Insights: failed to load portfolio insights");
+            _error = "Could not load your insights. Please try again.";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+}

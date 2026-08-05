@@ -15,69 +15,144 @@
            EmptyText="No history data yet"
            EmptyHint="Analysis is needed for at least one repository.">
     <Toolbar>
-        @* Stacked mode answers "how much of the total is each repo?", which overlapping lines
-           cannot at more than a handful of series. *@
-        <RadzenSelectBar Value="@_stacked" TValue="bool" Change="@OnStackedChanged" Size="ButtonSize.Small"
-                         aria-label="Chart style">
+        @* Calendar plots every repo against the same dates; Age re-bases each one to its own first
+           commit, which is the only way a three-year-old repo and a two-month-old one can be
+           compared at all — side by side on a calendar the young one is a stub in the last inch of
+           the chart. *@
+        <RadzenSelectBar Value="@_axisMode" TValue="ComparisonAxis" Change="@OnAxisModeChanged" Size="ButtonSize.Small"
+                         aria-label="Chart x-axis">
             <Items>
-                <RadzenSelectBarItem Text="Lines" Value="false" />
-                <RadzenSelectBarItem Text="Stacked" Value="true" />
+                <RadzenSelectBarItem Text="Calendar" Value="ComparisonAxis.Calendar" />
+                <RadzenSelectBarItem Text="Age" Value="ComparisonAxis.Age" />
             </Items>
         </RadzenSelectBar>
+
+        @* Stacked mode answers "how much of the total is each repo?", which overlapping lines
+           cannot at more than a handful of series. It is offered only on the calendar axis:
+           stacking series that no longer share an x-origin adds heights from unrelated points in
+           each repo's life and produces a total that never existed. *@
+        @if (_axisMode == ComparisonAxis.Calendar)
+        {
+            <RadzenSelectBar Value="@_stacked" TValue="bool" Change="@OnStackedChanged" Size="ButtonSize.Small"
+                             aria-label="Chart style">
+                <Items>
+                    <RadzenSelectBarItem Text="Lines" Value="false" />
+                    <RadzenSelectBarItem Text="Stacked" Value="true" />
+                </Items>
+            </RadzenSelectBar>
+        }
+
         <ChartRangeSelector Days="@_days" DaysChanged="@OnRangeChanged" />
     </Toolbar>
     <ChildContent>
         @{
-            var plottedRepos = GetDisplayedHistoryData().Where(r => r.DailyLineCounts.Any()).ToList();
+            var available = GetDisplayedHistoryData().Where(r => r.DailyLineCounts.Any()).ToList();
+            var plottedRepos = available.Where(r => IsSelected(r.RepositoryId)).ToList();
         }
 
-        <RadzenChart>
-            @for (var index = 0; index < plottedRepos.Count; index++)
-            {
-                var repo = plottedRepos[index];
-                // Stroke/Fill are Radzen parameters, not CSS — they stay colour values.
-                var seriesColor = GetSeriesColor(index);
-                var seriesTitle = $"{repo.Owner}/{repo.RepositoryName}";
+        @if (_axisMode == ComparisonAxis.Calendar)
+        {
+            <RadzenChart>
+                @for (var index = 0; index < plottedRepos.Count; index++)
+                {
+                    var repo = plottedRepos[index];
+                    // Colour is keyed to the repo's position in the FULL list, not the plotted one,
+                    // so unticking a repo does not recolour every series after it.
+                    var seriesColor = GetSeriesColor(PaletteIndex(available, repo.RepositoryId));
+                    var seriesTitle = $"{repo.Owner}/{repo.RepositoryName}";
 
-                if (_stacked)
-                {
-                    <RadzenStackedAreaSeries Data="@repo.DailyLineCounts.ToList()"
-                                             CategoryProperty="Date"
-                                             ValueProperty="TotalLines"
-                                             Title="@seriesTitle"
-                                             Stroke="@seriesColor"
-                                             Fill="@GetSeriesFill(index)"
-                                             StrokeWidth="1">
-                        <TooltipTemplate Context="point">
-                            @if (point is DailyLineCountDto day)
-                            {
-                                <div class="arc-tip">
-                                    <div class="arc-tip__title">@seriesTitle</div>
-                                    <div class="arc-tip__meta">@day.Date.ToString("MMM dd, yyyy")</div>
-                                    <div class="arc-tip__value">
-                                        <span class="arc-tip__label">@($"{TooltipValueLabel}:")</span> @day.TotalLines.ToString("N0")
+                    if (_stacked)
+                    {
+                        <RadzenStackedAreaSeries Data="@repo.DailyLineCounts.ToList()"
+                                                 CategoryProperty="Date"
+                                                 ValueProperty="TotalLines"
+                                                 Title="@seriesTitle"
+                                                 Stroke="@seriesColor"
+                                                 Fill="@GetSeriesFill(PaletteIndex(available, repo.RepositoryId))"
+                                                 StrokeWidth="1">
+                            <TooltipTemplate Context="point">
+                                @if (point is DailyLineCountDto day)
+                                {
+                                    <div class="arc-tip">
+                                        <div class="arc-tip__title">@seriesTitle</div>
+                                        <div class="arc-tip__meta">@day.Date.ToString("MMM dd, yyyy")</div>
+                                        <div class="arc-tip__value">
+                                            <span class="arc-tip__label">@($"{TooltipValueLabel}:")</span> @day.TotalLines.ToString("N0")
+                                        </div>
                                     </div>
-                                </div>
-                            }
-                        </TooltipTemplate>
-                    </RadzenStackedAreaSeries>
+                                }
+                            </TooltipTemplate>
+                        </RadzenStackedAreaSeries>
+                    }
+                    else
+                    {
+                        <RadzenLineSeries Data="@repo.DailyLineCounts.ToList()"
+                                          CategoryProperty="Date"
+                                          ValueProperty="TotalLines"
+                                          Title="@seriesTitle"
+                                          Stroke="@seriesColor"
+                                          StrokeWidth="2">
+                            <TooltipTemplate Context="point">
+                                @if (point is DailyLineCountDto day)
+                                {
+                                    <div class="arc-tip">
+                                        <div class="arc-tip__title">@seriesTitle</div>
+                                        <div class="arc-tip__meta">@day.Date.ToString("MMM dd, yyyy")</div>
+                                        <div class="arc-tip__value">
+                                            <span class="arc-tip__label">@($"{TooltipValueLabel}:")</span> @day.TotalLines.ToString("N0")
+                                        </div>
+                                    </div>
+                                }
+                            </TooltipTemplate>
+                            <ChildContent>
+                                <RadzenMarkers MarkerType="MarkerType.None" />
+                            </ChildContent>
+                        </RadzenLineSeries>
+                    }
                 }
-                else
+
+                @* A whole-day Step keeps every label distinct and bounded in number — see
+                   ChartFormat.DateAxisStep for why neither the default nor TickDistance suffices.
+                   LabelAutoRotation angles what is left so labels do not collide at narrow widths. *@
+                <RadzenCategoryAxis FormatString="{0:MMM d}"
+                                    Step="@ChartFormat.DateAxisStep(plottedRepos.SelectMany(r => r.DailyLineCounts).Select(d => d.Date))"
+                                    LabelAutoRotation="-45">
+                    <RadzenAxisTitle Text="Date" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenCategoryAxis>
+                <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                    <RadzenAxisTitle Text="Lines of Code" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenValueAxis>
+                <RadzenLegend Visible="false" />
+                @* No class= here: RadzenChartTooltipOptions is a config component, not a rendered
+                   element — it declares no [Parameter] named "class" and does not capture unmatched
+                   attributes, so passing one threw InvalidOperationException and killed the render
+                   tree. Tooltip styling lives on .arc-tip inside the tooltip template instead. *@
+                <RadzenChartTooltipOptions Shared="false" />
+            </RadzenChart>
+        }
+        else
+        {
+            var agedRepos = plottedRepos.Select(r => ToAgeSeries(available, r)).Where(s => s.Points.Count > 1).ToList();
+
+            <RadzenChart>
+                @foreach (var series in agedRepos)
                 {
-                    <RadzenLineSeries Data="@repo.DailyLineCounts.ToList()"
-                                      CategoryProperty="Date"
+                    <RadzenLineSeries Data="@series.Points"
+                                      CategoryProperty="WeekOffset"
                                       ValueProperty="TotalLines"
-                                      Title="@seriesTitle"
-                                      Stroke="@seriesColor"
+                                      Title="@series.Title"
+                                      Stroke="@series.Color"
                                       StrokeWidth="2">
                         <TooltipTemplate Context="point">
-                            @if (point is DailyLineCountDto day)
+                            @if (point is AgePoint age)
                             {
                                 <div class="arc-tip">
-                                    <div class="arc-tip__title">@seriesTitle</div>
-                                    <div class="arc-tip__meta">@day.Date.ToString("MMM dd, yyyy")</div>
+                                    <div class="arc-tip__title">@series.Title</div>
+                                    <div class="arc-tip__meta">Week @age.WeekOffset · @age.Date.ToString("MMM dd, yyyy")</div>
                                     <div class="arc-tip__value">
-                                        <span class="arc-tip__label">@($"{TooltipValueLabel}:")</span> @day.TotalLines.ToString("N0")
+                                        <span class="arc-tip__label">Lines:</span> @age.TotalLines.ToString("N0")
                                     </div>
                                 </div>
                             }
@@ -87,52 +162,82 @@
                         </ChildContent>
                     </RadzenLineSeries>
                 }
+
+                @* Categories are week numbers, so the axis is quantised to whole weeks for the same
+                   reason the calendar axis is quantised to whole days: unquantised ticks land
+                   between categories and render as repeated labels. *@
+                <RadzenCategoryAxis Step="@WeekAxisStep(agedRepos)" LabelAutoRotation="-45" Formatter="@FormatWeek">
+                    <RadzenAxisTitle Text="Weeks since first tracked commit" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenCategoryAxis>
+                <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                    <RadzenAxisTitle Text="Lines of Code" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenValueAxis>
+                <RadzenLegend Visible="false" />
+                <RadzenChartTooltipOptions Shared="false" />
+            </RadzenChart>
+        }
+
+        @* ─── Legend as selector ───────────────────────────────────────────────────
+           The legend used to be a static list of every repo, which is exactly the control the
+           chart needed and did not have: past about six series the lines are unreadable and there
+           was no way to narrow them. Each entry is a real <button> with aria-pressed, so it is
+           tab-reachable and its state is announced rather than only shown by opacity. *@
+        <div class="arc-legend">
+            @for (var index = 0; index < available.Count; index++)
+            {
+                var repo = available[index];
+                var swatchClass = GetSeriesColorClass(index);
+                var selected = IsSelected(repo.RepositoryId);
+                var label = $"{repo.Owner}/{repo.RepositoryName}";
+
+                <button type="button"
+                        class="@($"arc-legend__item {(selected ? "arc-legend__item--on" : "arc-legend__item--off")}")"
+                        aria-pressed="@selected"
+                        title="@(selected ? $"Hide {label}" : $"Show {label}")"
+                        @onclick="@(() => ToggleRepository(repo.RepositoryId))">
+                    <span class="arc-legend__swatch @swatchClass"></span>
+                    <span class="arc-legend__label">@label</span>
+                </button>
             }
 
-            @* A whole-day Step keeps every label distinct and bounded in number — see
-               ChartFormat.DateAxisStep for why neither the default nor TickDistance suffices.
-               LabelAutoRotation angles what is left so labels do not collide at narrow widths. *@
-            <RadzenCategoryAxis FormatString="{0:MMM d}"
-                                Step="@ChartFormat.DateAxisStep(plottedRepos.SelectMany(r => r.DailyLineCounts).Select(d => d.Date))"
-                                LabelAutoRotation="-45">
-                <RadzenAxisTitle Text="Date" />
-                <RadzenGridLines Visible="true" />
-            </RadzenCategoryAxis>
-            <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
-                <RadzenAxisTitle Text="Lines of Code" />
-                <RadzenGridLines Visible="true" />
-            </RadzenValueAxis>
-            <RadzenLegend Visible="false" />
-            @* No class= here: RadzenChartTooltipOptions is a config component, not a rendered
-               element — it declares no [Parameter] named "class" and does not capture unmatched
-               attributes, so passing one threw InvalidOperationException and killed the render
-               tree. Tooltip styling lives on .arc-tip inside the tooltip template instead. *@
-            <RadzenChartTooltipOptions Shared="false" />
-        </RadzenChart>
-
-        <div class="arc-legend">
-            @for (var index = 0; index < plottedRepos.Count; index++)
+            @if (available.Count > 1)
             {
-                var repo = plottedRepos[index];
-                var swatchClass = GetSeriesColorClass(index);
-
-                <div class="arc-legend__item">
-                    <span class="arc-legend__swatch @swatchClass"></span>
-                    <span class="arc-legend__label">@($"{repo.Owner}/{repo.RepositoryName}")</span>
-                </div>
+                <RadzenButton Text="@(_hidden.Count == 0 ? "Clear all" : "Select all")"
+                              ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.ExtraSmall"
+                              Click="@ToggleAll" class="arc-legend__bulk" />
             }
         </div>
+
+        @if (plottedRepos.Count == 0)
+        {
+            <RadzenText TextStyle="TextStyle.Caption" class="arc-none">
+                No repositories selected — pick one above to plot it.
+            </RadzenText>
+        }
     </ChildContent>
 </ChartCard>
 
 @code {
     [Parameter] public ChartDisplayMode ChartDisplayMode { get; set; } = ChartDisplayMode.TrueData;
 
+    public enum ComparisonAxis { Calendar, Age }
+
     private int _days = 90;
     private bool _stacked = false;
     private bool _isLoading = false;
     private string? _errorMessage;
+    private ComparisonAxis _axisMode = ComparisonAxis.Calendar;
     private List<RepositoryLineCountHistoryDto>? _historyData;
+
+    /// <summary>
+    /// Deselected repositories, rather than selected ones. Tracking the exclusions means a
+    /// repository added after the page loaded shows up plotted instead of silently missing from a
+    /// selection set that predates it.
+    /// </summary>
+    private readonly HashSet<RepositoryId> _hidden = [];
+
     private static readonly string[] _seriesPalette =
     [
         "#5b3df5",
@@ -165,6 +270,27 @@
     }
 
     private void OnStackedChanged(bool stacked) => _stacked = stacked;
+
+    private void OnAxisModeChanged(ComparisonAxis mode) => _axisMode = mode;
+
+    private bool IsSelected(RepositoryId id) => !_hidden.Contains(id);
+
+    private void ToggleRepository(RepositoryId id)
+    {
+        if (!_hidden.Remove(id)) _hidden.Add(id);
+    }
+
+    private void ToggleAll()
+    {
+        if (_hidden.Count == 0)
+        {
+            foreach (var repo in _historyData ?? []) _hidden.Add(repo.RepositoryId);
+        }
+        else
+        {
+            _hidden.Clear();
+        }
+    }
 
     /// <summary>Triggers the default 90d load on first paint. Called once by the
     /// parent after the page has rendered so the user sees a chart without a
@@ -199,9 +325,16 @@
         }
     }
 
-    private string ChartDescription => ChartDisplayMode == ChartDisplayMode.MovingAverage
-        ? "Rolling 90-day moving average of lines of code across every tracked repo"
-        : "Lines of code over time across every tracked repo";
+    private string ChartDescription => (_axisMode, ChartDisplayMode) switch
+    {
+        (ComparisonAxis.Age, ChartDisplayMode.MovingAverage) =>
+            "Rolling 90-day moving average, each repo re-based to its own first tracked commit",
+        (ComparisonAxis.Age, _) =>
+            "Lines of code by repository age — each repo starts at week zero",
+        (_, ChartDisplayMode.MovingAverage) =>
+            "Rolling 90-day moving average of lines of code across every tracked repo",
+        _ => "Lines of code over time across every tracked repo"
+    };
 
     private string TooltipValueLabel => ChartDisplayMode == ChartDisplayMode.MovingAverage ? "90d avg" : "Lines";
 
@@ -217,6 +350,60 @@
             })
             .ToList();
     }
+
+    /// <summary>Position in the full repo list, so a series keeps its colour when others are hidden.</summary>
+    private static int PaletteIndex(List<RepositoryLineCountHistoryDto> all, RepositoryId id) =>
+        Math.Max(0, all.FindIndex(r => r.RepositoryId == id));
+
+    /// <summary>
+    /// Re-bases one repository onto its own timeline: week 0 is its earliest point in the current
+    /// range, not a shared calendar date.
+    ///
+    /// <para>Bucketed to whole weeks rather than plotted per day. Two repositories never commit on
+    /// the same day-offsets, so at day resolution every series would occupy its own set of
+    /// categories and the lines would interleave into noise instead of overlaying. Weekly buckets
+    /// give them a common x-domain to actually be compared on; each bucket takes its last
+    /// snapshot, matching how TotalLines is aggregated everywhere else.</para>
+    /// </summary>
+    private AgeSeries ToAgeSeries(List<RepositoryLineCountHistoryDto> all, RepositoryLineCountHistoryDto repo)
+    {
+        var ordered = repo.DailyLineCounts.OrderBy(d => d.Date).ToList();
+        var origin = ordered[0].Date;
+
+        var points = ordered
+            .GroupBy(d => (int)(d.Date - origin).TotalDays / 7)
+            .Select(g =>
+            {
+                var last = g.OrderByDescending(d => d.Date).First();
+                return new AgePoint(g.Key, last.TotalLines, last.Date);
+            })
+            .OrderBy(p => p.WeekOffset)
+            .ToList();
+
+        return new AgeSeries(
+            $"{repo.Owner}/{repo.RepositoryName}",
+            GetSeriesColor(PaletteIndex(all, repo.RepositoryId)),
+            points);
+    }
+
+    private sealed record AgePoint(int WeekOffset, int TotalLines, DateTime Date);
+    private sealed record AgeSeries(string Title, string Color, List<AgePoint> Points);
+
+    /// <summary>
+    /// Whole-week tick spacing, aiming for about eight labels — the integer analogue of
+    /// <see cref="ChartFormat.DateAxisStep"/>, and needed for the same reason.
+    /// </summary>
+    private static int WeekAxisStep(List<AgeSeries> series)
+    {
+        var maxWeek = series.SelectMany(s => s.Points).Select(p => p.WeekOffset).DefaultIfEmpty(0).Max();
+        return Math.Max(1, (int)Math.Ceiling(maxWeek / 8.0));
+    }
+
+    /// <summary>Radzen hands tick values through boxed, so the formatter takes an object.</summary>
+    private static string FormatWeek(object value) =>
+        value is IConvertible convertible
+            ? $"w{Convert.ToInt32(convertible, System.Globalization.CultureInfo.InvariantCulture)}"
+            : value?.ToString() ?? string.Empty;
 
     private static string GetSeriesColor(int index) => _seriesPalette[index % _seriesPalette.Length];
 

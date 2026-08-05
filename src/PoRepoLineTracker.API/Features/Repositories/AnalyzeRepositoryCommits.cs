@@ -90,6 +90,12 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             return Unit.Value;
         }
 
+        // Opens the job and records its owner before any step is reported — the progress service
+        // pushes each update to that user's connections and drops any report for a job whose
+        // owner it does not know. Placed here rather than at the two endpoints that queue the
+        // command because this is where the repository (and so its UserId) is actually loaded.
+        _progressService.BeginJob(request.RepositoryId, repository.UserId, repository.Owner, repository.Name);
+
         // Clear existing commit data if requested (for full re-analysis with new extensions)
         if (request.ClearExistingData)
         {
@@ -332,7 +338,12 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                         LinesRemoved = commitStat.LinesRemoved, // Now properly setting lines removed from diff
                         LinesByFileType = lineCounts.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
                         AuthorName = commitStat.AuthorName,
-                        AuthorEmail = commitStat.AuthorEmail
+                        AuthorEmail = commitStat.AuthorEmail,
+                        // Scored from the commit's diff during the walk in GetCommitStatsAsync.
+                        // This assignment is what makes the whole AI feature non-empty: the field
+                        // was persisted as 0 for every commit ever analysed, which in turn meant
+                        // the ai-* tags below could never fire and /ai-stats always returned zeros.
+                        AiPercentage = commitStat.AiPercentage
                     };
 
                     // CommitTagger: classify the commit with algorithmic tags

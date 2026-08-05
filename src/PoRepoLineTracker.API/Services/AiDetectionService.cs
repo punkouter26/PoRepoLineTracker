@@ -89,12 +89,38 @@ public class AiDetectionService : IAiDetectionService
         _logger = logger;
     }
 
-    public async Task<double> AnalyzeContentAsync(string content, string fileExtension)
+    /// <summary>
+    /// Ceiling on how much text a single call will scan.
+    /// <para>
+    /// Several of the patterns above are backtracking-prone — <c>^\s*{.*,.*,.*,.*,.*}.*$</c> in
+    /// particular — and the diff of an initial commit is the entire repository. Without a bound,
+    /// one such commit can hold the analysis thread for minutes. 256 KB is far more than any
+    /// stylistic signal needs; beyond it the score has long since converged.
+    /// </para>
+    /// </summary>
+    private const int MaxAnalyzedChars = 256 * 1024;
+
+    /// <summary>
+    /// Per-match ceiling. Note this is what makes the <c>catch (RegexMatchTimeoutException)</c>
+    /// blocks below reachable at all: <see cref="Regex"/> only throws it when a timeout was
+    /// supplied, so before this existed those handlers were dead code.
+    /// </summary>
+    private static readonly TimeSpan MatchTimeout = TimeSpan.FromMilliseconds(250);
+
+    public Task<double> AnalyzeContentAsync(string content, string fileExtension) =>
+        Task.Run(() => AnalyzeContent(content, fileExtension));
+
+    public double AnalyzeContent(string content, string fileExtension)
     {
-        return await Task.Run(() =>
         {
             if (string.IsNullOrWhiteSpace(content))
                 return 0.0;
+
+            if (content.Length > MaxAnalyzedChars)
+            {
+                _logger.LogDebug("Truncating {Length} chars to {Max} for AI analysis", content.Length, MaxAnalyzedChars);
+                content = content[..MaxAnalyzedChars];
+            }
 
             double aiScore = 0.0;
             int aiMatches = 0;
@@ -105,7 +131,7 @@ public class AiDetectionService : IAiDetectionService
             {
                 try
                 {
-                    var matches = Regex.Matches(content, pattern.Pattern, RegexOptions.IgnoreCase | RegexOptions.Multiline);
+                    var matches = Regex.Matches(content, pattern.Pattern, RegexOptions.IgnoreCase | RegexOptions.Multiline, MatchTimeout);
                     if (matches.Count > 0)
                     {
                         aiScore += pattern.Weight * Math.Min(matches.Count, 3); // Cap at 3 matches per pattern
@@ -125,7 +151,7 @@ public class AiDetectionService : IAiDetectionService
             {
                 try
                 {
-                    if (Regex.IsMatch(content, pattern, RegexOptions.IgnoreCase))
+                    if (Regex.IsMatch(content, pattern, RegexOptions.IgnoreCase, MatchTimeout))
                     {
                         humanMatches++;
                     }
@@ -195,7 +221,7 @@ public class AiDetectionService : IAiDetectionService
                 fileExtension, normalizedScore, aiMatches, humanMatches);
 
             return Math.Round(normalizedScore, 2);
-        });
+        }
     }
 
     public async Task<double> AnalyzeMultipleFilesAsync(Dictionary<string, string> files)

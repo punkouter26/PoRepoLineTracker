@@ -47,6 +47,14 @@
                                 {
                                     <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="@($"{_repoLatestLines:N0} lines")" />
                                 }
+                                @* Supplied by AiMixChart once it has loaded, rather than fetched again here —
+                                   the figure is lines-weighted and only that component holds the per-commit
+                                   line counts needed to weight it. Hidden until non-zero so a repository
+                                   analysed before AI scoring existed does not advertise a misleading 0%. *@
+                                @if (_aiShare > 0)
+                                {
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="@($"{_aiShare:F0}% AI-assisted")" />
+                                }
                             }
                             else if (_isReanalyzing)
                             {
@@ -297,6 +305,9 @@
             </div>
         </div>
 
+        @* ─── Human vs AI authorship ──────────────────────────────────────────────── *@
+        <AiMixChart RepositoryId="@RepositoryId" OverallShareChanged="@OnAiShareChanged" />
+
         @* ─── Top Contributors Chart ──────────────────────────────────────────────── *@
         <ContributorChart RepositoryId="@RepositoryId" />
 
@@ -327,6 +338,7 @@
     private bool _isReanalyzing = false;
     private int _chartDays = 365;
     private int _repoLatestLines = 0;
+    private double _aiShare;
     private string _errorMessage = string.Empty;
     private string _chartError = string.Empty;
     private DateTime? _priorAnalyzedDate;
@@ -534,6 +546,16 @@
     {
         _chartDays = days;
         await LoadLineHistory(days);
+    }
+
+    /// <summary>
+    /// Mirrors AiMixChart's headline into the hero badge. The card owns the request; this only
+    /// copies the result, so changing the card's range updates the badge with it.
+    /// </summary>
+    private void OnAiShareChanged(double share)
+    {
+        _aiShare = share;
+        StateHasChanged();
     }
 
     private async Task LoadLineHistory(int days)

@@ -1,4 +1,8 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using PoRepoLineTracker.API.Hubs;
 
 namespace PoRepoLineTracker.Unit;
 
@@ -6,10 +10,23 @@ namespace PoRepoLineTracker.Unit;
 /// Unit tests for <see cref="AnalysisProgressService"/>.
 /// Verifies in-memory progress tracking for background analysis jobs.
 /// Thread-safe singleton behavior tested via sequential operations.
+///
+/// <para>The hub context is substituted rather than exercised. These tests assert the stored
+/// snapshot, which is what <c>GetProgress</c> and the polling endpoint read; the push is a
+/// side effect of the same mutation and is covered where it matters — that a job with no
+/// recorded owner is never broadcast — by <see cref="Publish_WithoutBeginJob_SendsNothing"/>.</para>
 /// </summary>
 public class AnalysisProgressServiceTests
 {
-    private readonly AnalysisProgressService _sut = new();
+    private readonly IHubContext<AnalysisHub> _hubContext = Substitute.For<IHubContext<AnalysisHub>>();
+    private readonly AnalysisProgressService _sut;
+
+    public AnalysisProgressServiceTests()
+    {
+        _sut = new AnalysisProgressService(
+            _hubContext,
+            Substitute.For<ILogger<AnalysisProgressService>>());
+    }
 
     [Fact]
     public void GetProgress_NonExistentRepository_ReturnsNull()
@@ -181,6 +198,65 @@ public class AnalysisProgressServiceTests
         p1.StepName.Should().Be("Cloning");
         p2!.StepIndex.Should().Be(3);
         p2.StepName.Should().Be("Complete");
+    }
+
+    [Fact]
+    public void BeginJob_RecordsOwnerLabelsAndMarksRunning()
+    {
+        var repoId = RepositoryId.New();
+
+        _sut.BeginJob(repoId, UserId.New(), "octocat", "hello-world");
+
+        var progress = _sut.GetProgress(repoId);
+        progress.Should().NotBeNull();
+        progress!.Owner.Should().Be("octocat");
+        progress.Name.Should().Be("hello-world");
+        progress.IsRunning.Should().BeTrue();
+        progress.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public void BeginJob_AfterFailure_ClearsThePreviousError()
+    {
+        // The UI renders a non-empty ErrorMessage as "Failed" regardless of IsRunning, so a
+        // re-analysis that inherited the last run's error would show as failed the instant it
+        // started. This is why BeginJob replaces the entry rather than mutating it.
+        var repoId = RepositoryId.New();
+        _sut.ReportStep(repoId, 1, "Cloning", "Cloning...");
+        _sut.ReportError(repoId, "Connection timeout");
+
+        _sut.BeginJob(repoId, UserId.New(), "octocat", "hello-world");
+
+        var progress = _sut.GetProgress(repoId);
+        progress!.ErrorMessage.Should().BeNull();
+        progress.IsRunning.Should().BeTrue();
+        progress.CommitsProcessed.Should().Be(0);
+    }
+
+    [Fact]
+    public void BeginJob_ReportsANonNegativeProgressPercent()
+    {
+        // Regression: BeginJob opens a job at StepIndex 0, and the step-based branch of
+        // ProgressPercent is (StepIndex - 1) / StepTotal — which produced -25 on the very first
+        // frame. Unreachable while progress was only polled; observed live once it was pushed.
+        var repoId = RepositoryId.New();
+
+        _sut.BeginJob(repoId, UserId.New(), "octocat", "hello-world");
+
+        _sut.GetProgress(repoId)!.ProgressPercent.Should().BeInRange(0, 100);
+    }
+
+    [Fact]
+    public void Publish_WithoutBeginJob_SendsNothing()
+    {
+        // A job whose owner was never recorded has no address to send to. Broadcasting it anyway
+        // would put one user's repository names in front of every connected user.
+        var repoId = RepositoryId.New();
+
+        _sut.ReportStep(repoId, 1, "Cloning", "Cloning...");
+        _sut.ReportError(repoId, "boom");
+
+        _ = _hubContext.DidNotReceive().Clients;
     }
 
     [Fact]
