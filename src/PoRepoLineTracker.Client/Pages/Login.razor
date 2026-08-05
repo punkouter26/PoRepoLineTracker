@@ -1,25 +1,15 @@
 @page "/login"
 @layout PoRepoLineTracker.Client.Layout.LoginLayout
-@implements IAsyncDisposable
 @inject NavigationManager Navigation
-@inject GfxService Gfx
-@inject IJSRuntime JSRuntime
-@using Microsoft.JSInterop
-@using PoRepoLineTracker.Client.Services
 @using Radzen
 @using Radzen.Blazor
 
-<div class="login-canvas" data-gfx="@_gfxMode">
-    @* WebGL mesh backdrop. Falls back through a 2D canvas to the three CSS blobs below, which
-       stay in the markup and are hidden by CSS only once `data-gfx="webgl"` is set — so a failed
-       shader compile, a blocked context, or prefers-reduced-motion all leave a working backdrop.
+<div class="login-canvas">
+    @* Animated mesh-gradient blobs, pure CSS. This used to be the fallback behind a WebGL canvas;
+       the shader layer is gone, so it is simply the backdrop. It costs no JS module, no GL
+       context, and honours prefers-reduced-motion through effects.css like everything else.
 
-       No inline style anywhere on this element: gfx.js sets the width/height ATTRIBUTES (the
-       drawing buffer) and never `canvas.style`, because ScopedCssUiTests asserts that nothing
-       inside .login-canvas carries one. *@
-    <canvas @ref="_backdrop" class="gfx-backdrop" aria-hidden="true"></canvas>
-
-    <!-- Animated mesh gradient blobs — the no-WebGL fallback -->
+       No inline style anywhere inside .login-canvas — ScopedCssUiTests asserts that. *@
     <div class="login-blob login-blob-1" aria-hidden="true"></div>
     <div class="login-blob login-blob-2" aria-hidden="true"></div>
     <div class="login-blob login-blob-3" aria-hidden="true"></div>
@@ -62,36 +52,3 @@
         </RadzenStack>
     </RadzenCard>
 </div>
-
-@code {
-    private ElementReference _backdrop;
-
-    /// <summary>
-    /// Drives the `data-gfx` attribute the CSS keys off to hide the fallback blobs. Left as
-    /// "css" unless a canvas renderer actually took over, so a failure never hides the fallback.
-    /// </summary>
-    private string _gfxMode = "css";
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-
-        // The shader palette has to match the painted theme, and the boot script in index.html is
-        // the only thing that knows it (saved choice, else the OS preference). Reading the raw
-        // localStorage key would give the wrong answer for a user who has never chosen.
-        var theme = await JSRuntime.InvokeAsync<string>("getEffectiveTheme");
-
-        if (await Gfx.StartBackdropAsync(_backdrop, theme))
-        {
-            _gfxMode = "webgl";
-            StateHasChanged();
-        }
-    }
-
-    /// <summary>
-    /// Stops the render loop and releases the GL context. Without this the loop keeps drawing into
-    /// a detached canvas after sign-in navigates away, and the context stays live against the
-    /// browser's per-page cap.
-    /// </summary>
-    public async ValueTask DisposeAsync() => await Gfx.StopAsync(_backdrop);
-}

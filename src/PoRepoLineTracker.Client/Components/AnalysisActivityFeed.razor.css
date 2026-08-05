@@ -4,7 +4,7 @@
 
 /* The component now roots at a plain <div class="feed">, which is what carries the scope id and
    makes every ::deep rule below reachable. The flex column moved onto the card itself — that is
-   the element whose children (heading row, ribbon, list) need the gap. It was previously written
+   the element whose children (heading row, list) need the gap. It was previously written
    as a bare `.feed` against a <RadzenCard>, so it compiled to `.feed[b-…]` and applied to nothing. */
 .feed {
     min-width: 0;

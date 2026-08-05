@@ -9,8 +9,6 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @inject HttpClient Http
-@inject AudioService Audio
-@inject GfxService Gfx
 
 @* Radzen's own matchMedia wrapper — see OnMobileChanged for why this replaced a one-shot
    JS interop call. Rendered outside RadzenLayout because it draws nothing. *@
@@ -164,12 +162,6 @@
         var theme = await JSRuntime.InvokeAsync<string>("getEffectiveTheme");
         _isDarkMode = theme == "dark";
 
-        // Audio setup, in this order for a reason: read the persisted preference first, so that
-        // installing the delegated listeners does not briefly run with `enabled` defaulted off and
-        // swallow the user's very first click of the session.
-        await Audio.InitializeAsync();
-        await Audio.InstallGlobalCuesAsync();
-
         StateHasChanged();
     }
 
@@ -206,18 +198,6 @@
     {
         UpdateBreadcrumb(e.Location);
         InvokeAsync(StateHasChanged);
-
-        // Fire-and-forget on purpose. LocationChanged is synchronous and void — awaiting the
-        // interop here would mean either blocking the navigation on a decorative animation or
-        // an async void, and a fault in either is unobservable. InvokeAsync marshals onto the
-        // renderer's context; the continuation swallows its own failures.
-        _ = InvokeAsync(async () =>
-        {
-            // Started BEFORE the sound so the frame capture lines up with the render Blazor has
-            // already queued for this navigation.
-            await Gfx.RouteTransitionAsync();
-            await Audio.PlayAsync(Cue.Nav, 0.7);
-        });
     }
 
     private void UpdateBreadcrumb(string uri)
@@ -245,13 +225,6 @@
     {
         _isDarkMode = !_isDarkMode;
         await JSRuntime.InvokeVoidAsync("setTheme", _isDarkMode ? "dark" : "light");
-
-        // Directional cue: down for dark, up for light. The delegated listener in audio.js does
-        // not fire a toggle cue here — this button is a plain RadzenButton with no aria-checked,
-        // so it reads as a click there. Playing the directional one explicitly is additive
-        // (`click` is rate-limited to 40ms and will already have fired), and the two layering is
-        // what gives the toggle its heavier, more deliberate sound.
-        await Audio.PlayAsync(_isDarkMode ? Cue.ToggleOff : Cue.ToggleOn, 0.85);
 
         StateHasChanged();
     }

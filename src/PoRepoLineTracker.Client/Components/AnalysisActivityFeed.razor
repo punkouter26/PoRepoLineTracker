@@ -1,7 +1,5 @@
-@implements IAsyncDisposable
+@implements IDisposable
 @inject AnalysisFeedClient Feed
-@inject AudioService Audio
-@inject GfxService Gfx
 @using PoRepoLineTracker.Client.Services
 @using PoRepoLineTracker.Shared.Models
 @using Radzen
@@ -15,8 +13,8 @@
 
 @* Rooted at a plain <div>, following ChartCard. The component used to root at <RadzenCard>, which
    left nothing carrying this file's scope id — so `.feed` compiled to `.feed[b-feed]` and matched
-   nothing, and the card's own `display: flex; gap: 0.6rem` never applied. The heading row, ribbon
-   and list were laid out as plain blocks with no gap between them. *@
+   nothing, and the card's own `display: flex; gap: 0.6rem` never applied. The heading row and list
+   were laid out as plain blocks with no gap between them. *@
 @if (_entries.Count > 0)
 {
     <div class="feed">
@@ -36,15 +34,6 @@
                 </RadzenText>
             </RadzenStack>
         </RadzenStack>
-
-        @* Throughput ribbon. Rendered only while something is actually running: a flat line
-           sitting under a finished list reads as a stalled job rather than an idle one.
-           aria-hidden because it is a redundant view of the per-row progress bars below,
-           which already carry the accessible values. *@
-        @if (AnyRunning)
-        {
-            <canvas @ref="_ribbon" class="gfx-ribbon" aria-hidden="true"></canvas>
-        }
 
         <ul class="feed__list">
             @foreach (var entry in Ordered)
@@ -101,27 +90,6 @@
     private IEnumerable<FeedEntry> Ordered =>
         _entries.Values.OrderByDescending(e => e.Running).ThenByDescending(e => e.UpdatedUtc);
 
-    private bool AnyRunning => _entries.Values.Any(e => e.Running);
-
-    private ElementReference _ribbon;
-
-    /// <summary>
-    /// Whether the ribbon canvas currently has a live render loop. Tracked here rather than
-    /// inferred from <see cref="AnyRunning"/> because the canvas is conditionally rendered: the
-    /// element does not exist until the render AFTER the first running entry arrives, so the
-    /// start has to happen in OnAfterRenderAsync once the ref is populated.
-    /// </summary>
-    private bool _ribbonLive;
-
-    /// <summary>
-    /// Whether each repository was running as of the previous frame. Progress frames are
-    /// repeated state, not events — the hub pushes the same "running" shape many times per job —
-    /// so a cue fired on frame content alone would sound on every tick. Comparing against the
-    /// prior value turns the stream into edges: not-running → running is a start, running →
-    /// finished is a success or an error.
-    /// </summary>
-    private readonly Dictionary<RepositoryId, bool> _wasRunning = [];
-
     protected override async Task OnInitializedAsync()
     {
         Feed.ProgressReceived += OnProgressAsync;
@@ -129,41 +97,11 @@
         StateHasChanged();
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        // Start and stop follow the canvas's presence in the DOM, not the render count.
-        if (AnyRunning && !_ribbonLive)
-        {
-            // #34c3b3 is --series-5, the teal the feed's own accent uses. Passed as a literal
-            // because gfx.js concatenates alpha digits onto it and needs exactly 6 hex digits;
-            // reading the computed custom property could yield any CSS colour form.
-            _ribbonLive = await Gfx.StartRibbonAsync(_ribbon, "#34c3b3");
-        }
-        else if (!AnyRunning && _ribbonLive)
-        {
-            await Gfx.StopAsync(_ribbon);
-            _ribbonLive = false;
-        }
-
-        if (_ribbonLive)
-        {
-            // Mean completion across running jobs. A max would pin to 100% as soon as the first
-            // job finished and flatten the strip for the rest of the batch.
-            var running = _entries.Values.Where(e => e.Running).ToList();
-            if (running.Count > 0)
-            {
-                await Gfx.PushRibbonAsync(_ribbon, running.Average(e => e.Percent) / 100.0);
-            }
-        }
-    }
-
     private async Task OnProgressAsync(AnalysisProgressDto progress)
     {
         var label = string.IsNullOrEmpty(progress.Owner)
             ? progress.RepositoryId.ToString()
             : $"{progress.Owner}/{progress.Name}";
-
-        await PlayTransitionCueAsync(progress);
 
         _entries[progress.RepositoryId] = new FeedEntry(
             label,
@@ -192,54 +130,6 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    /// <summary>
-    /// Turns the repeated progress stream into edge-triggered cues.
-    ///
-    /// <para>These are the sounds that justify the whole audio layer: repository analysis is a
-    /// minutes-long background job, and the entire point is that the user does something else
-    /// while it runs. A completion chime is the only feedback that reaches them when the tab is
-    /// not focused.</para>
-    ///
-    /// <para>Note what is NOT played: nothing fires on the first frame seen for a repository that
-    /// is already running. Loading the page mid-analysis would otherwise fire a start cue for
-    /// every in-flight job at once.</para>
-    /// </summary>
-    private async Task PlayTransitionCueAsync(AnalysisProgressDto progress)
-    {
-        var known = _wasRunning.TryGetValue(progress.RepositoryId, out var wasRunning);
-        _wasRunning[progress.RepositoryId] = progress.IsRunning;
-
-        if (!known)
-        {
-            // First sighting. Only a job that starts running under our eyes gets a cue; one that
-            // was already in flight when the page loaded does not.
-            if (progress.IsRunning) await Audio.PlayAsync(Cue.Start, 0.8);
-            return;
-        }
-
-        if (!wasRunning && progress.IsRunning)
-        {
-            await Audio.PlayAsync(Cue.Start, 0.8);
-        }
-        else if (wasRunning && !progress.IsRunning)
-        {
-            // The terminal edge. Error wins over completion: a job that failed at 100% commits
-            // processed still failed, and the success chime would actively mislead.
-            await Audio.PlayAsync(progress.ErrorMessage is not null ? Cue.Error : Cue.Success);
-
-            // Finished jobs stop producing frames, so their entry here is dead weight for the
-            // lifetime of the page. Dropped now rather than on the MaxEntries eviction path,
-            // which only ever touches _entries.
-            _wasRunning.Remove(progress.RepositoryId);
-        }
-        else if (progress.IsRunning)
-        {
-            // Per-frame texture. Rate-limited to ~9/sec inside audio.js, so a repository pushing
-            // hundreds of commit frames a second does not turn this into a buzz.
-            await Audio.PlayAsync(Cue.Tick, 0.5);
-        }
-    }
-
     private static string Describe(AnalysisProgressDto progress)
     {
         if (progress.ErrorMessage is not null) return progress.ErrorMessage;
@@ -264,19 +154,6 @@
     /// Unsubscribes without disposing the connection — <see cref="AnalysisFeedClient"/> is shared
     /// with the repository grid and owned by the container, so tearing it down here would kill the
     /// grid's live updates too.
-    ///
-    /// <para>Also stops the ribbon's render loop. That part is not optional: the loop holds the
-    /// canvas and runs until told otherwise, so navigating away from a page with an active
-    /// analysis would leave it drawing into a detached element for the rest of the session.</para>
     /// </summary>
-    public async ValueTask DisposeAsync()
-    {
-        Feed.ProgressReceived -= OnProgressAsync;
-
-        if (_ribbonLive)
-        {
-            await Gfx.StopAsync(_ribbon);
-            _ribbonLive = false;
-        }
-    }
+    public void Dispose() => Feed.ProgressReceived -= OnProgressAsync;
 }
