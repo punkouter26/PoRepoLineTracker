@@ -182,14 +182,18 @@ module webAppStorageTableDataContributor 'storage-role.bicep' = {
   }
 }
 
-// ─────────────────────────────────────────────
-// Access notes:
-// - Storage Table data-plane access is managed here with Azure RBAC.
-// - kv-poshared currently uses Key Vault access policy mode, not RBAC
-//   (enableRbacAuthorization=false). Grant the Web App identity secret get/list
-//   permissions on kv-poshared, or migrate the vault to RBAC mode and assign
-//   Key Vault Secrets User at the vault scope.
-// ─────────────────────────────────────────────
+// Secret get/list on the shared Key Vault for the web app identity. Without it the app cannot
+// start at all — see keyvault-access.bicep for why this is a module and what the failure looks
+// like. Storage table data-plane access is separate, and uses RBAC rather than a vault policy.
+module webAppKeyVaultAccess 'keyvault-access.bicep' = {
+  name: 'keyvault-access'
+  scope: resourceGroup(sharedResourceGroupName)
+  params: {
+    keyVaultName: keyVaultName
+    principalId: webApp.identity.principalId
+    tenantId: subscription().tenantId
+  }
+}
 
 // ─────────────────────────────────────────────
 // Availability test — ping /health every 5 min from 3 US regions and report to the
