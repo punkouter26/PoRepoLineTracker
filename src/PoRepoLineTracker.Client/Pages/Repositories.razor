@@ -540,7 +540,7 @@
             LoadChartDisplayMode(),
             Feed.EnsureConnectedAsync());
 
-        StartPassivePendingPollIfNeeded();
+        StartFallbackPollIfNeeded();
     }
 
     /// <summary>
@@ -574,6 +574,7 @@
 
         if (reanalyzingRepositoryId == progress.RepositoryId) reanalyzingRepositoryId = null;
         _reanalysisStartTimes.Remove(progress.RepositoryId);
+        _awaitingAnalysis.Remove(progress.RepositoryId);
 
         if (progress.ErrorMessage is null)
         {
@@ -739,7 +740,7 @@
         await LoadRepositories();
         await LoadLatestLineCounts();
         await ReloadComparisonChartAsync();
-        StartPassivePendingPollIfNeeded();
+        StartFallbackPollIfNeeded();
         StateHasChanged();
     }
 
@@ -832,11 +833,10 @@
                 });
                 Logger.LogInformation("Re-analysis queued for repository {RepositoryId}", repo.Id);
 
-                // Keep the "Re-analyzing" badge alive until the job reports back. Over the hub
-                // that arrives as a push; without it, fall back to polling for the change in
-                // LastAnalyzedCommitDate.
-                if (!Feed.IsConnected)
-                    _ = PollForReanalysisCompletionAsync(repo.Id, priorDate);
+                // Register the wait and let the one fallback loop cover it. It no-ops while the
+                // hub is connected, and the hub's frames clear the entry through the same handler.
+                _awaitingAnalysis[repo.Id] = priorDate;
+                StartFallbackPollIfNeeded();
             }
             else
             {
@@ -869,190 +869,191 @@
             {
                 reanalyzingRepositoryId = null;
                 _reanalysisStartTimes.Remove(repo.Id);
+                _awaitingAnalysis.Remove(repo.Id);
                 StateHasChanged();
             }
         }
     }
 
-    /// Starts a passive background poll when any repos have PENDING status (never analyzed).
-    /// Only one passive poll runs at a time; it exits automatically when no PENDING repos remain.
-    private bool _passivePollRunning = false;
+    // ─── Fallback poll ──────────────────────────────────────────────────────────
+    //
+    // ONE loop, and it does not decide anything. It turns whatever the server says into the same
+    // AnalysisProgressDto frames the hub pushes and hands them to OnAnalysisProgressAsync — so
+    // "a job finished" is handled in exactly one place whether the news arrived by push or by
+    // poll.
+    //
+    // It replaces two loops that each re-implemented that handling: a 15-second poll for
+    // repositories that had never been analysed, and a 5-second poll started per re-analysis.
+    // Between them and the hub handler, "reload repositories, reload line counts, reload the
+    // comparison chart, clear the badge, notify" was written out three times, guarded by
+    // Feed.IsConnected checks in four separate methods. They had already drifted: only the hub
+    // path removed the entry from _analysisProgress on success, and only the re-analysis poll
+    // cleared the badge on its own timeout.
 
-    private void StartPassivePendingPollIfNeeded()
+    /// <summary>
+    /// Repositories whose analysis this page is waiting on, each with the LastAnalyzedCommitDate
+    /// it had when the wait began — that value changing is the completion signal.
+    /// </summary>
+    private readonly Dictionary<RepositoryId, DateTime?> _awaitingAnalysis = [];
+
+    private bool _fallbackPollRunning;
+
+    /// <summary>
+    /// Starts the fallback loop if anything is being waited on and the hub is not carrying it.
+    ///
+    /// <para>The hub reports every step of every job the user owns, so polling on top of it would
+    /// fetch the same data twice. This exists for the cases the hub cannot cover: a proxy that
+    /// blocks WebSockets, or a failed handshake.</para>
+    /// </summary>
+    private void StartFallbackPollIfNeeded()
     {
-        if (_passivePollRunning) return;
-        // The hub reports every step of every job the user owns, so polling on top of it would be
-        // the same data fetched twice. Kept as the fallback for the cases the hub cannot cover —
-        // a proxy that blocks WebSockets, or a failed handshake.
+        foreach (var pending in pageState.Repositories.Where(r => r.LastAnalyzedCommitDate is null))
+            _awaitingAnalysis.TryAdd(pending.Id, null);
+
+        if (_fallbackPollRunning) return;
         if (Feed.IsConnected) return;
-        if (!pageState.Repositories.Any(r => r.LastAnalyzedCommitDate == null)) return;
-        _ = PollForPendingRepositoriesAsync();
+        if (_awaitingAnalysis.Count == 0) return;
+
+        _ = FallbackPollAsync();
     }
 
-    private async Task PollForPendingRepositoriesAsync()
+    private async Task FallbackPollAsync()
     {
-        _passivePollRunning = true;
+        _fallbackPollRunning = true;
+
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
+        // Hard stop. A very large repository must not leave a timer running for the whole session.
         cts.CancelAfter(TimeSpan.FromMinutes(60));
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-        Logger.LogInformation("Passive PENDING poll started for {Count} repos", pageState.Repositories.Count(r => r.LastAnalyzedCommitDate == null));
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        Logger.LogInformation("Fallback analysis poll started for {Count} repositories", _awaitingAnalysis.Count);
 
         try
         {
-            while (await timer.WaitForNextTickAsync(cts.Token))
+            while (_awaitingAnalysis.Count > 0 && await timer.WaitForNextTickAsync(cts.Token))
             {
+                // The hub may come back mid-job — a reconnect is exactly what WithAutomaticReconnect
+                // is for. Stand down when it does rather than duplicating its frames.
+                if (Feed.IsConnected)
+                {
+                    Logger.LogInformation("Analysis feed reconnected — stopping fallback poll");
+                    break;
+                }
+
                 try
                 {
-                    var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository, cts.Token);
-                    if (repos == null) continue;
-
-                    // For any pending repo, try to fetch live progress
-                    bool uiChanged = false;
-                    foreach (var pending in pageState.Repositories.Where(r => r.LastAnalyzedCommitDate == null))
-                    {
-                        try
-                        {
-                            var prog = await Http.GetAppJsonAsync($"/api/repositories/{pending.Id}/analysis-progress", AppJsonSerializerContext.Default.AnalysisProgressDto, cts.Token);
-                            if (prog != null && (prog.IsRunning || !string.IsNullOrEmpty(prog.ErrorMessage)))
-                            {
-                                _analysisProgress[pending.Id] = prog;
-                                reanalyzingRepositoryId ??= pending.Id;
-                                uiChanged = true;
-                            }
-                        }
-                        catch { /* no active job yet — ignore */ }
-                    }
-
-                    bool anyChange = false;
-                    foreach (var updated in repos.Where(r => r.LastAnalyzedCommitDate != null))
-                    {
-                        var idx = pageState.Repositories.FindIndex(r => r.Id == updated.Id && r.LastAnalyzedCommitDate == null);
-                        if (idx >= 0)
-                        {
-                            pageState.Repositories[idx] = updated;
-                            anyChange = true;
-                            _analysisProgress.Remove(updated.Id);
-                            if (reanalyzingRepositoryId == updated.Id) reanalyzingRepositoryId = null;
-                            Logger.LogInformation("Passive poll: repo {Owner}/{Name} completed analysis", updated.Owner, updated.Name);
-                        }
-                    }
-
-                    if (anyChange)
-                    {
-                        await LoadLatestLineCounts();
-                        await ReloadComparisonChartAsync();
-                        await InvokeAsync(StateHasChanged);
-                        if (grid is not null) await InvokeAsync(grid.Reload);
-                    }
-                    else if (uiChanged)
-                    {
-                        await InvokeAsync(StateHasChanged);
-                    }
-
-                    // Stop when no more PENDING repos
-                    if (!pageState.Repositories.Any(r => r.LastAnalyzedCommitDate == null))
-                    {
-                        Logger.LogInformation("Passive poll: all repos analyzed, stopping");
-                        break;
-                    }
+                    await PollTickAsync(cts.Token);
                 }
+                catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
                 {
-                    Logger.LogWarning(ex, "Passive poll tick failed — will retry");
+                    Logger.LogWarning(ex, "Fallback poll tick failed — will retry");
                 }
             }
         }
         catch (OperationCanceledException)
         {
-            Logger.LogInformation("Passive PENDING poll cancelled");
+            Logger.LogInformation("Fallback analysis poll cancelled");
         }
         finally
         {
-            _passivePollRunning = false;
+            _fallbackPollRunning = false;
+        }
+    }
+
+    private async Task PollTickAsync(CancellationToken cancellationToken)
+    {
+        var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository, cancellationToken);
+        if (repos is null) return;
+
+        foreach (var (repositoryId, baseline) in _awaitingAnalysis.ToList())
+        {
+            var updated = repos.FirstOrDefault(r => r.Id == repositoryId);
+
+            // Deleted from under us — stop waiting rather than polling a 404 for an hour.
+            if (updated is null)
+            {
+                _awaitingAnalysis.Remove(repositoryId);
+                continue;
+            }
+
+            // A changed LastAnalyzedCommitDate is the completion signal. Checked BEFORE the
+            // progress endpoint because a finished job's progress entry expires, and reading
+            // "no progress" as "still working" is what used to leave badges spinning.
+            if (updated.LastAnalyzedCommitDate is not null && updated.LastAnalyzedCommitDate != baseline)
+            {
+                var index = pageState.Repositories.FindIndex(r => r.Id == repositoryId);
+                if (index >= 0) pageState.Repositories[index] = updated;
+
+                await PublishTerminalFrameAsync(repositoryId, error: null);
+                continue;
+            }
+
+            // Still in flight. Mirror the running frame the hub would have pushed, so the step
+            // name, commit counts and stuck/error flags reach the grid by the same route.
+            AnalysisProgressDto? progress = null;
+            try
+            {
+                progress = await Http.GetAppJsonAsync(
+                    $"/api/repositories/{repositoryId}/analysis-progress",
+                    AppJsonSerializerContext.Default.AnalysisProgressDto,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch
+            {
+                // 404 until the job registers itself. Not an error — just nothing to report yet.
+            }
+
+            if (progress is null) continue;
+
+            if (progress.IsRunning || progress.ErrorMessage is not null)
+            {
+                await OnAnalysisProgressAsync(progress);
+                if (!progress.IsRunning) _awaitingAnalysis.Remove(repositoryId);
+            }
+
+            // A terminal frame with no error and no date change yet means the write has not
+            // landed. Leave it outstanding and pick the completion up on a later tick.
         }
     }
 
     /// <summary>
-    /// Polls /api/repositories every 5 seconds until the target repo's LastAnalyzedCommitDate
-    /// changes (indicating the server-side analysis finished), then clears the "Re-analyzing" badge.
-    /// Also polls /api/repositories/{id}/analysis-progress for live step details.
-    /// Automatically stops after 30 minutes or when the component is disposed.
+    /// Synthesises the terminal frame the hub would have pushed and routes it through the one
+    /// handler, so completion does the same work by either path.
     /// </summary>
-    private async Task PollForReanalysisCompletionAsync(RepositoryId repositoryId, DateTime? priorDate)
+    private async Task PublishTerminalFrameAsync(RepositoryId repositoryId, string? error)
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
-        cts.CancelAfter(TimeSpan.FromMinutes(30)); // hard stop — very large repos won't hang forever
+        _awaitingAnalysis.Remove(repositoryId);
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-        Logger.LogInformation("Poll started for repository {RepositoryId}", repositoryId);
+        var repo = pageState.Repositories.FirstOrDefault(r => r.Id == repositoryId);
 
-        try
+        // The handler only acts on a running → finished transition, so a repository never seen
+        // running needs its running frame first. Without this, the completion of a job the poll
+        // only ever caught at the end would be silently dropped.
+        if (!(_analysisProgress.TryGetValue(repositoryId, out var seen) && seen.IsRunning))
         {
-            while (await timer.WaitForNextTickAsync(cts.Token))
+            await OnAnalysisProgressAsync(new AnalysisProgressDto
             {
-                try
-                {
-                    // Fetch progress details from the dedicated endpoint
-                    try
-                    {
-                        var prog = await Http.GetAppJsonAsync($"/api/repositories/{repositoryId}/analysis-progress", AppJsonSerializerContext.Default.AnalysisProgressDto, cts.Token);
-                        if (prog != null)
-                        {
-                            _analysisProgress[repositoryId] = prog;
-                            await InvokeAsync(StateHasChanged);
-                        }
-                    }
-                    catch (Exception progEx)
-                    {
-                        Logger.LogDebug(progEx, "Progress poll fetch failed for {RepositoryId} — ignoring", repositoryId);
-                    }
-
-                    var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository, cts.Token);
-                    var updated = repos?.FirstOrDefault(r => r.Id == repositoryId);
-
-                    if (updated?.LastAnalyzedCommitDate != null && updated.LastAnalyzedCommitDate != priorDate)
-                    {
-                        Logger.LogInformation("Re-analysis complete for repository {RepositoryId}", repositoryId);
-
-                        var idx = pageState.Repositories.FindIndex(r => r.Id == repositoryId);
-                        if (idx >= 0) pageState.Repositories[idx] = updated;
-
-                        reanalyzingRepositoryId = null;
-                        _reanalysisStartTimes.Remove(repositoryId);
-                        _analysisProgress.Remove(repositoryId);
-                        await LoadLatestLineCounts();
-                        await ReloadComparisonChartAsync();
-
-                        NotificationService.Notify(new NotificationMessage
-                        {
-                            Severity = NotificationSeverity.Success,
-                            Summary = "Analysis Complete",
-                            Detail = $"'{updated.Owner}/{updated.Name}' has been fully re-analyzed.",
-                            Duration = 5000
-                        });
-
-                        await InvokeAsync(StateHasChanged);
-                        return;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning(ex, "Poll tick failed for repository {RepositoryId} — will retry", repositoryId);
-                }
-            }
+                RepositoryId = repositoryId,
+                Owner = repo?.Owner ?? string.Empty,
+                Name = repo?.Name ?? string.Empty,
+                IsRunning = true,
+                StepName = "Analyzing",
+                StepDescription = "Working…"
+            });
         }
-        catch (OperationCanceledException)
+
+        await OnAnalysisProgressAsync(new AnalysisProgressDto
         {
-            // Either component disposed or 30-min safety timeout
-            Logger.LogInformation("Polling cancelled for repository {RepositoryId}", repositoryId);
-        }
-
-        // Safety: ensure badge always clears, even on timeout
-        reanalyzingRepositoryId = null;
-        _reanalysisStartTimes.Remove(repositoryId);
-        _analysisProgress.Remove(repositoryId);
-        await InvokeAsync(StateHasChanged);
+            RepositoryId = repositoryId,
+            Owner = repo?.Owner ?? string.Empty,
+            Name = repo?.Name ?? string.Empty,
+            IsRunning = false,
+            StepName = error is null ? "Complete" : "Failed",
+            StepDescription = error ?? "Analysis complete",
+            ErrorMessage = error
+        });
     }
 
     public async ValueTask DisposeAsync()
