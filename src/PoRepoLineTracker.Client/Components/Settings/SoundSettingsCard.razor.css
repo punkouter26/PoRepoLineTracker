@@ -1,0 +1,88 @@
+/* Scoped to SoundSettingsCard.razor. Rooted at <RadzenCard>, which is a component — but every
+   selector here targets a plain element this file's own markup emits, so the scope id lands on
+   the element itself rather than needing ::deep through a component ancestor. */
+
+.sound-card {
+    border-radius: 14px;
+}
+
+.sound-card__title {
+    margin: 0;
+}
+
+.sound-card__subtitle,
+.sound-card__note {
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.sound-card__note {
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--border-light);
+}
+
+/* Row: label block on the left, control hard right. Grid rather than
+   `justify-content: space-between` so the label column can shrink and wrap its
+   hint text instead of pushing the control off the card on a narrow well. */
+.sound-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 1rem;
+    min-height: 44px;
+}
+
+/* Sliders need the full row width to be usable; a slider squeezed into an `auto`
+   track is a few pixels wide and effectively untargetable. */
+.sound-row--stack {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+}
+
+.sound-row__label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+    cursor: pointer;
+}
+
+/* The label carries the pointer affordance for the switch beside it, so it needs
+   the same 24px minimum target as any other control (WCAG 2.5.8). */
+.sound-row__name {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.sound-row__hint {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+.sound-row__slider {
+    width: 100%;
+}
+
+.sound-card__preview {
+    align-items: center;
+    padding-top: 0.25rem;
+}
+
+.sound-card__preview-label {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Keyed to the content well, not the viewport: this card sits in the settings
+   column, which is narrower than the page whenever the sidebar is open. */
+@container appwell (max-width: 520px) {
+    .sound-row {
+        grid-template-columns: 1fr;
+        gap: 0.4rem;
+    }
+}

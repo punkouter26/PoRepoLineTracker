@@ -9,8 +9,22 @@
    plain HTML ancestor carrying the scope id. Rooting at <RadzenCard> would leave nothing in this
    file carrying the id, and every rule in ChartCard.razor.css would silently match nothing. *@
 
+@* Do NOT add `u-defer-paint` (content-visibility: auto) here. It was tried and reverted.
+
+   A RadzenChart sizes its own <svg> by measuring the element it is mounted in. Under
+   `content-visibility: auto` an off-screen subtree skips layout, so that measurement returns the
+   `contain-intrinsic-size` placeholder instead of real geometry — and the chart draws to the
+   placeholder, or draws nothing at all. On the repository detail page, which stacks several
+   charts so the lower ones start below the fold, this took out the extension donut entirely and
+   broke the mobile no-horizontal-overflow guarantee (Detail_ExtensionBreakdownRendersADonut,
+   Detail_MobileDoesNotScrollHorizontally, Detail_MobileTapTargetsAreLargeEnough).
+
+   The utility is still in effects.css and is correct for subtrees of plain, self-sizing content.
+   It is simply wrong for anything that measures itself in JS.
+
+   u-lift sits on the surface rather than the wrapper so the shadow is cast by the painted card. *@
 <div class="chart-card">
-    <RadzenCard class="chart-card__surface">
+    <RadzenCard class="chart-card__surface u-lift">
         <RadzenStack Orientation="Orientation.Horizontal"
                      AlignItems="AlignItems.Center"
                      JustifyContent="JustifyContent.SpaceBetween"

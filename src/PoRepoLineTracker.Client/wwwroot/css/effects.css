@@ -1,0 +1,408 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PoRepoLineTracker — effects layer
+
+   Loaded AFTER app.css. Everything here is presentational polish: glass
+   surfaces, animated gradients, and GPU-composited motion primitives. Nothing
+   in this file may be load-bearing for layout — app.css owns the shell, the
+   grid and the tokens, and a rule here that changes box metrics will fight it.
+
+   Three constraints shaped the whole file:
+
+   1. NO Tailwind. This project has no Node toolchain, and adding one to a .NET
+      WASM build to obtain `backdrop-blur-xl` would be a build-system change in
+      exchange for class names — app.css already defines the token scale a
+      Tailwind config would have held. These are the same utilities, authored
+      natively against the tokens that already exist.
+
+   2. Motion is transform/opacity only. Anything that animates `width`,
+      `top`, `box-shadow` or `filter` per frame lands on the main thread and
+      drops frames on a mid-range laptop with a 4000-commit chart on screen.
+      The one deliberate exception is documented where it appears.
+
+   3. `prefers-reduced-motion` already has a global kill-switch in app.css that
+      zeroes every animation and transition duration. It does NOT stop a
+      `@property` gradient from being expensive to paint, nor does it reach the
+      canvas, so both are additionally gated here and in JS.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Registered custom properties ───────────────────────────────────────────
+   `@property` is what makes a gradient animatable at all. A plain
+   `--angle: 0deg` custom property is an untyped token to the engine: it
+   interpolates as a *string*, so a keyframe from 0deg to 360deg snaps at the
+   50% mark instead of sweeping. Registering it with a syntax and an initial
+   value gives the interpolator a type to work with, and the sweep becomes
+   continuous — and, because the property is flagged non-inherited, the engine
+   only re-resolves the element that owns it rather than its whole subtree.
+
+   Unsupported engines ignore the whole at-rule and fall back to the static
+   gradient each component declares first. */
+@property --grad-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+@property --grad-shift {
+    syntax: '<percentage>';
+    initial-value: 0%;
+    inherits: false;
+}
+
+@property --sheen-x {
+    syntax: '<percentage>';
+    initial-value: -40%;
+    inherits: false;
+}
+
+:root {
+    /* Glass recipe. Kept as tokens so the light/dark pair is defined once and
+       every `.u-glass*` surface inherits the theme flip for free. */
+    --glass-bg: rgba(255, 255, 255, 0.62);
+    --glass-bg-strong: rgba(255, 255, 255, 0.82);
+    --glass-border: rgba(255, 255, 255, 0.75);
+    --glass-highlight: rgba(255, 255, 255, 0.55);
+    --glass-shadow: 0 8px 32px rgba(15, 23, 42, 0.10), 0 2px 8px rgba(15, 23, 42, 0.05);
+    --glass-blur: 16px;
+    --glass-saturate: 165%;
+
+    /* Motion curves. `--ease-spring` overshoots slightly — it is what makes a
+       press feel like it has mass rather than like a linear tween. */
+    --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+    --dur-fast: 120ms;
+    --dur-base: 200ms;
+    --dur-slow: 340ms;
+}
+
+:root[data-theme="dark"] {
+    --glass-bg: rgba(30, 41, 59, 0.58);
+    --glass-bg-strong: rgba(30, 41, 59, 0.80);
+    --glass-border: rgba(148, 163, 184, 0.22);
+    --glass-highlight: rgba(255, 255, 255, 0.10);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.30);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --glass-bg: rgba(30, 41, 59, 0.58);
+        --glass-bg-strong: rgba(30, 41, 59, 0.80);
+        --glass-border: rgba(148, 163, 184, 0.22);
+        --glass-highlight: rgba(255, 255, 255, 0.10);
+        --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.30);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. GLASS SURFACES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The opaque fallback comes FIRST and is unconditional. `backdrop-filter` has
+   no graceful degradation of its own: without support the element renders with
+   whatever `background` it was given, so a translucent-by-default rule would
+   leave unreadable text over the page behind it. The @supports block below
+   opts INTO translucency only where the blur will actually paint. */
+.u-glass,
+.u-glass-strong {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-md);
+    border-radius: 14px;
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .u-glass,
+    .u-glass-strong {
+        /* `saturate` alongside `blur` is what separates this from grey fog:
+           blurring alone averages the backdrop toward its mean, which desaturates
+           it. Pushing saturation back up keeps the brand purple reading as purple
+           through the panel. */
+        backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+        border-color: var(--glass-border);
+        box-shadow: var(--glass-shadow);
+    }
+
+    .u-glass { background: var(--glass-bg); }
+    .u-glass-strong { background: var(--glass-bg-strong); }
+}
+
+/* The 1px specular line along the top edge. This is the detail that reads as
+   "glass" rather than "translucent div" — real glass catches light on its top
+   bevel. A pseudo-element rather than a border so it does not affect metrics. */
+.u-glass::before,
+.u-glass-strong::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg,
+                transparent,
+                var(--glass-highlight) 20%,
+                var(--glass-highlight) 80%,
+                transparent);
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+.u-glass,
+.u-glass-strong { position: relative; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. DYNAMIC GRADIENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Conic sweep. The static `background-image` is declared before the animated
+   one so an engine without @property support still paints a gradient rather
+   than nothing. */
+.u-grad-sweep {
+    background-image: conic-gradient(from 0deg,
+                      var(--rz-primary), #7c3aed, #a78bfa, #7c3aed, var(--rz-primary));
+    background-image: conic-gradient(from var(--grad-angle),
+                      var(--rz-primary), #7c3aed, #a78bfa, #7c3aed, var(--rz-primary));
+    animation: gradAngle 12s linear infinite;
+}
+
+@keyframes gradAngle {
+    to { --grad-angle: 360deg; }
+}
+
+/* Drifting mesh, used behind hero strips. Three radial stops over a base, with
+   `background-position` doing the drift — position is a compositor-friendly
+   property here because the layer is already promoted by `will-change`. */
+.u-grad-mesh {
+    background-color: var(--bg-secondary);
+    background-image:
+        radial-gradient(ellipse 60% 80% at 15% 20%, rgba(103, 80, 164, 0.18), transparent 60%),
+        radial-gradient(ellipse 50% 70% at 85% 30%, rgba(124, 58, 237, 0.14), transparent 55%),
+        radial-gradient(ellipse 70% 60% at 50% 95%, rgba(167, 139, 250, 0.12), transparent 60%);
+    background-size: 160% 160%, 150% 150%, 170% 170%;
+    animation: meshDrift 24s var(--ease-standard) infinite alternate;
+}
+
+@keyframes meshDrift {
+    from { background-position: 0% 0%,   100% 0%,  50% 100%; }
+    to   { background-position: 20% 15%, 80% 20%,  40% 80%; }
+}
+
+/* Animated gradient BORDER. Painted with two backgrounds and `background-clip`
+   rather than a wrapper element: the padding-box layer masks the centre of the
+   border-box gradient, leaving only the 1px frame visible. */
+.u-grad-ring {
+    position: relative;
+    border: 1px solid transparent;
+    background:
+        linear-gradient(var(--bg-primary), var(--bg-primary)) padding-box,
+        conic-gradient(from var(--grad-angle),
+            var(--rz-primary), #a78bfa, #34c3b3, #a78bfa, var(--rz-primary)) border-box;
+    animation: gradAngle 8s linear infinite;
+}
+
+/* Sheen pass for loading/working states — a highlight that travels across the
+   surface. transform-driven, so it composites. */
+.u-sheen {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.u-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg,
+                transparent 35%,
+                var(--glass-highlight) 50%,
+                transparent 65%);
+    transform: translateX(-100%);
+    animation: sheenSweep 2.2s var(--ease-standard) infinite;
+    pointer-events: none;
+    z-index: 1;
+}
+
+@keyframes sheenSweep {
+    to { transform: translateX(100%); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. MOTION PRIMITIVES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Lift on hover. `translate3d` rather than `translateY` to force the layer onto
+   the compositor, and `will-change` is applied on hover-intent rather than
+   permanently — a permanent `will-change` on every card in a 200-row grid keeps
+   200 layers alive in GPU memory whether or not anything is moving. */
+.u-lift {
+    transition: transform var(--dur-base) var(--ease-out-quint),
+                box-shadow var(--dur-base) var(--ease-out-quint);
+    transform: translate3d(0, 0, 0);
+}
+
+.u-lift:hover,
+.u-lift:focus-within {
+    transform: translate3d(0, -3px, 0);
+    box-shadow: 0 12px 32px rgba(103, 80, 164, 0.16);
+}
+
+.u-lift:active { transform: translate3d(0, -1px, 0) scale(0.995); }
+
+/* Press feedback with a spring curve. Scale only — no layout property touched. */
+.u-press {
+    transition: transform var(--dur-fast) var(--ease-spring);
+}
+
+.u-press:active { transform: scale(0.96); }
+
+/* Entrance. `both` fill so the element is not visible for one frame before the
+   animation's first keyframe applies. */
+.u-enter {
+    animation: enterUp var(--dur-slow) var(--ease-out-quint) both;
+}
+
+@keyframes enterUp {
+    from { opacity: 0; transform: translate3d(0, 10px, 0); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* Stagger helper for lists. Six steps is enough for an above-the-fold run;
+   past that the delay would be longer than the user's patience anyway. */
+.u-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.u-stagger > *:nth-child(2) { animation-delay: 45ms; }
+.u-stagger > *:nth-child(3) { animation-delay: 90ms; }
+.u-stagger > *:nth-child(4) { animation-delay: 135ms; }
+.u-stagger > *:nth-child(5) { animation-delay: 180ms; }
+.u-stagger > *:nth-child(6) { animation-delay: 225ms; }
+
+/* Pulsing status dot for the live feed. `box-shadow` is animated here against
+   the rule of thumb at the top of this file — deliberately. The alternative, a
+   scaling pseudo-element ring, needs its own layer per dot, and this element is
+   8px across and appears at most once per feed. One small repaint region beats
+   a promoted layer. */
+.u-pulse-dot {
+    position: relative;
+    animation: pulseRing 2s var(--ease-standard) infinite;
+}
+
+@keyframes pulseRing {
+    0%   { box-shadow: 0 0 0 0 rgba(52, 195, 179, 0.55); }
+    70%  { box-shadow: 0 0 0 8px rgba(52, 195, 179, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(52, 195, 179, 0); }
+}
+
+/* Off-screen work skipping. `content-visibility: auto` lets the engine skip
+   layout and paint for elements scrolled out of view; `contain-intrinsic-size`
+   supplies a placeholder height so the scrollbar does not lurch as each one is
+   skipped and un-skipped.
+
+   NEVER apply this to a subtree that measures itself in JavaScript. Skipping
+   layout means `getBoundingClientRect()` and `clientWidth` inside it report the
+   contain-intrinsic-size PLACEHOLDER, not real geometry. This was applied to
+   ChartCard and reverted: a RadzenChart sizes its <svg> from its container, so
+   every chart below the fold on the repository detail page drew to the
+   placeholder box — the extension donut rendered no series at all, and the
+   mobile layout gained horizontal overflow.
+
+   Safe on: long lists of plain content, text blocks, image grids.
+   Unsafe on: charts, virtualised lists, anything with a ResizeObserver. */
+.u-defer-paint {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. VIEW TRANSITIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Cross-document/route fade. Blazor swaps the @Body subtree without a document
+   navigation, so the transition is driven from JS (gfx.js `route`) wrapping the
+   swap in `document.startViewTransition`. These rules only describe what the
+   captured before/after snapshots do. */
+::view-transition-old(root) {
+    animation: vtFadeOut 90ms var(--ease-standard) both;
+}
+
+::view-transition-new(root) {
+    animation: vtFadeIn 220ms var(--ease-out-quint) both;
+}
+
+@keyframes vtFadeOut {
+    to { opacity: 0; transform: translate3d(0, -4px, 0); }
+}
+
+@keyframes vtFadeIn {
+    from { opacity: 0; transform: translate3d(0, 8px, 0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. CANVAS / WEBGL LAYERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The login backdrop canvas. Sized entirely from CSS — gfx.js sets the `width`
+   and `height` ATTRIBUTES (the drawing-buffer size) and never touches
+   `canvas.style`, because ScopedCssUiTests asserts that no element inside
+   `.login-canvas` carries an inline style. */
+.gfx-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+    z-index: 0;
+    /* Fades in once the first frame is drawn, so a slow shader compile shows the
+       CSS gradient underneath rather than a black rectangle. */
+    opacity: 0;
+    transition: opacity 600ms var(--ease-standard);
+}
+
+.gfx-backdrop[data-ready="true"] { opacity: 1; }
+
+/* When the WebGL backdrop is live the CSS blobs are redundant, and each one is
+   a 500px element under `filter: blur(60px)` — among the most expensive things
+   a browser can be asked to repaint. Hiding them is a real saving, not tidiness. */
+.login-canvas[data-gfx="webgl"] .login-blob { display: none; }
+
+/* The activity ribbon strip in the live feed. */
+.gfx-ribbon {
+    display: block;
+    width: 100%;
+    height: 44px;
+    border-radius: 8px;
+    pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. REDUCED MOTION / REDUCED TRANSPARENCY
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* app.css already zeroes durations globally. What it cannot do is stop the
+   engine from re-resolving an animated @property every frame or from running a
+   render loop, so the ambient decoration is switched off outright here and the
+   canvases are gated in JS by the same query. */
+@media (prefers-reduced-motion: reduce) {
+    .u-grad-sweep,
+    .u-grad-mesh,
+    .u-grad-ring,
+    .u-sheen::after,
+    .u-pulse-dot {
+        animation: none !important;
+    }
+
+    .u-lift:hover,
+    .u-lift:focus-within { transform: none; }
+
+    .gfx-backdrop { display: none; }
+}
+
+/* Honour the OS "reduce transparency" accessibility setting: blur is exactly
+   what that preference exists to switch off. */
+@media (prefers-reduced-transparency: reduce) {
+    .u-glass,
+    .u-glass-strong {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background: var(--bg-primary);
+        border-color: var(--border-light);
+    }
+}

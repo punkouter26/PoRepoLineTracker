@@ -41,6 +41,15 @@ builder.Services.AddScoped<ApiAuthenticationStateProvider>(sp =>
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<ApiAuthenticationStateProvider>());
 builder.Services.AddAuthorizationCore();
 
+// Presentation services. Scoped is the app's lifetime in a WASM host, which is what lets both of
+// these hold a single lazily-imported JS module reference rather than re-importing per component.
+//
+// Neither is required for the app to function: both degrade to silence / to the CSS-only
+// decoration when their module is missing, when the browser lacks the API, or when the user has
+// asked for reduced motion. Nothing in a page's data path may await them.
+builder.Services.AddScoped<AudioService>();
+builder.Services.AddScoped<GfxService>();
+
 // Add Radzen services with Material3 theme
 builder.Services.AddScoped<DialogService>();
 builder.Services.AddScoped<NotificationService>();
