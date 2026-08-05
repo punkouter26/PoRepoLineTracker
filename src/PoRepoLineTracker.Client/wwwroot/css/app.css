@@ -264,6 +264,9 @@ a:focus-visible, .btn-link:focus-visible {
     display: grid !important;
     grid-template-columns: var(--shell-sidebar-width) 1fr !important;
     grid-template-rows: var(--shell-header-height) 1fr !important;
+    /* Animates the sidebar-collapse rule below, which zeroes the first track. Matches the
+       sidebar's own width transition so the two move together. */
+    transition: grid-template-columns 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     /* dvh so mobile browser chrome cannot clip the last row. */
     height: 100vh;
     height: 100dvh;
@@ -361,8 +364,25 @@ a:focus-visible, .btn-link:focus-visible {
     overflow: hidden !important;
 }
 
-.rz-layout:has(.rz-sidebar.app-sidebar--collapsed) .rz-body {
-    grid-column-start: 1 !important;
+/* Collapse the TRACK, not the item's placement.
+   The previous rule moved .rz-body to `grid-column-start: 1` while leaving the two-track
+   template intact. But `.rz-body` is placed with `grid-column: 2`, which means "start at line 2,
+   span ONE track" — overriding only the start line left it spanning a single track, and that
+   track is the fixed 220px sidebar column. The visible result was the whole page squeezed into a
+   220px strip on the left with the rest of the viewport dead grey: worse than the gutter the
+   override was written to fix.
+   Zeroing the first track instead leaves .rz-body in column 2, which now spans the full width.
+   grid-template-columns is animatable, so this also gives the collapse a real transition.
+
+   Scoped to the desktop breakpoint. Below 769px the sidebar is an off-canvas drawer
+   (position: fixed, moved by transform) and the layout is a SINGLE column, so there is no track
+   to collapse. Without this guard the rule still applies there — `:has()` raises specificity
+   above the plain `.rz-layout` selector in the mobile block, and media queries add none — which
+   reinstated a two-track grid on phones and put the body in a zero-width column. */
+@media (min-width: 769px) {
+    .rz-layout:has(.rz-sidebar.app-sidebar--collapsed) {
+        grid-template-columns: 0 1fr !important;
+    }
 }
 
 /* The single content well. Fluid padding replaces the old fixed `rz-p-4`, and
