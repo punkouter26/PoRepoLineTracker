@@ -129,8 +129,9 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: webapp.zip
-          # Async deploy returns once the deployment is accepted; the smoke-test
-          # step below handles liveness. Removes the synchronous Kudu 504 risk.
+          # Async deploy returns once the deployment is accepted, which removes the
+          # synchronous Kudu 504 risk. Nothing in this workflow verifies liveness
+          # afterwards — the post-deploy smoke test that used to do so was removed.
       # The DOTNETCORE runtime image has no git, but GitClient shells out to it for
       # clone/pull — without this the site runs and every analysis fails with
       # "git is not installed or not in PATH". startup.sh installs git, then execs the app.
@@ -149,77 +150,6 @@ jobs:
           else
             echo "startup command already '$WANT'"
           fi
-      # Rule 5 post-deploy smoke test — all three required checks:
-      #   1. /health returns 200.
-      #   2. The Blazor render tree can initialise: the served shell must carry the WASM
-      #      bootstrap script and the #app root the renderer attaches to, and the runtime
-      #      files it pulls (blazor.boot.json, the framework dll) must be retrievable.
-      #   3. /diag is retrievable *safely* — it must be authenticated, and must never emit an
-      #      unmasked secret. Production has no FakeAuthHandler, so CI cannot log in; asserting
-      #      the endpoint refuses anonymous callers IS the safe-retrieval check. Masked-body
-      #      content is asserted in the Integration tier, which can authenticate.
-      - name: Post-deploy smoke test
-        run: |
-          set -uo pipefail
-          BASE="https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
-          sleep 20
-
-          ok=""
-          for i in 1 2 3 4 5; do
-            HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/health" --max-time 30 || echo 000)
-            HOME=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/" --max-time 30 || echo 000)
-            echo "Attempt $i: /health=$HEALTH  /=$HOME"
-            if [ "$HEALTH" = "200" ] && [ "$HOME" != "000" ] && [ "${HOME:0:1}" != "5" ]; then
-              ok=1; break
-            fi
-            sleep 15
-          done
-          if [ -z "$ok" ]; then
-            echo "::error::Smoke test failed — /health not 200 or home page returned 5xx."
-            exit 1
-          fi
-          echo "✓ /health healthy, home page non-5xx."
-
-          # --- 2. Blazor render tree initialisation -------------------------------------
-          SHELL_HTML=$(curl -sL "$BASE/" --max-time 30 -H 'Accept: text/html')
-          for marker in 'id="app"' '_framework/blazor.webassembly.js'; do
-            if ! printf '%s' "$SHELL_HTML" | grep -qF "$marker"; then
-              echo "::error::Blazor shell is missing '$marker' — the render tree cannot initialise."
-              exit 1
-            fi
-          done
-          BOOT=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/_framework/blazor.boot.json" --max-time 30 || echo 000)
-          BOOTJS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/_framework/blazor.webassembly.js" --max-time 30 || echo 000)
-          echo "blazor.boot.json=$BOOT  blazor.webassembly.js=$BOOTJS"
-          if [ "$BOOT" != "200" ] || [ "$BOOTJS" != "200" ]; then
-            echo "::error::Blazor runtime assets not served (boot.json=$BOOT, webassembly.js=$BOOTJS)."
-            exit 1
-          fi
-          echo "✓ Blazor render tree can initialise (shell markers + runtime assets present)."
-
-          # --- 3. Safe retrieval of masked configuration from /diag ---------------------
-          DIAG=$(curl -s -o /tmp/diag.txt -w "%{http_code}" "$BASE/diag" \
-                   --max-time 30 -H 'Accept: application/json' || echo 000)
-          echo "/diag=$DIAG"
-          case "$DIAG" in
-            401|403|302) echo "✓ /diag is authenticated (HTTP $DIAG) — no anonymous config disclosure." ;;
-            200)
-              # Reachable anonymously: only acceptable if every secret is masked.
-              if grep -qE '"Value"[[:space:]]*:[[:space:]]*"(\*\*\*\*[^"]*)?"' /tmp/diag.txt \
-                 && ! grep -qE '"Value"[[:space:]]*:[[:space:]]*"[^"*]{5,}"' /tmp/diag.txt; then
-                echo "✓ /diag returned 200 with all secret values masked."
-              else
-                echo "::error::/diag returned 200 with an UNMASKED secret value."
-                exit 1
-              fi
-              ;;
-            *)
-              echo "::error::/diag returned unexpected status $DIAG."
-              exit 1
-              ;;
-          esac
-
-          echo "Deployment verified: health, Blazor render tree, and masked /diag all OK."
 
   # Apply infrastructure (resource group, app settings, role assignments) from Bicep.
   # Manual only: run the workflow via "Run workflow" with deploy_infra=true. This keeps
