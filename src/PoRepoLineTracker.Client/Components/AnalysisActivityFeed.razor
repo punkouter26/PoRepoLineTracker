@@ -13,9 +13,14 @@
    repository grid down the page to say nothing; this appears when something starts and stays
    until the page is left. *@
 
+@* Rooted at a plain <div>, following ChartCard. The component used to root at <RadzenCard>, which
+   left nothing carrying this file's scope id — so `.feed` compiled to `.feed[b-feed]` and matched
+   nothing, and the card's own `display: flex; gap: 0.6rem` never applied. The heading row, ribbon
+   and list were laid out as plain blocks with no gap between them. *@
 @if (_entries.Count > 0)
 {
-    <RadzenCard class="feed u-glass u-enter">
+    <div class="feed">
+    <RadzenCard class="feed__card u-glass u-enter">
         <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
                      AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem">
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
@@ -79,6 +84,7 @@
             }
         </ul>
     </RadzenCard>
+    </div>
 }
 
 @code {

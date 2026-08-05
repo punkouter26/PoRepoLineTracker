@@ -92,6 +92,13 @@
                                   Fill="rgba(249, 115, 22, 0.18)"
                                   StrokeWidth="2">
                     <RadzenMarkers MarkerType="@(DailyShare.Count <= 60 ? MarkerType.Circle : MarkerType.None)" />
+                    @* The daily share is spiky by nature — one generated file swings a quiet day to
+                       90%. The mean gives the reader the baseline to judge those spikes against,
+                       and the median beside it exposes exactly that skew: when the two separate
+                       visibly, the average is being carried by a handful of outlier days rather
+                       than describing the typical one. *@
+                    <RadzenSeriesMeanLine Stroke="#f97316" StrokeWidth="1" LineType="LineType.Dashed" />
+                    <RadzenSeriesMedianLine Stroke="var(--text-secondary)" StrokeWidth="1" LineType="LineType.Dotted" />
                 </RadzenAreaSeries>
 
                 <RadzenCategoryAxis FormatString="{0:MMM d}"

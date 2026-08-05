@@ -20,41 +20,38 @@
     color: var(--text-muted) !important;
 }
 
-.ins-empty-icon {
+/* ::deep — the class is on <RadzenIcon>, a component, so the unprefixed rule compiled to
+   `.ins-empty-icon[b-insights]` and never matched; the icon rendered at the inherited body size
+   in the default text colour. Reaching it needs a plain ancestor carrying the scope id, which is
+   why the page root had to stop being a <RadzenStack>. */
+::deep .ins-empty-icon {
     font-size: 2.5rem;
     color: var(--text-muted);
 }
 
-::deep .ins-empty-inline.ins-empty-inline {
-    margin-top: 1rem !important;
-}
-
-::deep .ins-card__title.ins-card__title {
-    margin: 0 !important;
-    font-weight: 600 !important;
-}
-
-.ins-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    height: 100%;
-}
+/* `.ins-card`, `.ins-card__title` and `.ins-empty-inline` are gone: the three cards that used
+   them (Activity, Movers, Language mix) render through <ChartCard>, which owns the surface, the
+   title/description pair and a proper empty state rather than an inline muted sentence. */
 
 /* ─── KPI row ────────────────────────────────────────────────────────────────
    auto-fit rather than four fixed columns: the tiles reflow 4 → 2 → 1 on their own, and the
    final row is never left half-empty at an in-between width. Keyed to the content well via
-   the shared container, so collapsing the sidebar genuinely re-lays them out. */
-.ins-kpis {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
-    gap: var(--space-md);
-}
+   the shared container, so collapsing the sidebar genuinely re-lays them out.
 
-.ins-kpi {
+   The grid itself is `.app-dashboard app-dashboard--tiles` in the markup now — this was a fourth
+   near-copy of the same auto-fit declaration (alongside `.rp-stat-grid`, `.app-dashboard` and
+   `.app-page`), differing only in the minimum. That minimum is a token there. */
+/* ::deep for the same reason as `.ins-empty-icon` above: the class is on <RadzenCard>. Without it
+   the tiles never became flex columns at all — they fell back to the card's block layout, so the
+   0.2rem gap was actually the RadzenText label's own margin, and the label/value/delta spacing
+   differed from what this file describes. */
+::deep .ins-kpi {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
+    /* The tiles are four different shapes of text; without this the tallest sets the row height
+       and the rest float at the top of their own box. */
+    justify-content: center;
 }
 
 ::deep .ins-kpi__label.ins-kpi__label {

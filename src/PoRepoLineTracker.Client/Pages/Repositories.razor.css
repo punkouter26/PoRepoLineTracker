@@ -84,13 +84,11 @@
 
 /* ─── Stat cards ──────────────────────────────────────────────────────────── */
 
-/* auto-fit + minmax reflows 3 → 2 → 1 across the whole range without a breakpoint per step,
-   and never strands a lone card on a half-empty final row the way the fixed SizeMD="4"
-   RadzenRow did. */
+/* The grid itself is `.app-dashboard app-dashboard--tiles` in the markup now. This was the third
+   verbatim copy of the same auto-fit declaration (with `.ins-kpis` and `.app-dashboard`),
+   differing only in the minimum track — which is a `--dash-min` token on the shared class.
+   What stays here is the one thing genuinely local to this page: the tiles' own trailing space. */
 .rp-stat-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-    gap: 0.75rem;
     margin-bottom: 0.25rem;
 }
 

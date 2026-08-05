@@ -1,8 +1,10 @@
 /* Scoped styles for ChartCard. The component roots at a plain <div class="chart-card">, so that
    element carries the scope id and the ::deep rules below can reach what Radzen renders. */
 
-/* Full height so two cards sharing a RadzenRow line up at the bottom instead of leaving a
-   ragged gap under the shorter one. Resolves to auto when the parent has no definite height,
+/* Full height so two cards sharing a dashboard row line up at the bottom instead of leaving a
+   ragged gap under the shorter one. This only works because `.app-dashboard` stretches its items
+   — under the `align-items: start` it used to carry, 100% of an auto-height item resolved to auto
+   and the cards ended ragged anyway. Resolves to auto when the parent has no definite height,
    which is the case for the full-width cards. */
 .chart-card {
     display: block;
@@ -10,15 +12,33 @@
 }
 
 /* Fluid padding: the three cards this replaced each hardcoded `1.25rem 1.5rem`, which ate a
-   sixth of the width of a 375px phone. */
+   sixth of the width of a 375px phone.
+   The flex column is what makes the alignment above meaningful rather than cosmetic: with the
+   body as the single growing track, two cards in a row put their headings on one line and their
+   footers on another, instead of each laying its content out from the top and letting whatever
+   space is left pile up under the shorter one. */
 ::deep .chart-card__surface.chart-card__surface {
     padding: clamp(0.875rem, 2.5vw, 1.5rem) !important;
     height: 100%;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    /* Without this a wide table or a long file path inside the card can force the grid track
+       wider than its 1fr share and push the page into horizontal scroll. */
+    min-width: 0;
+}
+
+/* The heading row is fixed; everything after it shares what is left. `:not()` rather than a
+   class on the body because ChartCard renders four different bodies (skeleton, alert, empty
+   state, content) and all four want the same treatment. */
+::deep .chart-card__surface > *:not(.chart-card__toolbar) {
+    min-width: 0;
 }
 
 ::deep .chart-card__toolbar.chart-card__toolbar {
     margin-bottom: 1rem !important;
+    flex: 0 0 auto;
 }
 
 /* Let the heading shrink before it forces the toolbar to wrap. */
@@ -44,18 +64,27 @@
     flex-wrap: wrap;
 }
 
-/* Matches the global .rz-chart clamp so the skeleton does not resize the card on load. */
+/* Reads the same token .rz-chart sizes from, so the skeleton cannot resize the card on load.
+   It previously restated the clamp as `38vh` against the chart's `38dvh` — the two had already
+   drifted, and on a phone with browser chrome showing that is a visible jump at the moment the
+   data lands. */
 ::deep .chart-card__skeleton.chart-card__skeleton {
-    height: clamp(220px, 38vh, 380px) !important;
+    height: var(--chart-h-min) !important;
 }
 
 ::deep .chart-card__retry.chart-card__retry {
     margin-left: 0.5rem !important;
 }
 
+/* Grows into whatever the heading left and centres in it, rather than sitting at the top of a
+   card that is as tall as its populated neighbour. That combination — a fixed 3rem of padding
+   under a stretched card — is what produced the large dead band under "No data yet" beside a
+   card full of chart. */
 ::deep .chart-card__empty.chart-card__empty {
     /* Was a flat `3rem 0`, which left a tall empty band on a phone. */
     padding: clamp(1.25rem, 6vw, 3rem) 0 !important;
+    flex: 1 1 auto;
+    justify-content: center;
 }
 
 ::deep .chart-card__empty-icon.chart-card__empty-icon {

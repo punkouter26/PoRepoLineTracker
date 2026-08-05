@@ -107,6 +107,18 @@
     --shell-sidebar-width: 220px;
     --shell-header-height: 60px;
 
+    /* Chart box. One source for the plot's guard rails, consumed by `.rz-chart` and by
+       ChartCard's loading skeleton — those two drifted apart (38dvh vs 38vh) precisely because
+       each restated the number. The height itself is no longer a fixed clamp: see `.rz-chart`. */
+    --chart-aspect: 16 / 9;
+    --chart-h-min: clamp(200px, 30dvh, 280px);
+    --chart-h-max: min(56dvh, 480px);
+
+    /* Minimum column width for the dashboard grid. A custom property rather than a literal so a
+       page can raise it for panels that need room (wide tables) or lower it for dense tiles,
+       without a second grid class per density. */
+    --dash-min: 420px;
+
     /* Radzen primary, single source of truth. */
     --rz-primary: #6750A4;
     --rz-on-primary: #FFFFFF;
@@ -406,16 +418,45 @@ a:focus-visible, .btn-link:focus-visible {
    keyed to the well, so collapsing the sidebar genuinely changes the layout. */
 .app-dashboard {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(var(--dash-min), 100%), 1fr));
     gap: var(--space-md);
-    align-items: start;
+    /* `start`, which this used to be, silently defeated the `height: 100%` that ChartCard sets in
+       order to bottom-align cards sharing a row: 100% of an auto-height grid item resolves to
+       auto, so two cards with different amounts of content ended ragged and the comment in
+       ChartCard.razor.css claiming otherwise was describing an effect that never happened.
+       `stretch` gives the item a definite height for that percentage to resolve against. */
+    align-items: stretch;
 }
 
-/* Spans for panels that deserve more room than an equal share. */
-.app-dashboard__wide { grid-column: span 2; }
+/* `.app-dashboard__wide` (grid-column: span 2) and its container-query reset used to live here.
+   Both are gone: no markup in the app has ever carried the class, so the pair was two rules and a
+   container query maintained for a span that was never taken. The auto-fit track sizing plus the
+   `--dash-min` modifiers below cover every layout the pages actually ask for — reintroduce a span
+   helper alongside the markup that needs it, not ahead of it. */
 
-@container appwell (max-width: 900px) {
-    .app-dashboard__wide { grid-column: auto; }
+/* Denser tiles — used by the KPI/stat rows, which are text and do not need 420px to be legible. */
+.app-dashboard--tiles { --dash-min: 220px; }
+
+/* Roomier tracks for panels built around a DATE axis. Pairing two time-series charts at the
+   default 420px is a false economy: the gain in vertical space is paid for by a category axis so
+   compressed that `ChartFormat.DateAxisStep` thins it down to three or four labels. At 560px the
+   pair only forms once there is genuinely room for both, and stacks below that. */
+.app-dashboard--panels { --dash-min: 560px; }
+
+/* ─── Page stack ─────────────────────────────────────────────────────────────
+   The vertical rhythm for a page whose panels are full-width bands. Replaces the
+   `<RadzenStack Gap="1rem">` that every page opened with — a component, and therefore a wall that
+   scoped CSS cannot see past: `::deep` needs a plain HTML ancestor carrying the file's scope id,
+   and a page rooted at a component has none, so any rule in that page's stylesheet targeting a
+   Radzen component matched nothing. Same trap as the shell, documented at the top of this file.
+
+   The gap is a token rather than a literal 1rem, so page rhythm compresses on a phone along with
+   everything else instead of holding a desktop-sized gutter between every card. */
+.app-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    min-width: 0;
 }
 
 /* ─── Shell: mobile ──────────────────────────────────────────────────────────
@@ -670,10 +711,19 @@ a:focus-visible, .btn-link:focus-visible {
    `overflow: hidden` the "Date" label is clipped away entirely, and with plain `overflow:
    visible` and no padding it paints onto whatever card follows. Reserving the strip below the
    plot lets the title render inside the card either way. */
+/* Height is DERIVED from width now, not clamped against the viewport.
+   A single `height: clamp(220px, 38dvh, 380px)` has to serve a 340px-wide phone card and a
+   1600px-wide desktop card, and it cannot: at the top of that range the plot was a 4:1 letterbox
+   with the series squashed into a strip, and at the bottom it was near-square with the category
+   labels colliding. `aspect-ratio` makes the plot keep its proportions and the two clamps below
+   stop it running away — a floor so a narrow card is still readable, a ceiling so a wide one does
+   not push everything after it off the screen. */
 .rz-chart {
-    height: clamp(220px, 38dvh, 380px) !important;
-    min-height: 0 !important;
     width: 100% !important;
+    height: auto !important;
+    aspect-ratio: var(--chart-aspect);
+    min-height: var(--chart-h-min) !important;
+    max-height: var(--chart-h-max);
     padding: 0.25rem 0.25rem 1.5rem;
     box-sizing: border-box;
 }
@@ -688,8 +738,12 @@ a:focus-visible, .btn-link:focus-visible {
         grid-template-rows: 48px 1fr !important;
     }
 
+    /* Height is the scarce axis here, so the guard rails come down rather than the ratio changing
+       — a rotated phone is very wide and very short, and letting the 16/9 ratio have its way would
+       fill the whole viewport with one plot. */
     .rz-chart {
-        height: clamp(140px, 52dvh, 240px) !important;
+        min-height: 140px !important;
+        max-height: 52dvh;
         padding-bottom: 1.1rem;
     }
 
@@ -702,16 +756,31 @@ a:focus-visible, .btn-link:focus-visible {
     background: transparent !important;
 }
 
+/* Radzen exposes `--rz-chart-axis-color` (axis + grid strokes) and `--rz-chart-axis-label-color`
+   (tick text) as theme hooks. Driving those is what makes the whole axis follow the app's own
+   tokens; the raw-SVG overrides below are only for the pieces Radzen has no variable for.
+   These two are leaf tokens — nothing else in the Radzen scale derives from them — which is why
+   setting them here does not repeat the `--rz-base-100` mistake documented at the top of the
+   file. */
+.rz-chart {
+    --rz-chart-axis-color: var(--border-medium);
+    --rz-chart-axis-label-color: var(--text-secondary);
+    --rz-chart-axis-font-size: 0.6875rem;
+}
+
 .rz-chart text {
     fill: var(--text-primary);
     font-family: inherit;
     font-size: 12px;
 }
 
+/* Tick labels carry numbers that get compared down a column, so they are lined up on the digit
+   rather than the glyph — 11,204 and 9,880 no longer jitter against each other. */
 .rz-chart .rz-category-axis text,
 .rz-chart .rz-value-axis text {
     fill: var(--text-secondary);
     font-size: 11px;
+    font-variant-numeric: tabular-nums;
 }
 
 .rz-chart .rz-axis-title,
@@ -721,13 +790,27 @@ a:focus-visible, .btn-link:focus-visible {
     font-weight: 600;
 }
 
-.rz-chart line,
-.rz-chart path.rz-grid-line {
+/* Grid lines only. This used to be a blanket `.rz-chart line`, which is a hazard rather than a
+   shorthand: a CSS `stroke` property beats an SVG `stroke=""` presentation attribute, so ANY
+   <line> Radzen renders inside a chart takes this grey regardless of the colour the component
+   asked for. Radzen draws the series decorations (trend/mean/median) as <path>, so nothing is
+   known to have been mispainted — but the rule was one markup change away from silently greying
+   out an annotation stroke, and scoping it to the axis groups costs nothing. */
+.rz-chart path.rz-grid-line,
+.rz-chart .rz-category-axis line,
+.rz-chart .rz-value-axis line {
     stroke: var(--border-light);
     stroke-opacity: 0.6;
 }
 
-.rz-chart .rz-legend { fill: var(--text-primary); font-size: 12px; }
+/* Radzen renders the legend as HTML, not SVG, in v8 — `fill` never applied to it. `color` is what
+   actually paints the label text, which is why the legend was picking up the Radzen default
+   rather than the app's token. */
+.rz-chart .rz-legend {
+    color: var(--text-primary);
+    fill: var(--text-primary);
+    font-size: 12px;
+}
 
 /* ─── Shared widgets ─────────────────────────────────────────────────────── */
 

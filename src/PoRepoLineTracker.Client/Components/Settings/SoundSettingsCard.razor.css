@@ -2,23 +2,32 @@
    selector here targets a plain element this file's own markup emits, so the scope id lands on
    the element itself rather than needing ::deep through a component ancestor. */
 
+/* The component roots at a plain <div class="sound-card"> now; that element is what carries the
+   scope id and makes every ::deep below reachable. All five rules in this block were previously
+   unprefixed against Radzen components and applied to nothing — most visibly `.sound-card__title`,
+   whose `margin: 0` is what suppresses the `margin-bottom: var(--space-lg)` app.css puts on every
+   h1–h6, so the card opened with a heading floating well above its own caption. */
 .sound-card {
-    border-radius: 14px;
+    min-width: 0;
 }
 
-.sound-card__title {
-    margin: 0;
+::deep .sound-card__surface.sound-card__surface {
+    border-radius: 14px !important;
 }
 
-.sound-card__subtitle,
-.sound-card__note {
-    color: var(--text-secondary);
-    margin: 0;
+::deep .sound-card__title.sound-card__title {
+    margin: 0 !important;
 }
 
-.sound-card__note {
-    padding-top: 0.25rem;
-    border-top: 1px solid var(--border-light);
+::deep .sound-card__subtitle.sound-card__subtitle,
+::deep .sound-card__note.sound-card__note {
+    color: var(--text-secondary) !important;
+    margin: 0 !important;
+}
+
+::deep .sound-card__note.sound-card__note {
+    padding-top: 0.25rem !important;
+    border-top: 1px solid var(--border-light) !important;
 }
 
 /* Row: label block on the left, control hard right. Grid rather than
@@ -65,17 +74,19 @@
     width: 100%;
 }
 
-.sound-card__preview {
-    align-items: center;
-    padding-top: 0.25rem;
+/* ::deep — on <RadzenStack> and <RadzenText> respectively, so both were dead for the same reason
+   as the block at the top of this file. */
+::deep .sound-card__preview.sound-card__preview {
+    align-items: center !important;
+    padding-top: 0.25rem !important;
 }
 
-.sound-card__preview-label {
-    color: var(--text-muted);
+::deep .sound-card__preview-label.sound-card__preview-label {
+    color: var(--text-muted) !important;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-weight: 600;
-    margin: 0;
+    margin: 0 !important;
 }
 
 /* Keyed to the content well, not the viewport: this card sits in the settings

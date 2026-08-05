@@ -9,17 +9,22 @@
 @using Radzen
 @using Radzen.Blazor
 
-<RadzenStack Gap="1rem">
+<div class="app-stack">
+    @* <PageHero>, like every other page. This was the last hand-rolled header: a `.repo-hero`
+       wrapper whose class no stylesheet has defined since the hero was extracted into a component,
+       around a RadzenRow whose single Size="12" SizeMD="6" column made it a one-item 12-column
+       grid — so the heading was pinned to half the width on a desktop for no reason, and the
+       remaining half was empty. *@
     @if (ShowPageHeader)
     {
-    <div class="repo-hero">
-    <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-        <RadzenColumn Size="12" SizeMD="6">
-            <RadzenText TextStyle="TextStyle.H3" class="ext-title">File Extension Settings</RadzenText>
-            <RadzenText TextStyle="TextStyle.Body1" class="ext-subtitle">Configure which file extensions are counted in line analysis</RadzenText>
-        </RadzenColumn>
-    </RadzenRow>
-    </div>
+        <PageHero>
+            <Heading>
+                <RadzenStack Gap="0.15rem">
+                    <RadzenText TextStyle="TextStyle.H3" class="ext-title">File Extension Settings</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" class="ext-subtitle">Configure which file extensions are counted in line analysis</RadzenText>
+                </RadzenStack>
+            </Heading>
+        </PageHero>
     }
 
     @if (ShowChartDisplaySettings)
@@ -73,21 +78,27 @@
     {
         <RadzenCard>
             <RadzenStack Gap="1rem">
-                <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenColumn>
-                        <RadzenText TextStyle="TextStyle.H6">Extensions (@(extensionItems?.Count ?? 0))</RadzenText>
-                    </RadzenColumn>
-                    <RadzenColumn class="rz-text-align-end">
-                        <RadzenButton Text="Add Extension" 
-                                      Icon="add" 
-                                      ButtonStyle="ButtonStyle.Primary"
-                                      Size="ButtonSize.Small"
-                                      Click="@AddNewExtension" />
-                    </RadzenColumn>
-                </RadzenRow>
+                @* A wrapping flex row, not a two-column RadzenRow. The 12-column grid split the bar
+                   in half at every width, so on a phone the "Add Extension" button was squeezed
+                   into 50% of a 340px card and its label wrapped; here the heading takes what it
+                   needs and the button drops to its own line only when it genuinely will not fit. *@
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                             JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.H6" class="ext-count-title">Extensions (@(extensionItems?.Count ?? 0))</RadzenText>
+                    <RadzenButton Text="Add Extension"
+                                  Icon="add"
+                                  ButtonStyle="ButtonStyle.Primary"
+                                  Size="ButtonSize.Small"
+                                  Click="@AddNewExtension" />
+                </RadzenStack>
 
+                @* Responsive + .u-scroll-x, matching every other grid in the app. Without them this
+                   one obstructed itself on a phone: the three fixed column widths sum to 470px, so
+                   on a 375px screen the Actions column — the only way to edit or delete a row —
+                   sat permanently off the right edge with nothing to scroll it into view. *@
+                <div class="u-scroll-x">
                 <RadzenDataGrid @ref="extensionGrid"
-                                Data="@extensionItems" 
+                                Data="@extensionItems"
                                 TItem="ExtensionItem"
                                 AllowFiltering="false"
                                 AllowSorting="true"
@@ -98,6 +109,7 @@
                                 EditMode="DataGridEditMode.Single"
                                 RowUpdate="@OnUpdateRow"
                                 RowCreate="@OnCreateRow"
+                                Responsive="true"
                                 Density="Density.Compact"
                                 class="ext-grid">
                     <Columns>
@@ -134,11 +146,12 @@
                         </RadzenDataGridColumn>
                     </Columns>
                 </RadzenDataGrid>
+                </div>
             </RadzenStack>
         </RadzenCard>
 
     }
-</RadzenStack>
+</div>
 
 @code {
     /// <summary>When false (default for inline/tab use), the hero header is hidden.</summary>

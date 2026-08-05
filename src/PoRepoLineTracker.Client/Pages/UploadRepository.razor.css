@@ -49,8 +49,15 @@
     display: block;
 }
 
-/* The real <input type=file>; the label above is the visible control. */
-.ul-file-input {
+/* The real <input type=file>; the label above is the visible control.
+
+   `::deep` is load-bearing here, not stylistic. The class sits on <InputFile>, a COMPONENT — and
+   Blazor only stamps the scope id onto plain HTML elements, so the unprefixed rule compiled to
+   `.ul-file-input[b-uploadrepository]` and matched nothing. The browser's own file picker was
+   therefore rendering, unstyled, on top of the dashed drop zone that exists to replace it.
+   `::deep` compiles to `[b-uploadrepository] .ul-file-input`, and the enclosing <label> is plain
+   markup in this file, so it carries the id and the rule reaches the rendered <input>. */
+::deep .ul-file-input {
     display: none;
 }
 

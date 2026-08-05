@@ -6,16 +6,29 @@
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 
-<RadzenStack Gap="1.5rem">
-    <div class="page-header">
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
-            <RadzenIcon Icon="cloud" class="xc-title-icon" />
-            <RadzenText TextStyle="TextStyle.H4" class="xc-title">External Connections</RadzenText>
-        </RadzenStack>
-        <RadzenText TextStyle="TextStyle.Body2" class="xc-subtitle">
-            APIs, databases, and external services that this application connects to
-        </RadzenText>
-    </div>
+<div class="app-stack">
+    @* <PageHero> — this was the last page still hand-rolling its header, around a `.page-header`
+       class that no stylesheet in the project defines. It therefore had none of the hero's padding,
+       gradient or wrap behaviour, and sat flush against the top of the well while every other page
+       had a strip. *@
+    <PageHero>
+        <Heading>
+            <RadzenStack Gap="0.15rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                    <RadzenIcon Icon="cloud" class="xc-title-icon" />
+                    <RadzenText TextStyle="TextStyle.H4" class="xc-title">External Connections</RadzenText>
+                </RadzenStack>
+                <RadzenText TextStyle="TextStyle.Body2" class="xc-subtitle">
+                    APIs, databases, and external services that this application connects to
+                </RadzenText>
+            </RadzenStack>
+        </Heading>
+        <Actions>
+            <RadzenButton Text="Refresh" Icon="refresh" ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Outlined" Size="ButtonSize.Small"
+                          Click="@LoadDiagnostics" Disabled="@_isLoading" />
+        </Actions>
+    </PageHero>
 
     @if (_isLoading)
     {
@@ -75,7 +88,7 @@
             </RadzenStack>
         </RadzenCard>
     }
-</RadzenStack>
+</div>
 
 @code {
     private DiagnosticsResponse? _diagnostics;

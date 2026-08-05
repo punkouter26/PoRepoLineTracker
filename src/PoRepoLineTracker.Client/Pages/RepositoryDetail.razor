@@ -14,7 +14,7 @@
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 
-<RadzenStack Gap="1rem">
+<div class="app-stack">
 
     @* ─── Hero ──────────────────────────────────────────────────────────────── *@
     <PageHero>
@@ -218,9 +218,14 @@
            An auto-fit dashboard grid replaces the RadzenRow Size="12" SizeMD="5"/"7" split.
            The 5/7 ratio was arbitrary and only ever produced one desktop layout; the grid fills
            whatever width the well actually has, which is the point of raising the content cap
-           for landscape desktops. ChartCard's height:100% still keeps the cards bottom-aligned. *@
+           for landscape desktops. ChartCard's height:100% keeps the cards bottom-aligned — now
+           that `.app-dashboard` stretches its items rather than starting them.
+
+           The wrapper <div>s these two cards sat in are gone. They were not inert: an extra
+           auto-height box between the grid and the card is exactly what stopped `height: 100%`
+           from resolving, so the cards were ragged despite everything being set up for them not
+           to be. ChartCard's own root <div> is the grid item now. *@
         <div class="app-dashboard">
-            <div>
                 <ChartCard Title="By Extension"
                            Description="Share of tracked lines per file type"
                            IsEmpty="@(_extensions is null || !_extensions.Any())"
@@ -254,8 +259,7 @@
                         }
                     </div>
                 </ChartCard>
-            </div>
-            <div>
+
                 <ChartCard Title="Largest Files"
                            Description="Files contributing the most lines"
                            IsEmpty="@(_topFiles is null || !_topFiles.Any())"
@@ -302,19 +306,22 @@
                         }
                     </ChildContent>
                 </ChartCard>
-            </div>
         </div>
 
-        @* ─── Human vs AI authorship ──────────────────────────────────────────────── *@
-        <AiMixChart RepositoryId="@RepositoryId" OverallShareChanged="@OnAiShareChanged" />
-
-        @* ─── Top Contributors Chart ──────────────────────────────────────────────── *@
-        <ContributorChart RepositoryId="@RepositoryId" />
+        @* ─── Authorship: who wrote it, and how much of it was assisted ─────────────
+           These two were separate full-width bands, which on a landscape monitor meant two more
+           ~1900px-wide, 400px-tall strips to scroll past. They answer the same question from two
+           directions, so they pair — and `--dash-min: 560px` means the pair only forms when both
+           date axes still have room to label themselves, otherwise they stack as before. *@
+        <div class="app-dashboard app-dashboard--panels">
+            <AiMixChart RepositoryId="@RepositoryId" OverallShareChanged="@OnAiShareChanged" />
+            <ContributorChart RepositoryId="@RepositoryId" />
+        </div>
 
         @* ─── InstantReplay: Timeline Scrubber ────────────────────────────────────── *@
         <TimelineScrubber DailyData="@_lineHistory" OnDateSelected="@OnTimelineDateSelected" />
     }
-</RadzenStack>
+</div>
 
 @code {
     /// <summary>

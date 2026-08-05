@@ -14,7 +14,12 @@
    Sound is OFF until switched on. A dashboard that starts making noise on first load is a bug
    report — the browser's own autoplay policy exists because of that pattern. *@
 
-<RadzenCard class="sound-card u-glass">
+@* Plain <div> root, following ChartCard. Rooted at <RadzenCard> nothing carried this file's scope
+   id, so every unprefixed rule in SoundSettingsCard.razor.css — the card radius, the title's
+   margin reset, the subtitle and note colours, the note's separator rule — compiled against an
+   attribute no element had and applied to nothing. *@
+<div class="sound-card">
+    <RadzenCard class="sound-card__surface u-glass">
     <RadzenStack Gap="1rem">
         <RadzenStack Gap="0.15rem">
             <RadzenText TextStyle="TextStyle.H6" class="sound-card__title">Sound &amp; motion</RadzenText>
@@ -109,7 +114,8 @@
             </RadzenText>
         }
     </RadzenStack>
-</RadzenCard>
+    </RadzenCard>
+</div>
 
 @code {
     // Local mirrors of the service state. @bind-Value needs a settable field, and binding straight

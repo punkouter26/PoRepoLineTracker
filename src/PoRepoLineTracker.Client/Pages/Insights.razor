@@ -12,7 +12,14 @@
    runs where the commit data already lives rather than shipping it to the browser to be reduced
    (see PortfolioInsightsDto for the reasoning). *@
 
-<RadzenStack Gap="1rem">
+@* A plain <div>, not <RadzenStack Gap="1rem">. Two reasons, both concrete:
+
+   1. Scope anchor. <RadzenStack> is a component, so nothing it renders carries this file's scope
+      id — which meant `::deep` had no plain ancestor to hang off anywhere on the page, and the
+      rules that needed it (`.ins-kpi`, `.ins-empty-icon`) silently matched nothing.
+   2. Rhythm. The stack hardcoded a 1rem gap at every viewport, next to a `--space-*` scale that
+      exists precisely so vertical rhythm tracks the width. `.app-stack` uses the token. *@
+<div class="app-stack">
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.125rem">
@@ -45,7 +52,7 @@
 
     @if (_isLoading)
     {
-        <div class="ins-kpis">
+        <div class="app-dashboard app-dashboard--tiles">
             @for (var i = 0; i < 4; i++)
             {
                 <RadzenCard><RadzenSkeleton Width="100%" Height="72px" /></RadzenCard>
@@ -72,7 +79,7 @@
            Four figures, each with the context that makes it mean something: a total beside its
            own change, a count beside how many days it was spread over. A bare number here would
            be no more useful than the one already on the Repositories page. *@
-        <div class="ins-kpis">
+        <div class="app-dashboard app-dashboard--tiles">
             <RadzenCard class="ins-kpi">
                 <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">Total lines</RadzenText>
                 <div class="ins-kpi__value">@_insights.TotalLines.ToString("N0")</div>
@@ -111,15 +118,14 @@
            A year of commit activity at a glance. Rendered as a plain CSS grid rather than a
            Radzen chart: 365 cells with no axes is a calendar, and every charting primitive that
            could draw it would first have to be told not to behave like a chart. *@
-        <RadzenCard class="ins-card">
-            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                         AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem">
-                <RadzenStack Gap="0.15rem">
-                    <RadzenText TextStyle="TextStyle.H6" class="ins-card__title">Activity</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
-                        Commits per day across every tracked repository, last 12 months
-                    </RadzenText>
-                </RadzenStack>
+        @* Through <ChartCard> as well — the heading/caption pair and the surface were a third copy,
+           and the intensity key is exactly what its <Toolbar> slot is for. *@
+        <ChartCard Title="Activity"
+                   Description="Commits per day across every tracked repository, last 12 months"
+                   IsEmpty="@(_insights.Activity.Count == 0)"
+                   EmptyIcon="calendar_month"
+                   EmptyText="No commit activity recorded yet.">
+            <Toolbar>
                 <div class="ins-heat__legend">
                     <span class="ins-muted">Less</span>
                     <span class="ins-heat__cell ins-heat--0"></span>
@@ -129,121 +135,102 @@
                     <span class="ins-heat__cell ins-heat--4"></span>
                     <span class="ins-muted">More</span>
                 </div>
-            </RadzenStack>
-
-            <div class="u-scroll-x ins-heat__scroll">
-                <div class="ins-heat" role="img" aria-label="@HeatmapSummary">
-                    @* Leading blanks so the first real cell lands on its own weekday row and every
-                       column below is a genuine Sunday-to-Saturday week. *@
-                    @for (var i = 0; i < LeadingBlanks; i++)
-                    {
-                        <span class="ins-heat__cell ins-heat--blank"></span>
-                    }
-                    @foreach (var day in _insights.Activity)
-                    {
-                        <span class="ins-heat__cell @IntensityClass(day.Commits)"
-                              title="@($"{day.Date:MMM d, yyyy} — {day.Commits} commit{(day.Commits == 1 ? "" : "s")}, +{day.LinesAdded:N0} lines")"></span>
-                    }
+            </Toolbar>
+            <ChildContent>
+                <div class="u-scroll-x ins-heat__scroll">
+                    <div class="ins-heat" role="img" aria-label="@HeatmapSummary">
+                        @* Leading blanks so the first real cell lands on its own weekday row and every
+                           column below is a genuine Sunday-to-Saturday week. *@
+                        @for (var i = 0; i < LeadingBlanks; i++)
+                        {
+                            <span class="ins-heat__cell ins-heat--blank"></span>
+                        }
+                        @foreach (var day in _insights.Activity)
+                        {
+                            <span class="ins-heat__cell @IntensityClass(day.Commits)"
+                                  title="@($"{day.Date:MMM d, yyyy} — {day.Commits} commit{(day.Commits == 1 ? "" : "s")}, +{day.LinesAdded:N0} lines")"></span>
+                        }
+                    </div>
                 </div>
-            </div>
-        </RadzenCard>
+            </ChildContent>
+        </ChartCard>
 
+        @* Both panels render through <ChartCard> now. They were a fourth and fifth hand-rolled
+           copy of the chrome it owns — surface, H6 title, caption, and an inline "nothing here
+           yet" line — each with its own `.ins-card*` rules and its own empty-state wording style.
+           The wrapper <div>s are gone with them: an auto-height box between the grid and the card
+           is what stopped ChartCard's `height: 100%` resolving, so the two cards never actually
+           bottom-aligned. *@
         <div class="app-dashboard">
             @* ─── Movers ──────────────────────────────────────────────────────────
                Gainers and losers from the same ranked list, taken from each end. Shrinkage is
                worth surfacing rather than filtering out: a repo that lost 4,000 lines is usually
                the most interesting thing that happened all month. *@
-            <div>
-                <RadzenCard class="ins-card">
-                    <RadzenStack Gap="0.15rem">
-                        <RadzenText TextStyle="TextStyle.H6" class="ins-card__title">Movers (30 days)</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
-                            Largest net change in lines, either direction
-                        </RadzenText>
-                    </RadzenStack>
-
-                    @if (Movers.Count == 0)
+            <ChartCard Title="Movers (30 days)"
+                       Description="Largest net change in lines, either direction"
+                       IsEmpty="@(Movers.Count == 0)"
+                       EmptyIcon="trending_flat"
+                       EmptyText="No commits in the last 30 days."
+                       EmptyHint="Analyze a repository, or commit something.">
+                <div class="ins-movers">
+                    @foreach (var mover in Movers)
                     {
-                        <RadzenText TextStyle="TextStyle.Body2" class="ins-muted ins-empty-inline">
-                            No commits in the last 30 days.
-                        </RadzenText>
+                        <button type="button" class="ins-mover"
+                                @onclick="@(() => Navigation.NavigateTo($"/repositories/{mover.RepositoryId}"))">
+                            <span class="ins-mover__name" title="@($"{mover.Owner}/{mover.Name}")">
+                                @mover.Owner/@mover.Name
+                            </span>
+                            <span class="ins-mover__meta">
+                                @mover.Commits30Days commits · @mover.TotalLines.ToString("N0") lines
+                            </span>
+                            <span class="ins-mover__delta @DeltaClass(mover.NetChange30Days)">
+                                @DeltaText(mover.NetChange30Days)
+                            </span>
+                        </button>
                     }
-                    else
-                    {
-                        <div class="ins-movers">
-                            @foreach (var mover in Movers)
-                            {
-                                <button type="button" class="ins-mover"
-                                        @onclick="@(() => Navigation.NavigateTo($"/repositories/{mover.RepositoryId}"))">
-                                    <span class="ins-mover__name" title="@($"{mover.Owner}/{mover.Name}")">
-                                        @mover.Owner/@mover.Name
-                                    </span>
-                                    <span class="ins-mover__meta">
-                                        @mover.Commits30Days commits · @mover.TotalLines.ToString("N0") lines
-                                    </span>
-                                    <span class="ins-mover__delta @DeltaClass(mover.NetChange30Days)">
-                                        @DeltaText(mover.NetChange30Days)
-                                    </span>
-                                </button>
-                            }
-                        </div>
-                    }
-                </RadzenCard>
-            </div>
+                </div>
+            </ChartCard>
 
             @* ─── Language mix ────────────────────────────────────────────────────
                Portfolio-wide, from each repository's most recent snapshot. The per-repo version of
                this already existed on the detail page; the aggregate did not. *@
-            <div>
-                <RadzenCard class="ins-card">
-                    <RadzenStack Gap="0.15rem">
-                        <RadzenText TextStyle="TextStyle.H6" class="ins-card__title">Language mix</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
-                            Share of current lines by file type
-                        </RadzenText>
-                    </RadzenStack>
+            <ChartCard Title="Language mix"
+                       Description="Share of current lines by file type"
+                       IsEmpty="@(_insights.LanguageMix.Count == 0)"
+                       EmptyIcon="donut_large"
+                       EmptyText="No per-extension data yet."
+                       EmptyHint="Re-analyze a repository to populate it.">
+                <RadzenChart>
+                    <RadzenDonutSeries Data="@_insights.LanguageMix"
+                                       CategoryProperty="Extension"
+                                       ValueProperty="Percentage"
+                                       Title="Share of lines">
+                        <RadzenSeriesDataLabels Visible="false" />
+                    </RadzenDonutSeries>
+                    <RadzenLegend Position="LegendPosition.Bottom" />
+                </RadzenChart>
 
-                    @if (_insights.LanguageMix.Count == 0)
+                <div class="ins-langs">
+                    @foreach (var language in _insights.LanguageMix)
                     {
-                        <RadzenText TextStyle="TextStyle.Body2" class="ins-muted ins-empty-inline">
-                            No per-extension data yet — re-analyze a repository to populate it.
-                        </RadzenText>
-                    }
-                    else
-                    {
-                        <RadzenChart>
-                            <RadzenDonutSeries Data="@_insights.LanguageMix"
-                                               CategoryProperty="Extension"
-                                               ValueProperty="Percentage"
-                                               Title="Share of lines">
-                                <RadzenSeriesDataLabels Visible="false" />
-                            </RadzenDonutSeries>
-                            <RadzenLegend Position="LegendPosition.Bottom" />
-                        </RadzenChart>
-
-                        <div class="ins-langs">
-                            @foreach (var language in _insights.LanguageMix)
-                            {
-                                <div class="ins-lang">
-                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                                                 AlignItems="AlignItems.Center" Gap="0.5rem">
-                                        <code class="ins-lang__code">@language.Extension</code>
-                                        <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
-                                            @language.Lines.ToString("N0") · @language.Percentage.ToString("F1")%
-                                        </RadzenText>
-                                    </RadzenStack>
-                                    <progress class="ins-lang__bar" max="100"
-                                              value="@Math.Min(language.Percentage, 100)"
-                                              aria-label="@($"{language.Extension}: {language.Percentage:F1}% of lines")"></progress>
-                                </div>
-                            }
+                        <div class="ins-lang">
+                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                                         AlignItems="AlignItems.Center" Gap="0.5rem">
+                                <code class="ins-lang__code">@language.Extension</code>
+                                <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
+                                    @language.Lines.ToString("N0") · @language.Percentage.ToString("F1")%
+                                </RadzenText>
+                            </RadzenStack>
+                            <progress class="ins-lang__bar" max="100"
+                                      value="@Math.Min(language.Percentage, 100)"
+                                      aria-label="@($"{language.Extension}: {language.Percentage:F1}% of lines")"></progress>
                         </div>
                     }
-                </RadzenCard>
-            </div>
+                </div>
+            </ChartCard>
         </div>
     }
-</RadzenStack>
+</div>
 
 @code {
     private PortfolioInsightsDto? _insights;

@@ -39,15 +39,22 @@
     font-size: 0.9rem !important;
 }
 
-/* Per-provider brand colours for the section icons. */
+/* Per-provider brand colours for the section icons.
+
+   Each is mixed toward the current text colour rather than being the raw brand hex. The literals
+   were picked against a white card and two of the three failed on the dark one: GitHub's #333 is
+   1.3:1 against Radzen's dark surface — effectively an invisible icon — and #6b4fbb is 2.4:1.
+   `color-mix` toward --text-primary keeps the hue recognisably Azure blue / GitHub grey / OTel
+   purple while pulling the lightness to the side of the surface that is actually being painted,
+   in both themes, from one declaration each. */
 ::deep .xc-icon--azure.xc-icon--azure {
-    color: #0078d4 !important;
+    color: color-mix(in srgb, #0078d4 72%, var(--text-primary)) !important;
 }
 
 ::deep .xc-icon--github.xc-icon--github {
-    color: #333 !important;
+    color: color-mix(in srgb, #6e7681 55%, var(--text-primary)) !important;
 }
 
 ::deep .xc-icon--otel.xc-icon--otel {
-    color: #6b4fbb !important;
+    color: color-mix(in srgb, #6b4fbb 62%, var(--text-primary)) !important;
 }

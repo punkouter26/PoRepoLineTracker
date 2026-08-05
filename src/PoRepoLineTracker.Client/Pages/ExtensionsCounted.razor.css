@@ -9,6 +9,13 @@
     margin: 0 !important;
 }
 
+/* Suppresses the `margin-bottom: var(--space-lg)` app.css puts on every h1–h6. Without it the
+   heading pushes its own toolbar row open by an extra 1.5rem and the "Add Extension" button no
+   longer sits on the heading's baseline. */
+::deep .ext-count-title.ext-count-title {
+    margin: 0 !important;
+}
+
 ::deep .ext-grid.ext-grid {
     height: auto !important;
 }

@@ -16,7 +16,7 @@
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 
-<RadzenStack Gap="1rem">
+<div class="app-stack">
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.125rem">
@@ -155,7 +155,7 @@
            An auto-fit grid rather than a 3-column RadzenRow: the tiles reflow from 3 → 2 → 1
            across the range on their own, without a breakpoint per step, and never leave a
            half-empty final row. *@
-        <div class="rp-stat-grid">
+        <div class="app-dashboard app-dashboard--tiles rp-stat-grid">
             <RadzenCard class="stat-card rp-stat rp-stat--repos">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
                     <RadzenIcon Icon="folder" class="rp-stat-icon rp-stat-icon--repos" />
@@ -458,7 +458,7 @@
             </RadzenStack>
         </RadzenCard>
     }
-</RadzenStack>
+</div>
 
 
 

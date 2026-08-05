@@ -58,6 +58,15 @@
                                       Stroke="@color"
                                       StrokeWidth="2">
                         <RadzenMarkers MarkerType="MarkerType.Circle" />
+                        @* Only for the top author, and only in Lines mode. "Is this spike unusual
+                           for them?" is the question a daily-output series actually raises, and it
+                           is not answerable from the curve alone — the eye anchors on the peak, not
+                           on the typical day. One mean line answers it; five would be five more
+                           strokes competing with the data. *@
+                        @if (ReferenceEquals(contributor, top[0]))
+                        {
+                            <RadzenSeriesMeanLine Stroke="@color" StrokeWidth="1" LineType="LineType.Dashed" />
+                        }
                     </RadzenLineSeries>
                 }
             }

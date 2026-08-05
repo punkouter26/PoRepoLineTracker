@@ -7,7 +7,7 @@
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 
-<RadzenStack Gap="1.5rem">
+<div class="app-stack">
     <RadzenText TextStyle="TextStyle.H4" class="ul-title">Upload Local Repository</RadzenText>
     
     <RadzenText TextStyle="TextStyle.Body2" class="ul-subtitle">
@@ -138,7 +138,7 @@
                   Click="@(() => Navigation.NavigateTo("/repositories"))"
                   Variant="Variant.Outlined"
                   ButtonStyle="ButtonStyle.Secondary" />
-</RadzenStack>
+</div>
 
 @code {
     private const long MaxUploadBytes = 500 * 1024 * 1024;
