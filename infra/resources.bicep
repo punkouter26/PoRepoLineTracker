@@ -13,7 +13,7 @@ param logAnalyticsName string
 @description('Name of the App Service (Web App)')
 param webAppName string
 
-@description('Name of the App Service Plan that the web app binds to. Lives in the PoShared RG as a SHARED plan (consolidation target — see ADR-031). infra/resources.bicep only REFERENCES this plan via an `existing` resource; it does NOT create it.')
+@description('Name of the App Service Plan that the web app binds to. Created by this template in this resource group on the F1 (Free) Linux tier.')
 param appServicePlanName string
 
 @description('Name of the Key Vault in the PoShared resource group')
@@ -23,13 +23,14 @@ param keyVaultName string
 param sharedResourceGroupName string
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
-// App Service Plan (B1 Basic, Linux) is a SHARED resource in the PoShared RG; this template
-// only references it. The App Service is created in THIS resource group (PoRepoLineTracker),
-// alongside the storage account — see the resources below. App Insights, Key Vault, and Log
-// Analytics remain in the shared PoShared RG and are referenced as existing. The legacy
-// in-RG plan (asp-porepolinetracker) still hosts the existing live site; automated
-// re-parenting is blocked by Azure's home-stamp affinity (extended error 59602 on
-// cross-stamp serverFarmId patch).
+// The App Service Plan (F1 Free, Linux) and the App Service are both created in THIS resource
+// group (PoRepoLineTracker), alongside the storage account. App Insights, Key Vault, and Log
+// Analytics remain in the shared PoShared RG and are referenced as existing.
+//
+// A plan and the sites on it must share a region, and Azure will not re-parent a site across
+// regions or home stamps (extended error 59602 on a cross-stamp serverFarmId patch). Moving
+// this app to a different plan therefore means deleting and recreating the site, not editing
+// serverFarmId — worth knowing before changing appServicePlanName.
 // ═════════════════════════════════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────
@@ -38,12 +39,6 @@ param sharedResourceGroupName string
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
   name: storageAccountName
-}
-
-resource storageTableDataContributorRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  // Built-in role: Storage Table Data Contributor
-  name: '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
-  scope: subscription()
 }
 
 // Shared resources in PoShared RG
@@ -67,14 +62,23 @@ resource sharedKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 }
 
 // ─────────────────────────────────────────────
-// App Service Plan (existing, shared) — B1 (Basic), Linux. Lives in the PoShared RG.
-// This is an `existing` reference; the plan is NOT created here. Cross-RG reference is
-// required because the consolidation target lives in PoShared.
+// App Service Plan — F1 (Free), Linux, dedicated to this app.
+//
+// `reserved: true` is what makes a plan Linux. It is not inferred from the site's
+// linuxFxVersion: omit it and Azure provisions a Windows plan, and the DOTNETCORE|10.0 site
+// then fails to bind to it.
 // ─────────────────────────────────────────────
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
-  scope: resourceGroup(sharedResourceGroupName)
+  location: webAppLocation
+  sku: {
+    name: 'F1'
+    tier: 'Free'
+  }
+  properties: {
+    reserved: true
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -102,8 +106,10 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
       // provision restarts the app before startup.sh exists in wwwroot.
       // DO NOT rely on azd provision alone to set this — run the CI/CD pipeline.
       appCommandLine: 'dotnet PoRepoLineTracker.API.dll'
-      // B1 supports Always On — keep the app warm (avoids cold-start 5xx on first hit).
-      alwaysOn: true
+      // MUST stay false on F1: the Free tier does not offer Always On, and ARM rejects the
+      // whole site write with SiteWithAlwaysOnNotSupportedForOffering rather than ignoring it.
+      // The cost is a cold start on the first hit after the idle unload.
+      alwaysOn: false
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       appSettings: [
@@ -165,17 +171,14 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   }
 }
 
-// Storage Table Data Contributor role assignment.
-// Name is derived from (scope, principal, role) so it is stable across re-runs but changes
-// when the web app's managed-identity principal changes — avoiding RoleAssignmentUpdateNotPermitted
-// when a fresh App Service gets a new principalId.
-resource webAppStorageTableDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, webApp.id, storageTableDataContributorRole.id)
-  scope: storageAccount
-  properties: {
-    roleDefinitionId: storageTableDataContributorRole.id
+// Storage Table Data Contributor for the web app identity. Via a module because the assignment
+// name has to be seeded with principalId, which Bicep cannot resolve inline — see storage-role.bicep.
+module webAppStorageTableDataContributor 'storage-role.bicep' = {
+  name: 'storage-table-role'
+  params: {
+    storageAccountId: storageAccount.id
+    storageAccountName: storageAccount.name
     principalId: webApp.identity.principalId
-    principalType: 'ServicePrincipal'
   }
 }
 
