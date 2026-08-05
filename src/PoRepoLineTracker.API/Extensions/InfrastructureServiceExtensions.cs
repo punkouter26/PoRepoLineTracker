@@ -74,13 +74,36 @@ public static class InfrastructureServiceExtensions
         // the request token from a form field, and none of these endpoints post a form. With a
         // header configured the pair becomes a standard double-submit — the cookie half stays
         // HttpOnly, and the client echoes the other half from /api/antiforgery/token.
+        //
+        // The __Host- prefix is applied only where it can be honoured. RFC 6265bis requires a
+        // cookie with that prefix to carry Secure, and a browser rejects one that does not — so
+        // pairing the prefix with SameAsRequest, as this did, was self-contradictory over plain
+        // HTTP: the Set-Cookie went out without Secure, the browser dropped it on the floor, and
+        // every state-changing request then failed antiforgery with "the required antiforgery
+        // cookie is not present". That made the whole app read-only on the http profile — adding
+        // a repository, re-analysing, deleting, saving settings — with a 400 the only symptom.
+        //
+        // Keyed to the environment rather than to the request scheme because the cookie name is
+        // fixed at registration, long before a request exists. This mirrors what the auth cookie
+        // in AuthServiceExtensions already does, and is why signing in worked while every write
+        // did not. The prefix defends against a sibling subdomain overwriting the cookie, which is
+        // a real concern for the deployed origin and not one on localhost.
         services.AddAntiforgery(options =>
         {
             options.HeaderName = "X-CSRF-TOKEN";
-            options.Cookie.Name = "__Host-PoRepoLineTracker.Antiforgery";
             options.Cookie.HttpOnly = true;
             options.Cookie.SameSite = SameSiteMode.Strict;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+
+            if (environment.IsDevelopment())
+            {
+                options.Cookie.Name = "PoRepoLineTracker.Antiforgery";
+                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            }
+            else
+            {
+                options.Cookie.Name = "__Host-PoRepoLineTracker.Antiforgery";
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            }
         });
 
         // Rule 5.4 — HybridCache is the single caching abstraction. It is in-memory only here
