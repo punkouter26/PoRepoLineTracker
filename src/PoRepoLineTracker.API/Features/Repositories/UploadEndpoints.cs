@@ -391,8 +391,15 @@ internal static class UploadEndpoints
     /// </summary>
     internal static string SanitizeRepoName(string name)
     {
-        // Remove invalid characters and limit length
-        var sanitized = string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+        // Both separators explicitly, NOT just Path.GetInvalidFileNameChars(). That set is
+        // platform-dependent: on Windows it includes '\', on Linux it contains only '/' and '\0'.
+        // This app is developed on Windows and DEPLOYS TO LINUX APP SERVICE, so relying on it
+        // alone means "C:\Users\x\repo" comes back with its backslashes intact in production and
+        // the leaf-name guarantee below silently does not hold there. Caught by the Unit tier on
+        // a Linux CI runner, having passed locally.
+        var invalid = Path.GetInvalidFileNameChars().Concat(['/', '\\']).Distinct().ToArray();
+
+        var sanitized = string.Join("_", name.Split(invalid, StringSplitOptions.RemoveEmptyEntries));
         if (sanitized.Length > 100)
         {
             sanitized = sanitized[..100];
