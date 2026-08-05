@@ -78,6 +78,12 @@
     font-family: inherit;
     text-align: left;
     cursor: pointer;
+    /* WCAG 2.2 AA, 2.5.8 Target Size (Minimum). A single-word series name at 0.76rem with 0.2rem
+       of padding measured about 21px tall, under the 24px floor — and this is a real toggle, not
+       decoration. Caught only once the UI tier began seeding chart data: with no chart on the
+       page there was no legend to measure, so the tap-target test had been passing vacuously. */
+    min-height: 24px;
+    align-content: center;
 }
 
 .arc-legend__item:hover {

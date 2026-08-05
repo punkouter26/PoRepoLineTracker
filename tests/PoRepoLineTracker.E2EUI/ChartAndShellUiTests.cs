@@ -28,6 +28,39 @@ public sealed class ChartAndShellUiTests
             new PageWaitForLoadStateOptions { Timeout = 25000 });
     }
 
+    /// <summary>
+    /// Seeds synthetic history for the fake user, then waits for a chart to be painted.
+    ///
+    /// <para>Every chart assertion in this file used to open with
+    /// <c>Skip.If(no chart rendered)</c> and skip on every run, because charts only render for a
+    /// signed-in user with analysed repositories and the fake user had none — so the suite
+    /// reported "45 passed, 12 skipped" while covering no chart at all. Seeding first turns those
+    /// into real assertions.</para>
+    ///
+    /// <para>The remaining skip is honest: it fires only when no app is reachable or the host does
+    /// not map the seed route (it is Development-only). A chart that fails to paint against seeded
+    /// data is a FAILURE, waited for rather than skipped past — that is the whole point.</para>
+    /// </summary>
+    private static async Task SeedAndWaitForChartAsync(IPage page)
+    {
+        Skip.IfNot(await E2ESeeder.EnsureSeededAsync(),
+            $"Could not seed chart data at {E2EUiFixture.BaseUrl} — is the app running in Development?");
+
+        // Reload: the seed lands after the page's initial fetch, so the first render has nothing.
+        await page.ReloadAsync(new PageReloadOptions { Timeout = 25000 });
+        await WaitForRepositoriesAsync(page);
+
+        await page.WaitForSelectorAsync(".rz-chart svg",
+            new PageWaitForSelectorOptions { Timeout = 25000 });
+
+        // A <svg> exists before its series are drawn. Waiting for a path is what makes the axis
+        // and tick assertions below deterministic rather than a race against the render.
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('.rz-chart svg path, .rz-chart svg text').length > 0",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 25000 });
+    }
+
     // ─── Shell layout ────────────────────────────────────────────────────────────
 
     [SkippableFact]
@@ -163,9 +196,7 @@ public sealed class ChartAndShellUiTests
         // gated behind prefers-color-scheme, so the toggle produced a white chart in a dark card.
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories", colorScheme: "dark");
         await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
-
-        Skip.If(await page.Locator(".rz-chart svg").CountAsync() == 0, "no chart rendered — seed data required.");
+        await SeedAndWaitForChartAsync(page);
 
         var background = await page.EvaluateAsync<string>(
             "() => getComputedStyle(document.querySelector('.rz-chart svg')).backgroundColor");
@@ -183,9 +214,7 @@ public sealed class ChartAndShellUiTests
         // `.rz-axis-title` — an element that never existed in the DOM.
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories");
         await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
-
-        Skip.If(await page.Locator(".rz-chart svg").CountAsync() == 0, "no chart rendered — seed data required.");
+        await SeedAndWaitForChartAsync(page);
 
         var text = await page.EvaluateAsync<string[]>(
             "() => [...document.querySelectorAll('.rz-chart text')].map(t => t.textContent.trim())");
@@ -199,9 +228,7 @@ public sealed class ChartAndShellUiTests
     {
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories");
         await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
-
-        Skip.If(await page.Locator(".rz-chart svg").CountAsync() == 0, "no chart rendered — seed data required.");
+        await SeedAndWaitForChartAsync(page);
 
         // Tick labels are every non-empty text node that is not one of the two axis titles.
         var ticks = await page.EvaluateAsync<string[]>(
@@ -221,17 +248,14 @@ public sealed class ChartAndShellUiTests
         // TickDistance avoids it; the step has to be quantised to whole days.
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories");
         await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
-
-        Skip.If(await page.Locator(".rz-chart svg").CountAsync() == 0, "no chart rendered — seed data required.");
+        await SeedAndWaitForChartAsync(page);
 
         var labels = await page.EvaluateAsync<string[]>(
             @"() => [...document.querySelectorAll('.rz-chart .rz-category-axis text')]
                 .map(t => t.textContent.trim())
                 .filter(t => t && t !== 'Date')");
 
-        Skip.If(labels.Length == 0, "category axis drew no labels — seed data required.");
-
+        labels.Should().NotBeEmpty("the category axis must draw date ticks for seeded history");
         labels.Should().OnlyHaveUniqueItems("every date tick must render a distinct label");
     }
 
@@ -242,9 +266,7 @@ public sealed class ChartAndShellUiTests
         // into an unreadable smear. ChartFormat.CategoryStepDays thins them per range.
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories");
         await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
-
-        Skip.If(await page.Locator(".rz-chart svg").CountAsync() == 0, "no chart rendered — seed data required.");
+        await SeedAndWaitForChartAsync(page);
 
         // Select the 1yr range on the growth-overview card.
         var oneYear = page.Locator(".chart-card").First.GetByText("1yr", new() { Exact = true });
@@ -270,9 +292,7 @@ public sealed class ChartAndShellUiTests
         // failure modes are visible only from the label's own rect.
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories");
         await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
-
-        Skip.If(await page.Locator(".rz-chart svg").CountAsync() == 0, "no chart rendered — seed data required.");
+        await SeedAndWaitForChartAsync(page);
 
         var escaping = await page.EvaluateAsync<string[]>(
             @"() => {
@@ -294,18 +314,22 @@ public sealed class ChartAndShellUiTests
 
     // ─── Repository detail ───────────────────────────────────────────────────────
 
-    /// <summary>Opens the first repository from the grid, or skips when the account has none.</summary>
+    /// <summary>
+    /// Opens the seeded repository's detail page.
+    ///
+    /// <para>Seeds first, so an empty grid is a real failure rather than a skip: the seed endpoint
+    /// reported success, so a row must exist. Only an unreachable or non-Development host skips.</para>
+    /// </summary>
     private async Task<IPage> OpenFirstRepositoryAsync(ViewportSize viewport)
     {
+        Skip.IfNot(await E2ESeeder.EnsureSeededAsync(),
+            $"Could not seed chart data at {E2EUiFixture.BaseUrl} — is the app running in Development?");
+
         var page = await _fixture.OpenAuthenticatedAsync(viewport, "/repositories");
         await WaitForRepositoriesAsync(page);
 
         var row = page.Locator(".rz-data-row").First;
-        if (await row.CountAsync() == 0)
-        {
-            await page.Context.DisposeAsync();
-            throw new SkipException("no repositories for this user — seed data required.");
-        }
+        await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 25000 });
 
         await row.ClickAsync();
         await page.WaitForURLAsync("**/repositories/**", new PageWaitForURLOptions { Timeout = 20000 });
@@ -335,7 +359,7 @@ public sealed class ChartAndShellUiTests
         var page = await OpenFirstRepositoryAsync(E2EUiFixture.Desktop);
         await using var _ = page.Context;
 
-        Skip.If(await page.Locator(".rz-chart svg").CountAsync() == 0, "no chart rendered.");
+        await page.WaitForSelectorAsync(".rz-chart svg", new PageWaitForSelectorOptions { Timeout = 25000 });
 
         var text = await page.EvaluateAsync<string[]>(
             "() => [...document.querySelectorAll('.rz-chart text')].map(t => t.textContent.trim())");
@@ -404,8 +428,7 @@ public sealed class ChartAndShellUiTests
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/repositories");
         await using var _ = page.Context;
         await WaitForRepositoriesAsync(page);
-
-        Skip.If(await page.Locator(".rz-chart").CountAsync() == 0, "no chart rendered — seed data required.");
+        await SeedAndWaitForChartAsync(page);
 
         var height = await page.EvaluateAsync<double>(
             "() => document.querySelector('.rz-chart').getBoundingClientRect().height");

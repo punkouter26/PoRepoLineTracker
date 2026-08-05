@@ -1,6 +1,7 @@
 using PoRepoLineTracker.API.Features.AiDetection;
 using PoRepoLineTracker.API.Features.Antiforgery;
 using PoRepoLineTracker.API.Features.Auth;
+using PoRepoLineTracker.API.Features.Dev;
 using PoRepoLineTracker.API.Features.Diagnostics;
 using PoRepoLineTracker.API.Features.GitHub;
 using PoRepoLineTracker.API.Features.Insights;
@@ -40,6 +41,9 @@ public static class ApiEndpointExtensions
         if (isDevelopment)
         {
             app.MapDevOnlyEndpoints();
+            // Writes arbitrary history to the caller's account, so it is gated exactly like
+            // FakeAuthHandler — see SeedEndpoints for why the UI tier needs it.
+            app.MapSeedEndpoints();
         }
 
         return app;
