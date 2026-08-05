@@ -6,8 +6,9 @@ namespace PoRepoLineTracker.API.Middleware;
 /// <summary>
 /// Rule 13 — Production Authentication Enforcement.
 /// In Production (non-Development), all unauthenticated requests to non-public
-/// endpoints are challenged to Microsoft OAuth. This ensures users must log in
-/// via Microsoft OAuth or GitHub OAuth before accessing the app.
+/// endpoints are challenged to the default challenge scheme — GitHub OAuth, which
+/// is the only provider (Microsoft sign-in was removed: a Microsoft principal
+/// carries no GitHub credential, so it could sign in but read no repository).
 ///
 /// In Development, this middleware is a no-op, allowing GUEST mode and
 /// unauthenticated local development.
@@ -78,11 +79,11 @@ public class ProductionAuthEnforcementMiddleware
             return;
         }
 
-        // In Production: if user is not authenticated, challenge to Microsoft OAuth
+        // In Production: if user is not authenticated, challenge the configured OAuth provider
         if (context.User.Identity?.IsAuthenticated != true)
         {
             _logger.LogInformation(
-                "Production auth enforcement: unauthenticated request to {Path} — challenging to Microsoft OAuth",
+                "Production auth enforcement: unauthenticated request to {Path} — challenging the default scheme",
                 path);
 
             // For API calls, return 401
@@ -93,8 +94,13 @@ public class ProductionAuthEnforcementMiddleware
                 return;
             }
 
-            // For page requests, challenge to Microsoft OAuth
-            await context.ChallengeAsync("Microsoft", new AuthenticationProperties
+            // For page requests, challenge the DEFAULT challenge scheme rather than naming one.
+            // This used to pass the literal "Microsoft", which outlived the Entra sign-in that
+            // registered it: in Production every page request threw
+            // "No authentication handler is registered for the scheme 'Microsoft'" and the site
+            // served a 500 on '/'. AuthServiceExtensions already resolves the right scheme —
+            // GitHub when it is configured, cookies otherwise — so defer to it.
+            await context.ChallengeAsync(new AuthenticationProperties
             {
                 RedirectUri = path
             });
