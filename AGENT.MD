@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-PoRepoLineTracker is a Blazor WASM + ASP.NET Core application that tracks lines of code across GitHub repositories. It provides AI code detection, contributor statistics, and line trend analysis. Users authenticate via GitHub OAuth, Microsoft OAuth, or a GUEST mode for local development.
+PoRepoLineTracker is a Blazor WASM + ASP.NET Core application that tracks lines of code across GitHub repositories. It provides AI code detection, contributor statistics, and line trend analysis. Users authenticate via GitHub OAuth only.
 
 ## Architecture
 
@@ -44,11 +44,11 @@ in that slice (e.g. `GetContributorStatsQuery` is in `Features/AiDetection`).
 
 ## Authentication
 
-- **Routes**: `/auth/login` (generic, prefers GitHub), `/auth/login/microsoft`, `/auth/logout`, `/auth/me`.
-- **GitHub OAuth**: Primary auth via AspNet.Security.OAuth.GitHub
-- **Microsoft OAuth**: Secondary auth via generic OAuth2 to Microsoft identity platform `/common`. Tenant allow-list (Rule 4.3) via `Microsoft:AllowedTenants` (comma-separated tenant IDs); the `tid` claim is validated in `OnCreatingTicket` and rejected if not listed (empty = accept all).
+- **Routes**: `/auth/login`, `/auth/logout`, `/auth/me`.
+- **GitHub OAuth**: the ONLY interactive provider (AspNet.Security.OAuth.GitHub). Microsoft/Entra sign-in was removed — see the deviation note under Azure Deployment.
 - **Dev/Test auth (Rule 3.3)**: `Auth/FakeAuthHandler` authenticates from `X-Fake-User` (GUID used verbatim, any other string hashed to a stable GUID) and `X-Fake-Roles` (comma-separated). Outside Production the default scheme is a policy scheme (`FakeOrCookie`) that forwards to the fake handler only when `X-Fake-User` is present, so cookie/OAuth is untouched otherwise. `FakeAuthHandler.ThrowIfProduction` makes registering it in Production a startup crash. The old `/dev-login/{userId}` route is gone.
 - **No guest/anonymous login**: the GUEST dev-bypass and `IsAnon`/`EnableGuestMode` plumbing were removed. Interactive login is GitHub or Microsoft OAuth only.
+- **Antiforgery cookie**: `Security:RequireSecureCookies` (default true outside Development) decides `__Host-` + `Secure` vs. unprefixed + `SameAsRequest`. NOT keyed on the environment name — the integration tier runs as `"Test"` over plain HTTP and must opt out, or antiforgery throws on every request. Read at registration time, so it must arrive via `UseSetting`, not `ConfigureAppConfiguration`.
 - **Cookies**: session + correlation cookies are `SameSite=Lax`. (Rule 4.2 names `Strict`, but `Strict` breaks interactive OAuth sign-in — the browser withholds the freshly-set cookie on the post-login redirect, causing a "pick an account" loop. `Lax` is the correct value for an OAuth session cookie.)
 - **Production enforcement**: `ProductionAuthEnforcementMiddleware` challenges unauthenticated requests to OAuth only in Production; all non-prod environments are open.
 
@@ -59,6 +59,10 @@ in that slice (e.g. `GetContributorStatsQuery` is in `Features/AiDetection`).
 
 ## Removed features
 
+- **Microsoft/Entra sign-in** — a Microsoft principal carries no GitHub credential, so it could sign in but not read a repository. See the deviation note under Azure Deployment.
+- **WebGL backdrop + Web Audio feedback** — `gfx.js`, `audio.js`, `GfxService`, `AudioService`, `SoundSettingsCard`, and the unused `.u-grad-*`/`.u-sheen`/`.u-press`/`.u-stagger`/`.u-glass-strong` utilities. ~1,900 lines, none of it on any data path. The login backdrop is now the CSS blobs that were already there as the fallback.
+- **Commit tagging** — `CommitTaggerService`, the `TagsJson` column, and `Tags` on `CommitLineCount`/`CommitStatsDto`/`DailyLineCountDto`. This also removed the badge row it fed on the repository detail page's timeline scrubber. Azure Tables is schemaless, so pre-existing rows keep the property and it is ignored.
+- **`POST /api/repositories`** (single add) and the dev `fix-local-path` route. `/api/repositories/bulk` is the only write path — it dedupes via `GetRepositoryByOwnerAndNameAsync`, validates through the shared FluentValidation rules, and queues analysis only for what it actually added; the single-add path did none of that and inserted unconditionally, so adding the same repository twice produced two rows.
 - **AI model selector** (dropdown / `GET /api/ai-models` / `AiModelDto`) — was cosmetic, wired to nothing. The heuristic `AiDetectionService` remains but is not invoked; no LLM is used.
 - **SmartAlerts** — all alert rules/triggers UI, endpoints (`/api/alerts/*`), `IAlertService`/`AlertService`, domain models, DTOs, and the `AlertMetric`/`AlertOperator` enums were removed.
 - **Failed Operations** — the whole slice was removed: the `/failed-operations` page + nav link, all `/api/failed-operations*` endpoints, `IFailedOperationService`/`FailedOperationService`, the (stub, non-functional) `FailedOperationBackgroundService`, the `FailedOperation` domain model, `FailedOperationEntity`, and the `AzureTableStorage:FailedOperationTableName` / `FeatureFlags:EnableFailedOperationRetry` config keys. Commit-processing failures now surface via the Serilog error log **plus** the `AppTelemetry.FailedOperations` OpenTelemetry counter (`operations.failed`), incremented in the analysis handler's per-commit catch block — no dead-letter persistence.
@@ -81,14 +85,18 @@ in that slice (e.g. `GetContributorStatsQuery` is in `Features/AiDetection`).
 # Start Azurite (Table Storage emulator)
 docker compose up -d
 
-# Run the API (hosts Blazor WASM on ports 5000/5001)
-dotnet run --project src/PoRepoLineTracker.API
+# Run the API (hosts Blazor WASM). Use the https profile — SecurityHeadersMiddleware sends
+# upgrade-insecure-requests, so the E2E tiers cannot drive the http profile.
+dotnet run --project src/PoRepoLineTracker.API --launch-profile https
+
+# A running instance LOCKS the build output (MSB3027). Stop it before rebuilding:
+#   Get-Process -Name PoRepoLineTracker.API | Stop-Process -Force
 
 # Run tests (CI runs the Unit tier; Integration/E2E run locally)
 dotnet test tests/PoRepoLineTracker.Unit
 dotnet test tests/PoRepoLineTracker.Integration
 
-# E2E (C#) — target a running instance via E2E_BASE_URL (default http://localhost:5000);
+# E2E (C#) — target a running instance via E2E_BASE_URL (default https://localhost:5001);
 # tests self-skip when no instance is reachable / Playwright browsers aren't installed.
 dotnet test tests/PoRepoLineTracker.E2EAPI
 dotnet test tests/PoRepoLineTracker.E2EUI   # first: pwsh tests/PoRepoLineTracker.E2EUI/bin/Debug/net10.0/playwright.ps1 install
@@ -98,7 +106,11 @@ dotnet test tests/PoRepoLineTracker.E2EUI   # first: pwsh tests/PoRepoLineTracke
 
 `Unit`, `Integration`, `E2EAPI` (pure API), `E2EUI` (C# Playwright) — single stack: **xunit + NSubstitute + FluentAssertions**. The legacy `E2ETests.TS` TypeScript Playwright project has been deleted; `E2EUI` supersedes it.
 
-Current counts (test cases, Theory rows included): **Unit 162 · Integration 67 · E2EAPI 31 · E2EUI 37** against targets of 100/50/25/25.
+Current counts (test cases, Theory rows included): **Unit 214 · Integration 76 · E2EAPI 62 · E2EUI 64** against targets of 100/50/25/25. All four tiers pass with **zero skips**.
+
+E2EUI seeds its own chart data through `POST /api/dev/seed/repository` (Development only) — before
+that, twelve chart assertions skipped themselves on every run and the tier reported false health.
+A skip there now means the app is not reachable at `https://localhost:5001`, or is not in Development.
 
 ## Key Patterns
 
