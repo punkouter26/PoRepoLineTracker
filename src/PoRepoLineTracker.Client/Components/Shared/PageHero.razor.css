@@ -9,16 +9,16 @@
    opaque `background-color` for use as a full-bleed backdrop; the hero has to stay transparent
    over whatever surface the page provides. */
 .page-hero {
-    background: linear-gradient(135deg, rgba(103, 80, 164, 0.07) 0%, transparent 70%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 7%, transparent) 0%, transparent 70%);
     background-image:
-        radial-gradient(ellipse 55% 100% at 8% 40%, rgba(103, 80, 164, 0.14), transparent 62%),
-        radial-gradient(ellipse 45% 90% at 42% 90%, rgba(124, 58, 237, 0.09), transparent 58%),
+        radial-gradient(ellipse 55% 100% at 8% 40%, color-mix(in srgb, var(--primary-color) 14%, transparent), transparent 62%),
+        radial-gradient(ellipse 45% 90% at 42% 90%, color-mix(in srgb, var(--brand-violet) 9%, transparent), transparent 58%),
         radial-gradient(ellipse 60% 80% at 88% 20%, rgba(52, 195, 179, 0.07), transparent 60%);
     background-size: 160% 160%, 150% 150%, 170% 170%;
     animation: heroDrift 28s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
     padding: var(--space-sm) var(--space-sm) var(--space-md);
     margin-bottom: var(--space-xs);
-    border-bottom: 1px solid rgba(103, 80, 164, 0.08);
+    border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 8%, transparent);
     border-radius: 8px 8px 0 0;
 }
 

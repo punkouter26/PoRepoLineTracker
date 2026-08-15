@@ -56,13 +56,8 @@ public sealed class StaticAssetsApiTests
         { "login-cta-btn", "Login.razor.css" },
         { "nav-section-label", "NavMenu.razor.css" },
         { "settings-title", "Settings.razor.css" },
-        // ChartDisplayModeCard is deliberately absent. Its chart-display-card__* rules went away
-        // when it moved to rendering through <ChartCard>, which owns the card chrome; the .razor.css
-        // survives only as a scope anchor and contributes nothing to the bundle. This row asserted
-        // the old class and had been failing ever since.
         { "login-display__avatar", "LoginDisplay.razor.css" },
         { "add-repo-title", "AddRepository.razor.css" },
-        { "top-files-dialog__grid", "TopFilesDialog.razor.css" },
         { "brand-wordmark", "MainLayout.razor.css" },
         { "ext-code", "ExtensionsCounted.razor.css" },
         { "ghsel-list", "GitHubRepositorySelector.razor.css" },
@@ -75,9 +70,8 @@ public sealed class StaticAssetsApiTests
         { "chart-card__title", "ChartCard.razor.css" },
         { "page-hero__actions", "PageHero.razor.css" },
         { "cc-bar", "ContributorChart.razor.css" },
-        { "ts-metric__value", "TimelineScrubber.razor.css" },
         { "rd-ext-bar", "RepositoryDetail.razor.css" },
-        { "rp-row-spark", "Repositories.razor.css" },
+        { "rp-lines-value", "Repositories.razor.css" },
         { "rp-stat-icon", "PortfolioStatTiles.razor.css" },
         { "status-cell", "AnalysisStatusCell.razor.css" },
     };

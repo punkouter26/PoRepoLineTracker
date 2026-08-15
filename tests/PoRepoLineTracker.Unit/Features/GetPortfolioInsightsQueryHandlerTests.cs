@@ -53,7 +53,6 @@ public class GetPortfolioInsightsQueryHandlerTests
         int totalLines,
         int linesAdded = 0,
         int linesRemoved = 0,
-        double aiPercentage = 0,
         Dictionary<string, int>? byFileType = null) => new()
         {
             Id = Guid.NewGuid(),
@@ -62,7 +61,6 @@ public class GetPortfolioInsightsQueryHandlerTests
             TotalLines = totalLines,
             LinesAdded = linesAdded,
             LinesRemoved = linesRemoved,
-            AiPercentage = aiPercentage,
             LinesByFileType = byFileType ?? []
         };
 
@@ -204,33 +202,6 @@ public class GetPortfolioInsightsQueryHandlerTests
 
         insights.Commits30Days.Should().Be(2);
         insights.LinesAdded30Days.Should().Be(200);
-    }
-
-    /// <summary>
-    /// Weighted by lines added, not averaged across commits. A one-line human commit and a
-    /// 2,000-line generated file are not the same event, and a plain mean would rank them equally.
-    /// </summary>
-    [Fact]
-    public async Task AiPercentage_IsWeightedByLinesAdded_NotAveragedPerCommit()
-    {
-        GivenRepositories(GivenRepository("acme", "api",
-            Commit(daysAgo: 5, totalLines: 2_001, linesAdded: 2_000, aiPercentage: 100),
-            Commit(daysAgo: 4, totalLines: 2_002, linesAdded: 1, aiPercentage: 0)));
-
-        var insights = await WhenQueried();
-
-        // A per-commit mean would say 50. Weighted, it is 2000/2001 ≈ 100.
-        insights.AiPercentage30Days.Should().BeApproximately(100, 0.1);
-    }
-
-    [Fact]
-    public async Task AiPercentage_IsZeroWhenNothingWasAddedInTheWindow()
-    {
-        GivenRepositories(GivenRepository("acme", "api", Commit(daysAgo: 90, totalLines: 100, linesAdded: 100, aiPercentage: 90)));
-
-        var insights = await WhenQueried();
-
-        insights.AiPercentage30Days.Should().Be(0);
     }
 
     // ─── Movers ──────────────────────────────────────────────────────────────

@@ -1,0 +1,78 @@
+@inject IJSRuntime JS
+
+@* Counts up (or down) to a new Value instead of popping straight to it. Purely a text-content
+   tween — no canvas, no extra DOM — so it drops into any stat tile that currently renders a bare
+   number.
+
+   The first value a given instance ever sees is shown immediately, not animated from zero: a
+   stat tile appearing for the first time should not visibly count up from nothing, it should just
+   state the number. Only a CHANGE to an already-displayed value animates. *@
+<span class="@Class">@_display.ToString(Format)</span>
+
+@code {
+    [Parameter] public int Value { get; set; }
+    [Parameter] public string Format { get; set; } = "N0";
+    [Parameter] public string? Class { get; set; }
+
+    private int _display;
+    private bool _initialized;
+    private bool _reducedMotion;
+    private int _generation;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_initialized)
+        {
+            _initialized = true;
+            _display = Value;
+            _reducedMotion = await SafeReducedMotionAsync();
+            return;
+        }
+
+        if (Value == _display) return;
+        _ = AnimateToAsync(Value);
+    }
+
+    private async Task<bool> SafeReducedMotionAsync()
+    {
+        // Best-effort: a JS interop failure (e.g. prerendering) just means the number pops
+        // instead of tweening, which is the same outcome reduced-motion asks for anyway.
+        try { return await JS.InvokeAsync<bool>("prefersReducedMotion"); }
+        catch (JSException) { return false; }
+    }
+
+    /// <summary>
+    /// Eases from the current displayed value to <paramref name="target"/> over a fixed duration.
+    ///
+    /// <para>Guarded by <c>generation</c> rather than a CancellationToken: a stat can change again
+    /// mid-tween (e.g. two progress frames landing close together), and the loop must stop
+    /// updating a value that is no longer the target rather than fight the newer animation for the
+    /// same field.</para>
+    /// </summary>
+    private async Task AnimateToAsync(int target)
+    {
+        if (_reducedMotion)
+        {
+            _display = target;
+            StateHasChanged();
+            return;
+        }
+
+        var generation = ++_generation;
+        var start = _display;
+        var delta = target - start;
+        const int steps = 24;
+        const int stepDelayMs = 16;
+
+        for (var i = 1; i <= steps; i++)
+        {
+            await Task.Delay(stepDelayMs);
+            if (generation != _generation) return;
+
+            var t = i / (double)steps;
+            var eased = 1 - Math.Pow(1 - t, 3);
+            _display = start + (int)Math.Round(delta * eased);
+            StateHasChanged();
+        }
+    }
+}

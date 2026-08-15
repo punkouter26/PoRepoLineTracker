@@ -6,7 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <StaticWebAssetProjectMode>All</StaticWebAssetProjectMode>
     <WasmBlazorWebAssemblyHost>true</WasmBlazorWebAssemblyHost>
-    <UserSecretsId>a1b2c3d4-e5f6-7890-1234-567890abcdef</UserSecretsId>
     <!-- AOT disabled: codebase uses reflection-based JSON serialization -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>

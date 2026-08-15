@@ -1,16 +1,27 @@
 # CLAUDE.md
 
-Guidance for Claude Code working in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-`AGENT.MD` holds the long-form architecture rationale and `NET_RULES.md` the numbered rules the
-codebase cites (you will see "Rule 4.2" in comments). Read those for *why*. This file is what you
+`AGENT.MD` holds the long-form architecture rationale. Read it for *why*. This file is what you
 need to not waste a cycle.
+
+`NET_RULES.md` used to be the numbered rules that in-code comments cite (you will see "Rule 4.2",
+"Rule 3.3", etc.). The two have since diverged — `NET_RULES.md` was rewritten with different,
+shorter numbering (1.1–3.4) that no longer matches most in-code citations, some of which go as
+high as "Rule 13". Don't expect a `Rule X.Y` comment to resolve to matching content in
+`NET_RULES.md`; treat the comment's inline rationale as authoritative instead.
 
 ## What this is
 
 Blazor WASM + ASP.NET Core (net10.0) that tracks lines of code across a user's GitHub
-repositories over time: line-count history, per-extension composition, contributor stats, and a
-heuristic AI-authorship score. Sign-in is **GitHub OAuth only**.
+repositories over time: line-count history, per-extension composition, and contributor stats.
+Sign-in is **GitHub OAuth only**.
+
+**There is no AI in this app.** No LLM call, no local model runtime, no AI/ML package, no
+inference endpoint, no API key for one. The AI-authorship score this file used to describe was a
+local heuristic, and it has been deleted along with the rest of the `AiDetection` slice. If a
+request arrives about "our AI costs" or "inference latency", the answer is that there is nothing
+to optimise — check before taking the premise.
 
 ## Projects
 
@@ -100,8 +111,10 @@ current size is the value on its *newest* commit — never a sum across commits,
 `RepositoryTotals` (Shared) is the single definition; call it rather than re-deriving. Two pages
 each grew their own version and printed different numbers under the same label.
 
-**AI share is weighted by lines added**, not averaged per commit — a one-line human commit and a
-2,000-line generated file are not the same event.
+**Contributor share is weighted by lines added**, not averaged per commit — a one-line commit and
+a 2,000-line refactor are not the same event. (This rule used to describe an "AI share"; the
+weighting survived the removal of AI detection because `GetContributorStatsQuery` still applies
+it.)
 
 **Analysis progress has one path.** The SignalR hub (`/hubs/analysis`) pushes frames; the fallback
 poll in `Repositories.razor` exists only for when the hub is unreachable, and it *synthesises the

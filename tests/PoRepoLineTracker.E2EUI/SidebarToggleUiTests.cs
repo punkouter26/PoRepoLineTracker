@@ -16,7 +16,22 @@ public sealed class SidebarToggleUiTests
 
     public SidebarToggleUiTests(E2EUiFixture fixture) => _fixture = fixture;
 
-    private const string Toggle = "button[title='Toggle navigation']";
+    /// <summary>
+    /// The drawer toggle, located by the header region that holds it.
+    ///
+    /// <para>This was <c>button[title='Toggle navigation']</c>, a title no button in the app has
+    /// ever carried — MainLayout renders "Hide navigation"/"Show navigation" depending on the
+    /// current state. So all seven tests in this class died in <see cref="WaitForShellAsync"/>
+    /// waiting 25s for an element that could not exist, and none of them had ever actually
+    /// exercised the toggle they were written to cover.</para>
+    ///
+    /// <para>It went unnoticed because the whole tier skips when the Playwright browser build does
+    /// not match the package — "64 skipped" reads as "app not running" rather than "64 tests are
+    /// broken". Matching on the title is what made it fragile: the string is state-dependent by
+    /// design. <c>.app-header__actions</c> holds exactly this one control, so it identifies the
+    /// button without depending on which half of the toggle is showing.</para>
+    /// </summary>
+    private const string Toggle = ".app-header__actions button";
 
     /// <summary>
     /// Waits for the shell to exist, NOT for the sidebar to be visible. On a mobile viewport the

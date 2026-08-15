@@ -22,7 +22,8 @@ public class CommitLineCount
     public string AuthorEmail { get; set; } = string.Empty;
 
     /// <summary>
-    /// AI detection percentage (0-100) for this commit.
+    /// The grouping key used everywhere contributors are identified: falls back to
+    /// <see cref="AuthorEmail"/> when the commit has no author name.
     /// </summary>
-    public double AiPercentage { get; set; }
+    public string AuthorDisplayName => string.IsNullOrEmpty(AuthorName) ? AuthorEmail : AuthorName;
 }

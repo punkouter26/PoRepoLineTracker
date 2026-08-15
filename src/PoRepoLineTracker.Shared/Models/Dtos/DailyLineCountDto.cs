@@ -9,11 +9,4 @@ public class DailyLineCountDto
     public int TotalLinesChanged { get; set; }
     public Dictionary<string, int> LinesByFileType { get; set; } = new();
     public int CommitCount { get; set; }
-
-
-    /// <summary>
-    /// Average AI percentage across commits on this day.
-    /// Used by InstantReplay to show AI % at any point in time.
-    /// </summary>
-    public double AverageAiPercentage { get; set; }
 }

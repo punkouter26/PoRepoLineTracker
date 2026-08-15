@@ -24,7 +24,12 @@
 }
 
 ::deep .xc-summary-card.xc-summary-card {
-    background: var(--rz-base-100) !important;
+    /* --bg-tertiary, not --rz-base-100. Radzen's dark theme resolves --rz-base-100 to a MID grey
+       (#a0a0a0) while the text inside stays near-white — 1.98:1, the panel was unreadable in dark
+       mode. This is the same --rz-base-* trap documented at the top of app.css; the app's own
+       surface tokens are defined per theme and are what the rest of the UI paints with. */
+    background: var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
 }
 
 ::deep .xc-section-title.xc-section-title {

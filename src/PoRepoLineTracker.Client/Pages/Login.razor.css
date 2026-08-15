@@ -16,7 +16,7 @@
 
 .login-logomark-icon ::deep .login-logomark-icon__glyph.login-logomark-icon__glyph {
     font-size: 1.6rem;
-    color: var(--rz-primary);
+    color: var(--primary-on-surface);
 }
 
 .login-logomark-badge ::deep .login-logomark-badge__glyph.login-logomark-badge__glyph {
@@ -68,5 +68,7 @@
 }
 
 .login-canvas ::deep .login-footnote.login-footnote {
-    color: var(--rz-text-disabled-color);
+    /* Was --rz-text-disabled-color: 1.88:1 light, 1.93:1 dark. This is the only sentence on the
+       screen that explains where the user's data goes, so it needs to be readable. */
+    color: var(--text-secondary);
 }

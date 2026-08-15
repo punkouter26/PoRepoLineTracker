@@ -8,7 +8,8 @@
 @inject Radzen.DialogService DialogService
 @inject Radzen.NotificationService NotificationService
 @inject AnalysisFeedClient Feed
-@inject UserPreferencesClient PreferencesClient
+@inject ILogger<AnalysisWatcher> WatcherLogger
+@inject IJSRuntime JS
 @using PoRepoLineTracker.Client.Services
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Domain.Models
@@ -19,6 +20,10 @@
 @using Microsoft.AspNetCore.Authorization
 
 <div class="app-stack">
+    @* Renders nothing — see MilestoneConfetti.razor. Held by @ref so LoadLatestLineCounts can
+       trigger a burst once the portfolio total crosses a round-number milestone. *@
+    <MilestoneConfetti @ref="_confetti" />
+
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.125rem">
@@ -146,12 +151,8 @@
     }
     else
     {
-        @* ─── Multi-repo comparison chart ───────────────────────────────────────
-           No <ChartDisplayModeCard> here. It is a saved account-wide preference, not a property
-           of this page, and rendering the control in two places meant two independent copies of
-           the state: changing it in Settings left this page on the old mode until a reload. The
-           value is read from UserPreferencesClient below and pushed by its Changed event. *@
-        <AllReposComparisonChart @ref="_comparisonChart" ChartDisplayMode="@_chartDisplayMode" />
+        @* ─── Multi-repo comparison chart ─────────────────────────────────────── *@
+        <AllReposComparisonChart @ref="_comparisonChart" />
 
         @* ─── Stats cards ─────────────────────────────────────────────────────── *@
         <PortfolioStatTiles RepositoryCount="@pageState.Repositories.Count"
@@ -160,20 +161,6 @@
                             Trend="@TotalLinesTrend" />
 
         <RadzenCard>
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rp-searchbar">
-                <RadzenIcon Icon="search" class="rp-muted-icon" aria-hidden="true" />
-                <RadzenTextBox Value="@searchText" ValueChanged="@OnSearchTextChanged"
-                               Placeholder="Search owner or repository..."
-                               aria-label="Search repositories by owner or name"
-                               class="rp-search-input" />
-                @if (!string.IsNullOrEmpty(searchText))
-                {
-                    <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
-                                  Click="@(() => OnSearchTextChanged(string.Empty))" title="Clear search"
-                                  aria-label="Clear repository search" />
-                }
-            </RadzenStack>
-
             @* Responsive="true" makes Radzen stack each row into a labelled card below its
                breakpoint. Without it the fixed column widths summed to ~736px, so on a phone the
                grid scrolled sideways and the Actions column sat permanently off-screen.
@@ -184,7 +171,7 @@
                already written and simply never wired up. *@
             <div class="u-scroll-x">
             <RadzenDataGrid @ref="grid"
-                            Data="@FilteredRepositories"
+                            Data="@RepositoryRows"
                             TItem="RepositoryGridRow"
                             AllowFiltering="false"
                             AllowSorting="true"
@@ -235,28 +222,6 @@
                             }
                         </Template>
                     </RadzenDataGridColumn>
-                    @* Trend column. The 45-point series comes from the /allcharts/365 response the
-                       page already fetches for the Total Lines figures, so this adds a per-row
-                       trend for zero extra network cost. Sortable="false": a sparkline has no
-                       meaningful ordering, and the adjacent Total Lines column already sorts. *@
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Trend" Width="80px" Sortable="false" Filterable="false">
-                        <Template Context="row">
-                            @if (row.HasTrend)
-                            {
-                                <div class="rp-row-spark">
-                                    <RadzenSparkline Data="@row.Trend"
-                                                     CategoryProperty="Date"
-                                                     ValueProperty="TotalLines"
-                                                     Stroke="var(--rz-primary)"
-                                                     Fill="rgba(103, 80, 164, 0.16)" />
-                                </div>
-                            }
-                            else
-                            {
-                                <RadzenText class="rp-disabled">—</RadzenText>
-                            }
-                        </Template>
-                    </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last Analyzed" Width="120px" Sortable="true">
                         <Template Context="row">
                             @if (row.LastAnalyzedCommitDate.HasValue)
@@ -298,14 +263,6 @@
                             </span>
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="" Width="36px" Filterable="false" Sortable="false">
-                        <HeaderTemplate>
-                            <span class="visually-hidden">Open repository</span>
-                        </HeaderTemplate>
-                        <Template>
-                            <RadzenIcon Icon="chevron_right" class="rp-chevron" aria-hidden="true" />
-                        </Template>
-                    </RadzenDataGridColumn>
                 </Columns>
             </RadzenDataGrid>
             </div>
@@ -330,8 +287,6 @@
 
 
 @code {
-    [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
-
     private RepositoryPageState pageState = new();
     private RadzenDataGrid<RepositoryGridRow>? grid;
     private AllReposComparisonChart? _comparisonChart;
@@ -339,23 +294,24 @@
     private RepositoryId? reanalyzingRepositoryId;
     private bool _showAddPanel = false;
     private bool isRemovingAll = false;
-    private string searchText = string.Empty;
-    // Tracks the last Q value we wrote to the URL ourselves, so OnParametersSet
-    // does not overwrite searchText after our own NavigateTo call.
-    private string? _lastSyncedQ;
     private Dictionary<RepositoryId, DateTime> _reanalysisStartTimes = new();
     private Dictionary<RepositoryId, int> _repoLatestLineCounts = new();
-
-    /// <summary>
-    /// Per-repository daily totals for the grid sparkline column. Built from the SAME
-    /// /allcharts/365 response that already feeds the line-count figures, so a trend beside every
-    /// row costs no additional request — the series was being fetched and discarded.
-    /// Trimmed to the last 45 points: a ~90px sparkline cannot resolve more.
-    /// </summary>
-    private Dictionary<RepositoryId, IReadOnlyList<DailyLineCountDto>> _repoTrends = new();
     private Dictionary<RepositoryId, AnalysisProgressDto> _analysisProgress = new();
     private readonly CancellationTokenSource _disposeCts = new();
-    private ChartDisplayMode _chartDisplayMode = ChartDisplayMode.TrueData;
+    private MilestoneConfetti? _confetti;
+
+    /// <summary>
+    /// Round-number checkpoints the portfolio "Total Lines" figure celebrates crossing. Fixed
+    /// rather than derived (e.g. "nearest power of 10") so the celebration only fires at numbers a
+    /// person would actually recognise as a milestone.
+    /// </summary>
+    private static readonly int[] MilestoneSteps =
+    [
+        1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000,
+        1_000_000, 2_500_000, 5_000_000, 10_000_000, 25_000_000, 50_000_000
+    ];
+
+    private const string MilestoneStorageKey = "porepolinetracker.totalLinesMilestone";
     /// <summary>
     /// True after <see cref="DisposeAsync"/> has run. Radzen charts and grids capture
     /// <c>DotNetObjectReference</c>s the JS module can still call into for a frame or two after
@@ -365,17 +321,9 @@
     /// </summary>
     private bool _disposed;
 
-    private IEnumerable<RepositoryGridRow> FilteredRepositories =>
-        string.IsNullOrWhiteSpace(searchText)
-            ? RepositoryRows
-            : RepositoryRows.Where(r =>
-                r.Owner.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                r.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
-
     private IEnumerable<RepositoryGridRow> RepositoryRows => pageState.Repositories.Select(repository => new RepositoryGridRow(
         repository,
-        _repoLatestLineCounts.TryGetValue(repository.Id, out var totalLines) ? totalLines : null,
-        _repoTrends.TryGetValue(repository.Id, out var trend) ? trend : []));
+        _repoLatestLineCounts.TryGetValue(repository.Id, out var totalLines) ? totalLines : null));
 
     private int AnalyzedCount => pageState.Repositories.Count(r => r.LastAnalyzedCommitDate.HasValue);
 
@@ -387,33 +335,24 @@
     /// </summary>
     private List<DailyLineCountDto> TotalLinesTrend { get; set; } = [];
 
-
-    protected override void OnParametersSet()
-    {
-        // Only sync searchText from the URL query param when the value genuinely
-        // changed from outside (e.g., the user typed a URL directly or the browser
-        // navigated back/forward).  When we call NavigateTo ourselves inside
-        // OnSearchTextChanged we pre-set _lastSyncedQ so this guard fires and we
-        // do NOT overwrite the value the user is actively typing.
-        if (Q != _lastSyncedQ)
-        {
-            _lastSyncedQ = Q;
-            searchText = Q ?? string.Empty;
-        }
-    }
+    /// <summary>
+    /// The fallback poll, for when the hub cannot reach us. Both it and
+    /// <see cref="AnalysisFeedClient"/> feed <see cref="OnAnalysisProgressAsync"/> — one
+    /// completion path, two sources. See <see cref="AnalysisWatcher"/>.
+    /// </summary>
+    private AnalysisWatcher _watcher = null!;
 
     protected override async Task OnInitializedAsync()
     {
+        _watcher = new AnalysisWatcher(Http, Feed, WatcherLogger) { FrameReady = OnAnalysisProgressAsync };
         Feed.ProgressReceived += OnAnalysisProgressAsync;
-        PreferencesClient.Changed += OnPreferencesChangedAsync;
 
         await Task.WhenAll(
             LoadRepositories(),
             LoadLatestLineCounts(),
-            LoadChartDisplayMode(),
             Feed.EnsureConnectedAsync());
 
-        StartFallbackPollIfNeeded();
+        _watcher.WatchPending(pageState.Repositories);
     }
 
     /// <summary>
@@ -449,7 +388,7 @@
 
         if (reanalyzingRepositoryId == progress.RepositoryId) reanalyzingRepositoryId = null;
         _reanalysisStartTimes.Remove(progress.RepositoryId);
-        _awaitingAnalysis.Remove(progress.RepositoryId);
+        _watcher.StopWatching(progress.RepositoryId);
 
         if (progress.ErrorMessage is null)
         {
@@ -492,32 +431,6 @@
         await _comparisonChart.PrimeAsync();
     }
 
-    private async Task LoadChartDisplayMode()
-    {
-        try
-        {
-            var preferences = await PreferencesClient.GetAsync();
-            _chartDisplayMode = preferences?.ChartDisplayMode ?? ChartDisplayMode.TrueData;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Could not load chart display mode; defaulting to true data");
-            _chartDisplayMode = ChartDisplayMode.TrueData;
-        }
-    }
-
-    /// <summary>
-    /// Applies a preference saved anywhere in the app — in practice, the card on the Settings
-    /// page — without a reload. The comparison chart re-transforms from data it already holds,
-    /// so this costs no request.
-    /// </summary>
-    private async Task OnPreferencesChangedAsync(UserPreferences preferences)
-    {
-        if (_chartDisplayMode == preferences.ChartDisplayMode) return;
-        _chartDisplayMode = preferences.ChartDisplayMode;
-        await InvokeAsync(StateHasChanged);
-    }
-
     private async Task LoadLatestLineCounts()
     {
         if (_disposed) return;
@@ -534,14 +447,6 @@
                 _repoLatestLineCounts = all
                     .Where(r => r.TotalLines > 0)
                     .ToDictionary(r => r.RepositoryId, r => r.TotalLines);
-                _repoTrends = all
-                    .Where(r => r.DailyLineCounts.Any())
-                    .ToDictionary(
-                        r => r.RepositoryId,
-                        r => (IReadOnlyList<DailyLineCountDto>)r.DailyLineCounts
-                            .OrderBy(d => d.Date)
-                            .TakeLast(45)
-                            .ToList());
 
                 Logger.LogInformation("Loaded latest line counts for {Count} repositories", _repoLatestLineCounts.Count);
 
@@ -553,6 +458,8 @@
                     .Select(g => new DailyLineCountDto { Date = g.Key, TotalLines = g.Sum(d => d.TotalLines) })
                     .TakeLast(60)
                     .ToList();
+
+                await CheckMilestoneAsync(_repoLatestLineCounts.Values.Sum());
             }
         }
         catch (Exception ex)
@@ -561,14 +468,35 @@
         }
     }
 
-    private void OnSearchTextChanged(string value)
+    /// <summary>
+    /// Celebrates the first time the portfolio total crosses a step in <see cref="MilestoneSteps"/>.
+    ///
+    /// <para>The highest step ever reached is kept in <c>localStorage</c> — not component state —
+    /// so the celebration fires once per browser rather than once per page load: this method runs
+    /// on every <see cref="LoadLatestLineCounts"/>, including the reloads after every analysis.</para>
+    /// </summary>
+    private async Task CheckMilestoneAsync(int totalLines)
     {
-        searchText = value;
-        // Pre-sync _lastSyncedQ so that the OnParametersSet triggered by NavigateTo
-        // does not overwrite the value the user just typed.
-        _lastSyncedQ = string.IsNullOrEmpty(value) ? null : value;
-        var uri = Navigation.GetUriWithQueryParameter("q", string.IsNullOrEmpty(value) ? null : value);
-        Navigation.NavigateTo(uri, replace: true);
+        if (_disposed || _confetti is null) return;
+
+        var reached = MilestoneSteps.LastOrDefault(step => step <= totalLines);
+        if (reached == 0) return;
+
+        try
+        {
+            var raw = await JS.InvokeAsync<string?>("localStorage.getItem", MilestoneStorageKey);
+            var stored = int.TryParse(raw, out var parsed) ? parsed : 0;
+            if (reached <= stored) return;
+
+            await JS.InvokeVoidAsync("localStorage.setItem", MilestoneStorageKey, reached.ToString());
+            await _confetti.CelebrateAsync();
+        }
+        catch (JSException ex)
+        {
+            // A blocked localStorage (private browsing, some corporate policies) just means no
+            // celebration this session — not worth surfacing as an app error.
+            Logger.LogWarning(ex, "Could not check the total-lines milestone");
+        }
     }
 
     private void OnRowClick(DataGridRowMouseEventArgs<RepositoryGridRow> args)
@@ -616,7 +544,7 @@
         await LoadRepositories();
         await LoadLatestLineCounts();
         await ReloadComparisonChartAsync();
-        StartFallbackPollIfNeeded();
+        _watcher.WatchPending(pageState.Repositories);
         StateHasChanged();
     }
 
@@ -711,8 +639,7 @@
 
                 // Register the wait and let the one fallback loop cover it. It no-ops while the
                 // hub is connected, and the hub's frames clear the entry through the same handler.
-                _awaitingAnalysis[repo.Id] = priorDate;
-                StartFallbackPollIfNeeded();
+                _watcher.Watch(repo.Id, priorDate);
             }
             else
             {
@@ -745,191 +672,10 @@
             {
                 reanalyzingRepositoryId = null;
                 _reanalysisStartTimes.Remove(repo.Id);
-                _awaitingAnalysis.Remove(repo.Id);
+                _watcher.StopWatching(repo.Id);
                 StateHasChanged();
             }
         }
-    }
-
-    // ─── Fallback poll ──────────────────────────────────────────────────────────
-    //
-    // ONE loop, and it does not decide anything. It turns whatever the server says into the same
-    // AnalysisProgressDto frames the hub pushes and hands them to OnAnalysisProgressAsync — so
-    // "a job finished" is handled in exactly one place whether the news arrived by push or by
-    // poll.
-    //
-    // It replaces two loops that each re-implemented that handling: a 15-second poll for
-    // repositories that had never been analysed, and a 5-second poll started per re-analysis.
-    // Between them and the hub handler, "reload repositories, reload line counts, reload the
-    // comparison chart, clear the badge, notify" was written out three times, guarded by
-    // Feed.IsConnected checks in four separate methods. They had already drifted: only the hub
-    // path removed the entry from _analysisProgress on success, and only the re-analysis poll
-    // cleared the badge on its own timeout.
-
-    /// <summary>
-    /// Repositories whose analysis this page is waiting on, each with the LastAnalyzedCommitDate
-    /// it had when the wait began — that value changing is the completion signal.
-    /// </summary>
-    private readonly Dictionary<RepositoryId, DateTime?> _awaitingAnalysis = [];
-
-    private bool _fallbackPollRunning;
-
-    /// <summary>
-    /// Starts the fallback loop if anything is being waited on and the hub is not carrying it.
-    ///
-    /// <para>The hub reports every step of every job the user owns, so polling on top of it would
-    /// fetch the same data twice. This exists for the cases the hub cannot cover: a proxy that
-    /// blocks WebSockets, or a failed handshake.</para>
-    /// </summary>
-    private void StartFallbackPollIfNeeded()
-    {
-        foreach (var pending in pageState.Repositories.Where(r => r.LastAnalyzedCommitDate is null))
-            _awaitingAnalysis.TryAdd(pending.Id, null);
-
-        if (_fallbackPollRunning) return;
-        if (Feed.IsConnected) return;
-        if (_awaitingAnalysis.Count == 0) return;
-
-        _ = FallbackPollAsync();
-    }
-
-    private async Task FallbackPollAsync()
-    {
-        _fallbackPollRunning = true;
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
-        // Hard stop. A very large repository must not leave a timer running for the whole session.
-        cts.CancelAfter(TimeSpan.FromMinutes(60));
-
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-        Logger.LogInformation("Fallback analysis poll started for {Count} repositories", _awaitingAnalysis.Count);
-
-        try
-        {
-            while (_awaitingAnalysis.Count > 0 && await timer.WaitForNextTickAsync(cts.Token))
-            {
-                // The hub may come back mid-job — a reconnect is exactly what WithAutomaticReconnect
-                // is for. Stand down when it does rather than duplicating its frames.
-                if (Feed.IsConnected)
-                {
-                    Logger.LogInformation("Analysis feed reconnected — stopping fallback poll");
-                    break;
-                }
-
-                try
-                {
-                    await PollTickAsync(cts.Token);
-                }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning(ex, "Fallback poll tick failed — will retry");
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            Logger.LogInformation("Fallback analysis poll cancelled");
-        }
-        finally
-        {
-            _fallbackPollRunning = false;
-        }
-    }
-
-    private async Task PollTickAsync(CancellationToken cancellationToken)
-    {
-        var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository, cancellationToken);
-        if (repos is null) return;
-
-        foreach (var (repositoryId, baseline) in _awaitingAnalysis.ToList())
-        {
-            var updated = repos.FirstOrDefault(r => r.Id == repositoryId);
-
-            // Deleted from under us — stop waiting rather than polling a 404 for an hour.
-            if (updated is null)
-            {
-                _awaitingAnalysis.Remove(repositoryId);
-                continue;
-            }
-
-            // A changed LastAnalyzedCommitDate is the completion signal. Checked BEFORE the
-            // progress endpoint because a finished job's progress entry expires, and reading
-            // "no progress" as "still working" is what used to leave badges spinning.
-            if (updated.LastAnalyzedCommitDate is not null && updated.LastAnalyzedCommitDate != baseline)
-            {
-                var index = pageState.Repositories.FindIndex(r => r.Id == repositoryId);
-                if (index >= 0) pageState.Repositories[index] = updated;
-
-                await PublishTerminalFrameAsync(repositoryId, error: null);
-                continue;
-            }
-
-            // Still in flight. Mirror the running frame the hub would have pushed, so the step
-            // name, commit counts and stuck/error flags reach the grid by the same route.
-            AnalysisProgressDto? progress = null;
-            try
-            {
-                progress = await Http.GetAppJsonAsync(
-                    $"/api/repositories/{repositoryId}/analysis-progress",
-                    AppJsonSerializerContext.Default.AnalysisProgressDto,
-                    cancellationToken);
-            }
-            catch (OperationCanceledException) { throw; }
-            catch
-            {
-                // 404 until the job registers itself. Not an error — just nothing to report yet.
-            }
-
-            if (progress is null) continue;
-
-            if (progress.IsRunning || progress.ErrorMessage is not null)
-            {
-                await OnAnalysisProgressAsync(progress);
-                if (!progress.IsRunning) _awaitingAnalysis.Remove(repositoryId);
-            }
-
-            // A terminal frame with no error and no date change yet means the write has not
-            // landed. Leave it outstanding and pick the completion up on a later tick.
-        }
-    }
-
-    /// <summary>
-    /// Synthesises the terminal frame the hub would have pushed and routes it through the one
-    /// handler, so completion does the same work by either path.
-    /// </summary>
-    private async Task PublishTerminalFrameAsync(RepositoryId repositoryId, string? error)
-    {
-        _awaitingAnalysis.Remove(repositoryId);
-
-        var repo = pageState.Repositories.FirstOrDefault(r => r.Id == repositoryId);
-
-        // The handler only acts on a running → finished transition, so a repository never seen
-        // running needs its running frame first. Without this, the completion of a job the poll
-        // only ever caught at the end would be silently dropped.
-        if (!(_analysisProgress.TryGetValue(repositoryId, out var seen) && seen.IsRunning))
-        {
-            await OnAnalysisProgressAsync(new AnalysisProgressDto
-            {
-                RepositoryId = repositoryId,
-                Owner = repo?.Owner ?? string.Empty,
-                Name = repo?.Name ?? string.Empty,
-                IsRunning = true,
-                StepName = "Analyzing",
-                StepDescription = "Working…"
-            });
-        }
-
-        await OnAnalysisProgressAsync(new AnalysisProgressDto
-        {
-            RepositoryId = repositoryId,
-            Owner = repo?.Owner ?? string.Empty,
-            Name = repo?.Name ?? string.Empty,
-            IsRunning = false,
-            StepName = error is null ? "Complete" : "Failed",
-            StepDescription = error ?? "Analysis complete",
-            ErrorMessage = error
-        });
     }
 
     public async ValueTask DisposeAsync()
@@ -939,24 +685,20 @@
         // Unsubscribe only. AnalysisFeedClient is container-owned and shared with the activity
         // feed, so disposing it here would take the feed's connection down with the page.
         Feed.ProgressReceived -= OnAnalysisProgressAsync;
-        PreferencesClient.Changed -= OnPreferencesChangedAsync;
 
+        await _watcher.DisposeAsync();
         await _disposeCts.CancelAsync();
         _disposeCts.Dispose();
     }
 
     private sealed record RepositoryGridRow(
         GitHubRepository Repository,
-        int? TotalLinesSortValue,
-        IReadOnlyList<DailyLineCountDto> Trend)
+        int? TotalLinesSortValue)
     {
         public RepositoryId Id => Repository.Id;
         public string Owner => Repository.Owner;
         public string Name => Repository.Name;
         public DateTime? LastAnalyzedCommitDate => Repository.LastAnalyzedCommitDate;
-
-        /// <summary>A sparkline of one or two points is a dot, not a trend — hide it below three.</summary>
-        public bool HasTrend => Trend.Count > 2;
     }
 
     private async Task DeleteRepository(RepositoryId repositoryId)

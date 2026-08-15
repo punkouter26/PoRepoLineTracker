@@ -36,7 +36,8 @@
         <RadzenChart>
             @foreach (var contributor in top)
             {
-                // Stroke/Fill are Radzen parameters, not CSS — they stay colour values.
+                // A `var(--series-N)` reference, not a hex literal — Radzen writes Stroke/Fill
+                // through as SVG presentation attributes, which the browser parses as CSS.
                 var color = GetColorForAuthor(contributor.AuthorName);
                 var displayName = DisplayName(contributor);
 
@@ -161,18 +162,6 @@
     /// </summary>
     private bool _disposed;
 
-    /// <summary>
-    /// Series colours for the chart. These are Radzen Stroke/Fill parameter values — attribute
-    /// content, not CSS — so they cannot be `var(--series-N)` and stay as literals.
-    ///
-    /// Realigned onto the same eight hues as the shared --series-* tokens (app.css) so the chart
-    /// line, the legend swatch in the grid and the progress bar for a given author are the same
-    /// colour. Previously this list and the stylesheet held two unrelated palettes that merely
-    /// happened to be indexed the same way.
-    /// </summary>
-    private static readonly string[] _colors =
-        { "#5b3df5", "#d46ae8", "#ff7a59", "#ffb84d", "#f95d9b", "#34c3b3", "#5aa9ff", "#9b7bff" };
-
     /// <summary>The five plotted authors. Ordering and Take were repeated three times inline.</summary>
     private IEnumerable<ContributorStatsDto> TopContributors =>
         (_contributors ?? []).OrderByDescending(c => c.TotalLinesAdded).Take(5);
@@ -233,17 +222,19 @@
         return ValueTask.CompletedTask;
     }
 
-    private string GetColorForAuthor(string authorName)
-    {
-        var index = Math.Abs(authorName.GetHashCode()) % _colors.Length;
-        return _colors[index];
-    }
+    /// <summary>
+    /// The series colour for an author, as a <c>var(--series-N)</c> reference — see
+    /// <see cref="SeriesPalette"/> for why this is not a hex literal, and why the slot no longer
+    /// comes from <see cref="string.GetHashCode()"/>.
+    /// </summary>
+    private static string GetColorForAuthor(string authorName) =>
+        SeriesPalette.Color(SeriesPalette.StableIndex(authorName));
 
     /// <summary>
     /// Rule 4.3 — swatches and bars used to receive their colour through an interpolated inline
-    /// style. The palette is a fixed list, so the hash maps to a modifier class and the colours
-    /// live in ContributorChart.razor.css (kept in step with <see cref="_colors"/>).
+    /// style. The slot maps to a modifier class instead; the colours behind those classes are the
+    /// same --series-N tokens the chart reads.
     /// </summary>
     private static string GetAuthorColorClass(string authorName) =>
-        $"cc-swatch--{Math.Abs(authorName.GetHashCode()) % _colors.Length}";
+        SeriesPalette.ModifierClass("cc-swatch", SeriesPalette.StableIndex(authorName));
 }

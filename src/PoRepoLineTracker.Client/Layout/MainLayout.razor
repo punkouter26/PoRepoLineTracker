@@ -192,9 +192,10 @@
         (_breadcrumbCurrent, _breadcrumbParent, _breadcrumbParentPath) = path switch
         {
             "" or "/" => (null, null, null),
-            "/insights" => ("Insights", null, null),
+            "/insights" => ("Global Insights", null, null),
             "/settings" => ("Settings", null, null),
             "/settings/extensions-counted" => ("Settings", null, null),
+            "/diag" => ("Diagnostics", null, null),
             _ when path.StartsWith("/repositories/") && path.Length > "/repositories/".Length
                 => ("Repository Detail", "Repositories", "/"),
             _ => (null, null, null)

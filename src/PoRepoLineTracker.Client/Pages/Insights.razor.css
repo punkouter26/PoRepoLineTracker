@@ -141,63 +141,30 @@
     margin-inline: 0.25rem;
 }
 
-/* ─── Movers ─────────────────────────────────────────────────────────────────
-   Each row is a <button>, not a div with @onclick: it is genuinely a navigation control, so it
-   should be tab-reachable and Enter/Space-activatable without hand-rolling any of that. */
-.ins-movers {
+/* ─── All repositories grid ──────────────────────────────────────────────────
+   Replaces the old button-list Movers panel. No `.ins-repo-grid` rules of its own: sort chrome,
+   row hover/borders and the pointer cursor (set via OnRepoRowRender, same as the Repositories
+   grid) all come from Radzen's own grid styles, so there is nothing left to override here. */
+
+/* Bars, not a line: 12 values is too few points for a trend line to read as anything but jagged,
+   and a reader compares one repo's cadence against its own history, not against pixel-precise
+   values — a bar's relative height carries that at a glance. Each bar's height is relative to
+   that row's own busiest week (inline style, set from the model), not a portfolio-wide max, so a
+   quiet repo's pattern is still visible rather than flattened to a sliver next to a busy one. */
+.ins-spark {
     display: flex;
-    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    height: 28px;
 }
 
-.ins-mover {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-        "name  delta"
-        "meta  delta";
-    gap: 0 0.75rem;
-    align-items: center;
-    width: 100%;
-    padding: 0.6rem 0.25rem;
-    border: none;
-    border-bottom: 1px solid var(--border-light);
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-    font: inherit;
-    color: inherit;
-}
-
-.ins-mover:last-child {
-    border-bottom: none;
-}
-
-.ins-mover:hover,
-.ins-mover:focus-visible {
-    background: var(--bg-tertiary);
-}
-
-.ins-mover__name {
-    grid-area: name;
-    font-weight: 600;
-    font-size: var(--text-sm);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-}
-
-.ins-mover__meta {
-    grid-area: meta;
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-}
-
-.ins-mover__delta {
-    grid-area: delta;
-    font-size: var(--text-sm);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+.ins-spark__bar {
+    flex: 1 0 auto;
+    width: 6px;
+    min-height: 6px;
+    border-radius: 1px;
+    background: var(--primary-color);
+    opacity: 0.75;
 }
 
 /* ─── Language mix ───────────────────────────────────────────────────────────*/

@@ -349,7 +349,6 @@ public sealed class ChartAndShellUiTests
 
         titles.Should().Contain("Line Count History");
         titles.Should().Contain("By Extension");
-        titles.Should().Contain("Largest Files");
         titles.Should().Contain("Top Contributors");
     }
 

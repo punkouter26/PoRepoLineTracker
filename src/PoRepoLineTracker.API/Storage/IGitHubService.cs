@@ -3,6 +3,14 @@ namespace PoRepoLineTracker.API.Storage;
 
 public interface IGitHubService
 {
+    /// <summary>
+    /// Base directory local repository clones live under — Azure App Service ephemeral storage
+    /// when running there, otherwise the configured or default local path. The single source for
+    /// resolving a repo's on-disk location; do not re-derive this from the HOME environment
+    /// variable elsewhere.
+    /// </summary>
+    string LocalReposBasePath { get; }
+
     Task<string> CloneRepositoryAsync(string repoUrl, string localPath, string? accessToken = null);
     Task<string> PullRepositoryAsync(string localPath, string? accessToken = null);
     Task<bool> IsRepositoryValidAsync(string localPath);
@@ -11,12 +19,6 @@ public interface IGitHubService
     /// Checks if a repository is valid using its full path (for locally uploaded repositories).
     /// </summary>
     Task<bool> IsLocalRepositoryValidAsync(string fullPath);
-
-    /// <summary>
-    /// Gets all commits from a local repository at its full path, optionally since a specific date.
-    /// Used for locally uploaded repositories.
-    /// </summary>
-    Task<IEnumerable<(string Sha, DateTimeOffset CommitDate)>> GetCommitsFromFullPathAsync(string fullPath, DateTime? sinceDate = null);
 
     /// <summary>
     /// Gets commit stats from a local repository at its full path, optionally since a specific date.
@@ -40,25 +42,9 @@ public interface IGitHubService
     /// Deletes the local repository directory so it can be re-cloned from scratch.
     /// </summary>
     Task DeleteLocalRepositoryAsync(string localPath);
-    Task<IEnumerable<(string Sha, DateTimeOffset CommitDate)>> GetCommitsAsync(string localPath, DateTime? sinceDate = null);
     Task<Dictionary<string, int>> CountLinesInCommitAsync(string localPath, string commitSha, IEnumerable<string> fileExtensionsToCount);
     Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(string localPath, DateTime? sinceDate = null);
-    Task<long> GetTotalLinesOfCodeAsync(string localPath, IEnumerable<string> fileExtensionsToCount);
     Task<IEnumerable<TopFileDto>> GetTopFilesByLineCountAsync(string localPath, IEnumerable<string> fileExtensionsToCount, int count = 5);
     Task CheckConnectionAsync();
     Task<IEnumerable<GitHubUserRepositoryDto>> GetUserRepositoriesAsync(string accessToken);
-
-    /// <summary>
-    /// Gets file contents from a commit for AI detection analysis.
-    /// </summary>
-    /// <param name="localPath">The local path of the repository.</param>
-    /// <param name="commitSha">The commit SHA.</param>
-    /// <param name="fileExtensionsToCount">File extensions to include in the analysis.</param>
-    /// <returns>Dictionary of file paths to their content.</returns>
-    Task<Dictionary<string, string>> GetFileContentsFromCommitAsync(string localPath, string commitSha, IEnumerable<string> fileExtensionsToCount);
-
-    /// <summary>
-    /// Gets file contents from a commit using full path (for locally uploaded repos).
-    /// </summary>
-    Task<Dictionary<string, string>> GetFileContentsFromCommitFullPathAsync(string fullPath, string commitSha, IEnumerable<string> fileExtensionsToCount);
 }

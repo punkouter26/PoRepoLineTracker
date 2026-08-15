@@ -23,8 +23,20 @@ internal static class DiagnosticsEndpoints
                 var accept = context.Request.Headers.Accept.ToString();
                 if (accept.Contains("text/html", StringComparison.OrdinalIgnoreCase))
                 {
-                    var shell = Path.Combine(env.WebRootPath ?? string.Empty, "index.html");
-                    if (File.Exists(shell)) return Results.File(shell, "text/html");
+                    // WebRootFileProvider, not Path.Combine(env.WebRootPath, ...) + File.Exists.
+                    //
+                    // The WASM client's index.html is a STATIC WEB ASSET. In a published build it
+                    // is copied into the API's wwwroot and the physical-path check found it, but
+                    // in Development it exists only in the composite provider the static-web-assets
+                    // manifest builds — src/PoRepoLineTracker.API/wwwroot/index.html is not on
+                    // disk at all. So the File.Exists guard was false every time locally and this
+                    // handler fell through to the JSON branch: opening https://localhost:5001/diag
+                    // in a browser, or refreshing it, returned a wall of raw configuration JSON
+                    // instead of the page. It only looked like it worked because the sole route to
+                    // /diag was the nav link, which Blazor handles client-side without ever asking
+                    // the server.
+                    var shell = env.WebRootFileProvider.GetFileInfo("index.html");
+                    if (shell.Exists) return Results.Stream(shell.CreateReadStream(), "text/html");
                 }
 
                 return Results.Ok(BuildMaskedConfiguration(configuration, env));
@@ -161,7 +173,10 @@ internal static class DiagnosticsEndpoints
             {
                 TotalConnections = 6,
                 ConfiguredCount = configuredCount,
-                ApplicationPurpose = "Repository line tracking, AI code detection, contributor statistics"
+                // "AI code detection" used to be listed here. The AiDetection slice and its
+                // service are gone, so the string was advertising a capability the app no longer
+                // has — on the one page a user opens specifically to find out what it talks to.
+                ApplicationPurpose = "Repository line tracking, line-count history, contributor statistics"
             }
         });
     }

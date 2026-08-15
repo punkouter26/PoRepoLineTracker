@@ -38,6 +38,14 @@ public static class ConfigKeys
         public const string ClientSecret = "GitHub:ClientSecret";
         public const string CallbackPath = "GitHub:CallbackPath";
 
+        /// <summary>
+        /// Local-dev-only OAuth App, registered with a localhost callback. Preferred over
+        /// <see cref="ClientId"/>/<see cref="ClientSecret"/> in Development so a developer's
+        /// machine never needs the production app's credentials.
+        /// </summary>
+        public const string DevClientId = "GitHub:Dev:ClientId";
+        public const string DevClientSecret = "GitHub:Dev:ClientSecret";
+
         /// <summary>Server-side Personal Access Token, used when the caller has no GitHub token.</summary>
         public const string Pat = "GitHub:PAT";
         public const string LocalReposPath = "GitHub:LocalReposPath";

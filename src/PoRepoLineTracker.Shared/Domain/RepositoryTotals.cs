@@ -48,6 +48,11 @@ public static class RepositoryTotals
     /// instant, or 0 if the repository had no commits yet. This is the correct baseline for a
     /// "net change over the last N days" figure — subtracting a windowed sum would be wrong for
     /// the same reason summing snapshots is.
+    ///
+    /// A repository whose whole history starts inside the window has no snapshot that old, so its
+    /// baseline is 0 and its entire current size reads as "growth" — the truthful answer to "how
+    /// much did this add in N days" for something that did not exist N days ago, but easy to
+    /// misread as commits having added that many lines recently.
     /// </summary>
     public static int TotalLinesAsOf(IEnumerable<CommitLineCount>? commits, DateTime asOf)
     {

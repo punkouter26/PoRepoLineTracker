@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace PoRepoLineTracker.API.Storage;
 
@@ -27,6 +28,15 @@ public class FileIgnoreFilter : IFileIgnoreFilter
         "/wwwroot/wwwroot/",
         "/site/wwwroot/"
     ];
+
+    // Unity (and Java) vendor packages are named with a reverse-domain identifier —
+    // com.unity.ml-agents, com.google.firebase, and so on. Nobody names their own app code that
+    // way, so a directory segment matching this shape is treated as a vendored package regardless
+    // of where in the tree it sits — see FileIgnoreFilterTests for the case this was added for
+    // (a repo vendoring com.unity.ml-agents under a custom "Training/" folder rather than Unity's
+    // standard Packages/ directory, where it would have already been caught by name).
+    private static readonly Regex ReverseDomainPackageDirectory =
+        new(@"(^|/)com\.[a-z0-9_-]+\.[a-z0-9_.-]+(/|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public FileIgnoreFilter(ILogger<FileIgnoreFilter> logger)
     {
@@ -78,7 +88,8 @@ public class FileIgnoreFilter : IFileIgnoreFilter
         [
             "bin/", "obj/", "debug/", "release/", "node_modules/", "bower_components/",
             "jspm_packages/", "typings/", ".vs/", ".vscode/", ".idea/", "wwwroot/lib/",
-            "vendor/", "vendors/", "third_party/", "third-party/", ".git/", "packages/"
+            "vendor/", "vendors/", "third_party/", "third-party/", ".git/", "packages/",
+            "external/", "externals/"
         ];
     }
 
@@ -140,6 +151,7 @@ public class FileIgnoreFilter : IFileIgnoreFilter
             normalized.EndsWith(p) || normalized.Contains("/" + p) || normalized.StartsWith(p));
 
         shouldIgnore = shouldIgnore || GeneratedPathFragments.Any(normalized.Contains);
+        shouldIgnore = shouldIgnore || ReverseDomainPackageDirectory.IsMatch(normalized);
 
         if (shouldIgnore)
             _logger.LogDebug("Ignoring directory: {DirectoryPath}", directoryPath);

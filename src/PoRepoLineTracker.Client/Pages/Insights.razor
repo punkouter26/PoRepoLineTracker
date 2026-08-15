@@ -23,7 +23,7 @@
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.125rem">
-                <RadzenText TextStyle="TextStyle.H3" class="ins-title">Insights</RadzenText>
+                <RadzenText TextStyle="TextStyle.H3" class="ins-title">Global Insights</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body1" class="ins-lede">
                     @if (_isLoading)
                     {
@@ -31,7 +31,7 @@
                     }
                     else if (_insights is not null)
                     {
-                        <span>@_insights.AnalyzedCount of @_insights.RepositoryCount repositories analyzed</span>
+                        <span>Every repository in your account · @_insights.AnalyzedCount of @_insights.RepositoryCount analyzed</span>
                     }
                 </RadzenText>
             </RadzenStack>
@@ -98,14 +98,6 @@
             </RadzenCard>
 
             <RadzenCard class="ins-kpi">
-                <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">AI-assisted (30d)</RadzenText>
-                <div class="ins-kpi__value">@_insights.AiPercentage30Days.ToString("F1")%</div>
-                <div class="ins-kpi__delta">
-                    of @_insights.LinesAdded30Days.ToString("N0") lines added
-                </div>
-            </RadzenCard>
-
-            <RadzenCard class="ins-kpi">
                 <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">@(StreakHeading)</RadzenText>
                 @{ var streak = Streak; }
                 <div class="ins-kpi__value">
@@ -159,80 +151,125 @@
             </ChildContent>
         </ChartCard>
 
-        @* Both panels render through <ChartCard> now. They were a fourth and fifth hand-rolled
-           copy of the chrome it owns — surface, H6 title, caption, and an inline "nothing here
-           yet" line — each with its own `.ins-card*` rules and its own empty-state wording style.
-           The wrapper <div>s are gone with them: an auto-height box between the grid and the card
-           is what stopped ChartCard's `height: 100%` resolving, so the two cards never actually
-           bottom-aligned. *@
-        <div class="app-dashboard">
-            @* ─── Movers ──────────────────────────────────────────────────────────
-               Gainers and losers from the same ranked list, taken from each end. Shrinkage is
-               worth surfacing rather than filtering out: a repo that lost 4,000 lines is usually
-               the most interesting thing that happened all month. *@
-            <ChartCard Title="Movers (30 days)"
-                       Description="Largest net change in lines, either direction"
-                       IsEmpty="@(Movers.Count == 0)"
-                       EmptyIcon="trending_flat"
-                       EmptyText="No commits in the last 30 days."
-                       EmptyHint="Analyze a repository, or commit something.">
-                <div class="ins-movers">
-                    @foreach (var mover in Movers)
-                    {
-                        <button type="button" class="ins-mover"
-                                @onclick="@(() => Navigation.NavigateTo($"/repositories/{mover.RepositoryId}"))">
-                            <span class="ins-mover__name" title="@($"{mover.Owner}/{mover.Name}")">
-                                @mover.Owner/@mover.Name
-                            </span>
-                            <span class="ins-mover__meta">
-                                @mover.Commits30Days commits · @mover.TotalLines.ToString("N0") lines
-                            </span>
-                            <span class="ins-mover__delta @DeltaClass(mover.NetChange30Days)">
-                                @DeltaText(mover.NetChange30Days)
-                            </span>
-                        </button>
-                    }
-                </div>
-            </ChartCard>
+        @* ─── Portfolio growth ───────────────────────────────────────────────────
+           Total lines across every repository, sampled roughly monthly for the last year. The
+           heatmap above shows *when* you worked; this is the only place on the page that shows
+           whether the portfolio itself is actually getting bigger. *@
+        <ChartCard Title="Portfolio growth"
+                   Description="Total lines across every repository, sampled monthly over the last year"
+                   IsEmpty="@(_insights.TrendLine.Count == 0)"
+                   EmptyIcon="show_chart"
+                   EmptyText="No history to chart yet.">
+            <RadzenChart>
+                <RadzenAreaSeries Data="@_insights.TrendLine"
+                                  CategoryProperty="Date"
+                                  ValueProperty="TotalLines"
+                                  Title="Total lines"
+                                  Stroke="var(--rz-primary)"
+                                  Fill="color-mix(in srgb, var(--primary-color) 14%, transparent)"
+                                  StrokeWidth="3">
+                    <RadzenMarkers MarkerType="MarkerType.Circle" />
+                </RadzenAreaSeries>
 
-            @* ─── Language mix ────────────────────────────────────────────────────
-               Portfolio-wide, from each repository's most recent snapshot. The per-repo version of
-               this already existed on the detail page; the aggregate did not. *@
-            <ChartCard Title="Language mix"
-                       Description="Share of current lines by file type"
-                       IsEmpty="@(_insights.LanguageMix.Count == 0)"
-                       EmptyIcon="donut_large"
-                       EmptyText="No per-extension data yet."
-                       EmptyHint="Re-analyze a repository to populate it.">
-                <RadzenChart>
-                    <RadzenDonutSeries Data="@_insights.LanguageMix"
-                                       CategoryProperty="Extension"
-                                       ValueProperty="Percentage"
-                                       Title="Share of lines">
-                        <RadzenSeriesDataLabels Visible="false" />
-                    </RadzenDonutSeries>
-                    <RadzenLegend Position="LegendPosition.Bottom" />
-                </RadzenChart>
+                @* Whole-day Step: see ChartFormat.DateAxisStep. *@
+                <RadzenCategoryAxis FormatString="{0:MMM yyyy}"
+                                    Step="@ChartFormat.DateAxisStep(_insights.TrendLine.Select(p => p.Date))"
+                                    LabelAutoRotation="-45">
+                    <RadzenGridLines Visible="true" />
+                </RadzenCategoryAxis>
+                <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                    <RadzenGridLines Visible="true" />
+                </RadzenValueAxis>
+                <RadzenLegend Visible="false" />
+            </RadzenChart>
+        </ChartCard>
 
-                <div class="ins-langs">
-                    @foreach (var language in _insights.LanguageMix)
-                    {
-                        <div class="ins-lang">
-                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                                         AlignItems="AlignItems.Center" Gap="0.5rem">
-                                <code class="ins-lang__code">@language.Extension</code>
-                                <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
-                                    @language.Lines.ToString("N0") · @language.Percentage.ToString("F1")%
-                                </RadzenText>
-                            </RadzenStack>
-                            <progress class="ins-lang__bar" max="100"
-                                      value="@Math.Min(language.Percentage, 100)"
-                                      aria-label="@($"{language.Extension}: {language.Percentage:F1}% of lines")"></progress>
-                        </div>
-                    }
-                </div>
-            </ChartCard>
-        </div>
+        @* ─── All repositories ───────────────────────────────────────────────────
+           Replaces the old gainers/losers slice: every tracked repository, sortable by whichever
+           figure the reader actually wants to compare, with a 12-week commit-cadence sparkline so
+           "still active" doesn't require opening each one. *@
+        <ChartCard Title="All repositories"
+                   Description="Every tracked repository — click a header to sort, a row to open it"
+                   IsEmpty="@(_insights.Movers.Count == 0)"
+                   EmptyIcon="storage"
+                   EmptyText="No repositories analyzed yet.">
+            <div class="u-scroll-x">
+                <RadzenDataGrid Data="@_insights.Movers"
+                                TItem="RepositoryMovementDto"
+                                AllowSorting="true"
+                                Responsive="true"
+                                RowRender="@OnRepoRowRender"
+                                RowClick="@OnRepoRowClick"
+                                Density="Density.Default"
+                                class="ins-repo-grid">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="RepositoryMovementDto" Property="Name" Title="Repository" MinWidth="160px" Width="200px">
+                            <Template Context="row">
+                                <span title="@($"{row.Owner}/{row.Name}")">@row.Owner/@row.Name</span>
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="RepositoryMovementDto" Property="TotalLines" Title="Total Lines" Width="110px" TextAlign="TextAlign.Right" Sortable="true">
+                            <Template Context="row">@row.TotalLines.ToString("N0")</Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="RepositoryMovementDto" Property="NetChange30Days" Title="Net (30d)" Width="100px" TextAlign="TextAlign.Right" Sortable="true">
+                            <Template Context="row">
+                                <span class="@DeltaClass(row.NetChange30Days)">@DeltaText(row.NetChange30Days)</span>
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="RepositoryMovementDto" Property="Commits30Days" Title="Commits (30d)" Width="110px" TextAlign="TextAlign.Right" Sortable="true" />
+                        <RadzenDataGridColumn TItem="RepositoryMovementDto" Title="Cadence (12w)" Width="140px" Sortable="false" Filterable="false">
+                            <Template Context="row">
+                                <div class="ins-spark" role="img" aria-label="@SparklineSummary(row)" title="@SparklineSummary(row)">
+                                    @{ var max = Math.Max(1, row.WeeklyCommits.DefaultIfEmpty(0).Max()); }
+                                    @foreach (var week in row.WeeklyCommits)
+                                    {
+                                        <span class="ins-spark__bar" style="@($"height:{Math.Max(6, week * 100 / max)}%")"></span>
+                                    }
+                                </div>
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </div>
+        </ChartCard>
+
+        @* ─── Language mix ────────────────────────────────────────────────────
+           Portfolio-wide, from each repository's most recent snapshot. The per-repo version of
+           this already existed on the detail page; the aggregate did not. *@
+        <ChartCard Title="Language mix"
+                   Description="Share of current lines by file type"
+                   IsEmpty="@(_insights.LanguageMix.Count == 0)"
+                   EmptyIcon="donut_large"
+                   EmptyText="No per-extension data yet."
+                   EmptyHint="Re-analyze a repository to populate it.">
+            <RadzenChart>
+                <RadzenDonutSeries Data="@_insights.LanguageMix"
+                                   CategoryProperty="Extension"
+                                   ValueProperty="Percentage"
+                                   Title="Share of lines">
+                    <RadzenSeriesDataLabels Visible="false" />
+                </RadzenDonutSeries>
+                <RadzenLegend Position="LegendPosition.Bottom" />
+            </RadzenChart>
+
+            <div class="ins-langs">
+                @foreach (var language in _insights.LanguageMix)
+                {
+                    <div class="ins-lang">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                                     AlignItems="AlignItems.Center" Gap="0.5rem">
+                            <code class="ins-lang__code">@language.Extension</code>
+                            <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
+                                @language.Lines.ToString("N0") · @language.Percentage.ToString("F1")%
+                            </RadzenText>
+                        </RadzenStack>
+                        <progress class="ins-lang__bar" max="100"
+                                  value="@Math.Min(language.Percentage, 100)"
+                                  aria-label="@($"{language.Extension}: {language.Percentage:F1}% of lines")"></progress>
+                    </div>
+                }
+            </div>
+        </ChartCard>
     }
 </div>
 
@@ -241,17 +278,21 @@
     private bool _isLoading = true;
     private string _error = string.Empty;
 
-    /// <summary>Gainers off the front of the ranked list, losers off the back, no repo counted twice.</summary>
-    private List<RepositoryMovementDto> Movers
-    {
-        get
-        {
-            var ranked = (_insights?.Movers ?? []).Where(m => m.Commits30Days > 0).ToList();
-            if (ranked.Count <= 6) return ranked;
+    private void OnRepoRowClick(DataGridRowMouseEventArgs<RepositoryMovementDto> args) =>
+        Navigation.NavigateTo($"/repositories/{args.Data.RepositoryId}");
 
-            return ranked.Take(4).Concat(ranked.TakeLast(2)).ToList();
-        }
+    /// <summary>Mirrors the Repositories grid: keyboard-reachable, Enter/Space-activatable rows.</summary>
+    private static void OnRepoRowRender(RowRenderEventArgs<RepositoryMovementDto> args)
+    {
+        args.Attributes["style"] = "cursor: pointer;";
+        args.Attributes["tabindex"] = "0";
+        args.Attributes["role"] = "button";
+        args.Attributes["aria-label"] = $"Open repository {args.Data.Owner}/{args.Data.Name}";
+        args.Attributes["onkeydown"] = "if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}";
     }
+
+    private static string SparklineSummary(RepositoryMovementDto row) =>
+        $"Commits per week, last 12 weeks: {string.Join(", ", row.WeeklyCommits)}";
 
     /// <summary>
     /// Blank cells before the first day so each grid column is one calendar week.

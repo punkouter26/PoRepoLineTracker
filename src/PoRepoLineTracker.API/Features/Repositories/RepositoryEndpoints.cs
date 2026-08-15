@@ -8,6 +8,29 @@ namespace PoRepoLineTracker.API.Features.Repositories;
 
 internal static class RepositoryEndpoints
 {
+    /// <summary>
+    /// Loads a repository and confirms <paramref name="userId"/> owns it. Returns the repository
+    /// on success; otherwise the <see cref="IResult"/> the caller should return directly (404 if
+    /// the repository does not exist, 403 — logged as an IDOR attempt — if it belongs to someone
+    /// else).
+    /// </summary>
+    private static async Task<(GitHubRepository? Repository, IResult? Error)> AuthorizeOwnerAsync(
+        IRepositoryDataService repoDataService, RepositoryId repositoryId, UserId userId, string action)
+    {
+        var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
+        if (existing == null)
+            return (null, Results.NotFound($"Repository {repositoryId} not found."));
+
+        if (existing.UserId != userId)
+        {
+            Log.Warning("IDOR attempt: user {UserId} tried to {Action} repo {RepositoryId} owned by {OwnerId}",
+                userId, action, repositoryId, existing.UserId);
+            return (null, Results.Forbid());
+        }
+
+        return (existing, null);
+    }
+
     internal static void MapRepositoryEndpoints(this IEndpointRouteBuilder endpoints)
     {
         // Rule 3.1 — one group carries the prefix and the authorization requirement for the whole
@@ -41,13 +64,8 @@ internal static class RepositoryEndpoints
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
-            if (existing.UserId != userId)
-            {
-                Log.Warning("IDOR attempt: user {UserId} tried to read linehistory for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
-                return Results.Forbid();
-            }
+            var (_, error) = await AuthorizeOwnerAsync(repoDataService, repositoryId, userId, "read linehistory for");
+            if (error != null) return error;
 
             try
             {
@@ -87,16 +105,8 @@ internal static class RepositoryEndpoints
                 return Results.Unauthorized();
 
             // Ownership guard: only the owning user may delete their repository
-            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-            if (existing == null)
-                return Results.NotFound($"Repository with ID {repositoryId} not found.");
-
-            if (existing.UserId != userId)
-            {
-                Log.Warning("Unauthorized delete attempt: User {UserId} tried to delete repository {RepositoryId} owned by {OwnerId}",
-                    userId, repositoryId, existing.UserId);
-                return Results.Forbid();
-            }
+            var (_, error) = await AuthorizeOwnerAsync(repoDataService, repositoryId, userId, "delete");
+            if (error != null) return error;
 
             try
             {
@@ -212,13 +222,8 @@ internal static class RepositoryEndpoints
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
-            if (existing.UserId != userId)
-            {
-                Log.Warning("IDOR attempt: user {UserId} tried to trigger analysis for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
-                return Results.Forbid();
-            }
+            var (_, error) = await AuthorizeOwnerAsync(repoDataService, repositoryId, userId, "trigger analysis for");
+            if (error != null) return error;
 
             Log.Information("Background analysis queued for repository {RepositoryId} (force={Force})", repositoryId, force);
             _ = Task.Run(async () =>
@@ -244,13 +249,8 @@ internal static class RepositoryEndpoints
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
-            if (existing.UserId != userId)
-            {
-                Log.Warning("IDOR attempt: user {UserId} tried to reanalyze repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
-                return Results.Forbid();
-            }
+            var (_, error) = await AuthorizeOwnerAsync(repoDataService, repositoryId, userId, "reanalyze");
+            if (error != null) return error;
 
             Log.Information("Background re-analysis queued for repository {RepositoryId} by user {UserId}", repositoryId, userId);
             _ = Task.Run(async () =>
@@ -278,13 +278,8 @@ internal static class RepositoryEndpoints
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
-            if (existing.UserId != userId)
-            {
-                Log.Warning("IDOR attempt: user {UserId} tried to read file-extension-percentages for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
-                return Results.Forbid();
-            }
+            var (_, error) = await AuthorizeOwnerAsync(repoDataService, repositoryId, userId, "read file-extension-percentages for");
+            if (error != null) return error;
 
             try
             {
@@ -305,13 +300,8 @@ internal static class RepositoryEndpoints
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
-            if (existing.UserId != userId)
-            {
-                Log.Warning("IDOR attempt: user {UserId} tried to read top-files for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
-                return Results.Forbid();
-            }
+            var (_, error) = await AuthorizeOwnerAsync(repoDataService, repositoryId, userId, "read top-files for");
+            if (error != null) return error;
 
             try
             {
@@ -333,13 +323,8 @@ internal static class RepositoryEndpoints
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
-            if (existing.UserId != userId)
-            {
-                Log.Warning("IDOR attempt: user {UserId} tried to read analysis-progress for repo {RepositoryId} owned by {OwnerId}", userId, repositoryId, existing.UserId);
-                return Results.Forbid();
-            }
+            var (_, error) = await AuthorizeOwnerAsync(repoDataService, repositoryId, userId, "read analysis-progress for");
+            if (error != null) return error;
 
             var progress = progressService.GetProgress(repositoryId);
             if (progress == null)

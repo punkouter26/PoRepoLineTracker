@@ -97,7 +97,6 @@ namespace PoRepoLineTracker.Integration
         {
             UserId = UserId.Parse(TestAuthHandler.TestUserId),
             FileExtensions = UserPreferences.DefaultFileExtensions,
-            ChartDisplayMode = ChartDisplayMode.TrueData,
             LastUpdated = DateTime.UtcNow
         };
 

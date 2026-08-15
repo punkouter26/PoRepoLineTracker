@@ -96,36 +96,11 @@ public class ApiEndpointTests
     }
 
     [Fact]
-    public async Task GetUserPreferences_Returns_DefaultChartDisplayMode()
-    {
-        // Save known preferences first to ensure deterministic state,
-        // then verify the response contains a valid ChartDisplayMode.
-        // Note: The default when no preferences exist is ChartDisplayMode.TrueData,
-        // but other tests may persist preferences for the same test user.
-        // We verify the endpoint returns a valid mode rather than assuming clean state.
-        var saveResponse = await _client.PutAsJsonAsync("/api/settings/user-preferences", new UserPreferences
-        {
-            FileExtensions = new List<string> { ".cs" },
-            ChartDisplayMode = ChartDisplayMode.TrueData,
-            LastUpdated = DateTime.UtcNow
-        });
-        saveResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var response = await _client.GetAsync("/api/settings/user-preferences");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var preferences = await response.Content.ReadFromJsonAsync<UserPreferences>();
-        preferences.Should().NotBeNull();
-        preferences!.ChartDisplayMode.Should().Be(ChartDisplayMode.TrueData);
-    }
-
-    [Fact]
-    public async Task SaveUserPreferences_RoundTrips_ChartDisplayMode()
+    public async Task SaveUserPreferences_RoundTrips_FileExtensions()
     {
         var updatedPreferences = new UserPreferences
         {
             FileExtensions = new List<string> { ".cs", ".razor" },
-            ChartDisplayMode = ChartDisplayMode.MovingAverage,
             LastUpdated = DateTime.UtcNow
         };
 
@@ -138,8 +113,7 @@ public class ApiEndpointTests
 
         var persistedPreferences = await getResponse.Content.ReadFromJsonAsync<UserPreferences>();
         persistedPreferences.Should().NotBeNull();
-        persistedPreferences!.ChartDisplayMode.Should().Be(ChartDisplayMode.MovingAverage);
-        persistedPreferences.FileExtensions.Should().BeEquivalentTo(new[] { ".cs", ".razor" });
+        persistedPreferences!.FileExtensions.Should().BeEquivalentTo(new[] { ".cs", ".razor" });
     }
 
     // ─── Repositories (Authenticated) ───────────────────────────────────

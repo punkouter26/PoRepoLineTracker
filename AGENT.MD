@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-PoRepoLineTracker is a Blazor WASM + ASP.NET Core application that tracks lines of code across GitHub repositories. It provides AI code detection, contributor statistics, and line trend analysis. Users authenticate via GitHub OAuth only.
+PoRepoLineTracker is a Blazor WASM + ASP.NET Core application that tracks lines of code across GitHub repositories. It provides line-count history, per-extension composition, contributor statistics, and line trend analysis. Users authenticate via GitHub OAuth only. **No AI/LLM inference happens anywhere in this codebase** — see "Removed features".
 
 ## Architecture
 
@@ -20,7 +20,7 @@ Inside `.API`, directories stay at most two deep:
 API/
 ├── Features/{Name}/   # endpoints + commands/queries + handlers, co-located (one file per operation)
 ├── Storage/           # Azure Table entities + data services
-├── Services/          # cross-slice services (AI detection, line counting)
+├── Services/          # cross-slice services (line counting)
 ├── Auth/              # FakeAuthHandler
 ├── Middleware/        # exception handling, security headers, log enrichment
 ├── Telemetry/         # ActivitySource, Meters, source-generated logging
@@ -30,7 +30,7 @@ API/
 **Slice autonomy**: slices must not reference each other. `GlobalUsings.cs` deliberately imports
 `Storage`/`Services`/`Telemetry` but NOT `Features.*`, so cross-slice coupling requires an explicit
 `using` — only the composition root (`Extensions/`) has one. A query used by exactly one slice lives
-in that slice (e.g. `GetContributorStatsQuery` is in `Features/AiDetection`).
+in that slice (e.g. `GetContributorStatsQuery` is in `Features/Contributors`).
 
 **Key Rule**: The Client project must NOT reference API internals. It communicates over HTTP.
 
@@ -63,7 +63,7 @@ in that slice (e.g. `GetContributorStatsQuery` is in `Features/AiDetection`).
 - **WebGL backdrop + Web Audio feedback** — `gfx.js`, `audio.js`, `GfxService`, `AudioService`, `SoundSettingsCard`, and the unused `.u-grad-*`/`.u-sheen`/`.u-press`/`.u-stagger`/`.u-glass-strong` utilities. ~1,900 lines, none of it on any data path. The login backdrop is now the CSS blobs that were already there as the fallback.
 - **Commit tagging** — `CommitTaggerService`, the `TagsJson` column, and `Tags` on `CommitLineCount`/`CommitStatsDto`/`DailyLineCountDto`. This also removed the badge row it fed on the repository detail page's timeline scrubber. Azure Tables is schemaless, so pre-existing rows keep the property and it is ignored.
 - **`POST /api/repositories`** (single add) and the dev `fix-local-path` route. `/api/repositories/bulk` is the only write path — it dedupes via `GetRepositoryByOwnerAndNameAsync`, validates through the shared FluentValidation rules, and queues analysis only for what it actually added; the single-add path did none of that and inserted unconditionally, so adding the same repository twice produced two rows.
-- **AI model selector** (dropdown / `GET /api/ai-models` / `AiModelDto`) — was cosmetic, wired to nothing. The heuristic `AiDetectionService` remains but is not invoked; no LLM is used.
+- **AI detection, in full** — the `Features/AiDetection` slice, `AiDetectionService`/`IAiDetectionService`, `AiMixChart`, the AI model selector (`GET /api/ai-models`, `AiModelDto`) and every AI-share DTO field. The selector was cosmetic and wired to nothing; the detector behind it was a local hand-written heuristic that no code path invoked. **No LLM was ever called, and no AI/ML package, model runtime or inference endpoint exists in the solution today** — `GetContributorStatsQuery` moved to `Features/Contributors` and is pure LINQ over stored commit rows. Do not reintroduce an "optimise our AI costs" assumption from stale docs.
 - **SmartAlerts** — all alert rules/triggers UI, endpoints (`/api/alerts/*`), `IAlertService`/`AlertService`, domain models, DTOs, and the `AlertMetric`/`AlertOperator` enums were removed.
 - **Failed Operations** — the whole slice was removed: the `/failed-operations` page + nav link, all `/api/failed-operations*` endpoints, `IFailedOperationService`/`FailedOperationService`, the (stub, non-functional) `FailedOperationBackgroundService`, the `FailedOperation` domain model, `FailedOperationEntity`, and the `AzureTableStorage:FailedOperationTableName` / `FeatureFlags:EnableFailedOperationRetry` config keys. Commit-processing failures now surface via the Serilog error log **plus** the `AppTelemetry.FailedOperations` OpenTelemetry counter (`operations.failed`), incremented in the analysis handler's per-commit catch block — no dead-letter persistence.
 

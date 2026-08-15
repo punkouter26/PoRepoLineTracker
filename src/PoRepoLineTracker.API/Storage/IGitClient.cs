@@ -24,32 +24,11 @@ namespace PoRepoLineTracker.API.Storage
         void Pull(string localPath, string? accessToken = null);
 
         /// <summary>
-        /// Gets all commits from a local repository, optionally since a specific date.
-        /// </summary>
-        /// <param name="localPath">The local path of the repository.</param>
-        /// <param name="sinceDate">Optional: Only return commits after this date.</param>
-        /// <returns>An enumerable of commit SHAs and their commit dates.</returns>
-        IEnumerable<(string Sha, DateTimeOffset CommitDate)> GetCommits(string localPath, DateTime? sinceDate = null);
-
-        /// <summary>
         /// Opens an existing local repository.
         /// </summary>
         /// <param name="localPath">The local path of the repository.</param>
         /// <returns>A LibGit2Sharp Repository object.</returns>
         Repository OpenRepository(string localPath);
-
-        /// <summary>
-        /// Checks out a specific commit in the given repository.
-        /// </summary>
-        /// <param name="repo">The repository instance.</param>
-        /// <param name="commit">The commit to checkout.</param>
-        void Checkout(Repository repo, Commit commit);
-
-        /// <summary>
-        /// Gets all commits from a local repository at a full path, optionally since a specific date.
-        /// Used for locally uploaded repositories that don't use the standard _localReposPath.
-        /// </summary>
-        IEnumerable<(string Sha, DateTimeOffset CommitDate)> GetCommitsFromPath(string fullPath, DateTime? sinceDate = null);
 
         /// <summary>
         /// Opens an existing local repository using its full path.

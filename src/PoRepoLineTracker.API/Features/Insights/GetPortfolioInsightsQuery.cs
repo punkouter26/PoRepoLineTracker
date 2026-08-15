@@ -16,11 +16,18 @@ public sealed class GetPortfolioInsightsQueryHandler(
     /// <summary>Span of the activity heatmap, and the window the streak figures search.</summary>
     private const int ActivityWindowDays = 365;
 
-    /// <summary>Window for the "recently" figures — movers, commit count, AI share.</summary>
+    /// <summary>Window for the "recently" figures — movers, commit count.</summary>
     private const int RecentWindowDays = 30;
 
     /// <summary>Extensions shown individually in the language mix; the rest fold into "Other".</summary>
     private const int LanguageMixSize = 8;
+
+    /// <summary>Points on the portfolio growth trend line, spaced <see cref="TrendStepDays"/> apart, newest last.</summary>
+    private const int TrendPointCount = 12;
+    private const int TrendStepDays = 30;
+
+    /// <summary>Weeks of commit cadence kept per repository for the ranking table's sparkline.</summary>
+    private const int SparklineWeeks = 12;
 
     public async Task<PortfolioInsightsDto> Handle(GetPortfolioInsightsQuery request, CancellationToken cancellationToken)
     {
@@ -49,11 +56,16 @@ public sealed class GetPortfolioInsightsQueryHandler(
         var recentCutoff = today.AddDays(-RecentWindowDays);
         var activityCutoff = today.AddDays(-(ActivityWindowDays - 1));
 
+        // Newest last, so the trend chart and every sparkline read left-to-right as time passing.
+        var trendDates = Enumerable.Range(0, TrendPointCount)
+            .Select(i => today.AddDays(-TrendStepDays * (TrendPointCount - 1 - i)))
+            .ToList();
+        var trendTotals = new long[TrendPointCount];
+
         var movers = new List<RepositoryMovementDto>();
         var languageTotals = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var commitsByDay = new Dictionary<DateTime, (int Commits, int LinesAdded)>();
 
-        double weightedAiLines = 0;
         long recentLinesAdded = 0;
         int recentCommits = 0;
 
@@ -75,13 +87,15 @@ public sealed class GetPortfolioInsightsQueryHandler(
             insights.NetLines30Days += latestTotal - baseline30;
             insights.NetLines7Days += latestTotal - baseline7;
 
+            for (var i = 0; i < TrendPointCount; i++)
+                trendTotals[i] += RepositoryTotals.TotalLinesAsOf(commits, trendDates[i]);
+
             foreach (var (extension, lines) in latest.LinesByFileType)
                 languageTotals[extension] = languageTotals.GetValueOrDefault(extension) + lines;
 
             var recent = commits.Where(c => c.CommitDate >= recentCutoff).ToList();
             recentCommits += recent.Count;
             recentLinesAdded += recent.Sum(c => (long)c.LinesAdded);
-            weightedAiLines += recent.Sum(c => c.LinesAdded * Math.Clamp(c.AiPercentage, 0, 100) / 100.0);
 
             movers.Add(new RepositoryMovementDto
             {
@@ -91,7 +105,7 @@ public sealed class GetPortfolioInsightsQueryHandler(
                 TotalLines = latestTotal,
                 NetChange30Days = latestTotal - baseline30,
                 Commits30Days = recent.Count,
-                AiPercentage30Days = WeightedAiShare(recent)
+                WeeklyCommits = WeeklyCadence(commits, today)
             });
 
             foreach (var commit in commits.Where(c => c.CommitDate.Date >= activityCutoff))
@@ -104,13 +118,13 @@ public sealed class GetPortfolioInsightsQueryHandler(
 
         insights.Commits30Days = recentCommits;
         insights.LinesAdded30Days = (int)Math.Min(recentLinesAdded, int.MaxValue);
-        insights.AiPercentage30Days = recentLinesAdded > 0
-            ? Math.Round(weightedAiLines / recentLinesAdded * 100, 1)
-            : 0;
 
         insights.Movers = movers.OrderByDescending(m => m.NetChange30Days).ToList();
         insights.LanguageMix = BuildLanguageMix(languageTotals);
         insights.Activity = BuildActivity(commitsByDay, activityCutoff, today);
+        insights.TrendLine = trendDates
+            .Select((date, i) => new PortfolioTrendPointDto { Date = date, TotalLines = (int)Math.Min(trendTotals[i], int.MaxValue) })
+            .ToList();
 
         var activeDates = commitsByDay.Keys.ToHashSet();
         insights.ActiveDays30 = activeDates.Count(d => d >= recentCutoff);
@@ -125,21 +139,22 @@ public sealed class GetPortfolioInsightsQueryHandler(
     }
 
     /// <summary>
-    /// The repository's line count as of <paramref name="cutoff"/>.
-    /// <para>
-    /// A repository whose history starts inside the window has no snapshot that old; its baseline
-    /// is 0 so its whole size reads as growth, which is the truthful answer to "how much did this
-    /// add in 30 days" for something that did not exist 30 days ago.
-    /// </para>
-    /// <paramref name="commits"/> must be ordered by date ascending.
+    /// Commits per week for the last <see cref="SparklineWeeks"/> weeks, oldest first. Whole
+    /// 7-day buckets ending today, not calendar weeks — the sparkline compares repositories against
+    /// each other, not against a shared calendar boundary that would rarely land on "today".
+    /// <paramref name="commits"/> need not be filtered or ordered; every commit is checked once.
     /// </summary>
-    private static double WeightedAiShare(List<CommitLineCount> commits)
+    private static List<int> WeeklyCadence(List<CommitLineCount> commits, DateTime today)
     {
-        var added = commits.Sum(c => (double)c.LinesAdded);
-        if (added <= 0) return 0;
+        var weeks = new int[SparklineWeeks];
+        foreach (var commit in commits)
+        {
+            var daysAgo = (today - commit.CommitDate.Date).Days;
+            if (daysAgo < 0 || daysAgo >= 7 * SparklineWeeks) continue;
 
-        var ai = commits.Sum(c => c.LinesAdded * Math.Clamp(c.AiPercentage, 0, 100) / 100.0);
-        return Math.Round(ai / added * 100, 1);
+            weeks[SparklineWeeks - 1 - daysAgo / 7]++;
+        }
+        return weeks.ToList();
     }
 
     private static List<LanguageShareDto> BuildLanguageMix(Dictionary<string, long> totals)

@@ -156,14 +156,12 @@ public class UserPreferencesEntityTests
         {
             UserId = UserId.New(),
             FileExtensions = new List<string> { ".cs", ".js", ".py" },
-            ChartDisplayMode = ChartDisplayMode.MovingAverage,
             LastUpdated = DateTime.UtcNow
         };
 
         var entity = new UserPreferencesEntity(prefs);
 
         entity.FileExtensions.Should().Be(".cs,.js,.py");
-        entity.ChartDisplayMode.Should().Be(nameof(ChartDisplayMode.MovingAverage));
         entity.UserId.Should().Be(prefs.UserId.Value);
     }
 
@@ -180,22 +178,5 @@ public class UserPreferencesEntityTests
         var domain = entity.ToDomainModel();
 
         domain.FileExtensions.Should().BeEquivalentTo(new[] { ".cs", ".ts", ".html" });
-        domain.ChartDisplayMode.Should().Be(ChartDisplayMode.TrueData);
-    }
-
-    [Fact]
-    public void ToDomainModel_InvalidChartDisplayMode_ReturnsTrueData()
-    {
-        var entity = new UserPreferencesEntity
-        {
-            UserId = Guid.NewGuid(),
-            FileExtensions = ".cs,.ts",
-            ChartDisplayMode = "NotARealMode",
-            RowKey = Guid.NewGuid().ToString()
-        };
-
-        var domain = entity.ToDomainModel();
-
-        domain.ChartDisplayMode.Should().Be(ChartDisplayMode.TrueData);
     }
 }

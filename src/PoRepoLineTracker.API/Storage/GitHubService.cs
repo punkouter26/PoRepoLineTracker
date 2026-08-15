@@ -16,15 +16,13 @@ public class GitHubService : IGitHubService
     private readonly Dictionary<string, ILineCounter> _lineCounterMap; // New field for line counter map
     private readonly IGitClient _gitClient; // Added for DIP
     private readonly IFileIgnoreFilter _fileIgnoreFilter; // Added for file filtering
-    private readonly IAiDetectionService _aiDetectionService; // Scores each commit's own diff
 
-    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, IGitClient gitClient, IFileIgnoreFilter fileIgnoreFilter, IAiDetectionService aiDetectionService)
+    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, IGitClient gitClient, IFileIgnoreFilter fileIgnoreFilter)
     {
         _httpClient = httpClient;
         _logger = logger;
         _gitClient = gitClient; // Initialize IGitClient
         _fileIgnoreFilter = fileIgnoreFilter; // Initialize file ignore filter
-        _aiDetectionService = aiDetectionService;
 
         // Determine the base path for local repositories.
         // In Azure App Service, use a path within the ephemeral storage.
@@ -48,6 +46,8 @@ public class GitHubService : IGitHubService
 
         _lineCounterMap = lineCounters.ToDictionary(lc => lc.FileExtension, lc => lc); // Initialize map
     }
+
+    public string LocalReposBasePath => _localReposPath;
 
     public async Task<string> CloneRepositoryAsync(string repoUrl, string localPath, string? accessToken = null)
     {
@@ -96,28 +96,6 @@ public class GitHubService : IGitHubService
     }
 
     /// <summary>
-    /// Gets all commits from a local repository at its full path, optionally since a specific date.
-    /// Used for locally uploaded repositories.
-    /// </summary>
-    public async Task<IEnumerable<(string Sha, DateTimeOffset CommitDate)>> GetCommitsFromFullPathAsync(string fullPath, DateTime? sinceDate = null)
-    {
-        return await Task.Run(() =>
-        {
-            _logger.LogInformation("Getting commits for local repository at full path {FullPath} since {SinceDate}", fullPath, sinceDate);
-
-            if (!Repository.IsValid(fullPath))
-            {
-                _logger.LogError("Local repository not found or invalid at {FullPath}. Cannot get commits.", fullPath);
-                return Enumerable.Empty<(string Sha, DateTimeOffset CommitDate)>();
-            }
-
-            var commits = _gitClient.GetCommitsFromPath(fullPath, sinceDate).ToList();
-            _logger.LogInformation("Found {CommitCount} commits for local repository at {FullPath}", commits.Count, fullPath);
-            return commits.AsEnumerable();
-        });
-    }
-
-    /// <summary>
     /// Gets commit stats from a local repository at its full path, optionally since a specific date.
     /// Used for locally uploaded repositories.
     /// </summary>
@@ -159,21 +137,18 @@ public class GitHubService : IGitHubService
                 {
                     int linesAdded = 0;
                     int linesRemoved = 0;
-                    double aiPercentage;
 
                     if (commit.Parents.Any())
                     {
                         var patch = repo.Diff.Compare<Patch>(commit.Parents.First().Tree, commit.Tree);
                         linesAdded = patch.LinesAdded;
                         linesRemoved = patch.LinesDeleted;
-                        aiPercentage = ScoreCommit(patch, commit.Sha);
                     }
                     else
                     {
                         var patch = repo.Diff.Compare<Patch>(null, commit.Tree);
                         linesAdded = patch.LinesAdded;
                         linesRemoved = 0;
-                        aiPercentage = ScoreCommit(patch, commit.Sha);
                     }
 
                     commitStatsList.Add(new CommitStatsDto
@@ -183,8 +158,7 @@ public class GitHubService : IGitHubService
                         LinesAdded = linesAdded,
                         LinesRemoved = linesRemoved,
                         AuthorName = commit.Author.Name,
-                        AuthorEmail = commit.Author.Email,
-                        AiPercentage = aiPercentage
+                        AuthorEmail = commit.Author.Email
                     });
                 }
             }
@@ -309,26 +283,6 @@ public class GitHubService : IGitHubService
         });
     }
 
-    public async Task<IEnumerable<(string Sha, DateTimeOffset CommitDate)>> GetCommitsAsync(string localPath, DateTime? sinceDate = null)
-    {
-        return await Task.Run(() =>
-        {
-            var fullLocalPath = Path.Combine(_localReposPath, localPath);
-            _logger.LogInformation("Getting commits for repository at {LocalPath} since {SinceDate}", fullLocalPath, sinceDate);
-
-            if (!Repository.IsValid(fullLocalPath))
-            {
-                _logger.LogError("Local repository not found or invalid at {LocalPath}. Cannot get commits.", fullLocalPath);
-                return Enumerable.Empty<(string Sha, DateTimeOffset CommitDate)>();
-            }
-
-            var commits = _gitClient.GetCommits(fullLocalPath, sinceDate) // Use IGitClient
-                                      .ToList();
-            _logger.LogInformation("Found {CommitCount} new commits for repository at {LocalPath}", commits.Count, fullLocalPath);
-            return commits.AsEnumerable();
-        });
-    }
-
     public async Task<Dictionary<string, int>> CountLinesInCommitAsync(string localPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
     {
         var fullLocalPath = Path.Combine(_localReposPath, localPath);
@@ -407,32 +361,16 @@ public class GitHubService : IGitHubService
                     {
                         _logger.LogDebug("Processing file: {FileName}, Size: {FileSize} bytes", entry.Name, blob.Size);
 
-                        // Get the appropriate line counter
-                        if (!_lineCounterMap.TryGetValue(fileExtension, out var lineCounter))
-                        {
-                            _lineCounterMap.TryGetValue("*", out lineCounter); // Fallback to default
-                        }
+                        int lines = await CountBlobLinesAsync(blob, fileExtension);
+                        _logger.LogDebug("Counted {Lines} lines for file {FileName}.", lines, entry.Name);
 
-                        if (lineCounter != null)
+                        if (lineCounts.ContainsKey(fileExtension))
                         {
-                            using (var contentStream = blob.GetContentStream())
-                            {
-                                int lines = await lineCounter.CountLinesAsync(contentStream);
-                                _logger.LogDebug("Counted {Lines} lines for file {FileName} using {LineCounterType}.", lines, entry.Name, lineCounter.GetType().Name);
-
-                                if (lineCounts.ContainsKey(fileExtension))
-                                {
-                                    lineCounts[fileExtension] += lines;
-                                }
-                                else
-                                {
-                                    lineCounts[fileExtension] = lines;
-                                }
-                            }
+                            lineCounts[fileExtension] += lines;
                         }
                         else
                         {
-                            _logger.LogWarning("No line counter found for file extension {FileExtension}.", fileExtension);
+                            lineCounts[fileExtension] = lines;
                         }
                     }
                     else
@@ -450,6 +388,28 @@ public class GitHubService : IGitHubService
                 _logger.LogDebug("Skipping tree entry {EntryName} as it is not a blob or tree (Type: {TargetType}).", entry.Name, entry.TargetType);
             }
         }
+    }
+
+    /// <summary>
+    /// Counts a single blob's lines with the strategy registered for its extension, falling back
+    /// to the "*" strategy for anything without a dedicated one. Shared by the per-commit line
+    /// count and the top-files walk so both report the same number for the same file.
+    /// </summary>
+    private async Task<int> CountBlobLinesAsync(Blob blob, string fileExtension)
+    {
+        if (!_lineCounterMap.TryGetValue(fileExtension, out var lineCounter))
+        {
+            _lineCounterMap.TryGetValue("*", out lineCounter);
+        }
+
+        if (lineCounter == null)
+        {
+            _logger.LogWarning("No line counter found for file extension {FileExtension}.", fileExtension);
+            return 0;
+        }
+
+        using var contentStream = blob.GetContentStream();
+        return await lineCounter.CountLinesAsync(contentStream);
     }
 
     public async Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(string localPath, DateTime? sinceDate = null)
@@ -494,14 +454,12 @@ public class GitHubService : IGitHubService
                 {
                     int linesAdded = 0;
                     int linesRemoved = 0;
-                    double aiPercentage;
 
                     if (commit.Parents.Any())
                     {
                         var patch = repo.Diff.Compare<Patch>(commit.Parents.First().Tree, commit.Tree);
                         linesAdded = patch.LinesAdded;
                         linesRemoved = patch.LinesDeleted;
-                        aiPercentage = ScoreCommit(patch, commit.Sha);
                         _logger.LogDebug("Commit {CommitSha}: LinesAdded={LinesAdded}, LinesRemoved={LinesRemoved}", commit.Sha, linesAdded, linesRemoved);
                     }
                     else
@@ -510,7 +468,6 @@ public class GitHubService : IGitHubService
                         var patch = repo.Diff.Compare<Patch>(null, commit.Tree);
                         linesAdded = patch.LinesAdded;
                         linesRemoved = 0; // No lines removed in initial commit
-                        aiPercentage = ScoreCommit(patch, commit.Sha);
                         _logger.LogDebug("Initial Commit {CommitSha}: LinesAdded={LinesAdded}, LinesRemoved={LinesRemoved}", commit.Sha, linesAdded, linesRemoved);
                     }
 
@@ -521,164 +478,13 @@ public class GitHubService : IGitHubService
                         LinesAdded = linesAdded,
                         LinesRemoved = linesRemoved,
                         AuthorName = commit.Author.Name,
-                        AuthorEmail = commit.Author.Email,
-                        AiPercentage = aiPercentage
+                        AuthorEmail = commit.Author.Email
                     });
                 }
             }
             _logger.LogInformation("Found {CommitCount} commit stats for repository at {LocalPath}", commitStatsList.Count, fullLocalPath);
             return commitStatsList.AsEnumerable();
         });
-    }
-
-    /// <summary>
-    /// Ceiling on the added-line text handed to the AI heuristic, mirroring the service's own cap.
-    /// Applied here as well so the intermediate string is never built beyond it — the diff of an
-    /// initial commit is the whole repository, and allocating that in full just to truncate it
-    /// afterwards is the cost this avoids.
-    /// </summary>
-    private const int AddedLinesCap = 256 * 1024;
-
-    /// <summary>
-    /// Pulls the added lines out of a commit's patch as plain text, stripped of the leading '+'.
-    /// <para>
-    /// The '+++' file headers are skipped: they carry paths, not authored code, and would let a
-    /// deep directory name read as content. Removed lines are ignored on purpose — deleting code
-    /// says nothing about who wrote what is left.
-    /// </para>
-    /// </summary>
-    private static string ExtractAddedLines(Patch patch)
-    {
-        var builder = new System.Text.StringBuilder();
-
-        foreach (var entry in patch)
-        {
-            if (builder.Length >= AddedLinesCap) break;
-            if (entry.IsBinaryComparison) continue;
-
-            foreach (var line in entry.Patch.Split('\n'))
-            {
-                if (line.Length < 2 || line[0] != '+') continue;
-                if (line.StartsWith("+++", StringComparison.Ordinal)) continue;
-
-                builder.Append(line, 1, line.Length - 1).Append('\n');
-                if (builder.Length >= AddedLinesCap) break;
-            }
-        }
-
-        return builder.ToString();
-    }
-
-    /// <summary>
-    /// Heuristic AI score for a commit, from the text it added. Never throws: a commit that cannot
-    /// be scored scores 0 rather than failing the whole analysis run.
-    /// </summary>
-    private double ScoreCommit(Patch patch, string commitSha)
-    {
-        try
-        {
-            var addedLines = ExtractAddedLines(patch);
-            if (addedLines.Length == 0) return 0.0;
-
-            // Extension is only used for logging inside the detector; the patch spans many files,
-            // so there is no single one to name.
-            return _aiDetectionService.AnalyzeContent(addedLines, string.Empty);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "AI scoring failed for commit {CommitSha} — recording 0", commitSha);
-            return 0.0;
-        }
-    }
-
-    public async Task<long> GetTotalLinesOfCodeAsync(string localPath, IEnumerable<string> fileExtensionsToCount)
-    {
-        var fullLocalPath = Path.Combine(_localReposPath, localPath);
-        _logger.LogInformation("Counting total lines of code for repository at {LocalPath}. File extensions to count: {FileExtensions}", fullLocalPath, string.Join(", ", fileExtensionsToCount));
-
-        if (!Repository.IsValid(fullLocalPath))
-        {
-            _logger.LogError("Local repository not found or invalid at {LocalPath}. Cannot count total lines.", fullLocalPath);
-            return 0;
-        }
-
-        long totalLines = 0;
-
-        try
-        {
-            // #2 fix: use _gitClient abstraction instead of direct Repository instantiation (DIP)
-            using (var repo = _gitClient.OpenRepository(fullLocalPath))
-            {
-                // Get the current HEAD commit's tree
-                var headCommit = repo.Head.Tip;
-                if (headCommit == null || headCommit.Tree == null)
-                {
-                    _logger.LogWarning("Repository at {LocalPath} has no HEAD commit or tree. Returning 0 lines.", fullLocalPath);
-                    return 0;
-                }
-
-                // Recursively count lines in the current tree
-                totalLines = await CountLinesInTreeAsync(headCommit.Tree, fileExtensionsToCount, "");
-            }
-            _logger.LogInformation("Total lines of code for {LocalPath}: {TotalLines}", fullLocalPath, totalLines);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error counting total lines of code for {LocalPath}: {ErrorMessage}", fullLocalPath, ex.Message);
-        }
-
-        return totalLines;
-    }
-
-    private async Task<long> CountLinesInTreeAsync(Tree tree, IEnumerable<string> fileExtensionsToCount, string currentPath = "")
-    {
-        long lines = 0;
-        foreach (var entry in tree)
-        {
-            var entryPath = string.IsNullOrEmpty(currentPath) ? entry.Name : $"{currentPath}/{entry.Name}";
-
-            if (entry.TargetType == TreeEntryTargetType.Tree)
-            {
-                // Check if this directory should be ignored using the new filter
-                if (_fileIgnoreFilter.ShouldIgnoreDirectory(entryPath))
-                {
-                    continue;
-                }
-
-                if (entry.Target is Tree subTree)
-                {
-                    lines += await CountLinesInTreeAsync(subTree, fileExtensionsToCount, entryPath);
-                }
-            }
-            else if (entry.TargetType == TreeEntryTargetType.Blob)
-            {
-                // Check if this file should be ignored using the new filter
-                if (_fileIgnoreFilter.ShouldIgnoreFile(entry.Name, entryPath))
-                {
-                    continue;
-                }
-
-                var fileName = entry.Name;
-                var fileExtension = Path.GetExtension(fileName.ToLowerInvariant());
-
-                if (fileExtensionsToCount.Contains(fileExtension))
-                {
-                    var blob = entry.Target as Blob;
-                    if (blob != null)
-                    {
-                        using (var contentStream = blob.GetContentStream())
-                        using (var reader = new StreamReader(contentStream))
-                        {
-                            while (await reader.ReadLineAsync() != null)
-                            {
-                                lines++;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return lines;
     }
 
     public async Task<IEnumerable<TopFileDto>> GetTopFilesByLineCountAsync(string localPath, IEnumerable<string> fileExtensionsToCount, int count = 5)
@@ -756,15 +562,7 @@ public class GitHubService : IGitHubService
                     var blob = entry.Target as Blob;
                     if (blob != null)
                     {
-                        int lineCount = 0;
-                        using (var contentStream = blob.GetContentStream())
-                        using (var reader = new StreamReader(contentStream))
-                        {
-                            while (await reader.ReadLineAsync() != null)
-                            {
-                                lineCount++;
-                            }
-                        }
+                        var lineCount = await CountBlobLinesAsync(blob, fileExtension);
                         fileLineCounts.Add((entry.Name, lineCount));
                     }
                 }
@@ -828,102 +626,6 @@ public class GitHubService : IGitHubService
         {
             _logger.LogError(ex, "Error fetching user repositories from GitHub API: {ErrorMessage}", ex.Message);
             throw;
-        }
-    }
-
-    /// <summary>
-    /// Gets file contents from a commit for AI detection analysis.
-    /// </summary>
-    public async Task<Dictionary<string, string>> GetFileContentsFromCommitAsync(string localPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
-    {
-        var fullLocalPath = Path.Combine(_localReposPath, localPath);
-        return await GetFileContentsFromCommitInternalAsync(fullLocalPath, commitSha, fileExtensionsToCount);
-    }
-
-    /// <summary>
-    /// Gets file contents from a commit using full path (for locally uploaded repos).
-    /// </summary>
-    public async Task<Dictionary<string, string>> GetFileContentsFromCommitFullPathAsync(string fullPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
-    {
-        return await GetFileContentsFromCommitInternalAsync(fullPath, commitSha, fileExtensionsToCount);
-    }
-
-    private async Task<Dictionary<string, string>> GetFileContentsFromCommitInternalAsync(string fullPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
-    {
-        _logger.LogInformation("Getting file contents for commit {CommitSha} at {FullPath}", commitSha, fullPath);
-
-        if (!Repository.IsValid(fullPath))
-        {
-            _logger.LogError("Repository not found or invalid at {FullPath}. Cannot get file contents.", fullPath);
-            return new Dictionary<string, string>();
-        }
-
-        var fileContents = new Dictionary<string, string>();
-
-        try
-        {
-            using (var repo = _gitClient.OpenRepository(fullPath))
-            {
-                var commit = repo.Lookup<Commit>(commitSha);
-                if (commit == null || commit.Tree == null)
-                {
-                    _logger.LogWarning("Commit {CommitSha} not found or has no tree at {FullPath}", commitSha, fullPath);
-                    return fileContents;
-                }
-
-                await CollectFileContentsAsync(commit.Tree, fileExtensionsToCount, "", fileContents);
-            }
-            _logger.LogInformation("Found {Count} files in commit {CommitSha}", fileContents.Count, commitSha);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting file contents for commit {CommitSha} at {FullPath}: {ErrorMessage}", commitSha, fullPath, ex.Message);
-        }
-
-        return fileContents;
-    }
-
-    private async Task CollectFileContentsAsync(Tree tree, IEnumerable<string> fileExtensionsToCount, string currentPath, Dictionary<string, string> fileContents)
-    {
-        foreach (var entry in tree)
-        {
-            var entryPath = string.IsNullOrEmpty(currentPath) ? entry.Name : $"{currentPath}/{entry.Name}";
-
-            if (entry.TargetType == TreeEntryTargetType.Tree)
-            {
-                if (_fileIgnoreFilter.ShouldIgnoreDirectory(entryPath))
-                    continue;
-
-                if (entry.Target is Tree subTree)
-                {
-                    await CollectFileContentsAsync(subTree, fileExtensionsToCount, entryPath, fileContents);
-                }
-            }
-            else if (entry.TargetType == TreeEntryTargetType.Blob)
-            {
-                if (_fileIgnoreFilter.ShouldIgnoreFile(entry.Name, entryPath))
-                    continue;
-
-                var fileExtension = Path.GetExtension(entry.Name.ToLowerInvariant());
-                if (fileExtensionsToCount.Contains(fileExtension))
-                {
-                    var blob = entry.Target as Blob;
-                    if (blob != null && blob.Size < 1_000_000) // Skip files > 1MB
-                    {
-                        try
-                        {
-                            using var contentStream = blob.GetContentStream();
-                            using var reader = new StreamReader(contentStream);
-                            var content = await reader.ReadToEndAsync();
-                            fileContents[entryPath] = content;
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Error reading file {EntryPath}: {Error}", entryPath, ex.Message);
-                        }
-                    }
-                }
-            }
         }
     }
 

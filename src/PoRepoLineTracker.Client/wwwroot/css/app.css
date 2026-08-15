@@ -20,18 +20,85 @@
       `prefers-color-scheme` block below is a no-JS fallback only.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ─── Breakpoints ────────────────────────────────────────────────────────────
+   The scale, named once. These CANNOT be custom properties: a media or container
+   query condition is evaluated before custom properties are resolved, so
+   `@media (max-width: var(--bp-md))` is simply an invalid query that never
+   matches. There is no build step to expand a `@custom-media` either (see the
+   no-Tailwind note in effects.css). The literals below are therefore the
+   contract — grep this block before inventing a new number.
+
+     --bp-shell   768px   viewport. The ONLY viewport breakpoint. Sidebar becomes
+                          an off-canvas drawer; the header collapses to one flex
+                          row. Anything keyed to "is there a sidebar" uses this.
+     --bp-well    640px   `@container appwell`. Content reflow inside the well.
+                          Used by the onboarding connector, PageHero and the
+                          repositories grid. Content does not live in the
+                          viewport — see the note on .rz-body — so a content
+                          breakpoint must be a container query or it will be
+                          wrong by 220px whenever the sidebar is open.
+     --bp-tiles   560px   `@container appwell`. One step above --bp-well, for the
+                          KPI tile row only: tiles are laid out several-per-row,
+                          so they need to stack before prose-width content does.
+     --bp-short   520px   viewport HEIGHT, landscape only. A rotated phone is
+                          wide and short; height is the scarce axis there.
+
+   720px used to be a fourth viewport breakpoint (the repositories grid). It was
+   a container concern wearing a media query — its own comment said "track the
+   wrapper instead of the viewport" while the code did the opposite — and is now
+   `@container appwell (max-width: 640px)` alongside every other content rule. */
+
 /* ─── Design tokens ──────────────────────────────────────────────────────── */
 :root {
-    /* Brand — M3 Purple, matches --rz-primary. WCAG AA against white. */
+    /* Brand — M3 Purple, matches --rz-primary. WCAG AA against white.
+       This is THE definition. Every tint, shadow and wash below derives from it
+       with color-mix() rather than restating the rgb triplet: `rgba(103, 80,
+       164, x)` was written out 24 times across this file and effects.css, so
+       rebranding meant a find-and-replace that could not be verified. Now it is
+       this one line. */
     --primary-color: #6750A4;
     --primary-dark: #5B4397;
     --primary-light: #7C6CAF;
+
+    /* The two companion hues used only by the decorative mesh gradients (login
+       canvas, .u-grad-mesh). They are NOT tints of the primary — the mesh reads
+       as flat when every stop shares a hue — so they are their own tokens rather
+       than color-mix() of the above. */
+    --brand-violet: #7C3AED;
+    --brand-violet-light: #A78BFA;
+
+    /* The brand purple AS TEXT OR AN ICON, which is a different job from the
+       brand purple as a fill.
+
+       --primary-color is tuned to carry white on top of it (5.6:1), which is
+       exactly what makes it too dark to sit ON a dark surface: measured 2.27:1
+       for the breadcrumb link and 2.59:1 for the onboarding icons against the
+       dark card, both failing WCAG 2.2 AA. The dark theme had no answer for this
+       because a single token cannot be both a 5.6:1 background and a 4.5:1
+       foreground.
+
+       So: fills keep --primary-color, and anything that PAINTS GLYPHS uses this.
+       The dark value is Material 3's dark-scheme primary for this palette, which
+       clears AA on both dark surfaces the app paints (#0f172a and Radzen's
+       #121212 card). */
+    --primary-on-surface: var(--primary-color);
+
+    /* The magenta accent. Radzen's own secondary (#E31C65) misses AA on the app's well by a
+       hair — 4.34:1 against --bg-secondary, where 4.5 is the floor — so outlined/text Secondary
+       buttons ("Upload Local", "Refresh") use this slightly deeper magenta instead. Inline <code>
+       reads as the same accent and shares it. */
+    --accent-secondary: #c02d76;
+    --code-color: var(--accent-secondary);
 
     --secondary-color: #64748b;
     --secondary-dark: #475569;
     --secondary-light: #94a3b8;
 
-    --success-color: #059669;
+    /* Darkened from #059669. Both places this paints are a small circular badge with a WHITE
+       glyph centred in it (the header brand mark and the login logomark), and white on #059669
+       measures 3.76:1 — under the 4.5:1 AA floor for the 8.8px glyph it carries. #047857 is
+       5.5:1 and reads as the same green at badge size. */
+    --success-color: #047857;
     --warning-color: #d97706;
     --danger-color: #dc2626;
 
@@ -120,9 +187,13 @@
     --dash-min: 420px;
 
     /* Radzen primary, single source of truth. */
-    --rz-primary: #6750A4;
+    --rz-primary: var(--primary-color);
     --rz-on-primary: #FFFFFF;
-    --rz-primary-lighter: rgba(103, 80, 164, 0.12);
+    --rz-primary-lighter: color-mix(in srgb, var(--primary-color) 12%, transparent);
+
+    /* Ambient backdrop glow behind the content well — see `.rz-body`. A token rather than a
+       literal so the dark variant can raise the opacity without duplicating the gradient. */
+    --ambient-glow: color-mix(in srgb, var(--primary-color) 6%, transparent);
 }
 
 /* ─── Dark theme ─────────────────────────────────────────────────────────────
@@ -163,6 +234,12 @@
     --status-warn: #fbbf24;
     --status-info: #38bdf8;
     --status-crit: #fb7185;
+
+    --ambient-glow: color-mix(in srgb, var(--brand-violet) 14%, transparent);
+
+    --primary-on-surface: #D0BCFF;
+    /* #c02d76 measured 3.08:1 on the dark card. */
+    --accent-secondary: #F48FB1;
 }
 
 :root[data-theme="light"] {
@@ -187,6 +264,12 @@
         --status-warn: #fbbf24;
         --status-info: #38bdf8;
         --status-crit: #fb7185;
+
+        --ambient-glow: color-mix(in srgb, var(--brand-violet) 14%, transparent);
+
+        --primary-on-surface: #D0BCFF;
+        /* #c02d76 measured 3.08:1 on the dark card. */
+        --accent-secondary: #F48FB1;
     }
 }
 
@@ -263,19 +346,23 @@ h4 { font-size: var(--text-lg); }
 h5, h6 { font-size: var(--text-base); }
 
 a, .btn-link {
-    color: var(--primary-color);
+    color: var(--primary-on-surface);
     text-decoration: none;
     transition: color 0.2s ease;
     border-radius: 4px;
 }
 
+/* Hover DARKENS on light and LIGHTENS on dark — `var(--primary-dark)` did the former in both,
+   so on the dark theme hovering a link made it harder to read than not hovering it. Mixing
+   against --text-primary moves toward whichever end of the scale the current theme calls
+   "foreground", which is the direction that reads as emphasis either way. */
 a:hover, .btn-link:hover {
-    color: var(--primary-dark);
+    color: color-mix(in srgb, var(--primary-on-surface) 78%, var(--text-primary));
     text-decoration: underline;
 }
 
 a:focus-visible, .btn-link:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--primary-on-surface);
     outline-offset: 2px;
     text-decoration: underline;
 }
@@ -306,11 +393,11 @@ a:focus-visible, .btn-link:focus-visible {
     z-index: 1000;
     height: var(--shell-header-height);
     box-sizing: border-box;
-    background: rgba(103, 80, 164, 0.92);
+    background: color-mix(in srgb, var(--primary-color) 92%, transparent);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 1px 24px rgba(103, 80, 164, 0.25), 0 1px 4px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 1px 24px color-mix(in srgb, var(--primary-color) 25%, transparent), 0 1px 4px rgba(0, 0, 0, 0.18);
 }
 
 .rz-header .rz-text,
@@ -340,7 +427,7 @@ a:focus-visible, .btn-link:focus-visible {
     overflow-x: hidden !important;
     background: var(--bg-primary) !important;
     border-right: 1px solid var(--border-light);
-    box-shadow: 2px 0 12px rgba(103, 80, 164, 0.06);
+    box-shadow: 2px 0 12px color-mix(in srgb, var(--primary-color) 6%, transparent);
     /* Desktop collapse animates the same way the mobile drawer does so the toggle feels
        consistent across breakpoints. Width, not translateX — desktop layout is grid-based,
        and shrinking the track to 0 lets .rz-body stretch into the freed column instead of
@@ -371,11 +458,23 @@ a:focus-visible, .btn-link:focus-visible {
     overflow-y: auto;
     /* Belt and braces with .u-scroll-x: the well itself must never scroll sideways. */
     overflow-x: hidden;
-    background: var(--bg-secondary);
+    /* Solid colour plus a drifting glow layered on top of it, not a replacement for it — same
+       technique as .page-hero and .u-grad-mesh. Because the glow is a `background-image`, it
+       paints behind this element's own in-flow content automatically; no z-index or extra
+       stacking-context wrangling needed the way a positioned pseudo-element would require. */
+    background-color: var(--bg-secondary);
+    background-image: radial-gradient(ellipse 60% 45% at 50% -10%, var(--ambient-glow), transparent 70%);
+    background-size: 140% 140%;
+    animation: ambientPulse 22s var(--ease-standard) infinite alternate;
     transition: grid-column-start 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     container: appwell / inline-size;
     /* Without this a wide grid child can force the grid track wider than its 1fr share. */
     min-width: 0;
+}
+
+@keyframes ambientPulse {
+    from { background-position: 50% -10%; }
+    to   { background-position: 42% 4%; }
 }
 
 /* Desktop collapsed state: when the user has toggled the sidebar shut on a wide viewport,
@@ -556,16 +655,16 @@ a:focus-visible, .btn-link:focus-visible {
 
 .rz-navigation-item.rz-state-active .rz-navigation-item-text,
 .rz-panelmenu .rz-panelmenu-header.rz-state-active {
-    background: linear-gradient(135deg, var(--rz-primary) 0%, rgba(103, 80, 164, 0.75) 100%) !important;
+    background: linear-gradient(135deg, var(--rz-primary) 0%, color-mix(in srgb, var(--primary-color) 75%, transparent) 100%) !important;
     color: #fff !important;
     font-weight: 600;
-    box-shadow: 0 3px 10px rgba(103, 80, 164, 0.3);
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--primary-color) 30%, transparent);
 }
 
 .rz-navigation-item:not(.rz-state-active) .rz-navigation-item-text:hover,
 .rz-panelmenu .rz-panelmenu-header:not(.rz-state-active):hover {
-    background: rgba(103, 80, 164, 0.08) !important;
-    color: var(--rz-primary) !important;
+    background: color-mix(in srgb, var(--primary-color) 8%, transparent) !important;
+    color: var(--primary-on-surface) !important;
 }
 
 .rz-panelmenu-header .rz-menuitem-icon {
@@ -654,7 +753,7 @@ a:focus-visible, .btn-link:focus-visible {
 /* min-height meets the WCAG 2.2 AA 2.5.8 target minimum: at 0.78rem the link box was ~17px
    tall, below the 24px floor, without the type having to grow. */
 .app-breadcrumb a {
-    color: var(--rz-primary);
+    color: var(--primary-on-surface);
     text-decoration: none;
     font-weight: 500;
     display: inline-flex;
@@ -673,6 +772,101 @@ a:focus-visible, .btn-link:focus-visible {
     border-radius: 20px !important;
     font-weight: 500 !important;
     text-transform: none !important;
+}
+
+/* ─── Semantic colour contrast (Radzen palette) ──────────────────────────────
+   Radzen's Material palette picks its accent colours for a filled swatch, not for a glyph on the
+   page surface. Every measurement below is from a real render at 1440x900, both themes:
+
+     filled success button  #4CAF50 + white          2.78:1   ("Save Changes" on Settings)
+     filled success badge   #4CAF50 + white          2.78:1   ("Analyzed 9h ago", "Done")
+     outlined warning       #FF9800 on --bg-secondary 2.06:1  ("Re-analyze")
+     outlined danger (dark) #F44336 on #1e293b        3.97:1  ("Delete")
+     text light             #EEEEEE on --bg-secondary 1.11:1  (the detail page's back arrow —
+                                                               effectively an invisible control)
+
+   The app already owns a set of accent colours chosen for exactly this job: --status-* are
+   defined per theme to clear 4.5:1 against the surface each theme actually paints. So the fix is
+   to point the FOREGROUND variants at those, and to give the FILLED variants a fill dark enough
+   to carry white in both themes.
+
+   Deliberately not done by overriding `--rz-success` and friends: those feed filled surfaces,
+   hover states and alert backgrounds too, and redefining a Radzen scale token without checking
+   what derives from it is the mistake documented at the top of this file. These rules name the
+   variant they are correcting and nothing else. */
+
+/* Foreground variants — the colour IS the text, so it must clear 4.5:1 on the page surface. */
+.rz-button.rz-variant-text.rz-success,
+.rz-button.rz-variant-outlined.rz-success { color: var(--status-pos) !important; }
+
+.rz-button.rz-variant-text.rz-danger,
+.rz-button.rz-variant-outlined.rz-danger { color: var(--status-neg) !important; }
+
+.rz-button.rz-variant-text.rz-warning,
+.rz-button.rz-variant-outlined.rz-warning { color: var(--status-warn) !important; }
+
+.rz-button.rz-variant-text.rz-info,
+.rz-button.rz-variant-outlined.rz-info { color: var(--status-info) !important; }
+
+.rz-button.rz-variant-text.rz-secondary,
+.rz-button.rz-variant-outlined.rz-secondary { color: var(--accent-secondary) !important; }
+
+/* "Light" is Radzen's near-white shade. As a filled chip on a dark toolbar that is fine; as text
+   on the app's own near-white well it is invisible. Secondary body text is what it is actually
+   trying to be. */
+.rz-button.rz-variant-text.rz-light,
+.rz-button.rz-variant-outlined.rz-light,
+.rz-button.rz-variant-text.rz-base,
+.rz-button.rz-variant-outlined.rz-base { color: var(--text-secondary) !important; }
+
+/* Outlined borders follow their label so the control still reads as one object. */
+.rz-button.rz-variant-outlined.rz-success { border-color: var(--status-pos) !important; }
+.rz-button.rz-variant-outlined.rz-danger  { border-color: var(--status-neg) !important; }
+.rz-button.rz-variant-outlined.rz-warning { border-color: var(--status-warn) !important; }
+.rz-button.rz-variant-outlined.rz-info    { border-color: var(--status-info) !important; }
+.rz-button.rz-variant-outlined.rz-secondary { border-color: var(--accent-secondary) !important; }
+
+/* Filled variants — white label, so the FILL has to be dark enough to carry it. --status-* cannot
+   be used here: their dark-theme values are deliberately light (#4ade80 and friends) to sit on a
+   dark surface, which is the opposite of what a white label needs. These three are dark in both
+   themes and each clears 4.5:1 against white. */
+.rz-button.rz-variant-filled.rz-success,
+.rz-badge.rz-badge-success.rz-variant-filled {
+    background-color: var(--success-color) !important;
+    color: #fff !important;
+}
+
+.rz-button.rz-variant-filled.rz-danger,
+.rz-badge.rz-badge-danger.rz-variant-filled {
+    background-color: var(--danger-color) !important;
+    color: #fff !important;
+}
+
+/* Radzen's Material info blue (#2196F3) carries white at 3.12:1. --status-info is the app's
+   own cyan, picked to carry body text; at full strength it takes a white label at 5.4:1. Fixed
+   rather than theme-swapped, for the same reason as the success/danger fills above: the label is
+   white in both themes, so the fill must stay dark in both. */
+.rz-button.rz-variant-filled.rz-info,
+.rz-badge.rz-badge-info.rz-variant-filled {
+    background-color: #0e7490 !important;
+    color: #fff !important;
+}
+
+/* The data grid's current-page number. Radzen paints it --rz-primary, which is the brand purple
+   at full strength — 2.59:1 on the dark card, i.e. the one pager element that tells you where you
+   are was the hardest one to read. */
+.rz-pager .rz-pager-page.rz-state-active,
+.rz-paginator .rz-paginator-page.rz-state-active {
+    color: var(--primary-on-surface) !important;
+}
+
+/* Amber is the exception: it is too light to carry white at AA no matter how far it is darkened
+   without ceasing to read as amber (white on #d97706 is 3.19:1). Dark text on it is 5.13:1, which
+   is also what Material itself does for this swatch. */
+.rz-button.rz-variant-filled.rz-warning,
+.rz-badge.rz-badge-warning.rz-variant-filled {
+    background-color: var(--warning-color) !important;
+    color: #0f172a !important;
 }
 
 .rz-card {
@@ -839,7 +1033,7 @@ a:focus-visible, .btn-link:focus-visible {
 
 .stat-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(103, 80, 164, 0.12);
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 
 .stat-value {
@@ -887,15 +1081,15 @@ a:focus-visible, .btn-link:focus-visible {
     align-items: center;
     justify-content: center;
     font-size: 1.5rem;
-    background: rgba(103, 80, 164, 0.09);
-    color: var(--primary-color);
-    border: 2px solid rgba(103, 80, 164, 0.18);
+    background: color-mix(in srgb, var(--primary-color) 9%, transparent);
+    color: var(--primary-on-surface);
+    border: 2px solid color-mix(in srgb, var(--primary-color) 18%, transparent);
 }
 
 .onboarding-connector {
     flex: 0 0 40px;
     height: 2px;
-    background: linear-gradient(90deg, rgba(103, 80, 164, 0.3), rgba(103, 80, 164, 0.1));
+    background: linear-gradient(90deg, color-mix(in srgb, var(--primary-color) 30%, transparent), color-mix(in srgb, var(--primary-color) 10%, transparent));
     align-self: flex-start;
     margin-top: 26px;
 }
@@ -916,7 +1110,7 @@ a:focus-visible, .btn-link:focus-visible {
     justify-content: center;
     width: 2rem;
     height: 2rem;
-    background: rgba(103, 80, 164, 0.1);
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
     border-radius: 8px;
 }
 
@@ -924,7 +1118,7 @@ a:focus-visible, .btn-link:focus-visible {
     position: absolute;
     bottom: 0;
     right: -3px;
-    background: #059669;
+    background: var(--success-color);
     border-radius: 50%;
     width: 0.9rem;
     height: 0.9rem;
@@ -938,42 +1132,97 @@ a:focus-visible, .btn-link:focus-visible {
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LOGIN PAGE — mesh gradient canvas + frosted card
+
+   This screen used to be the one part of the app that ignored the theme. Every
+   colour below was a light-mode literal (#f5f3ff canvas, #ede9fe stops, a
+   rgba(255,255,255,0.88) card), with no [data-theme="dark"] block anywhere — so
+   toggling to dark, or arriving with a dark OS preference, still painted a
+   near-white page. The boot script in index.html stamps data-theme BEFORE first
+   paint, which made it a full-screen flash of white on the very first thing a
+   dark-mode user sees.
+
+   The fix is three tokens rather than a parallel set of dark rules: the canvas
+   base, the wash strength, and the card surface. The mesh keeps its own hues
+   (--brand-violet*) in both themes — the hue is the brand, the LIGHTNESS is what
+   has to flip.
    ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+    --login-canvas-bg: #f5f3ff;
+    --login-wash: 42%;
+    --login-card-bg: rgba(255, 255, 255, 0.88);
+    --login-card-border: rgba(255, 255, 255, 0.7);
+    --login-blob-opacity: 0.35;
+}
+
+:root[data-theme="dark"] {
+    --login-canvas-bg: #0f172a;
+    /* A wash tuned for a white base is invisible on a dark one — the stops have to be
+       proportionally stronger to read at all against #0f172a. */
+    --login-wash: 30%;
+    --login-card-bg: rgba(30, 41, 59, 0.82);
+    --login-card-border: rgba(148, 163, 184, 0.22);
+    --login-blob-opacity: 0.45;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --login-canvas-bg: #0f172a;
+        --login-wash: 30%;
+        --login-card-bg: rgba(30, 41, 59, 0.82);
+        --login-card-border: rgba(148, 163, 184, 0.22);
+        --login-blob-opacity: 0.45;
+    }
+}
+
 .login-canvas {
     min-height: 100vh;
     min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(ellipse at 20% 50%, #ede9fe 0%, transparent 55%),
-                radial-gradient(ellipse at 80% 20%, #ddd6fe 0%, transparent 50%),
-                radial-gradient(ellipse at 60% 80%, #c4b5fd 0%, transparent 45%),
-                #f5f3ff;
+    background: radial-gradient(ellipse at 20% 50%, color-mix(in srgb, var(--brand-violet-light) var(--login-wash), var(--login-canvas-bg)) 0%, transparent 55%),
+                radial-gradient(ellipse at 80% 20%, color-mix(in srgb, var(--brand-violet) var(--login-wash), var(--login-canvas-bg)) 0%, transparent 50%),
+                radial-gradient(ellipse at 60% 80%, color-mix(in srgb, var(--primary-color) var(--login-wash), var(--login-canvas-bg)) 0%, transparent 45%),
+                var(--login-canvas-bg);
+    /* Each radial gradient sized larger than its layer so drifting `background-position` moves it
+       within the same visible frame instead of scrolling its edge into view. The three drift at
+       the same rate here (one shared animation) — the blobs above already carry the differential
+       motion between layers, this only needs to feel alive underneath them. */
+    background-size: 160% 160%, 150% 150%, 170% 170%, auto;
+    animation: loginMeshDrift 26s var(--ease-standard) infinite alternate;
     position: relative;
     overflow: hidden;
     padding: clamp(1rem, 4vw, 2rem);
     box-sizing: border-box;
 }
 
+@keyframes loginMeshDrift {
+    from { background-position: 20% 50%, 80% 20%, 60% 80%, 0 0; }
+    to   { background-position: 32% 40%, 68% 32%, 48% 68%, 0 0; }
+}
+
 .login-blob {
     position: absolute;
     border-radius: 50%;
     filter: blur(60px);
-    opacity: 0.35;
+    opacity: var(--login-blob-opacity);
     animation: blobFloat 8s ease-in-out infinite alternate;
     pointer-events: none;
 }
 
+/* All three derive from the two brand hues rather than a six-swatch violet ramp that existed
+   only here. `color-mix` toward the canvas keeps each blob in the same key as the theme it is
+   floating over — in dark mode the old fixed #c4b5fd/#ddd6fe pair glowed like a lightbulb. */
 .login-blob-1 {
     width: 500px; height: 500px;
-    background: radial-gradient(circle, #7c3aed, #6d28d9);
+    background: radial-gradient(circle, var(--brand-violet), var(--primary-dark));
     top: -120px; left: -100px;
     animation-duration: 9s;
 }
 
 .login-blob-2 {
     width: 380px; height: 380px;
-    background: radial-gradient(circle, #8b5cf6, #a78bfa);
+    background: radial-gradient(circle, color-mix(in srgb, var(--brand-violet) 80%, white), var(--brand-violet-light));
     bottom: -80px; right: -60px;
     animation-duration: 11s;
     animation-delay: -3s;
@@ -981,7 +1230,7 @@ a:focus-visible, .btn-link:focus-visible {
 
 .login-blob-3 {
     width: 260px; height: 260px;
-    background: radial-gradient(circle, #c4b5fd, #ddd6fe);
+    background: radial-gradient(circle, var(--brand-violet-light), color-mix(in srgb, var(--brand-violet-light) 45%, var(--login-canvas-bg)));
     top: 40%; left: 55%;
     animation-duration: 7s;
     animation-delay: -5s;
@@ -997,18 +1246,39 @@ a:focus-visible, .btn-link:focus-visible {
     z-index: 1;
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    background: rgba(255, 255, 255, 0.88) !important;
-    border: 1px solid rgba(255, 255, 255, 0.7) !important;
-    box-shadow: 0 24px 64px rgba(109, 40, 217, 0.15), 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+    background: var(--login-card-bg) !important;
+    border: 1px solid var(--login-card-border) !important;
+    box-shadow: 0 24px 64px color-mix(in srgb, var(--primary-dark) 15%, transparent), 0 4px 16px rgba(0, 0, 0, 0.08) !important;
     border-radius: 20px !important;
+}
+
+/* The card is translucent, so without this the text under it inherits whatever Radzen's theme
+   picked for a card on the OTHER theme's surface. Explicit, and from the same tokens the rest of
+   the app uses. */
+.login-card .rz-text,
+.login-card h1, .login-card h2, .login-card h3, .login-card h4 {
+    color: var(--text-primary);
+}
+
+.login-card .login-tagline,
+.login-card .login-footnote {
+    color: var(--text-secondary);
+}
+
+.login-divider {
+    width: 100%;
+    height: 1px;
+    border: none;
+    background: var(--border-light);
+    margin: 0;
 }
 
 .login-logomark {
     position: relative;
     width: 64px; height: 64px;
     border-radius: 18px;
-    background: linear-gradient(135deg, rgba(103, 80, 164, 0.1), rgba(124, 58, 237, 0.05));
-    border: 1.5px solid rgba(103, 80, 164, 0.15);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 10%, transparent), color-mix(in srgb, var(--brand-violet) 5%, transparent));
+    border: 1.5px solid color-mix(in srgb, var(--primary-color) 15%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1024,12 +1294,14 @@ a:focus-visible, .btn-link:focus-visible {
     position: absolute;
     bottom: -4px; right: -4px;
     width: 22px; height: 22px;
-    background: #059669;
+    background: var(--success-color);
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid #fff;
+    /* Reads as a cutout from the card behind it, so it tracks the theme — a hardcoded white ring
+       became a bright halo on the dark card. */
+    border: 2px solid var(--bg-secondary);
 }
 
 .login-feature-pill {
@@ -1040,9 +1312,9 @@ a:focus-visible, .btn-link:focus-visible {
     font-weight: 600;
     padding: 0.25rem 0.6rem;
     border-radius: 20px;
-    background: rgba(103, 80, 164, 0.08);
-    color: var(--primary-color);
-    border: 1px solid rgba(103, 80, 164, 0.15);
+    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+    color: var(--primary-on-surface);
+    border: 1px solid color-mix(in srgb, var(--primary-color) 15%, transparent);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -1055,7 +1327,7 @@ a:focus-visible, .btn-link:focus-visible {
 .login-cta-btn:hover {
     animation: none;
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(103, 80, 164, 0.35) !important;
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--primary-color) 35%, transparent) !important;
 }
 
 /* ─── Animations ─────────────────────────────────────────────────────────── */
@@ -1078,13 +1350,13 @@ a:focus-visible, .btn-link:focus-visible {
 }
 
 @keyframes ctaPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(103, 80, 164, 0); }
-    50%      { box-shadow: 0 0 0 8px rgba(103, 80, 164, 0.15); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary-color) 0%, transparent); }
+    50%      { box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary-color) 15%, transparent); }
 }
 
 @keyframes ctaIdlePulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(103, 80, 164, 0); }
-    50%      { box-shadow: 0 0 0 6px rgba(103, 80, 164, 0.12); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary-color) 0%, transparent); }
+    50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary-color) 12%, transparent); }
 }
 
 /* Respect the OS reduced-motion preference: every decorative animation above
@@ -1165,4 +1437,4 @@ a:focus-visible, .btn-link:focus-visible {
     content: var(--blazor-load-percentage-text, "Loading");
 }
 
-code { color: #c02d76; }
+code { color: var(--code-color); }

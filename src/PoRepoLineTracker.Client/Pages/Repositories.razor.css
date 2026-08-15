@@ -16,10 +16,6 @@
     margin: 0 !important;
 }
 
-::deep .rp-muted-icon.rp-muted-icon {
-    color: var(--rz-text-secondary-color) !important;
-}
-
 ::deep .rp-disabled.rp-disabled {
     color: var(--rz-text-disabled-color) !important;
 }
@@ -39,7 +35,7 @@
 
 ::deep .rp-onboarding-icon.rp-onboarding-icon {
     font-size: 2rem !important;
-    color: var(--rz-primary) !important;
+    color: var(--primary-on-surface) !important;
     animation: fadeSlideUp 0.4s ease both !important;
 }
 
@@ -82,30 +78,7 @@
     max-width: 520px;
 }
 
-/* Sparkline inside a grid cell. Needs an explicit box: Radzen sizes the SVG to its container,
-   and a table cell has no intrinsic height to inherit, so without this the chart collapses. */
-.rp-row-spark {
-    width: 90px;
-    height: 26px;
-}
-
-/* ─── Search + grid ───────────────────────────────────────────────────────── */
-
-::deep .rp-searchbar.rp-searchbar {
-    margin-bottom: 1rem !important;
-}
-
-/* Was a hard 280px, which overflowed the card on a 375px phone once the icon and clear button
-   were accounted for. Grows to fill the bar, capped so it does not sprawl on a wide screen. */
-::deep .rp-search-input.rp-search-input {
-    width: 100% !important;
-    max-width: 280px !important;
-    min-width: 0 !important;
-}
-
-::deep .rp-searchbar .rz-textbox {
-    min-width: 0;
-}
+/* ─── Grid ─────────────────────────────────────────────────────────────────── */
 
 ::deep .rp-grid.rp-grid {
     height: auto !important;
@@ -126,10 +99,20 @@
 }
 
 /* The reflow card variant — Radzen only switches to it at <768px viewport, but the sidebar
-   alone eats 220px, so the well is already narrow at 949px. Make the responsive switch track
-   the wrapper instead of the viewport. Below 720px the grid reflows into a card per row, above
-   it the column layout stays but the .u-scroll-x wrapper takes over for horizontal overflow. */
-@media (max-width: 720px) {
+   alone eats 220px, so the well is already narrow at 949px.
+
+   This is now the container query the comment above it always claimed it was. It read "make the
+   responsive switch track the wrapper instead of the viewport" and then asked `@media
+   (max-width: 720px)`, which is the viewport — so collapsing the sidebar handed the grid 220px
+   more room without changing anything here, and a 900px window reported "desktop" to a well that
+   was actually 680px wide. 720 was also the app's only viewport breakpoint that was not 768,
+   for no reason other than that it had been tuned by eye through a sidebar that happened to be
+   open at the time.
+
+   `@container appwell` measures the well itself (see .rz-body in app.css), so the reflow now
+   happens at the width the grid is genuinely being laid out in — and at --bp-well, the same
+   640px every other content rule in the app uses. */
+@container appwell (max-width: 640px) {
     ::deep .rp-grid.rp-grid {
         width: 100% !important;
         min-width: 0 !important;
@@ -147,7 +130,7 @@
 
 ::deep .rp-lines-value.rp-lines-value {
     font-weight: 600 !important;
-    color: var(--rz-primary) !important;
+    color: var(--primary-on-surface) !important;
 }
 
 ::deep .rp-relative-time.rp-relative-time {
@@ -158,7 +141,10 @@
    box is padded out to 24px rather than the glyph being enlarged, so the target grows without
    the icon visually dominating the repository name beside it. */
 ::deep .rp-github-link {
-    color: var(--rz-text-disabled-color);
+    /* --text-muted, not --rz-text-disabled-color. This is a real link to GitHub, and Radzen's
+       disabled grey measured 1.88:1 in light and 2.20:1 in dark — an interactive control painted
+       in the one colour the design system reserves for "you cannot use this". */
+    color: var(--text-muted);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -170,17 +156,12 @@
 }
 
 ::deep .rp-github-link:hover {
-    color: var(--rz-primary);
-    background: rgba(103, 80, 164, 0.08);
+    color: var(--primary-on-surface);
+    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
 }
 
 ::deep .rp-github-link__icon {
     font-size: 0.95rem;
-}
-
-::deep .rp-chevron.rp-chevron {
-    color: var(--rz-text-disabled-color) !important;
-    font-size: 1.1rem !important;
 }
 
 /* ─── Danger zone ─────────────────────────────────────────────────────────── */

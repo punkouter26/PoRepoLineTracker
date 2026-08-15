@@ -1,6 +1,6 @@
-using PoRepoLineTracker.API.Features.AiDetection;
 using PoRepoLineTracker.API.Features.Antiforgery;
 using PoRepoLineTracker.API.Features.Auth;
+using PoRepoLineTracker.API.Features.Contributors;
 using PoRepoLineTracker.API.Features.Dev;
 using PoRepoLineTracker.API.Features.Diagnostics;
 using PoRepoLineTracker.API.Features.GitHub;
@@ -35,7 +35,7 @@ public static class ApiEndpointExtensions
         app.MapGitHubEndpoints();
         app.MapDiagnosticsEndpoints();
         app.MapUploadEndpoints();
-        app.MapAiDetectionEndpoints();
+        app.MapContributorEndpoints();
         app.MapInsightsEndpoints();
 
         if (isDevelopment)

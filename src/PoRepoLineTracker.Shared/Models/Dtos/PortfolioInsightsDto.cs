@@ -29,9 +29,6 @@ public sealed class PortfolioInsightsDto
     public int Commits30Days { get; set; }
     public int LinesAdded30Days { get; set; }
 
-    /// <summary>Lines-weighted AI share across the last 30 days, 0–100.</summary>
-    public double AiPercentage30Days { get; set; }
-
     /// <summary>Consecutive days with at least one commit, counting back from the most recent activity.</summary>
     public int CurrentStreakDays { get; set; }
 
@@ -49,9 +46,17 @@ public sealed class PortfolioInsightsDto
 
     /// <summary>One entry per day for the last year, including zero-commit days — the heatmap needs the gaps.</summary>
     public List<ActivityDayDto> Activity { get; set; } = [];
+
+    /// <summary>
+    /// Portfolio-wide total lines, sampled roughly monthly over the last year. Each point sums
+    /// every repository's <see cref="RepositoryTotals.TotalLinesAsOf"/> at that date — the same
+    /// "whole-repository snapshot" definition as <see cref="TotalLines"/>, never a sum of per-commit
+    /// deltas.
+    /// </summary>
+    public List<PortfolioTrendPointDto> TrendLine { get; set; } = [];
 }
 
-/// <summary>How one repository moved over the window, for the gainers/losers table.</summary>
+/// <summary>How one repository moved over the window, for the ranking table.</summary>
 public sealed class RepositoryMovementDto
 {
     public RepositoryId RepositoryId { get; set; }
@@ -60,7 +65,19 @@ public sealed class RepositoryMovementDto
     public int TotalLines { get; set; }
     public int NetChange30Days { get; set; }
     public int Commits30Days { get; set; }
-    public double AiPercentage30Days { get; set; }
+
+    /// <summary>
+    /// Commit count per week for the last 12 weeks, oldest first, most recent week last — feeds the
+    /// ranking table's sparkline. Fixed-length so a quiet week reads as zero rather than as absent.
+    /// </summary>
+    public List<int> WeeklyCommits { get; set; } = [];
+}
+
+/// <summary>One sampled point of the portfolio-wide line-count trend.</summary>
+public sealed class PortfolioTrendPointDto
+{
+    public DateTime Date { get; set; }
+    public int TotalLines { get; set; }
 }
 
 /// <summary>One file extension's share of the portfolio's current lines.</summary>

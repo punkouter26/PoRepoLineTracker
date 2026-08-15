@@ -102,6 +102,21 @@ public class FileIgnoreFilterTests
     public void ShouldIgnoreDirectory_NestedIgnoredDirectories_ReturnsTrue(string directoryPath) =>
         _filter.ShouldIgnoreDirectory(directoryPath).Should().BeTrue($"{directoryPath} contains an ignored directory");
 
+    // Unity's (and Java's) reverse-domain package naming convention — nobody names their own app
+    // code this way, so it is treated as vendored regardless of which folder it sits under.
+    [Theory]
+    [InlineData("Packages/com.unity.ml-agents")]
+    [InlineData("Training/ml-agents/com.unity.ml-agents/Runtime")]
+    [InlineData("com.google.firebase.analytics")]
+    public void ShouldIgnoreDirectory_ReverseDomainPackageDirectories_ReturnsTrue(string directoryPath) =>
+        _filter.ShouldIgnoreDirectory(directoryPath).Should().BeTrue($"{directoryPath} is a vendored reverse-domain package");
+
+    [Theory]
+    [InlineData("external")]
+    [InlineData("externals")]
+    public void ShouldIgnoreDirectory_ExternalDirectories_ReturnsTrue(string directoryPath) =>
+        _filter.ShouldIgnoreDirectory(directoryPath).Should().BeTrue($"{directoryPath} is a vendored-code directory");
+
     #endregion
 
     #region ShouldIgnoreDirectory — directories that should NOT be ignored

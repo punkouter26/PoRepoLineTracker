@@ -12,20 +12,20 @@
    of the progress plumbing. Everything here is presentational — it takes numbers and draws them. *@
 
 <div class="app-dashboard app-dashboard--tiles rp-stat-grid">
-    <RadzenCard class="stat-card rp-stat rp-stat--repos">
+    <RadzenCard class="stat-card rp-stat rp-stat--repos u-glass u-sheen">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenIcon Icon="folder" class="rp-stat-icon rp-stat-icon--repos" />
+            <RadzenIcon Icon="folder" class="rp-stat-icon" />
             <div class="rp-stat-body">
-                <div class="stat-value">@RepositoryCount</div>
+                <div class="stat-value"><AnimatedNumber Value="@RepositoryCount" /></div>
                 <div class="stat-label">Repositories</div>
             </div>
         </RadzenStack>
     </RadzenCard>
-    <RadzenCard class="stat-card rp-stat rp-stat--lines">
+    <RadzenCard class="stat-card rp-stat rp-stat--lines u-glass u-sheen">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenIcon Icon="code" class="rp-stat-icon rp-stat-icon--lines" />
+            <RadzenIcon Icon="code" class="rp-stat-icon" />
             <div class="rp-stat-body">
-                <div class="stat-value">@(TotalLines.ToString("N0"))</div>
+                <div class="stat-value"><AnimatedNumber Value="@TotalLines" /></div>
                 <div class="stat-label">Total Lines</div>
             </div>
             @* The 365-day history is already in hand from LoadLatestLineCounts, so the
@@ -42,11 +42,11 @@
             }
         </RadzenStack>
     </RadzenCard>
-    <RadzenCard class="stat-card rp-stat rp-stat--analyzed">
+    <RadzenCard class="stat-card rp-stat rp-stat--analyzed u-glass u-sheen">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenIcon Icon="check_circle" class="rp-stat-icon rp-stat-icon--analyzed" />
+            <RadzenIcon Icon="check_circle" class="rp-stat-icon" />
             <div class="rp-stat-body">
-                <div class="stat-value">@AnalyzedCount</div>
+                <div class="stat-value"><AnimatedNumber Value="@AnalyzedCount" /></div>
                 <div class="stat-label">Analyzed</div>
             </div>
             @* Completion at a glance — a gauge reads faster than "7" next to a count of 9. *@

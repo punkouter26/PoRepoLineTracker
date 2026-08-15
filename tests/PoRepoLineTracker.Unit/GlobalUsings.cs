@@ -1,4 +1,4 @@
-global using PoRepoLineTracker.API.Features.AiDetection;
+global using PoRepoLineTracker.API.Features.Contributors;
 global using PoRepoLineTracker.API.Features.Repositories;
 global using PoRepoLineTracker.API.Features.Settings;
 global using PoRepoLineTracker.API.Services;

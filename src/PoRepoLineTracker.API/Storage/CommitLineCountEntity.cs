@@ -24,9 +24,6 @@ public class CommitLineCountEntity : ITableEntity
     public string AuthorName { get; set; } = string.Empty;
     public string AuthorEmail { get; set; } = string.Empty;
 
-    // AI detection result
-    public double AiPercentage { get; set; }
-
     // A TagsJson column used to live here, holding CommitTagger's per-commit classification.
     // Azure Table Storage is schemaless, so rows written before its removal keep the property and
     // it is simply ignored on read — no migration, no backfill.
@@ -46,8 +43,7 @@ public class CommitLineCountEntity : ITableEntity
                 ? new Dictionary<string, int>()
                 : JsonSerializer.Deserialize<Dictionary<string, int>>(LinesByFileTypeJson) ?? new Dictionary<string, int>(),
             AuthorName = AuthorName,
-            AuthorEmail = AuthorEmail,
-            AiPercentage = AiPercentage
+            AuthorEmail = AuthorEmail
         };
     }
 
@@ -68,8 +64,7 @@ public class CommitLineCountEntity : ITableEntity
             LinesRemoved = model.LinesRemoved,
             LinesByFileTypeJson = JsonSerializer.Serialize(model.LinesByFileType),
             AuthorName = model.AuthorName,
-            AuthorEmail = model.AuthorEmail,
-            AiPercentage = model.AiPercentage
+            AuthorEmail = model.AuthorEmail
         };
     }
 }

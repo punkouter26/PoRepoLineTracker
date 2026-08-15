@@ -35,6 +35,9 @@
     height: 12px;
     border-radius: 2px;
     flex: 0 0 auto;
+    /* --swatch comes from the .cc-swatch--N modifier alongside this class — see the palette
+       block at the foot of this file. */
+    background: var(--swatch);
 }
 
 ::deep .cc-swatch--sm {
@@ -74,40 +77,33 @@
     background: var(--border-light);
 }
 
-::deep .cc-bar::-webkit-progress-value { border-radius: 3px; }
-::deep .cc-bar::-moz-progress-bar      { border-radius: 3px; }
+/* ─── Author palette ──────────────────────────────────────────────────────────
+   One assignment per slot, then three consumers — instead of the same twelve colours written
+   out once per pseudo-element. `--swatch` is a custom property, and custom properties inherit
+   into ::-webkit-progress-value / ::-moz-progress-bar from their originating element, so the
+   engine-specific rules below never need to name a colour at all.
 
-/* Author palette. Index-for-index with _colors in the .razor file (see GetAuthorColorClass).
-   .cc-swatch--N colours the legend dot; the matching progress rules colour the bar. */
-/* Author palette. Index-for-index with _colors in the .razor file (see GetAuthorColorClass).
-   .cc-swatch--N colours the legend dot in the grid; the matching progress rules colour the bar.
-   Both now read the shared --series-N tokens from app.css rather than repeating hex values that
-   had to be kept in step with a second list by hand. */
-.cc-swatch--0, ::deep .cc-swatch--0 { background: var(--series-0); }
-.cc-swatch--1, ::deep .cc-swatch--1 { background: var(--series-1); }
-.cc-swatch--2, ::deep .cc-swatch--2 { background: var(--series-2); }
-.cc-swatch--3, ::deep .cc-swatch--3 { background: var(--series-3); }
-.cc-swatch--4, ::deep .cc-swatch--4 { background: var(--series-4); }
-.cc-swatch--5, ::deep .cc-swatch--5 { background: var(--series-5); }
-.cc-swatch--6, ::deep .cc-swatch--6 { background: var(--series-6); }
-.cc-swatch--7, ::deep .cc-swatch--7 { background: var(--series-7); }
-::deep .cc-bar.cc-swatch--0::-webkit-progress-value { background: var(--series-0); }
-::deep .cc-bar.cc-swatch--1::-webkit-progress-value { background: var(--series-1); }
-::deep .cc-bar.cc-swatch--2::-webkit-progress-value { background: var(--series-2); }
-::deep .cc-bar.cc-swatch--3::-webkit-progress-value { background: var(--series-3); }
-::deep .cc-bar.cc-swatch--4::-webkit-progress-value { background: var(--series-4); }
-::deep .cc-bar.cc-swatch--5::-webkit-progress-value { background: var(--series-5); }
-::deep .cc-bar.cc-swatch--6::-webkit-progress-value { background: var(--series-6); }
-::deep .cc-bar.cc-swatch--7::-webkit-progress-value { background: var(--series-7); }
+   That collapses what was three parallel index-keyed blocks (and would have been 36 rules once
+   the palette grew from 8 slots to 12) into 12 + 3. The colours themselves are the shared
+   --series-N tokens in app.css — see SeriesPalette.cs, which is what picks the slot. */
+.cc-swatch--0,  ::deep .cc-swatch--0  { --swatch: var(--series-0); }
+.cc-swatch--1,  ::deep .cc-swatch--1  { --swatch: var(--series-1); }
+.cc-swatch--2,  ::deep .cc-swatch--2  { --swatch: var(--series-2); }
+.cc-swatch--3,  ::deep .cc-swatch--3  { --swatch: var(--series-3); }
+.cc-swatch--4,  ::deep .cc-swatch--4  { --swatch: var(--series-4); }
+.cc-swatch--5,  ::deep .cc-swatch--5  { --swatch: var(--series-5); }
+.cc-swatch--6,  ::deep .cc-swatch--6  { --swatch: var(--series-6); }
+.cc-swatch--7,  ::deep .cc-swatch--7  { --swatch: var(--series-7); }
+.cc-swatch--8,  ::deep .cc-swatch--8  { --swatch: var(--series-8); }
+.cc-swatch--9,  ::deep .cc-swatch--9  { --swatch: var(--series-9); }
+.cc-swatch--10, ::deep .cc-swatch--10 { --swatch: var(--series-10); }
+.cc-swatch--11, ::deep .cc-swatch--11 { --swatch: var(--series-11); }
 
-::deep .cc-bar.cc-swatch--0::-moz-progress-bar { background: var(--series-0); }
-::deep .cc-bar.cc-swatch--1::-moz-progress-bar { background: var(--series-1); }
-::deep .cc-bar.cc-swatch--2::-moz-progress-bar { background: var(--series-2); }
-::deep .cc-bar.cc-swatch--3::-moz-progress-bar { background: var(--series-3); }
-::deep .cc-bar.cc-swatch--4::-moz-progress-bar { background: var(--series-4); }
-::deep .cc-bar.cc-swatch--5::-moz-progress-bar { background: var(--series-5); }
-::deep .cc-bar.cc-swatch--6::-moz-progress-bar { background: var(--series-6); }
-::deep .cc-bar.cc-swatch--7::-moz-progress-bar { background: var(--series-7); }
+/* `.cc-swatch` (the legend dot) consumes --swatch as its own background, up where it is sized.
+   `.cc-bar` is a <progress>: it carries only the .cc-swatch--N modifier, never .cc-swatch, so it
+   paints its track from --border-light and takes the author colour through these two instead. */
+::deep .cc-bar::-webkit-progress-value { border-radius: 3px; background: var(--swatch); }
+::deep .cc-bar::-moz-progress-bar      { border-radius: 3px; background: var(--swatch); }
 
 ::deep .cc-bar__value {
     min-width: 40px;

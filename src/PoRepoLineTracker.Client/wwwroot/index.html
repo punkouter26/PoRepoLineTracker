@@ -90,6 +90,13 @@
             return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
         }
 
+        // Read once by AnimatedNumber so a count-up tween can skip straight to its target instead
+        // of animating, for the same OS preference app.css's reduced-motion block already honours
+        // for every CSS animation.
+        function prefersReducedMotion() {
+            return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        }
+
         // What the app is actually showing right now — MainLayout reads this to seed
         // its toggle so the icon cannot disagree with the page.
         function getEffectiveTheme() {

@@ -28,7 +28,16 @@ public static class AuthServiceExtensions
         // GitHub is the only OAuth provider (see the note further down for why Microsoft was
         // removed). If it is not configured — local dev without secrets — fall back to the cookie
         // scheme so GUEST mode and other non-OAuth flows still work rather than throwing at boot.
-        var ghClientId = configuration[ConfigKeys.GitHub.ClientId];
+        //
+        // In Development, prefer the Dev-only OAuth App (Key Vault: GitHub:Dev:ClientId) over the
+        // production one: a GitHub OAuth App has exactly one callback URL, and the production app's
+        // callback is the deployed site, not localhost — so a developer's machine needs its own App
+        // registration rather than sharing the production credential. Falls back to the production
+        // key so a Development run still boots (with GitHub sign-in unusable) if the Dev secret
+        // hasn't been set.
+        var ghClientId = environment.IsDevelopment()
+            ? configuration[ConfigKeys.GitHub.DevClientId] ?? configuration[ConfigKeys.GitHub.ClientId]
+            : configuration[ConfigKeys.GitHub.ClientId];
 
         var defaultChallengeScheme = !string.IsNullOrEmpty(ghClientId)
             ? GitHubAuthenticationDefaults.AuthenticationScheme
@@ -100,7 +109,9 @@ public static class AuthServiceExtensions
             services.AddAuthentication().AddGitHub(options =>
             {
                 options.ClientId = ghClientId;
-                options.ClientSecret = configuration[ConfigKeys.GitHub.ClientSecret]
+                options.ClientSecret = (environment.IsDevelopment()
+                        ? configuration[ConfigKeys.GitHub.DevClientSecret] ?? configuration[ConfigKeys.GitHub.ClientSecret]
+                        : configuration[ConfigKeys.GitHub.ClientSecret])
                     ?? throw new InvalidOperationException("GitHub:ClientSecret is not configured");
                 options.CallbackPath = configuration[ConfigKeys.GitHub.CallbackPath] ?? "/signin-github";
 
@@ -205,28 +216,5 @@ public static class AuthServiceExtensions
                 .Build();
         });
         return services;
-    }
-
-    /// <summary>
-    /// Extracts the <c>tid</c> (tenant ID) claim from a JWT without verifying its signature —
-    /// the token already came over the trusted back-channel; we only inspect its shape to
-    /// enforce the tenant allow-list (Rule 4.3). Returns null for null/opaque/malformed tokens.
-    /// </summary>
-    private static string? ReadTenantId(string? jwt)
-    {
-        if (string.IsNullOrEmpty(jwt)) return null;
-        var parts = jwt.Split('.');
-        if (parts.Length < 2) return null;
-        try
-        {
-            var payload = parts[1].Replace('-', '+').Replace('_', '/');
-            payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
-            using var doc = System.Text.Json.JsonDocument.Parse(Convert.FromBase64String(payload));
-            return doc.RootElement.TryGetProperty("tid", out var tid) ? tid.GetString() : null;
-        }
-        catch (Exception ex) when (ex is FormatException or System.Text.Json.JsonException)
-        {
-            return null;
-        }
     }
 }

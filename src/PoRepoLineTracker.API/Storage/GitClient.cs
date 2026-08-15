@@ -100,41 +100,9 @@ namespace PoRepoLineTracker.API.Storage
             _logger.LogInformation("Successfully pulled repository at {LocalPath}", localPath);
         }
 
-        public IEnumerable<(string Sha, DateTimeOffset CommitDate)> GetCommits(string localPath, DateTime? sinceDate = null)
-        {
-            using var repo = new Repository(localPath);
-
-            IEnumerable<Commit> commits = repo.Commits.QueryBy(new CommitFilter
-            {
-                SortBy = CommitSortStrategies.Time,
-                IncludeReachableFrom = repo.Head
-            });
-
-            if (sinceDate.HasValue)
-            {
-                var sinceDateUtc = sinceDate.Value.Kind == DateTimeKind.Utc
-                    ? sinceDate.Value
-                    : sinceDate.Value.ToUniversalTime();
-                commits = commits.Where(c => c.Author.When.UtcDateTime >= sinceDateUtc);
-            }
-
-            return commits.Select(c => (c.Sha, c.Author.When)).ToList();
-        }
-
         public Repository OpenRepository(string localPath)
         {
             return new Repository(localPath);
-        }
-
-        public void Checkout(Repository repo, Commit commit)
-        {
-            Commands.Checkout(repo, commit);
-        }
-
-        public IEnumerable<(string Sha, DateTimeOffset CommitDate)> GetCommitsFromPath(string fullPath, DateTime? sinceDate = null)
-        {
-            // Just use the full path directly
-            return GetCommits(fullPath, sinceDate);
         }
 
         public Repository OpenRepositoryFromPath(string fullPath)

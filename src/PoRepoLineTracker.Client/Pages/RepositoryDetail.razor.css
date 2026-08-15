@@ -61,7 +61,7 @@
 
 ::deep .rd-ext-pct.rd-ext-pct {
     font-weight: 600 !important;
-    color: var(--rz-primary) !important;
+    color: var(--primary-on-surface) !important;
     flex: 0 0 auto !important;
 }
 
@@ -93,24 +93,6 @@
     background: var(--rz-primary);
 }
 
-/* ─── Largest files ──────────────────────────────────────────────────────── */
-
-::deep .rd-file-row.rd-file-row {
-    padding: 0.4rem 0 !important;
-    border-bottom: 1px solid var(--border-light) !important;
-}
-
-/* max-width was a fixed 280px, which truncated paths long before it needed to on a wide screen
-   and overflowed a narrow one. Letting it flex means the ellipsis appears only when it must. */
-::deep .rd-file-name.rd-file-name {
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    min-width: 0 !important;
-    flex: 1 1 auto !important;
-    font-size: 0.85em !important;
-}
-
 /* ─── Plain markup owned by this page ─────────────────────────────────────── */
 
 /* Padded to the WCAG 2.2 AA 2.5.8 minimum target of 24x24 — the glyph alone falls short. */
@@ -127,8 +109,8 @@
 }
 
 .rd-github-link:hover {
-    color: var(--rz-primary);
-    background: rgba(103, 80, 164, 0.08);
+    color: var(--primary-on-surface);
+    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
 }
 
 /* ::deep because the glyph is now rendered by <RadzenIcon>: the element Radzen emits does not

@@ -101,9 +101,7 @@ internal static class SeedEndpoints
                     },
                     // Two authors so ContributorChart draws more than one series.
                     AuthorName = elapsed % 2 == 0 ? "Ada Lovelace" : "Grace Hopper",
-                    AuthorEmail = elapsed % 2 == 0 ? "ada@example.com" : "grace@example.com",
-                    // A varying but deterministic share, so the AI chart is neither flat nor empty.
-                    AiPercentage = 20 + elapsed % 40
+                    AuthorEmail = elapsed % 2 == 0 ? "ada@example.com" : "grace@example.com"
                 });
 
                 lastCommitDate = commitDate;

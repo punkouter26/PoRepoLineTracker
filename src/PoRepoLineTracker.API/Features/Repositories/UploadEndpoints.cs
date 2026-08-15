@@ -17,7 +17,7 @@ internal static class UploadEndpoints
 
         // Upload a zipped repository (.git folder + code) for analysis
         // DisableRequestSizeLimit: overrides the 30 MB Kestrel default for this endpoint only
-        uploads.MapPost("/upload-zip", async (HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory, IConfiguration configuration) =>
+        uploads.MapPost("/upload-zip", async (HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory, IGitHubService gitHubService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -148,22 +148,9 @@ internal static class UploadEndpoints
 
                     uploadLog.Information("Detected repository root. RepoRoot={RepoRoot} GitPath={GitPath}", repoRoot, gitPath);
 
-                    // Determine the base path for local repositories (same as GitHubService)
-                    var homePath = Environment.GetEnvironmentVariable("HOME");
-                    string localReposBasePath;
-                    if (!string.IsNullOrEmpty(homePath))
-                    {
-                        localReposBasePath = Path.Combine(homePath, "site", "wwwroot", "temp_repos");
-                    }
-                    else
-                    {
-                        localReposBasePath = configuration[ConfigKeys.GitHub.LocalReposPath] ?? Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
-                    }
-
-                    if (!Directory.Exists(localReposBasePath))
-                    {
-                        Directory.CreateDirectory(localReposBasePath);
-                    }
+                    // Same base path GitHubService clones into — the single source for where a
+                    // repo's local checkout lives (already created by GitHubService's constructor).
+                    var localReposBasePath = gitHubService.LocalReposBasePath;
 
                     // Create a unique permanent path for this repo
                     var repoId = Guid.NewGuid();

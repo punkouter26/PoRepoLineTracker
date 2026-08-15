@@ -61,19 +61,13 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(RepositoryMovementDto))]
 [JsonSerializable(typeof(LanguageShareDto))]
 [JsonSerializable(typeof(ActivityDayDto))]
+[JsonSerializable(typeof(PortfolioTrendPointDto))]
 
-// ─── Contributor / AI-detection DTOs ────────────────────────────────────────────────────────
+// ─── Contributor DTOs ────────────────────────────────────────────────────────────────────────
 [JsonSerializable(typeof(ContributorStatsDto))]
 [JsonSerializable(typeof(List<ContributorStatsDto>))]
 [JsonSerializable(typeof(DailyContributorStatsDto))]
 [JsonSerializable(typeof(List<DailyContributorStatsDto>))]
-[JsonSerializable(typeof(AiDetectionStatsDto))]
-[JsonSerializable(typeof(List<AiDetectionStatsDto>))]
-[JsonSerializable(typeof(AiStatsByUserDto))]
-[JsonSerializable(typeof(List<AiStatsByUserDto>))]
-[JsonSerializable(typeof(UserAiPercentagePerCommitDto))]
-[JsonSerializable(typeof(DailyAiDetectionDto))]
-[JsonSerializable(typeof(List<DailyAiDetectionDto>))]
 
 // ─── Progress, auth, diagnostics, upload, antiforgery ───────────────────────────────────────
 [JsonSerializable(typeof(AnalysisProgressDto))]
@@ -89,5 +83,4 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, int>))]
 [JsonSerializable(typeof(Dictionary<string, double>))]
-[JsonSerializable(typeof(ChartDisplayMode))]
 public sealed partial class AppJsonSerializerContext : JsonSerializerContext;

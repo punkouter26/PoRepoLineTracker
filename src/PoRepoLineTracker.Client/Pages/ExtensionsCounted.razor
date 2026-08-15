@@ -27,12 +27,6 @@
         </PageHero>
     }
 
-    @if (ShowChartDisplaySettings)
-    {
-        <ChartDisplayModeCard Title="Chart Display"
-                              Description="Choose whether charts show raw totals or a smoothed moving average across the app." />
-    }
-
     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End" Wrap="FlexWrap.Wrap">
         <RadzenButton Text="Reset to Defaults" 
                       Icon="restore" 
@@ -156,7 +150,6 @@
 @code {
     /// <summary>When false (default for inline/tab use), the hero header is hidden.</summary>
     [Parameter] public bool ShowPageHeader { get; set; } = true;
-    [Parameter] public bool ShowChartDisplaySettings { get; set; }
 
     private RadzenDataGrid<ExtensionItem>? extensionGrid;
     private List<ExtensionItem>? extensionItems;
@@ -174,7 +167,8 @@
         // (see FileIgnoreFilter and DefaultFileExtensions in UserPreferences).
         { ".NET", [".cs", ".razor", ".cshtml", ".xaml", ".csproj"] },
         { "JavaScript", [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"] },
-        { "Web", [".html", ".css", ".scss", ".less"] }
+        { "Web", [".html", ".css", ".scss", ".less"] },
+        { "Python", [".py"] }
     };
 
     protected override async Task OnInitializedAsync()
@@ -320,7 +314,6 @@
             {
                 UserId = preferences?.UserId ?? UserId.Empty,
                 FileExtensions = extensionItems.Select(e => e.Extension).ToList(),
-                ChartDisplayMode = preferences?.ChartDisplayMode ?? ChartDisplayMode.TrueData,
                 LastUpdated = DateTime.UtcNow
             };
             preferences = await PreferencesClient.SaveAsync(updatedPrefs);

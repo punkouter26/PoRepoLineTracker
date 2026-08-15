@@ -2,7 +2,6 @@ using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
@@ -28,7 +27,6 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
     private readonly IUserService _userService;
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly IAnalysisProgressService _progressService;
-    private readonly IAiDetectionService _aiDetectionService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
 
@@ -41,7 +39,6 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         IUserService userService,
         IUserPreferencesService userPreferencesService,
         IAnalysisProgressService progressService,
-        IAiDetectionService aiDetectionService,
         IConfiguration configuration,
         ILogger<AnalyzeRepositoryCommitsCommandHandler> logger)
     {
@@ -50,7 +47,6 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         _userService = userService;
         _userPreferencesService = userPreferencesService;
         _progressService = progressService;
-        _aiDetectionService = aiDetectionService;
         _configuration = configuration;
         _logger = logger;
     }
@@ -220,11 +216,9 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                 repository.LocalPath = localPath;
                 await _repositoryDataService.UpdateRepositoryAsync(repository);
 
-                // Get the full path for later use
-                var homePath = Environment.GetEnvironmentVariable("HOME");
-                fullRepoPath = !string.IsNullOrEmpty(homePath)
-                    ? Path.Combine(homePath, "site", "wwwroot", "temp_repos", localPath)
-                    : Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos", localPath);
+                // Unused on this branch (the FromFullPathAsync calls below are all gated on
+                // isLocalUpload), but fullRepoPath must be definitely assigned either way.
+                fullRepoPath = _gitHubService.LocalReposBasePath;
             }
 
             // Get user-specific file extensions to count (falls back to defaults if not configured)
@@ -337,12 +331,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                         LinesRemoved = commitStat.LinesRemoved, // Now properly setting lines removed from diff
                         LinesByFileType = lineCounts.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
                         AuthorName = commitStat.AuthorName,
-                        AuthorEmail = commitStat.AuthorEmail,
-                        // Scored from the commit's diff during the walk in GetCommitStatsAsync.
-                        // This assignment is what makes the whole AI feature non-empty: the field
-                        // was persisted as 0 for every commit ever analysed, which in turn meant
-                        // the ai-* tags below could never fire and /ai-stats always returned zeros.
-                        AiPercentage = commitStat.AiPercentage
+                        AuthorEmail = commitStat.AuthorEmail
                     };
 
 

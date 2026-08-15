@@ -254,24 +254,6 @@ public class RepositoryDataService : IRepositoryDataService
         return await Task.FromResult(UserPreferences.DefaultFileExtensions.AsEnumerable());
     }
 
-    public async Task AnalyzeRepositoryCommitsAsync(RepositoryId repositoryId)
-    {
-        _logger.LogInformation("Starting analysis for repository ID: {RepositoryId}", repositoryId);
-
-        // Get the repository from storage
-        var repository = await GetRepositoryByIdAsync(repositoryId);
-        if (repository == null)
-        {
-            _logger.LogWarning("Repository with ID {RepositoryId} not found for analysis", repositoryId);
-            throw new InvalidOperationException($"Repository with ID {repositoryId} not found");
-        }
-
-        // Note: The actual commit analysis logic should be implemented here or delegated to GitHubService
-        // For now, we'll implement a basic placeholder that follows the pattern of other methods
-        // The full implementation would involve calling GitHubService methods to analyze commits
-        _logger.LogInformation("Repository analysis completed for repository ID: {RepositoryId}", repositoryId);
-    }
-
     public async Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(RepositoryId repositoryId, int days)
     {
         _logger.LogInformation("Getting line count history for repository {RepositoryId} for the last {Days} days from Table Storage.", repositoryId, days);
@@ -304,11 +286,7 @@ public class RepositoryDataService : IRepositoryDataService
                 LinesByFileType = g
                     .SelectMany(c => c.LinesByFileType)
                     .GroupBy(kvp => kvp.Key)
-                    .ToDictionary(fileGroup => fileGroup.Key, fileGroup => fileGroup.Sum(kvp => kvp.Value)),
-                // InstantReplay: average AI percentage across commits on this day
-                AverageAiPercentage = g.Any(c => c.AiPercentage > 0)
-                    ? Math.Round(g.Where(c => c.AiPercentage > 0).Average(c => c.AiPercentage), 2)
-                    : 0
+                    .ToDictionary(fileGroup => fileGroup.Key, fileGroup => fileGroup.Sum(kvp => kvp.Value))
             })
             .OrderBy(d => d.Date)
             .ToList();
@@ -455,13 +433,7 @@ public class RepositoryDataService : IRepositoryDataService
                 topFiles.Add(entity.ToDto());
             }
 
-            // Return sorted by rank (row key is already sorted), limited to count
             var result = topFiles
-                .OrderBy(f => f.LineCount) // Will be re-sorted by actual line count descending
-                .ToList();
-
-            // Re-sort by line count descending and take the requested count
-            result = topFiles
                 .OrderByDescending(f => f.LineCount)
                 .Take(count)
                 .ToList();
@@ -494,10 +466,9 @@ public class RepositoryDataService : IRepositoryDataService
                 entitiesToDelete.Add(entity);
             }
 
-            foreach (var entity in entitiesToDelete)
-            {
-                await _topFilesTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, ETag.All);
-            }
+            var deleteTasks = entitiesToDelete.Select(entity =>
+                _topFilesTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, ETag.All));
+            await Task.WhenAll(deleteTasks);
 
             _logger.LogInformation("Deleted {Count} top file entries for repository {RepositoryId}.", entitiesToDelete.Count, repositoryId);
         }

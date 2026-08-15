@@ -3,58 +3,135 @@ using FluentAssertions;
 
 namespace PoRepoLineTracker.Unit;
 
-// CSharpLineCounter was removed: its comment/blank-line exclusion produced inconsistent counts
-// compared to all other file types. DefaultLineCounter now handles .cs files uniformly.
-public class DefaultLineCounterTests
+// SourceLineCounter replaces the old DefaultLineCounter/CSharpLineCounter split. A prior version
+// gave only .cs comment/blank-line exclusion and was reverted because mixing a comment-stripped
+// extension with raw-counted ones made totals incomparable across languages. SourceLineCounter is
+// registered once per extension (including "*" with no comment syntax as the fallback), so the
+// same rules apply everywhere — these tests exercise it through each syntax it is configured with.
+public class SourceLineCounterTests
 {
-    private readonly DefaultLineCounter _sut = new();
-
     [Fact]
-    public void FileExtension_ShouldReturnWildcard()
+    public void FileExtension_ReturnsWhatItWasConstructedWith()
     {
-        _sut.FileExtension.Should().Be("*");
+        var sut = new SourceLineCounter(".py", "#");
+        sut.FileExtension.Should().Be(".py");
     }
 
     [Fact]
     public async Task CountLinesAsync_EmptyStream_ReturnsZero()
     {
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(""));
-        var result = await _sut.CountLinesAsync(stream);
+        var sut = new SourceLineCounter("*");
+        var result = await sut.CountLinesAsync(Stream(""));
         result.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task CountLinesAsync_CountsAllLines_IncludingBlanks()
-    {
-        var content = "line 1\n\nline 3\n";
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
-        var result = await _sut.CountLinesAsync(stream);
-        result.Should().Be(3);
-    }
-
-    [Fact]
-    public async Task CountLinesAsync_CountsCommentLines()
-    {
-        var content = "// this is a comment\nreal code\n";
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
-        var result = await _sut.CountLinesAsync(stream);
-        result.Should().Be(2);
     }
 
     [Fact]
     public async Task CountLinesAsync_SingleLine_ReturnsOne()
     {
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("single line"));
-        var result = await _sut.CountLinesAsync(stream);
+        var sut = new SourceLineCounter("*");
+        var result = await sut.CountLinesAsync(Stream("single line"));
         result.Should().Be(1);
     }
 
     [Fact]
-    public async Task CountLinesAsync_CsFile_CountsAllLines()
+    public async Task CountLinesAsync_ExcludesBlankLines_EvenWithNoCommentSyntaxConfigured()
     {
-        var code = "using System;\nnamespace Test\n{\n    public class Foo { }\n}\n";
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(code));
-        var result = await _sut.CountLinesAsync(stream);
-        result.Should().Be(5);
+        var sut = new SourceLineCounter("*");
+        var result = await sut.CountLinesAsync(Stream("line 1\n\n   \nline 3\n"));
+        result.Should().Be(2);
     }
+
+    [Fact]
+    public async Task CountLinesAsync_NoCommentSyntax_DoesNotStripAnything()
+    {
+        // "*" has no configured comment syntax, so a literal "//" is just content.
+        var sut = new SourceLineCounter("*");
+        var result = await sut.CountLinesAsync(Stream("// looks like a comment but isn't here\n"));
+        result.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CountLinesAsync_CStyle_ExcludesLineCommentOnlyLines()
+    {
+        var sut = new SourceLineCounter(".cs", "//", ("/*", "*/"));
+        var result = await sut.CountLinesAsync(Stream("using System;\n// a comment\nvar x = 1;\n"));
+        result.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task CountLinesAsync_CStyle_KeepsCodeBeforeTrailingLineComment()
+    {
+        var sut = new SourceLineCounter(".cs", "//", ("/*", "*/"));
+        var result = await sut.CountLinesAsync(Stream("var x = 1; // trailing comment\n"));
+        result.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CountLinesAsync_CStyle_ExcludesSingleLineBlockComment()
+    {
+        var sut = new SourceLineCounter(".cs", "//", ("/*", "*/"));
+        var result = await sut.CountLinesAsync(Stream("/* comment */\nvar x = 1;\n"));
+        result.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CountLinesAsync_CStyle_ExcludesMultiLineBlockComment()
+    {
+        var sut = new SourceLineCounter(".cs", "//", ("/*", "*/"));
+        var content = "var before = 1;\n/* start of\n a block\n comment */\nvar after = 2;\n";
+        var result = await sut.CountLinesAsync(Stream(content));
+        result.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task CountLinesAsync_CStyle_CountsLineWithCodeAfterBlockCommentCloses()
+    {
+        var sut = new SourceLineCounter(".cs", "//", ("/*", "*/"));
+        var content = "/* comment\n spanning */ var x = 1;\n";
+        var result = await sut.CountLinesAsync(Stream(content));
+        result.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CountLinesAsync_HashStyle_ExcludesPythonComments()
+    {
+        var sut = new SourceLineCounter(".py", "#");
+        var result = await sut.CountLinesAsync(Stream("import os\n# a comment\nx = 1\n"));
+        result.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task CountLinesAsync_MarkupStyle_ExcludesHtmlComments()
+    {
+        var sut = new SourceLineCounter(".html", null, ("<!--", "-->"));
+        var result = await sut.CountLinesAsync(Stream("<div>content</div>\n<!-- a comment -->\n"));
+        result.Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData("<auto-generated>\nusing System;\nclass Foo {}\n")]
+    [InlineData("// <auto-generated />\nusing System;\n")]
+    [InlineData("// This code was generated by a tool.\n// Do not edit this file directly.\nusing System;\n")]
+    public async Task CountLinesAsync_GeneratedFileMarker_ReturnsZero(string content)
+    {
+        var sut = new SourceLineCounter(".cs", "//", ("/*", "*/"));
+        var result = await sut.CountLinesAsync(Stream(content));
+        result.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task CountLinesAsync_GeneratedMarkerFarBelowScanWindow_IsNotDetected()
+    {
+        // The marker scan only looks at the leading handful of lines — a marker buried deep in an
+        // otherwise-normal file (unlikely in practice) does not zero out the real content above
+        // it. The marker line itself is still a "//" comment, so it does not add to the count
+        // either — only the 25 padding lines do.
+        var sut = new SourceLineCounter(".cs", "//", ("/*", "*/"));
+        var padding = string.Concat(Enumerable.Repeat("var x = 1;\n", 25));
+        var content = padding + "// <auto-generated>\n";
+        var result = await sut.CountLinesAsync(Stream(content));
+        result.Should().Be(25);
+    }
+
+    private static MemoryStream Stream(string content) => new(Encoding.UTF8.GetBytes(content));
 }

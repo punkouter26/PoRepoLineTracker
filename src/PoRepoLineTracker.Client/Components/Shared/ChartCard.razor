@@ -22,9 +22,11 @@
    The utility is still in effects.css and is correct for subtrees of plain, self-sizing content.
    It is simply wrong for anything that measures itself in JS.
 
-   u-lift sits on the surface rather than the wrapper so the shadow is cast by the painted card. *@
+   u-lift sits on the surface rather than the wrapper so the shadow is cast by the painted card.
+   u-glass and u-sheen ride along on the same element for the same reason — the blur, the shadow
+   and the hover sweep all need to read as one surface, not a plain div wrapping a styled card. *@
 <div class="chart-card">
-    <RadzenCard class="chart-card__surface u-lift">
+    <RadzenCard class="chart-card__surface u-glass u-lift u-sheen">
         <RadzenStack Orientation="Orientation.Horizontal"
                      AlignItems="AlignItems.Center"
                      JustifyContent="JustifyContent.SpaceBetween"
@@ -73,7 +75,13 @@
         }
         else
         {
-            @ChildContent
+            @* Fades and settles in the first time real content replaces the skeleton/empty state.
+               Transform/opacity only, so it cannot affect the RadzenChart sizing measurement the
+               comment above warns about — the wrapper is a plain block, present with real
+               dimensions for the whole animation, never `content-visibility`-skipped. *@
+            <div class="chart-card__content u-enter">
+                @ChildContent
+            </div>
         }
     </RadzenCard>
 </div>
