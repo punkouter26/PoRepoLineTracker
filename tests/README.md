@@ -7,7 +7,9 @@ Four tiers, matching the layout in `AGENT.MD`:
 - `PoRepoLineTracker.E2EAPI` — API contract testing against a running host.
 - `PoRepoLineTracker.E2EUI` — Playwright browser flows (mobile + desktop).
 
-Coverage thresholds are enforced through [coverlet.runsettings](coverlet.runsettings).
+Coverage is configured in [coverlet.runsettings](coverlet.runsettings) (wired into the Unit
+tier only). The threshold there is evaluated only when tests run with
+`--collect:"XPlat Code Coverage"` — CI does not currently enforce it.
 
 Authenticating in Integration/E2E: send `X-Fake-User` (and optionally `X-Fake-Roles`) and
 `FakeAuthHandler` authenticates the request. It refuses to start in Production.

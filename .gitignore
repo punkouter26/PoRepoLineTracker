@@ -561,3 +561,6 @@ src/PoRepoLineTracker.Api/log*.txt
 
 # Large data archive - never commit
 IBRPMIS.zip
+
+# Compiled ARM output from 'az bicep build' — never commit
+infra/*.json

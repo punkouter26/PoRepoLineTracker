@@ -66,7 +66,7 @@ try {
 Push-Location $RepoRoot
 try {
     docker compose up -d
-    Write-Host "OK: Azurite started (ports 10000-10002)" -ForegroundColor Green
+    Write-Host "OK: Azurite started (ports 10000-10002) and Jaeger (UI on http://localhost:16686)" -ForegroundColor Green
 } catch {
     Write-Host "WARNING: Failed to start Azurite: $_" -ForegroundColor Yellow
 }
@@ -90,11 +90,12 @@ Write-Host "`nChecking for orphaned dotnet processes on ports 5000/5001..." -For
 $orphaned = Get-NetTCPConnection -LocalPort 5000,5001 -ErrorAction SilentlyContinue |
     Select-Object -ExpandProperty OwningProcess -Unique
 if ($orphaned) {
-    foreach ($pid in $orphaned) {
-        $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+    # $pid would shadow the read-only automatic $PID variable and throw in PS7
+    foreach ($procId in $orphaned) {
+        $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
         if ($proc -and $proc.ProcessName -eq "dotnet") {
-            Write-Host "  Killing orphaned dotnet process PID $pid" -ForegroundColor Yellow
-            Stop-Process -Id $pid -Force
+            Write-Host "  Killing orphaned dotnet process PID $procId" -ForegroundColor Yellow
+            Stop-Process -Id $procId -Force
         }
     }
     Write-Host "OK: Orphaned processes cleared" -ForegroundColor Green
@@ -104,5 +105,5 @@ if ($orphaned) {
 
 # ── Done ───────────────────────────────────────────────────────────────────
 Write-Host "`n=== Setup Complete ===" -ForegroundColor Cyan
-Write-Host "Run the app with: dotnet run --project src/PoRepoLineTracker.Api" -ForegroundColor White
+Write-Host "Run the app with: dotnet run --project src/PoRepoLineTracker.API --launch-profile https" -ForegroundColor White
 Write-Host "API will be available at http://localhost:5000 / https://localhost:5001" -ForegroundColor White

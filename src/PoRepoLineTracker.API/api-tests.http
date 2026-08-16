@@ -1,130 +1,147 @@
 ### PoRepoLineTracker API Test Suite
-### Base URL: https://localhost:5001 (or http://localhost:5000)
-### Requires: Azurite running (docker compose up -d)
+### Base URL: https://localhost:5001 (launch profile `https`)
+### Requires: Azurite running (docker compose up -d) and the app in Development.
+###
+### Auth: there is no login route for tools — Development/Test requests authenticate by
+### sending X-Fake-User (a GUID verbatim; any other string hashes to a stable GUID).
+### Writes additionally need the antiforgery pair: GET /api/antiforgery/token first (the
+### response sets the cookie and returns the token), then echo it as X-CSRF-TOKEN.
 
 @baseUrl = https://localhost:5001
+@fakeUser = 00000000-0000-0000-0000-000000000001
 
 # ============================================================
 # Health & Diagnostics
 # ============================================================
 
-### Health Check (unauthenticated)
+### Health check (anonymous)
 GET {{baseUrl}}/health
 Accept: application/json
 
-### Diagnostics (requires auth — obtain cookie first via /test-login)
+### Diagnostics page payload (auth required)
 GET {{baseUrl}}/diag
+X-Fake-User: {{fakeUser}}
+Accept: application/json
+
+### Structured diagnostics (auth required)
+GET {{baseUrl}}/api/diagnostics
+X-Fake-User: {{fakeUser}}
 Accept: application/json
 
 # ============================================================
-# Dev Authentication (Development Only)
+# Auth
 # ============================================================
 
-### Dev Login by UserId (bypasses GitHub OAuth — Development Only)
-# Returns an auth cookie for the supplied userId, creating the user if missing.
-# Use any deterministic GUID; the seeded default is shown below.
-GET {{baseUrl}}/dev-login/00000000-0000-0000-0000-000000000001
-
-### Test Login (returns auth cookie)
-POST {{baseUrl}}/test-login
-Content-Type: application/json
-
-{
-  "email": "test@example.com",
-  "password": "",
-  "userAgent": "HttpClient"
-}
-
-# ============================================================
-# Authentication (requires cookie from /test-login first)
-# ============================================================
-
-### Get Current User
-GET {{baseUrl}}/api/auth/me
+### Current session (anonymous returns isAuthenticated: false)
+GET {{baseUrl}}/auth/me
 Accept: application/json
 
-### GitHub OAuth Login (browser-only, redirects)
-# GET {{baseUrl}}/api/auth/login
-
-### Logout
-GET {{baseUrl}}/api/auth/logout
+### Antiforgery token — run before any POST/PUT/DELETE, copy `requestToken`
+# @name antiforgery
+GET {{baseUrl}}/api/antiforgery/token
+X-Fake-User: {{fakeUser}}
+Accept: application/json
 
 # ============================================================
 # Repositories
 # ============================================================
 
-### List My Repositories
+### List my repositories
 GET {{baseUrl}}/api/repositories
+X-Fake-User: {{fakeUser}}
 Accept: application/json
 
-### Add a Repository
-POST {{baseUrl}}/api/repositories
+### All-repos chart series (last 30 days)
+GET {{baseUrl}}/api/repositories/allcharts/30
+X-Fake-User: {{fakeUser}}
+Accept: application/json
+
+### Bulk add repositories (the only write path — single add was removed)
+POST {{baseUrl}}/api/repositories/bulk
+X-Fake-User: {{fakeUser}}
+X-CSRF-TOKEN: {{antiforgery.response.body.requestToken}}
 Content-Type: application/json
 
-{
-  "owner": "dotnet",
-  "name": "roslyn"
-}
+[
+  { "owner": "dotnet", "repoName": "roslyn", "cloneUrl": "https://github.com/dotnet/roslyn.git" }
+]
 
-### Get Repository by ID (replace {id} with actual GUID)
-# GET {{baseUrl}}/api/repositories/{id}
-# Accept: application/json
+### Line count history (replace {id})
+# GET {{baseUrl}}/api/repositories/{id}/linehistory/30
+# X-Fake-User: {{fakeUser}}
 
-### Get Repository Line Count History
-# GET {{baseUrl}}/api/repositories/{id}/linecounts
-# Accept: application/json
+### File extension percentages (replace {id})
+# GET {{baseUrl}}/api/repositories/{id}/file-extension-percentages
+# X-Fake-User: {{fakeUser}}
 
-### Get Repository Top Files
-# GET {{baseUrl}}/api/repositories/{id}/topfiles?limit=10
-# Accept: application/json
+### Contributor stats (replace {id})
+# GET {{baseUrl}}/api/repositories/{id}/contributors/90
+# X-Fake-User: {{fakeUser}}
 
-### Get Repository Extensions
-# GET {{baseUrl}}/api/repositories/{id}/extensions
-# Accept: application/json
+### Re-analyze (replace {id})
+# POST {{baseUrl}}/api/repositories/{id}/reanalyze
+# X-Fake-User: {{fakeUser}}
+# X-CSRF-TOKEN: {{antiforgery.response.body.requestToken}}
 
-### Trigger Repository Refresh
-# POST {{baseUrl}}/api/repositories/{id}/refresh
+### Analysis progress (replace {id})
+# GET {{baseUrl}}/api/repositories/{id}/analysis-progress
+# X-Fake-User: {{fakeUser}}
 
-### Delete Repository
+### Delete one repository (replace {id})
 # DELETE {{baseUrl}}/api/repositories/{id}
+# X-Fake-User: {{fakeUser}}
+# X-CSRF-TOKEN: {{antiforgery.response.body.requestToken}}
+
+### Delete all my repositories
+# DELETE {{baseUrl}}/api/repositories/all
+# X-Fake-User: {{fakeUser}}
+# X-CSRF-TOKEN: {{antiforgery.response.body.requestToken}}
 
 # ============================================================
-# GitHub API
+# GitHub
 # ============================================================
 
-### List GitHub Repositories
-GET {{baseUrl}}/api/github/repositories
+### List the signed-in user's GitHub repositories (needs a real token or GitHub:PAT)
+GET {{baseUrl}}/api/github/user-repositories
+X-Fake-User: {{fakeUser}}
 Accept: application/json
-
-### Get GitHub Repository Stats
-# GET {{baseUrl}}/api/github/repositories/{owner}/{repo}/statistics
-# Accept: application/json
 
 # ============================================================
 # Settings
 # ============================================================
 
-### Get User Preferences
-GET {{baseUrl}}/api/settings
+### Get user preferences
+GET {{baseUrl}}/api/settings/user-preferences
+X-Fake-User: {{fakeUser}}
 Accept: application/json
 
-### Update User Preferences
-PUT {{baseUrl}}/api/settings
+### Save user preferences
+PUT {{baseUrl}}/api/settings/user-preferences
+X-Fake-User: {{fakeUser}}
+X-CSRF-TOKEN: {{antiforgery.response.body.requestToken}}
 Content-Type: application/json
 
 {
-  "theme": "dark",
-  "defaultBranch": "main",
-  "maxRepositories": 50
+  "fileExtensions": [".cs", ".razor", ".ts"]
 }
 
 # ============================================================
-# Failed Operations
+# Insights & Dev seeding
 # ============================================================
 
-### List Failed Operations
-GET {{baseUrl}}/api/failed-operations
+### Portfolio insights
+GET {{baseUrl}}/api/insights/portfolio
+X-Fake-User: {{fakeUser}}
 Accept: application/json
 
-### Retry Failed Operation
-# POST {{baseUrl}}/api/failed-operations/{id}/retry
+### Seed synthetic history (Development only, idempotent)
+POST {{baseUrl}}/api/dev/seed/repository
+X-Fake-User: {{fakeUser}}
+X-CSRF-TOKEN: {{antiforgery.response.body.requestToken}}
+Content-Type: application/json
+
+{
+  "owner": "e2e",
+  "name": "seeded",
+  "days": 30
+}
