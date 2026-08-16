@@ -66,6 +66,9 @@
     <!-- Testing Frameworks — single stack: xunit + NSubstitute + FluentAssertions.
          Playwright uses the core package (no NUnit/MSTest base) so E2EUI stays on xunit. -->
     <PackageVersion Include="Testcontainers.Azurite" Version="4.6.0" />
+    <!-- Transitive pin: Testcontainers pulls SSH.NET 2024.2.0, which carries advisory
+         GHSA-q939-rpr3-3284; NU1903 + TreatWarningsAsErrors fails the build without this. -->
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="FluentAssertions" Version="8.8.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
