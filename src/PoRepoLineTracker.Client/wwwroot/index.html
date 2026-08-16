@@ -57,16 +57,6 @@
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
     <script>
-        function clickGitHubButton() {
-            const button = document.querySelector('button.btn-primary');
-            if (button && button.textContent.includes('Select from GitHub')) {
-                console.log('Attempting to click "Select from GitHub" button via JavaScript.');
-                button.click();
-            } else {
-                console.log('Button "Select from GitHub" not found or text mismatch.');
-            }
-        }
-
         // Paint a theme without recording a choice. `data-theme` is what app.css keys
         // off, so it must be set on every path — previously it was only set when the
         // user actively toggled, which left the OS-dark case styled as light.

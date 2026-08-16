@@ -60,10 +60,10 @@
     --primary-dark: #5B4397;
     --primary-light: #7C6CAF;
 
-    /* The two companion hues used only by the decorative mesh gradients (login
-       canvas, .u-grad-mesh). They are NOT tints of the primary — the mesh reads
-       as flat when every stop shares a hue — so they are their own tokens rather
-       than color-mix() of the above. */
+    /* The two companion hues used only by the decorative mesh gradients (e.g.
+       PageHero). They are NOT tints of the primary — the mesh reads as flat
+       when every stop shares a hue — so they are their own tokens rather than
+       color-mix() of the above. */
     --brand-violet: #7C3AED;
     --brand-violet-light: #A78BFA;
 
@@ -459,7 +459,7 @@ a:focus-visible, .btn-link:focus-visible {
     /* Belt and braces with .u-scroll-x: the well itself must never scroll sideways. */
     overflow-x: hidden;
     /* Solid colour plus a drifting glow layered on top of it, not a replacement for it — same
-       technique as .page-hero and .u-grad-mesh. Because the glow is a `background-image`, it
+       technique as .page-hero. Because the glow is a `background-image`, it
        paints behind this element's own in-flow content automatically; no z-index or extra
        stacking-context wrangling needed the way a positioned pseudo-element would require. */
     background-color: var(--bg-secondary);

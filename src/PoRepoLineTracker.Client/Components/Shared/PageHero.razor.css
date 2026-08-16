@@ -5,9 +5,9 @@
    is the only animated property, and the layer is already promoted, so the drift composites
    rather than repainting the strip.
 
-   Scoped here rather than using the global `.u-grad-mesh` utility because that one paints an
-   opaque `background-color` for use as a full-bleed backdrop; the hero has to stay transparent
-   over whatever surface the page provides. */
+   Scoped here rather than as a global utility because a full-bleed backdrop would paint an
+   opaque `background-color`; the hero has to stay transparent over whatever surface the page
+   provides. */
 .page-hero {
     background: linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 7%, transparent) 0%, transparent 70%);
     background-image:

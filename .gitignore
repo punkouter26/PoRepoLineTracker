@@ -49,7 +49,6 @@ bld/
 [Ll]ogs/
 
 # Visual Studio 2015/2017 cache/options directory
-.vs/
 # Uncomment if you have tasks that create the project's static files in wwwroot
 #wwwroot/
 
@@ -142,7 +141,6 @@ $tf/
 # ReSharper is a .NET coding add-in
 _ReSharper*/
 *.[Rr]e[Ss]harper
-*.DotSettings.user
 
 # TeamCity is a build add-in
 _TeamCity*
@@ -199,7 +197,6 @@ publish/
 # Microsoft Azure Web App publish settings. Comment the next line if you want to
 # checkin your Azure Web App publish settings, but sensitive information contained
 # in these files may be visible to others.
-*.azurePubxml
 
 # Microsoft Azure Build Output
 csx/
@@ -410,10 +407,8 @@ FodyWeavers.xsd
 ## Visual studio for Mac
 ##
 
-
 # globs
 Makefile.in
-*.userprefs
 *.usertasks
 config.make
 config.status
@@ -422,7 +417,6 @@ install-sh
 autom4te.cache/
 *.tar.gz
 tarballs/
-test-results/
 
 # Mac bundle stuff
 *.dmg
@@ -430,23 +424,18 @@ test-results/
 
 # content below from: https://github.com/github/gitignore/blob/master/Global/macOS.gitignore
 # General
-.DS_Store
 .AppleDouble
 .LSOverride
 
 # Icon must end with two \r
 Icon
 
-
 # Thumbnails
-._*
 
 # Files that might appear in the root of a volume
 .DocumentRevisions-V100
 .fseventsd
-.Spotlight-V100
 .TemporaryItems
-.Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
 
@@ -460,28 +449,20 @@ Temporary Items
 # Azure log downloads (Kudu diagnostics — both underscore and dash naming)
 app_logs.zip
 app_logs_out/
-app-logs*.zip
 app-logs*/
 app-logs-fix*/
-docker_logs.zip
-docker_logs_out/
 
 # LLM-generated documentation (ephemeral, not source-controlled)
-LLMDOCS/
 
 # Visual Studio language server cache
-*.lscache
 
 # ASP.NET Data Protection keys (runtime-generated, must not be in source control)
-src/dataprotection-keys/
 
 # Generated ARM JSON from Bicep (compiled artifact)
 infra/main.json
 
 # content below from: https://github.com/github/gitignore/blob/master/Global/Windows.gitignore
 # Windows thumbnail cache files
-Thumbs.db
-ehthumbs.db
 ehthumbs_vista.db
 
 # Dump file
@@ -491,7 +472,6 @@ ehthumbs_vista.db
 [Dd]esktop.ini
 
 # Recycle Bin used on file shares
-$RECYCLE.BIN/
 
 # Windows Installer files
 *.cab
@@ -501,7 +481,6 @@ $RECYCLE.BIN/
 *.msp
 
 # Windows shortcuts
-*.lnk
 
 # JetBrains Rider
 .idea/
@@ -512,13 +491,9 @@ $RECYCLE.BIN/
 ##
 .vscode/*
 !.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
 
 # Project-specific exclusions
 LocalRepos/
-TESTRESULTS/
 __azurite_db_*.json
 
 # Environment variable files (may contain secrets)
@@ -532,15 +507,9 @@ AzuriteConfig
 __blobstorage__/
 __queuestorage__/
 log*.txt
-apphost_resources.json
 tmp_*.html
-*.lscache
 e2e-raw.txt
 **/*.staticwebassets.endpoints.json
-tests/PoRepoLineTracker.E2ETests.TS/playwright-results-raw.json
-tests/PoRepoLineTracker.E2ETests.TS/playwright-report/
-tests/PoRepoLineTracker.E2ETests.TS/test-results/
-tests/PoRepoLineTracker.E2ETests.TS/screenshots_viewer.html
 
 # Deployment artifacts & logs
 deploy.zip
@@ -557,10 +526,8 @@ secrets-backup*.json
 *-secrets.json
 secrets.json
 # Serilog runtime log files
-src/PoRepoLineTracker.Api/log*.txt
 
 # Large data archive - never commit
-IBRPMIS.zip
 
 # Compiled ARM output from 'az bicep build' — never commit
 infra/*.json
