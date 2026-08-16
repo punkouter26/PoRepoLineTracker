@@ -25,13 +25,23 @@
             <RadzenStack Gap="0.125rem">
                 <RadzenText TextStyle="TextStyle.H3" class="ins-title">Global Insights</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body1" class="ins-lede">
-                    @if (_isLoading)
+                    @if (_isSyncing)
+                    {
+                        <span>Importing every repository from your GitHub account…</span>
+                    }
+                    else if (_isLoading)
                     {
                         <span>Crunching your portfolio…</span>
                     }
                     else if (_insights is not null)
                     {
                         <span>Every repository in your account · @_insights.AnalyzedCount of @_insights.RepositoryCount analyzed</span>
+                        @if (_insights.RepositoryCount > _insights.AnalyzedCount)
+                        {
+                            @* Analysis runs one repository at a time in the background, so the first
+                               visit after an import legitimately shows more tracked than analyzed. *@
+                            <span> · @(_insights.RepositoryCount - _insights.AnalyzedCount) still being analyzed — Refresh in a minute</span>
+                        }
                     }
                 </RadzenText>
             </RadzenStack>
@@ -276,6 +286,7 @@
 @code {
     private PortfolioInsightsDto? _insights;
     private bool _isLoading = true;
+    private bool _isSyncing;
     private string _error = string.Empty;
 
     private void OnRepoRowClick(DataGridRowMouseEventArgs<RepositoryMovementDto> args) =>
@@ -381,6 +392,8 @@
 
         try
         {
+            await ImportGitHubAccountAsync();
+
             _insights = await Http.GetAppJsonAsync(
                 "/api/insights/portfolio",
                 AppJsonSerializerContext.Default.PortfolioInsightsDto);
@@ -393,6 +406,57 @@
         finally
         {
             _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Brings every repository on the user's GitHub account into the tracked set before the
+    /// dashboard aggregates it. Without this the page called itself "Global Insights" while only
+    /// ever summing whatever had been added by hand — one repository, in the case that prompted
+    /// this.
+    ///
+    /// <para>The work happens server-side, in <c>POST /api/repositories/import-github</c>, because
+    /// that is where the user's GitHub token lives. The endpoint dedupes on owner+name — so running
+    /// this on every visit imports nothing the second time — and analyses newly added repositories
+    /// ONE AT A TIME. That serialisation is load-bearing: a clone per repository fired concurrently
+    /// would exhaust the Free-tier App Service's ephemeral disk and CPU.</para>
+    ///
+    /// <para>Never throws. A missing or expired GitHub credential degrades to "show what is already
+    /// tracked" — it must not take the whole dashboard down.</para>
+    /// </summary>
+    private async Task ImportGitHubAccountAsync()
+    {
+        try
+        {
+            _isSyncing = true;
+            StateHasChanged();
+
+            var response = await Http.PostAsync("/api/repositories/import-github", content: null);
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.LogWarning(
+                    "Insights: GitHub import unavailable ({StatusCode}); showing only repositories already tracked.",
+                    response.StatusCode);
+                return;
+            }
+
+            var result = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.BulkAddResult);
+            var importedCount = result?.Added.Count ?? 0;
+            if (importedCount > 0)
+            {
+                Logger.LogInformation(
+                    "Insights: imported {Count} new repositories from GitHub; analysis is running in the background.",
+                    importedCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Insights: GitHub import failed; showing only repositories already tracked.");
+        }
+        finally
+        {
+            _isSyncing = false;
             StateHasChanged();
         }
     }

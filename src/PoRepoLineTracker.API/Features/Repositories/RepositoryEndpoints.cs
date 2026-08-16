@@ -216,6 +216,53 @@ internal static class RepositoryEndpoints
         })
         .WithName("AddMultipleRepositories");
 
+        // Tracks the caller's whole GitHub account. The Insights dashboard calls this on load so
+        // "Global Insights" covers every repository the user owns rather than the handful added by
+        // hand. Idempotent: the underlying add dedupes, so repeat visits import nothing.
+        repos.MapPost("/import-github", async (HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory) =>
+        {
+            if (!ctx.User.TryGetUserId(out var userId))
+                return Results.Unauthorized();
+
+            try
+            {
+                var result = await mediator.Send(new ImportGitHubRepositoriesCommand(userId));
+
+                // Analysis clones each repository, so it runs SEQUENTIALLY in one background task —
+                // the same shape /bulk uses. Firing one task per repository would start a dozen
+                // concurrent clones and exhaust the Free-tier App Service's disk and CPU.
+                if (result.Added.Count > 0)
+                {
+                    var newRepoIds = result.Added.Select(r => r.Id).ToList();
+                    _ = Task.Run(async () =>
+                    {
+                        using var scope = scopeFactory.CreateScope();
+                        var bgMediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                        foreach (var repoId in newRepoIds)
+                        {
+                            try
+                            {
+                                await bgMediator.Send(new AnalyzeRepositoryCommitsCommand(repoId));
+                            }
+                            catch (Exception bgEx)
+                            {
+                                Log.Error(bgEx, "Background: analysis failed for imported repo {RepoId}", repoId);
+                            }
+                        }
+                    });
+                }
+
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error importing GitHub repositories for user {UserId}", userId);
+                return Results.Problem($"Error importing GitHub repositories: {ex.Message}",
+                    statusCode: (int)HttpStatusCode.InternalServerError);
+            }
+        })
+        .WithName("ImportGitHubRepositories");
+
         repos.MapPost("/{repositoryId}/reanalyze", async (RepositoryId repositoryId, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
