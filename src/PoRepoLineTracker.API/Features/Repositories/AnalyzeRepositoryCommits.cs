@@ -102,44 +102,21 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             await _repositoryDataService.UpdateRepositoryAsync(repository);
         }
 
-        // Resolve a GitHub-compatible access token for the clone/pull.
-        // IMPORTANT: a Microsoft Graph OAuth access token is a JWT (~1.5KB, contains
-        // '+' and '/' segments) and is NOT a GitHub token. Stuffing it into the clone
-        // URL as userinfo causes libcurl to reject it with "Port number was not a
-        // decimal number" because it parses parts of the JWT as a port. So we only
-        // use the user's stored token when the user actually signed in with GitHub;
-        // for Microsoft-authenticated users (or users with a missing/empty token)
-        // we fall back to the server-configured GitHub:PAT.
+        // Resolve the GitHub access token for the clone/pull. GitHub OAuth is the only
+        // provider, so a stored token is always a GitHub token; the server-configured
+        // GitHub:PAT covers rows with a missing/empty token and user-less legacy rows.
         string? accessToken = null;
         if (repository.UserId != UserId.Empty)
         {
             var user = await _userService.GetUserByIdAsync(repository.UserId);
-            var loggedInWithGitHub = user is not null
-                && !string.IsNullOrEmpty(user.GitHubId)
-                && !user.GitHubId.StartsWith("ms:", StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrEmpty(user.AccessToken);
-
-            if (loggedInWithGitHub)
+            if (!string.IsNullOrEmpty(user?.AccessToken))
             {
-                accessToken = user!.AccessToken;
-            }
-            else
-            {
-                // Microsoft-authenticated user — fall back to the server-side GitHub PAT.
-                // GitHubEndpoints.cs applies the same rule for /api/github/user-repositories.
-                var configuredPat = _configuration[ConfigKeys.GitHub.Pat];
-                if (!string.IsNullOrEmpty(configuredPat))
-                {
-                    _logger.LogInformation(
-                        "User {UserId} signed in with Microsoft; using server-configured GitHub:PAT for clone of {Owner}/{Name}",
-                        repository.UserId, repository.Owner, repository.Name);
-                    accessToken = configuredPat;
-                }
+                accessToken = user.AccessToken;
             }
         }
-        else
+
+        if (string.IsNullOrEmpty(accessToken))
         {
-            // Repository not tied to a user (e.g. legacy data) — try the server PAT.
             var configuredPat = _configuration[ConfigKeys.GitHub.Pat];
             if (!string.IsNullOrEmpty(configuredPat))
             {

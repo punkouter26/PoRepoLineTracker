@@ -237,7 +237,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
-        // Real GitHub-logged-in user (GitHubId is numeric, not "ms:*")
         _userService.GetUserByIdAsync(userId).Returns(new User
         {
             Id = userId,
@@ -259,12 +258,10 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_MicrosoftLoggedInUser_FallsBackToConfiguredGitHubPat()
+    public async Task Handle_UserWithoutToken_FallsBackToConfiguredGitHubPat()
     {
-        // Regression: a Microsoft Graph JWT was being used as a GitHub credential,
-        // which made libcurl reject the clone URL with "Port number was not a
-        // decimal number". When the user logged in via Microsoft (GitHubId starts
-        // with "ms:"), the handler must use the server-configured GitHub:PAT instead.
+        // A user row with an empty stored token must not send an empty credential to git —
+        // the handler falls back to the server-configured GitHub:PAT.
         var repoId = RepositoryId.New();
         var userId = UserId.New();
         var repo = new GitHubRepository
@@ -281,9 +278,9 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _userService.GetUserByIdAsync(userId).Returns(new User
         {
             Id = userId,
-            GitHubId = "ms:abc123",           // Microsoft OAuth user
-            Username = "msuser",
-            AccessToken = "EwBYB...JWT..."    // A real Microsoft Graph JWT
+            GitHubId = "12345",
+            Username = "tokenless",
+            AccessToken = ""
         });
         _configuration["GitHub:PAT"].Returns("ghp_server_side_pat");
         _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
@@ -294,9 +291,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 
-        // Must NOT use the Microsoft Graph JWT for the GitHub clone
-        await _gitHubService.DidNotReceive().PullRepositoryAsync(Arg.Any<string>(), Arg.Is<string?>(t => t != null && t.StartsWith("EwBY")));
-        // Must use the server-configured PAT instead
         await _gitHubService.Received(1).PullRepositoryAsync("/path", "ghp_server_side_pat");
     }
 

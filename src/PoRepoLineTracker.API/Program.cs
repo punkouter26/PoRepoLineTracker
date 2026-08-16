@@ -85,8 +85,6 @@ namespace PoRepoLineTracker.API
                         outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
                 }
 
-                var appInsightsConn = context.Configuration[ConfigKeys.Telemetry.AppInsightsConnectionString];
-                // AppInsights telemetry handled by AddApplicationInsightsTelemetry() in AddTelemetry().
             });
 
             // Raise Kestrel body-size limit to 600 MB to allow large ZIP uploads
@@ -101,11 +99,6 @@ namespace PoRepoLineTracker.API
             builder.Services.AddTelemetry(builder.Configuration, builder.Environment);
 
             var app = builder.Build();
-
-            // #4 fix: wire ObservableGauge callbacks so telemetry meters are actually observed
-            AppTelemetry.InitializeGauges(
-                getTotalRepositories: () => 0,
-                getPendingAnalysis: () => 0);
 
             // Middleware pipeline
             app.UseForwardedHeaders();

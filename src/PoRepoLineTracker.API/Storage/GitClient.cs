@@ -25,15 +25,13 @@ namespace PoRepoLineTracker.API.Storage
             _logger.LogInformation("Cloning repository {RepoUrl} to {LocalPath} via git CLI", repoUrl, localPath);
 
             // Embed token in URL for HTTPS authentication (x-access-token is the standard GitHub approach).
-            // Sanity-check the token shape: only GitHub PATs (ghp_, gho_, ghu_, ghs_, ghr_) belong in
-            // a GitHub clone URL. Anything else (notably a Microsoft Graph JWT, which is ~1.5KB and
-            // starts with 'EwBY' or 'eyJ') would be silently rejected by libcurl with a confusing
-            // "Port number" error, so we surface a clear diagnostic before invoking git.
+            // Sanity-check the token shape: only GitHub tokens (ghp_/gho_/ghu_/ghs_/ghr_/github_pat_)
+            // belong in a GitHub clone URL — anything else is silently rejected by libcurl with a
+            // confusing "Port number" error, so surface a clear diagnostic before invoking git.
             if (!string.IsNullOrEmpty(accessToken) && !LooksLikeGitHubToken(accessToken))
             {
                 _logger.LogWarning(
-                    "Access token for clone of {RepoUrl} does not look like a GitHub PAT (length={Length}, prefix='{Prefix}'). Git will likely reject it. " +
-                    "Microsoft Graph JWTs (saved by Microsoft OAuth) must NOT be used as a GitHub credential — configure GitHub:PAT in Key Vault instead.",
+                    "Access token for clone of {RepoUrl} does not look like a GitHub token (length={Length}, prefix='{Prefix}'). Git will likely reject it — check GitHub:PAT in Key Vault.",
                     repoUrl, accessToken.Length, SafePrefix(accessToken));
             }
 
@@ -198,9 +196,7 @@ namespace PoRepoLineTracker.API.Storage
             var uri = new Uri(repoUrl);
 
             // URL-encode the token so any reserved characters (':', '/', '+', '=', etc.)
-            // cannot confuse libcurl's URL parser. Without this, a Microsoft Graph JWT
-            // embedded as a GitHub "token" produces "Port number was not a decimal
-            // number" because libcurl misreads part of the JWT as `host:port`.
+            // cannot confuse libcurl's URL parser into misreading part of it as `host:port`.
             var encodedToken = Uri.EscapeDataString(accessToken);
             return $"{uri.Scheme}://x-access-token:{encodedToken}@{uri.Host}{uri.PathAndQuery}";
         }

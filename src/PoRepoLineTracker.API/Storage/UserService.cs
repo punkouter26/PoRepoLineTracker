@@ -59,7 +59,7 @@ public class UserService : IUserService
         }
     }
 
-    public async Task<User?> GetUserByGitHubIdAsync(string gitHubId)
+    private async Task<User?> GetUserByGitHubIdAsync(string gitHubId)
     {
         await EnsureTableExistsAsync();
 
@@ -118,56 +118,4 @@ public class UserService : IUserService
         }
     }
 
-    public async Task UpdateAccessTokenAsync(UserId userId, string accessToken, DateTime? expiresAt = null)
-    {
-        await EnsureTableExistsAsync();
-
-        try
-        {
-            var user = await GetUserByIdAsync(userId);
-            if (user == null)
-            {
-                throw new InvalidOperationException($"User with ID {userId} not found");
-            }
-
-            user.AccessToken = accessToken;
-            user.TokenExpiresAt = expiresAt;
-
-            var entity = UserEntity.FromDomainModel(user);
-            await _userTableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
-
-            _logger.LogInformation("Updated access token for user {UserId}", userId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating access token for user {UserId}: {ErrorMessage}", userId, ex.Message);
-            throw;
-        }
-    }
-
-    public async Task<string?> GetAccessTokenAsync(UserId userId)
-    {
-        var user = await GetUserByIdAsync(userId);
-        return user?.AccessToken;
-    }
-
-    public async Task DeleteUserAsync(UserId userId, bool deleteAssociatedData = false)
-    {
-        await EnsureTableExistsAsync();
-
-        try
-        {
-            var user = await GetUserByIdAsync(userId);
-            if (user != null)
-            {
-                await _userTableClient.DeleteEntityAsync("USER", user.GitHubId);
-                _logger.LogInformation("Deleted user {UserId}", userId);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting user {UserId}: {ErrorMessage}", userId, ex.Message);
-            throw;
-        }
-    }
 }

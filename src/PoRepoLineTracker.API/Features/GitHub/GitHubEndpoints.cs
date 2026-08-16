@@ -20,19 +20,11 @@ internal static class GitHubEndpoints
 
                 var user = await userService.GetUserByIdAsync(userId);
 
-                // The user's stored OAuth token only authenticates against GitHub when they
-                // signed in with GitHub. Microsoft-authenticated users (GitHubId "ms:*") hold a
-                // Microsoft Graph token that GitHub rejects with 401, so fall back to the
-                // configured GitHub PAT. This keeps repository listing working regardless of
-                // which provider was used to sign in.
-                var loggedInWithGitHub = user is not null
-                    && !string.IsNullOrEmpty(user.GitHubId)
-                    && !user.GitHubId.StartsWith("ms:", StringComparison.OrdinalIgnoreCase);
-
-                var gitHubPat = config[ConfigKeys.GitHub.Pat];
-                var accessToken = loggedInWithGitHub && !string.IsNullOrEmpty(user!.AccessToken)
+                // GitHub OAuth is the only provider, so the stored token is a GitHub token.
+                // Fall back to the server-configured PAT for rows with a missing/empty token.
+                var accessToken = !string.IsNullOrEmpty(user?.AccessToken)
                     ? user.AccessToken
-                    : gitHubPat;
+                    : config[ConfigKeys.GitHub.Pat];
 
                 if (string.IsNullOrEmpty(accessToken))
                 {
