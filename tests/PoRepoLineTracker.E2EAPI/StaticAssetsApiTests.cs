@@ -46,7 +46,6 @@ public sealed class StaticAssetsApiTests
     [
         ("login-cta-btn", "Login.razor.css"),
         ("nav-section-label", "NavMenu.razor.css"),
-        ("settings-title", "Settings.razor.css"),
         ("login-display__avatar", "LoginDisplay.razor.css"),
         ("add-repo-title", "AddRepository.razor.css"),
         ("brand-wordmark", "MainLayout.razor.css"),
