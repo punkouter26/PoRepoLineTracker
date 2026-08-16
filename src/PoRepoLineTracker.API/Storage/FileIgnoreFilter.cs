@@ -20,6 +20,7 @@ public class FileIgnoreFilter : IFileIgnoreFilter
     private readonly HashSet<string> _filePatterns;
     private readonly HashSet<string> _bundledAssetPrefixes;
     private readonly HashSet<string> _directoryPatterns;
+    private readonly HashSet<string> _rootOnlyDirectoryNames;
     private const string MigrationFolder = "migrations/";
     private static readonly string[] GeneratedPathFragments =
     [
@@ -37,6 +38,37 @@ public class FileIgnoreFilter : IFileIgnoreFilter
     // standard Packages/ directory, where it would have already been caught by name).
     private static readonly Regex ReverseDomainPackageDirectory =
         new(@"(^|/)com\.[a-z0-9_-]+\.[a-z0-9_.-]+(/|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    // ─── Embedded repository roots ───────────────────────────────────────────────────────────
+    //
+    // Marker files that only ever sit at the ROOT of a distinct project. A subdirectory carrying
+    // several of these is not a subdirectory of this project — it is somebody else's repository
+    // that was copied in wholesale.
+    //
+    // This is the rule that catches the case the reverse-domain regex above was reaching for and
+    // mostly missed. A repo vendoring Unity's ml-agents under `Training/ml-agents/` had ~587
+    // source files there; the regex caught the 257 inside `com.unity.ml-agents/` and left the
+    // other 330 — the whole Python trainer package, ML-Agents' own Unity samples and tests, its
+    // CI scripts — counted as the author's own code. Measured on one real repository, that made
+    // third-party code roughly 78% of the reported line count.
+    //
+    // Naming the vendored folder would not generalise: `Training/ml-agents` is a name the author
+    // chose, and the next repo will choose a different one. What does not vary is that a copied
+    // project brings its own licence, its own CI config and its own community files.
+    private static readonly HashSet<string> RepositoryRootMarkers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".github", ".gitmodules", ".gitattributes", ".pre-commit-config.yaml",
+        "codeowners", "code_of_conduct.md", "contributing.md", "governance.md",
+        "license", "license.md", "license.txt", "licence", "licence.md", "copying",
+        "third party notices.md", "notice", "notice.txt",
+    };
+
+    // Two, not one. A single stray LICENSE.md next to a bundled asset should not take out a
+    // directory the author actually wrote, and real vendored roots carry a whole cluster of these
+    // — the ml-agents copy above has six. Requiring a pair keeps the rule specific enough that
+    // this project's own `src/PoRepoLineTracker.API/` (no licence, no .github, no CODEOWNERS)
+    // cannot trip it.
+    private const int RepositoryRootMarkerThreshold = 2;
 
     public FileIgnoreFilter(ILogger<FileIgnoreFilter> logger)
     {
@@ -83,13 +115,46 @@ public class FileIgnoreFilter : IFileIgnoreFilter
             "socket-io-client"
         ];
 
-        // Directory patterns to ignore
+        // Directory patterns to ignore. Matched as a whole path SEGMENT (see ShouldIgnoreDirectory),
+        // so "packages/" cannot be tripped by a folder called "mypackages".
         _directoryPatterns =
         [
-            "bin/", "obj/", "debug/", "release/", "node_modules/", "bower_components/",
-            "jspm_packages/", "typings/", ".vs/", ".vscode/", ".idea/", "wwwroot/lib/",
-            "vendor/", "vendors/", "third_party/", "third-party/", ".git/", "packages/",
-            "external/", "externals/"
+            // Build output / IDE
+            "bin/", "obj/", "debug/", "release/", ".vs/", ".vscode/", ".idea/", ".git/",
+
+            // JavaScript
+            "node_modules/", "bower_components/", "jspm_packages/", "typings/", "wwwroot/lib/",
+
+            // Generic vendoring conventions
+            "vendor/", "vendors/", "third_party/", "third-party/", "thirdparty/",
+            "3rdparty/", "3rd_party/", "packages/", "external/", "externals/",
+            "extern/", "deps/", "dependencies/", "submodules/",
+
+            // Python. A checked-in virtualenv or site-packages tree is somebody else's code by
+            // definition, and both are commonly committed by accident.
+            "site-packages/", "dist-packages/", ".venv/", "venv/", "virtualenv/",
+            "__pycache__/", ".tox/", ".eggs/", "eggs/", "*.egg-info/",
+
+            // Unity. `Assets/Plugins/` is Unity's documented home for third-party plugins and
+            // `Assets/StandardAssets` ships with the editor, so both are unambiguous wherever they
+            // appear. Unity's generated caches (Library/, Temp/, Logs/, Builds/) are NOT here —
+            // those names are too generic to blanket-match, and live in _rootOnlyDirectoryNames.
+            "assets/plugins/", "assets/thirdparty/", "assets/third-party/",
+            "assets/standard assets/", "assets/standardassets/",
+
+            // Ruby / Rust
+            ".bundle/", "vendor/bundle/", "target/debug/", "target/release/",
+        ];
+
+        // Matched only at the repository ROOT. These are real directory names a project might
+        // legitimately use deeper in its own tree — `src/Library/` could easily be hand-written
+        // code — but at the top level of a Unity project they are the editor's generated caches,
+        // excluded by Unity's own .gitignore, and only present when committed by mistake.
+        // Restricting them to depth 0 gets the common case without risking a folder of real source.
+        _rootOnlyDirectoryNames =
+        [
+            "library", "temp", "logs", "builds", "build", "obj", "dist",
+            "usersettings", "memorycaptures", "recordings"
         ];
     }
 
@@ -152,11 +217,62 @@ public class FileIgnoreFilter : IFileIgnoreFilter
 
         shouldIgnore = shouldIgnore || GeneratedPathFragments.Any(normalized.Contains);
         shouldIgnore = shouldIgnore || ReverseDomainPackageDirectory.IsMatch(normalized);
+        shouldIgnore = shouldIgnore || IsRootOnlyIgnoredDirectory(normalized);
 
         if (shouldIgnore)
             _logger.LogDebug("Ignoring directory: {DirectoryPath}", directoryPath);
 
         return shouldIgnore;
+    }
+
+    /// <inheritdoc />
+    public bool ShouldIgnoreDirectory(string directoryPath, IEnumerable<string> entryNames)
+    {
+        if (ShouldIgnoreDirectory(directoryPath)) return true;
+
+        // Only ever true below the repository root: the root is SUPPOSED to carry a licence and a
+        // .github folder. It is a nested copy of one that means vendored code.
+        if (!IsEmbeddedRepositoryRoot(directoryPath, entryNames)) return false;
+
+        _logger.LogInformation(
+            "Ignoring vendored directory {DirectoryPath} — it carries repository-root marker files " +
+            "({Markers}), so it is a third-party project copied into this repository rather than " +
+            "part of it.",
+            directoryPath,
+            string.Join(", ", MatchedRootMarkers(entryNames)));
+
+        return true;
+    }
+
+    /// <summary>
+    /// True when a NON-ROOT directory looks like the root of some other project — see
+    /// <see cref="RepositoryRootMarkers"/>.
+    /// </summary>
+    private static bool IsEmbeddedRepositoryRoot(string directoryPath, IEnumerable<string> entryNames)
+    {
+        // Depth 0 is this repository's own root. Everything it contains is, by definition, this
+        // repository — so the marker files there are its own and mean nothing.
+        var normalized = NormalizePath(directoryPath).Trim('/');
+        if (normalized.Length == 0) return false;
+
+        return MatchedRootMarkers(entryNames).Count >= RepositoryRootMarkerThreshold;
+    }
+
+    private static List<string> MatchedRootMarkers(IEnumerable<string> entryNames) =>
+        entryNames
+            .Where(n => RepositoryRootMarkers.Contains(n.Trim()))
+            .Select(n => n.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    /// <summary>
+    /// Matches <see cref="_rootOnlyDirectoryNames"/>, but only for a top-level directory —
+    /// `Library/` at the root of a Unity project is a generated cache, `src/Library/` is code.
+    /// </summary>
+    private bool IsRootOnlyIgnoredDirectory(string normalizedWithTrailingSlash)
+    {
+        var trimmed = normalizedWithTrailingSlash.Trim('/');
+        return !trimmed.Contains('/') && _rootOnlyDirectoryNames.Contains(trimmed);
     }
 
     private static string NormalizePath(string path) => path.Replace("\\", "/").ToLowerInvariant();

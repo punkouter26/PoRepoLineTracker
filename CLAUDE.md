@@ -111,6 +111,16 @@ current size is the value on its *newest* commit — never a sum across commits,
 `RepositoryTotals` (Shared) is the single definition; call it rather than re-deriving. Two pages
 each grew their own version and printed different numbers under the same label.
 
+**Vendored third-party code is excluded, and one rule does it by CONTENT not name.**
+`FileIgnoreFilter` prunes a directory when its immediate children include two or more
+repository-root markers (`LICENSE*`, `.github`, `.gitmodules`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`,
+`.pre-commit-config.yaml`, …) — that is a whole other project copied in, whatever folder name the
+author gave it. Name-based rules cannot catch this: the case it was written for was Unity's
+ml-agents vendored under `Training/`, where the old reverse-domain rule caught only the
+`com.unity.ml-agents/` subfolder and left ~78% of the repository's counted lines as third-party.
+Requires the entry-aware `ShouldIgnoreDirectory(path, entryNames)` overload — the path-only one
+cannot see children. **Filter changes only affect new analysis; stored counts need a re-analyze.**
+
 **Contributor share is weighted by lines added**, not averaged per commit — a one-line commit and
 a 2,000-line refactor are not the same event. (This rule used to describe an "AI share"; the
 weighting survived the removal of AI detection because `GetContributorStatsQuery` still applies

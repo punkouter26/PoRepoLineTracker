@@ -24,19 +24,33 @@ public class GitHubService : IGitHubService
         _gitClient = gitClient; // Initialize IGitClient
         _fileIgnoreFilter = fileIgnoreFilter; // Initialize file ignore filter
 
-        // Determine the base path for local repositories.
-        // In Azure App Service, use a path within the ephemeral storage.
-        // Locally, use the configured path or a default "LocalRepos" directory.
-        var homePath = Environment.GetEnvironmentVariable("HOME");
-        if (!string.IsNullOrEmpty(homePath))
+        // Determine the base path for local repository clones.
+        //
+        // Precedence: explicit config → Azure App Service convention → local default.
+        //
+        // The App Service branch used to key off `HOME` being set. That is not an App Service
+        // signal — it is set on virtually every developer machine (Git for Windows sets it, and
+        // .NET maps it to the user profile), so a local run resolved to
+        // `C:\Users\<user>\site\wwwroot\temp_repos\` — a directory that means nothing on Windows,
+        // is outside the project, and burns ~30 characters of the 260-char MAX_PATH budget before
+        // the repository's own paths even begin. `WEBSITE_INSTANCE_ID` is injected by App Service
+        // and by nothing else, which is the check that was intended.
+        var configuredPath = configuration[ConfigKeys.GitHub.LocalReposPath];
+        var isAzureAppService = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
+
+        if (!string.IsNullOrWhiteSpace(configuredPath))
         {
-            // Running in Azure App Service
+            _localReposPath = configuredPath;
+        }
+        else if (isAzureAppService)
+        {
+            // App Service's writable, ephemeral per-app storage.
+            var homePath = Environment.GetEnvironmentVariable("HOME") ?? "/home";
             _localReposPath = Path.Combine(homePath, "site", "wwwroot", "temp_repos");
         }
         else
         {
-            // Running locally
-            _localReposPath = configuration[ConfigKeys.GitHub.LocalReposPath] ?? Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
+            _localReposPath = Path.Combine(Directory.GetCurrentDirectory(), "LocalRepos");
         }
 
         if (!Directory.Exists(_localReposPath))
@@ -329,15 +343,22 @@ public class GitHubService : IGitHubService
 
             if (entry.TargetType == TreeEntryTargetType.Tree)
             {
-                // Check if this directory should be ignored using the new filter
-                if (_fileIgnoreFilter.ShouldIgnoreDirectory(entryPath))
+                // The subtree is resolved BEFORE the ignore check so the filter can see what the
+                // directory contains, not just what it is called. That is what identifies a
+                // third-party repository copied in under a name the author chose — see
+                // FileIgnoreFilter.IsEmbeddedRepositoryRoot.
+                var subTree = entry.Target as Tree;
+
+                if (subTree is null
+                        ? _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath)
+                        : _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath, subTree.Select(e => e.Name)))
                 {
                     continue;
                 }
 
                 // Recursively process subdirectories
                 _logger.LogDebug("Traversing directory: {DirectoryName}", entryPath);
-                if (entry.Target is Tree subTree)
+                if (subTree is not null)
                 {
                     await ProcessTreeEntry(subTree, fileExtensionsToCount, lineCounts, entryPath);
                 }
@@ -539,12 +560,19 @@ public class GitHubService : IGitHubService
 
             if (entry.TargetType == TreeEntryTargetType.Tree)
             {
-                if (_fileIgnoreFilter.ShouldIgnoreDirectory(entryPath))
+                // Same entry-aware check as ProcessTreeEntry — the "top files" list must exclude
+                // exactly what the line counts exclude, or the largest files in a repository would
+                // all be somebody else's.
+                var subTree = entry.Target as Tree;
+
+                if (subTree is null
+                        ? _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath)
+                        : _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath, subTree.Select(e => e.Name)))
                 {
                     continue;
                 }
 
-                if (entry.Target is Tree subTree)
+                if (subTree is not null)
                 {
                     await CollectFileLineCountsAsync(subTree, fileExtensionsToCount, entryPath, fileLineCounts);
                 }

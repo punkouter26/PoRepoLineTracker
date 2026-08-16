@@ -45,6 +45,23 @@ namespace PoRepoLineTracker.API.Storage
             // Windows' 260-char MAX_PATH ("path too long"), and it clones faster with less disk.
             RunGitProcess("clone", ["clone", "--quiet", "--no-checkout", "--", cloneUrl, localPath], workingDirectory: null);
 
+            // Scrub the credential out of the stored remote URL, immediately.
+            //
+            // `git clone https://x-access-token:<token>@github.com/...` PERSISTS that URL verbatim
+            // as remote.origin.url in .git/config. The token is a live GitHub credential and it was
+            // being written to disk in plaintext, once per cloned repository, surviving for as long
+            // as the clone did. Pull's set-url/restore dance could not undo it either: it read the
+            // stored URL as the "original" to restore, and the stored URL already had the token in
+            // it, so the restore faithfully put the credential back.
+            //
+            // Nothing needs the credential to persist — every network operation re-supplies it via
+            // BuildAuthUrl at the point of use.
+            if (!string.IsNullOrEmpty(accessToken))
+            {
+                RunGitProcess("remote set-url (scrub credential)", ["remote", "set-url", "origin", repoUrl],
+                    workingDirectory: localPath);
+            }
+
             _logger.LogInformation("Successfully cloned {RepoUrl} to {LocalPath}", repoUrl, localPath);
             return localPath;
         }
@@ -69,35 +86,83 @@ namespace PoRepoLineTracker.API.Storage
         private static string SafePrefix(string token)
             => token.Length <= 8 ? token : token.Substring(0, 4) + "…" + token.Substring(token.Length - 4);
 
+        /// <summary>
+        /// Brings the local clone up to date WITHOUT materialising a working tree.
+        /// </summary>
+        /// <remarks>
+        /// This was <c>git pull</c>, which silently undid the <c>--no-checkout</c> that
+        /// <see cref="Clone"/> is careful to pass: a pull merges into the working tree, so the
+        /// first refresh of any repository checked every file out and reintroduced exactly the
+        /// MAX_PATH failure the no-checkout clone exists to avoid. Reported against
+        /// <c>PoSeeReview</c>, which carries Kudu trace files whose names alone approach 150
+        /// characters:
+        /// <c>path too long: '…/app-logs/LogFiles/kudu/trace/2025-11-12T20-53-08_…xml'</c>.
+        ///
+        /// <para>Analysis reads exclusively from the object store (see
+        /// <c>GitHubService.ProcessTreeEntry</c>), and the commit walk starts at
+        /// <c>repo.Head</c> — so all that has to happen here is: fetch the objects, then move the
+        /// local branch ref to match the remote. `git fetch` cannot update the currently checked-out
+        /// branch itself, hence the explicit <c>update-ref</c>.</para>
+        /// </remarks>
         public void Pull(string localPath, string? accessToken = null)
         {
-            _logger.LogInformation("Pulling repository at {LocalPath} via git CLI", localPath);
+            _logger.LogInformation("Fetching repository at {LocalPath} via git CLI", localPath);
 
-            // For pull, configure token via remote URL if needed
             if (!string.IsNullOrEmpty(accessToken))
             {
-                // Get the current remote URL and embed the token, then restore after pull
+                // Embed the token in the remote URL for the fetch, then restore it.
                 RunGitProcess("remote get-url", ["remote", "get-url", "origin"], workingDirectory: localPath,
                     captureOutput: true, out string remoteUrl);
 
-                string authUrl = BuildAuthUrl(remoteUrl.Trim(), accessToken);
+                // Strip any credential the stored URL already carries before using it as the
+                // "original". Clones made before the scrub in Clone() have a live token baked into
+                // remote.origin.url, and restoring that verbatim — which is what this used to do —
+                // wrote the credential straight back to disk every time. Scrubbing here means an
+                // existing poisoned clone is cleaned by its next refresh.
+                var cleanUrl = StripCredentials(remoteUrl.Trim());
+
+                string authUrl = BuildAuthUrl(cleanUrl, accessToken);
                 RunGitProcess("remote set-url (auth)", ["remote", "set-url", "origin", authUrl], workingDirectory: localPath);
                 try
                 {
-                    RunGitProcess("pull", ["pull", "--quiet"], workingDirectory: localPath);
+                    FetchAndAdvanceHead(localPath);
                 }
                 finally
                 {
-                    // Restore original (token-free) remote URL
-                    RunGitProcess("remote set-url (restore)", ["remote", "set-url", "origin", remoteUrl.Trim()], workingDirectory: localPath);
+                    RunGitProcess("remote set-url (restore, credential-free)", ["remote", "set-url", "origin", cleanUrl],
+                        workingDirectory: localPath);
                 }
             }
             else
             {
-                RunGitProcess("pull", ["pull", "--quiet"], workingDirectory: localPath);
+                FetchAndAdvanceHead(localPath);
             }
 
-            _logger.LogInformation("Successfully pulled repository at {LocalPath}", localPath);
+            _logger.LogInformation("Successfully fetched repository at {LocalPath}", localPath);
+        }
+
+        private void FetchAndAdvanceHead(string localPath)
+        {
+            RunGitProcess("fetch", ["fetch", "--quiet", "--prune", "origin"], workingDirectory: localPath);
+
+            // Which branch HEAD points at. A --no-checkout clone still has a symbolic HEAD, so this
+            // is the branch the commit walk will read.
+            RunGitProcess("symbolic-ref", ["symbolic-ref", "--short", "HEAD"], workingDirectory: localPath,
+                captureOutput: true, out string branchOutput);
+
+            var branch = branchOutput.Trim();
+            if (string.IsNullOrEmpty(branch))
+            {
+                // Detached HEAD — nothing to advance; the fetched objects are already reachable
+                // from the remote-tracking refs and the next analysis will re-resolve HEAD.
+                _logger.LogWarning("Repository at {LocalPath} has a detached HEAD; leaving it where it is.", localPath);
+                return;
+            }
+
+            // Fast-forward the local branch to the fetched remote-tracking ref. `update-ref` is a
+            // pure ref write: it touches no file in the working tree, which is the whole point.
+            RunGitProcess("update-ref", ["update-ref", $"refs/heads/{branch}", $"refs/remotes/origin/{branch}"],
+                workingDirectory: localPath);
         }
 
         public Repository OpenRepository(string localPath)
@@ -111,6 +176,19 @@ namespace PoRepoLineTracker.API.Storage
         }
 
         // ── Private helpers ─────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Removes any <c>user:password@</c> userinfo from an HTTP(S) URL, leaving the bare
+        /// repository URL. Returns the input unchanged if it is not a parseable absolute URL.
+        /// </summary>
+        internal static string StripCredentials(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return url;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return url;
+            if (string.IsNullOrEmpty(uri.UserInfo)) return url;
+
+            return $"{uri.Scheme}://{uri.Authority}{uri.PathAndQuery}";
+        }
 
         private static string BuildAuthUrl(string repoUrl, string? accessToken)
         {
@@ -143,6 +221,17 @@ namespace PoRepoLineTracker.API.Storage
                 RedirectStandardError = true,
                 CreateNoWindow = true
             };
+
+            // Belt and braces with the no-checkout clone. Even with no working tree, git writes
+            // paths of its own under .git/ (packed refs, lock files, and — for a repository whose
+            // own file names are long — index and object paths), and on Windows those are subject
+            // to the 260-character MAX_PATH unless long paths are enabled. This is passed per
+            // invocation rather than relying on the machine's global git config, because the
+            // deployment target is not a machine anyone configures by hand.
+            //
+            // `-c` must precede the subcommand, so it is prepended rather than appended.
+            psi.ArgumentList.Add("-c");
+            psi.ArgumentList.Add("core.longpaths=true");
 
             foreach (var arg in arguments)
                 psi.ArgumentList.Add(arg);

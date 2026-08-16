@@ -20,4 +20,20 @@ public interface IFileIgnoreFilter
     /// <param name="directoryPath">The path to the directory.</param>
     /// <returns><c>true</c> if the directory should be ignored; otherwise, <c>false</c>.</returns>
     bool ShouldIgnoreDirectory(string directoryPath);
+
+    /// <summary>
+    /// Determines whether a directory should be ignored, given the names of its immediate
+    /// children.
+    /// </summary>
+    /// <remarks>
+    /// The path-only overload can only recognise vendored code whose *name* gives it away
+    /// (<c>node_modules</c>, <c>vendor</c>, a reverse-domain package folder). It cannot recognise
+    /// the common and much larger case: an entire third-party repository copied into a folder the
+    /// author named themselves. Those are identified by what they CONTAIN — a licence, a
+    /// <c>.github</c> directory, a <c>.gitmodules</c> file — which needs the child names.
+    /// </remarks>
+    /// <param name="directoryPath">The path to the directory.</param>
+    /// <param name="entryNames">Names of the directory's immediate children (files and folders).</param>
+    /// <returns><c>true</c> if the directory should be ignored; otherwise, <c>false</c>.</returns>
+    bool ShouldIgnoreDirectory(string directoryPath, IEnumerable<string> entryNames);
 }
