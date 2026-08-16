@@ -15,5 +15,27 @@ services:
     command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --loose"
     restart: unless-stopped
 
+  # OTLP trace collector + UI. The app already emits OpenTelemetry spans for every request,
+  # outbound HTTP call and analysis step; without a collector listening they were built and
+  # dropped, and /diag correctly reported the OTLP exporter as "Not configured".
+  #
+  # Jaeger rather than a bare otel-collector: a collector would receive the spans and forward
+  # them nowhere visible, which is the same dead end with more YAML. This gives a trace UI at
+  # http://localhost:16686 — open a repository analysis there and the whole clone → walk →
+  # count → write chain is one waterfall.
+  #
+  # Traces stay in memory and die with the container. That is deliberate for a dev dependency:
+  # no volume to grow unbounded, and nothing to clean up.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: porepolinetracker-jaeger
+    ports:
+      - "16686:16686"   # Web UI
+      - "4317:4317"     # OTLP/gRPC — matches OpenTelemetry:OtlpEndpoint in appsettings.Development.json
+      - "4318:4318"     # OTLP/HTTP
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    restart: unless-stopped
+
 volumes:
   azurite-data:

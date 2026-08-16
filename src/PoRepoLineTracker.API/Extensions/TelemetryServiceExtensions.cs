@@ -22,19 +22,15 @@ public static class TelemetryServiceExtensions
         IWebHostEnvironment environment)
     {
         // Connection-string resolution order (Rule 8):
-        //   1. APPLICATIONINSIGHTS_CONNECTION_STRING
-        //   2. APPINSIGHTS_INSTRUMENTATIONKEY  (promoted to a connection string)
+        //   1. APPLICATIONINSIGHTS_CONNECTION_STRING  / ApplicationInsights:ConnectionString
+        //   2. APPINSIGHTS_INSTRUMENTATIONKEY         / ApplicationInsights:InstrumentationKey
+        //                                               (promoted to a connection string)
         //   3. Hardcoded staging connection string fallback
-        var aiCs = configuration[ConfigKeys.Telemetry.AppInsightsConnectionString]
-                   ?? configuration[ConfigKeys.Telemetry.AppInsightsConnectionStringSection];
-
-        if (string.IsNullOrWhiteSpace(aiCs))
-        {
-            var iKey = configuration[ConfigKeys.Telemetry.AppInsightsInstrumentationKey]
-                       ?? configuration[ConfigKeys.Telemetry.AppInsightsInstrumentationKeySection];
-            if (!string.IsNullOrWhiteSpace(iKey))
-                aiCs = $"InstrumentationKey={iKey}";
-        }
+        //
+        // The first two steps live in TelemetrySettings so the diagnostics page can report exactly
+        // what this method will do. They used to be inline here, and /diag reimplemented a subset
+        // of them — which is why an app configured through Key Vault showed "Not configured".
+        var aiCs = TelemetrySettings.ResolveAppInsightsConnectionString(configuration);
 
         if (string.IsNullOrWhiteSpace(aiCs) && !string.IsNullOrWhiteSpace(StagingFallbackConnectionString))
             aiCs = StagingFallbackConnectionString;

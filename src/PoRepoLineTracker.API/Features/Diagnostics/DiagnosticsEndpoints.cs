@@ -136,13 +136,22 @@ internal static class DiagnosticsEndpoints
                 TimeSpan.Zero);
         }
 
+        // Telemetry status comes from TelemetrySettings, which is the same resolver AddTelemetry
+        // uses. Checking ConfigKeys.Telemetry.AppInsightsConnectionString directly — as this did —
+        // sees only the environment-variable form, so a connection string supplied through
+        // appsettings, user-secrets or Key Vault (the only places it is allowed to live, since it
+        // must never be committed) was reported as "Not configured" while telemetry was in fact
+        // exporting.
+        var appInsightsConfigured = TelemetrySettings.IsAppInsightsConfigured(configuration);
+        var otlpConfigured = TelemetrySettings.IsOtlpConfigured(configuration);
+
         int configuredCount = 0;
         if (!string.IsNullOrEmpty(configuration[ConfigKeys.KeyVault.Uri])) configuredCount++;
         if (!string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ServiceUrl]) || !string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ConnectionString])) configuredCount++;
-        if (!string.IsNullOrEmpty(configuration[ConfigKeys.Telemetry.AppInsightsConnectionString])) configuredCount++;
+        if (appInsightsConfigured) configuredCount++;
         if (!string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.ClientId])) configuredCount++;
         if (!string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.Pat])) configuredCount++;
-        if (!string.IsNullOrEmpty(configuration[ConfigKeys.Telemetry.OtlpEndpoint])) configuredCount++;
+        if (otlpConfigured) configuredCount++;
 
         var externalConnections = new ExternalConnectionsData
         {
@@ -150,7 +159,7 @@ internal static class DiagnosticsEndpoints
             [
                 new ExternalConnectionInfo { Name = "Azure Key Vault", Type = "Secret Storage", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.KeyVault.Uri]) ? "Configured" : "Not configured", Purpose = "Securely stores secrets" },
                 new ExternalConnectionInfo { Name = "Azure Table Storage", Type = "Data Storage", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ServiceUrl]) || !string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ConnectionString]) ? "Configured" : "Not configured", Purpose = "Stores repository analysis data" },
-                new ExternalConnectionInfo { Name = "Azure Application Insights", Type = "Telemetry", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.Telemetry.AppInsightsConnectionString]) ? "Configured" : "Not configured", Purpose = "Performance monitoring" }
+                new ExternalConnectionInfo { Name = "Azure Application Insights", Type = "Telemetry", Status = appInsightsConfigured ? "Configured" : "Not configured", Purpose = "Performance monitoring" }
             ],
             GitHub =
             [
@@ -159,7 +168,7 @@ internal static class DiagnosticsEndpoints
             ],
             OpenTelemetry =
             [
-                new ExternalConnectionInfo { Name = "OTLP Exporter", Type = "Telemetry Export", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.Telemetry.OtlpEndpoint]) ? "Configured" : "Not configured", Purpose = "Distributed tracing" }
+                new ExternalConnectionInfo { Name = "OTLP Exporter", Type = "Telemetry Export", Status = otlpConfigured ? "Configured" : "Not configured", Purpose = "Distributed tracing" }
             ]
         };
 

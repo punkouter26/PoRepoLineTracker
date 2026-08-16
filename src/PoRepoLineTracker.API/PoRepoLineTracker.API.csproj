@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -8,6 +8,7 @@
     <WasmBlazorWebAssemblyHost>true</WasmBlazorWebAssemblyHost>
     <!-- AOT disabled: codebase uses reflection-based JSON serialization -->
     <IsAotCompatible>false</IsAotCompatible>
+    <UserSecretsId>681e0cdb-7510-48a2-9c33-6664001dd586</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

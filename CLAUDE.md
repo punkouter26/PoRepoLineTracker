@@ -39,15 +39,38 @@ composition root) has one.
 ## Build, run, test
 
 ```bash
-docker compose up -d                                   # Azurite (Table Storage emulator)
+docker compose up -d                                   # Azurite (Table Storage) + Jaeger (traces)
 dotnet run --project src/PoRepoLineTracker.API --launch-profile https   # https://localhost:5001
 
 dotnet build
-dotnet test tests/PoRepoLineTracker.Unit          # 214 — no external deps
-dotnet test tests/PoRepoLineTracker.Integration   # 76  — WebApplicationFactory + Testcontainers Azurite
-dotnet test tests/PoRepoLineTracker.E2EAPI        # 62  — needs the app running
-dotnet test tests/PoRepoLineTracker.E2EUI         # 64  — needs the app running + Playwright (~3m30s)
+dotnet test tests/PoRepoLineTracker.Unit          # 229 — no external deps
+dotnet test tests/PoRepoLineTracker.Integration   # 75  — WebApplicationFactory + Testcontainers Azurite
+dotnet test tests/PoRepoLineTracker.E2EAPI        # 60  — needs the app running
+dotnet test tests/PoRepoLineTracker.E2EUI         # 72  — needs the app running + Playwright (~3m30s)
 ```
+
+**Traces**: `docker compose` also runs Jaeger. `OpenTelemetry:OtlpEndpoint` in
+`appsettings.Development.json` points at it, so every request, outbound call and analysis step
+shows up as a waterfall at <http://localhost:16686>. The exporter is registered only when that key
+is non-blank — leave it blank and telemetry is built and dropped, which is what "OTLP Exporter —
+Not configured" on `/diag` means.
+
+**Application Insights needs a local secret.** A connection string must never be committed, so
+`appsettings.Development.json` carries no `ApplicationInsights` section at all — the value lives in
+user-secrets. On a fresh clone:
+
+```bash
+CS=$(az monitor app-insights component show \
+       --app poappideinsights8f9c9a4e -g PoShared --query connectionString -o tsv)
+dotnet user-secrets set "ApplicationInsights:ConnectionString" "$CS" \
+       --project src/PoRepoLineTracker.API
+```
+
+Without it the app runs fine and `/diag` reports App Insights as "Not configured" — accurate, not a
+bug. `TelemetrySettings` is the single resolver both `AddTelemetry` and `/diag` use, so the page
+cannot disagree with what is actually registered; it previously checked only the
+`APPLICATIONINSIGHTS_CONNECTION_STRING` env form and so reported "Not configured" for a
+perfectly-configured app.
 
 All four tiers are **green with zero skips**. Keep it that way — a skip in E2EUI now means the app
 isn't up, not that a fixture is missing.
