@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using PoRepoLineTracker.API.Hubs;
 
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.API.Services;
 
 /// <summary>
 /// In-memory singleton that stores live analysis progress for background jobs.

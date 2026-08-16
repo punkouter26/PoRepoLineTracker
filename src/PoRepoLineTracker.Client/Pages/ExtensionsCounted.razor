@@ -1,3 +1,5 @@
+@page "/settings"
+@page "/settings/extensions-counted"
 @attribute [Authorize]
 @inject HttpClient Http
 @inject Radzen.NotificationService NotificationService
@@ -10,22 +12,19 @@
 @using Radzen.Blazor
 
 <div class="app-stack">
-    @* <PageHero>, like every other page. This was the last hand-rolled header: a `.repo-hero`
-       wrapper whose class no stylesheet has defined since the hero was extracted into a component,
-       around a RadzenRow whose single Size="12" SizeMD="6" column made it a one-item 12-column
-       grid — so the heading was pinned to half the width on a desktop for no reason, and the
-       remaining half was empty. *@
-    @if (ShowPageHeader)
-    {
-        <PageHero>
-            <Heading>
-                <RadzenStack Gap="0.15rem">
-                    <RadzenText TextStyle="TextStyle.H3" class="ext-title">File Extension Settings</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Body1" class="ext-subtitle">Configure which file extensions are counted in line analysis</RadzenText>
-                </RadzenStack>
-            </Heading>
-        </PageHero>
-    }
+    @* This IS the Settings page. It used to be wrapped by a 25-line Settings.razor whose only
+       job was to hold the routes, render this hero, and embed this component with its own
+       header switched off — one screen, two components, three route declarations. *@
+    <PageHero>
+        <Heading>
+            <RadzenStack Gap="0.15rem">
+                <RadzenText TextStyle="TextStyle.H3" class="ext-title">Settings</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="ext-subtitle">
+                    Configure PoRepoLineTracker to match your workflow
+                </RadzenText>
+            </RadzenStack>
+        </Heading>
+    </PageHero>
 
     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End" Wrap="FlexWrap.Wrap">
         <RadzenButton Text="Reset to Defaults" 
@@ -148,9 +147,6 @@
 </div>
 
 @code {
-    /// <summary>When false (default for inline/tab use), the hero header is hidden.</summary>
-    [Parameter] public bool ShowPageHeader { get; set; } = true;
-
     private RadzenDataGrid<ExtensionItem>? extensionGrid;
     private List<ExtensionItem>? extensionItems;
     private List<ExtensionItem>? originalExtensionItems;
