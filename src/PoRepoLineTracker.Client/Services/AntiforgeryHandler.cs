@@ -7,7 +7,7 @@ using PoRepoLineTracker.Shared.Serialization;
 namespace PoRepoLineTracker.Client.Services;
 
 /// <summary>
-/// Attaches the antiforgery request token to every state-changing call (Rule 4.2).
+/// Attaches the antiforgery request token to every state-changing call.
 ///
 /// <para>The cookie half of the pair is <c>HttpOnly</c>, so the client cannot read it — that is
 /// what makes the scheme work, and it is why the token has to be fetched from

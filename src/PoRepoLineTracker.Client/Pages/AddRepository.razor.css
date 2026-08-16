@@ -1,4 +1,4 @@
-/* Rule 4.3 — scoped styles for AddRepository.
+/* Scoped styles for AddRepository.
 
    Pattern used across the extracted components:
      .anchor ::deep .cls.cls { ... !important }

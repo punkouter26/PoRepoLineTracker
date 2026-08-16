@@ -1,4 +1,4 @@
-/* Rule 4.3 — scoped styles for GitHubRepositorySelector.
+/* Scoped styles for GitHubRepositorySelector.
    See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
 
 ::deep .ghsel-row-mb1.ghsel-row-mb1 {

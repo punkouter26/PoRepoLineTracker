@@ -11,7 +11,7 @@ namespace PoRepoLineTracker.Client.Services;
 /// so the trim analyzer flags them (IL2026) even when the options carry nothing but a generated
 /// resolver, because it cannot prove that at the call site. Passing the metadata object directly
 /// is the only form the analyzer accepts, and with
-/// <c>TreatWarningsAsErrors</c> plus <c>EnableTrimAnalyzer</c> (Rule 1.2/1.3) it is the only form
+/// <c>TreatWarningsAsErrors</c> plus <c>EnableTrimAnalyzer</c> it is the only form
 /// that builds.</para>
 ///
 /// <para>The practical effect is that the type argument is now inferred from the metadata rather

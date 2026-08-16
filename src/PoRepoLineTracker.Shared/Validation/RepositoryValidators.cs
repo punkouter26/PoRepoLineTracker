@@ -3,7 +3,7 @@ using PoRepoLineTracker.Shared.Models.Dtos;
 
 namespace PoRepoLineTracker.Shared.Validation;
 
-/// <summary>Rule 2.2 — FluentValidation rules for a single bulk-add repository entry.</summary>
+/// <summary>FluentValidation rules for a single bulk-add repository entry.</summary>
 public sealed class BulkRepositoryDtoValidator : AbstractValidator<BulkRepositoryDto>
 {
     public BulkRepositoryDtoValidator()

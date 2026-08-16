@@ -6,7 +6,7 @@ namespace PoRepoLineTracker.E2EAPI;
 /// <summary>
 /// Response-hardening and routing contract of the running instance: the headers
 /// SecurityHeadersMiddleware promises, and the shape of the API surface after the MapGroup
-/// conversion (Rule 3.1) — unknown routes and wrong verbs must stay client errors.
+/// conversion — unknown routes and wrong verbs must stay client errors.
 /// </summary>
 public sealed class SecurityAndRoutingApiTests
 {

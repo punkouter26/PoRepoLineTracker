@@ -1,6 +1,6 @@
 /* Scoped styles for AnalysisActivityFeed. Colours are theme tokens, not literals — the panel sits
    on the same card surface in both themes and a fixed palette cannot hold contrast across
-   both (Rule 4.5). */
+   both. */
 
 /* The component now roots at a plain <div class="feed">, which is what carries the scope id and
    makes every ::deep rule below reachable. The flex column moved onto the card itself — that is
@@ -33,7 +33,7 @@
 }
 
 /* Connection state carries a text label beside it as well as this dot — colour alone is not an
-   accessible signal (Rule 4.7). */
+   accessible signal. */
 .feed__dot {
     width: 8px;
     height: 8px;

@@ -1,13 +1,13 @@
 namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
-/// Wire shape for <c>GET /api/diagnostics</c> (Rule 3.2).
+/// Wire shape for <c>GET /api/diagnostics</c>.
 ///
 /// These were anonymous types on the API side and a private mirror of them inside
 /// ExternalConnections.razor on the client side. Anonymous types cannot be described by a
 /// <c>JsonSerializerContext</c> — the source generator has no name to emit metadata for — so
 /// zero-reflection serialization requires a concrete contract. Declaring it once in Shared also
-/// removes the hand-maintained client copy that had to be kept in step by eye (Rule 2.2).
+/// removes the hand-maintained client copy that had to be kept in step by eye.
 /// </summary>
 public sealed class DiagnosticsResponse
 {

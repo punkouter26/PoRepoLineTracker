@@ -5,7 +5,7 @@ namespace PoRepoLineTracker.Shared.Models.Dtos;
 /// <summary>
 /// Wire shape for a successful <c>POST /api/repositories/upload-zip</c>.
 /// Previously an anonymous type on the API and a private mirror inside UploadRepository.razor;
-/// both are now this single contract so the payload can be source-generated (Rule 1.2).
+/// both are now this single contract so the payload can be source-generated.
 /// </summary>
 public sealed class UploadResult
 {

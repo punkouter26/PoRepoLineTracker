@@ -5,7 +5,7 @@ using Microsoft.Extensions.Configuration;
 namespace PoRepoLineTracker.Unit;
 
 /// <summary>
-/// Rule 1.5 — guards the constants that replaced the config magic strings. A typo in one of these
+/// Guards the constants that replaced the config magic strings. A typo in one of these
 /// used to surface as a silently-null configuration value at runtime; here it fails the build's
 /// test step instead.
 /// </summary>

@@ -1,4 +1,4 @@
-/* Rule 4.3 — scoped styles for ExtensionsCounted. See AddRepository.razor.css for the pattern. */
+/* Scoped styles for ExtensionsCounted. See AddRepository.razor.css for the pattern. */
 
 ::deep .ext-title.ext-title {
     margin: 0 !important;

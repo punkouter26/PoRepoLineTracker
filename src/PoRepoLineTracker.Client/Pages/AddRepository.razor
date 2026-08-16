@@ -11,7 +11,7 @@
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 @using Radzen
-@* Rule 4.3 — the wrapper <div> is this component's CSS-isolation anchor for ::deep rules. *@
+@* The wrapper <div> is this component's CSS-isolation anchor for ::deep rules. *@
 <div class="add-repo">
 <RadzenStack Gap="1rem">
     @if (!IsInline)
@@ -213,7 +213,7 @@
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/repositories/bulk")
             {
                 // JsonContent.Create's options-taking overload is RequiresUnreferencedCode; the
-                // JsonTypeInfo one is the trim-safe form (Rule 1.2).
+                // JsonTypeInfo one is the trim-safe form.
                 Content = JsonContent.Create(repositoriesToAdd, AppJsonSerializerContext.Default.ListBulkRepositoryDto)
             };
             var response = await Http.SendAsync(request, _addCts!.Token);

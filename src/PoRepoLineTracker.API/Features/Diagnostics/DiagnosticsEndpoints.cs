@@ -14,7 +14,7 @@ internal static class DiagnosticsEndpoints
         // /health is served by the registered IHealthCheck pipeline via app.MapHealthChecks("/health")
         // in Program.cs — no custom implementation needed here.
 
-        // Rule 3.2 — /diag returns configuration with every secret VALUE masked. The Blazor
+        // /diag returns configuration with every secret VALUE masked. The Blazor
         // client also has a /diag page; this negotiates on Accept, so a browser gets the page
         // shell while an API caller (Accept: application/json, e.g. the post-deploy smoke test)
         // gets this JSON.

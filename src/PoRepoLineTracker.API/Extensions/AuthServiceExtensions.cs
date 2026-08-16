@@ -63,7 +63,7 @@ public static class AuthServiceExtensions
             // browser withholds a freshly-set Strict cookie on the post-login landing redirect,
             // causing an infinite "pick an account" loop. Lax sends the cookie on the top-level
             // GET navigation while still blocking cross-site POST CSRF — the correct setting for
-            // an interactive OAuth session cookie. (Rule 4.2 names Strict, but Strict is
+            // an interactive OAuth session cookie. (The house rule names Strict, but Strict is
             // incompatible with the OAuth sign-in redirect.)
             options.Cookie.SameSite = SameSiteMode.Lax;
             // Use SameAsRequest so cookies work over plain HTTP on localhost
@@ -86,7 +86,7 @@ public static class AuthServiceExtensions
             };
         });
 
-        // Dev/Test header-driven auth (Rule 3.3). ThrowIfProduction turns a misconfigured deploy
+        // Dev/Test header-driven auth. ThrowIfProduction turns a misconfigured deploy
         // into a startup crash rather than a silent authentication bypass.
         if (useFakeAuth)
         {
@@ -193,7 +193,7 @@ public static class AuthServiceExtensions
         }
 
         // Microsoft/Entra OAuth was removed here. It is a deliberate, recorded deviation from
-        // NET_RULES 3.3 ("Entra ID OAuth uses the /common endpoint") — see AGENT.MD.
+        // the house rules — see AGENT.MD.
         //
         // The short version: this app's entire purpose is reading GitHub repositories, and a
         // Microsoft-authenticated principal has no GitHub credential. The handler used to store
@@ -204,7 +204,7 @@ public static class AuthServiceExtensions
         // explanation. A second sign-in button that cannot reach the app's only data source is
         // worse than no second button.
 
-        // Rule 3.3 — server-side FallbackPolicy: every endpoint that carries no authorization
+        // Server-side FallbackPolicy: every endpoint that carries no authorization
         // metadata of its own is authenticated by default. Endpoints that must stay public
         // (/auth/*, /health, the Blazor fallback file, OpenAPI/Scalar in
         // Development) opt out explicitly with .AllowAnonymous(). Deny-by-default means a new

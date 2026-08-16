@@ -4,9 +4,9 @@ using Microsoft.Playwright;
 namespace PoRepoLineTracker.E2EUI;
 
 /// <summary>
-/// Rule 2.2 — C# Playwright UI E2E (replaces the legacy TypeScript suite). Covers the only
+/// C# Playwright UI E2E (replaces the legacy TypeScript suite). Covers the only
 /// screen an unauthenticated visitor can reach, which is also the screen the deploy smoke test
-/// lands on (Rule 6.3).
+/// lands on.
 /// </summary>
 [Collection(E2EUiCollection.Name)]
 public sealed class LoginPageUiTests
@@ -29,7 +29,7 @@ public sealed class LoginPageUiTests
     [SkippableFact]
     public async Task BlazorShell_Boots()
     {
-        // Rule 6.3 asks the smoke test to confirm the Blazor render tree initialises. If the WASM
+        // The smoke test confirms the Blazor render tree initialises. If the WASM
         // runtime failed to start, <app> stays at its loading placeholder and nothing renders.
         var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
         await using var _ = page.Context;

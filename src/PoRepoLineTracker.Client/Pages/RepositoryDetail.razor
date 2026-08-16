@@ -236,7 +236,7 @@
     /// the strongly-typed <see cref="Domain.Models.RepositoryId"/> made the router try to
     /// assign a Guid to it, throwing InvalidCastException and blanking the page. Bind the raw
     /// Guid, then wrap it once here so the rest of the component keeps the domain type
-    /// (Rule 1.5) and cannot transpose it with a UserId.
+    /// and cannot transpose it with a UserId.
     /// </summary>
     [Parameter] public Guid Id { get; set; }
 

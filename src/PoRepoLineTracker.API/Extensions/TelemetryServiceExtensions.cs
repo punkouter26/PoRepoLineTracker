@@ -11,7 +11,7 @@ public static class TelemetryServiceExtensions
     /// <summary>
     /// Hardcoded staging Application Insights connection string used as the final fallback
     /// when neither APPLICATIONINSIGHTS_CONNECTION_STRING nor APPINSIGHTS_INSTRUMENTATIONKEY
-    /// is configured (Rule 8). Left empty by default so local/dev runs do not emit to a shared
+    /// is configured. Left empty by default so local/dev runs do not emit to a shared
     /// staging resource; set it to a real staging connection string to enable the fallback.
     /// </summary>
     private const string StagingFallbackConnectionString = "";
@@ -21,7 +21,7 @@ public static class TelemetryServiceExtensions
         IConfiguration configuration,
         IWebHostEnvironment environment)
     {
-        // Connection-string resolution order (Rule 8):
+        // Connection-string resolution order:
         //   1. APPLICATIONINSIGHTS_CONNECTION_STRING  / ApplicationInsights:ConnectionString
         //   2. APPINSIGHTS_INSTRUMENTATIONKEY         / ApplicationInsights:InstrumentationKey
         //                                               (promoted to a connection string)
@@ -35,7 +35,7 @@ public static class TelemetryServiceExtensions
         if (string.IsNullOrWhiteSpace(aiCs) && !string.IsNullOrWhiteSpace(StagingFallbackConnectionString))
             aiCs = StagingFallbackConnectionString;
 
-        // cloud_RoleName mapping (Rule 8): resolve the real assembly name via reflection so the
+        // cloud_RoleName mapping: resolve the real assembly name via reflection so the
         // App Insights "cloud_RoleName" never falls back to "unknown_service:dotnet".
         var roleName = Assembly.GetEntryAssembly()?.GetName().Name
                        ?? AppTelemetry.SourceName;
@@ -91,10 +91,10 @@ public static class TelemetryServiceExtensions
                     o.ConnectionString = aiCs;
 
                     // Live Metrics / QuickPulse stays active globally for real-time CPU,
-                    // memory and traffic-spike visibility (Rule 8).
+                    // memory and traffic-spike visibility.
                     o.EnableLiveMetrics = true;
 
-                    // Sampling profile (Rule 8): full fidelity (100%) in Dev/Test so nothing
+                    // Sampling profile: full fidelity (100%) in Dev/Test so nothing
                     // is dropped during debugging and E2E runs; capped to ~10% in Production.
                     // Note: the Azure Monitor OTel distro applies a single trace-level rate;
                     // RecordException above ensures exception detail is preserved on sampled-in

@@ -35,7 +35,7 @@ internal static class GitHubEndpoints
                         statusCode: StatusCodes.Status400BadRequest);
                 }
 
-                // Rule 5.4 — cached per user, not per token: the token can rotate (PAT fallback vs
+                // Cached per user, not per token: the token can rotate (PAT fallback vs
                 // the user's own OAuth token) while the answer is the same repository list, and a
                 // token in a cache key is a token written to a cache store.
                 var userRepositories = await cache.GetOrCreateAsync(

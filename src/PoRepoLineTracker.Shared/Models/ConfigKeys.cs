@@ -1,7 +1,7 @@
 namespace PoRepoLineTracker.Shared.Models;
 
 /// <summary>
-/// Every configuration key the application reads, in one place (Rule 1.5 — zero magic strings).
+/// Every configuration key the application reads, in one place (zero magic strings).
 ///
 /// Before this existed the same key was spelled out at up to four call sites, so a rename meant
 /// finding all of them and a typo meant a silently null value rather than a build error. Grouped
@@ -51,7 +51,7 @@ public static class ConfigKeys
     }
 
     // The Microsoft / Entra ID key group was removed with the Microsoft OAuth provider — a
-    // recorded deviation from NET_RULES 3.3, see AGENT.MD. GitHub is the only provider.
+    // recorded deviation, see AGENT.MD. GitHub is the only provider.
 
     /// <summary>Telemetry export targets.</summary>
     public static class Telemetry

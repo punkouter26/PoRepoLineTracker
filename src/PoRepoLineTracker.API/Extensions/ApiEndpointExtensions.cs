@@ -18,7 +18,7 @@ namespace PoRepoLineTracker.API.Extensions;
 /// SOLID — Interface Segregation Principle: Each endpoint module has its own mapping method,
 /// keeping the API surface organized and testable.
 ///
-/// Rule 3.1: every module maps onto an <see cref="IEndpointRouteBuilder"/> and builds its
+/// Every module maps onto an <see cref="IEndpointRouteBuilder"/> and builds its
 /// routes under a <c>MapGroup()</c>, so the route prefix, tags, and authorization policy for a
 /// slice are declared once instead of repeated on every endpoint.
 /// </summary>

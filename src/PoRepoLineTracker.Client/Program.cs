@@ -12,7 +12,7 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // Configure HttpClient for API calls.
 //
-// Rule 4.2 — every request now goes through AntiforgeryHandler, which attaches the CSRF token to
+// Every request now goes through AntiforgeryHandler, which attaches the CSRF token to
 // state-changing calls. Registering the client by name and resolving HttpClient from the factory
 // keeps `@inject HttpClient Http` working unchanged across every page and component.
 //

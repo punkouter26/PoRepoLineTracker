@@ -1,4 +1,4 @@
-/* Rule 4.3 — scoped styles for the ZIP upload page.
+/* Scoped styles for the ZIP upload page.
    See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. Plain HTML
    elements in this page's own markup (dropzone, log, grid) need neither, so they are written as
    ordinary rules. */

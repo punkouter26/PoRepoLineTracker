@@ -4,7 +4,7 @@ using Microsoft.Playwright;
 namespace PoRepoLineTracker.E2EUI;
 
 /// <summary>
-/// Rule 2.2 — the UI tier must cover mobile and desktop. Rule 4.4 adds the performance angle:
+/// The UI tier must cover mobile and desktop. There is also a performance angle:
 /// the page must not scroll horizontally on a phone, which is the usual symptom of a fixed-width
 /// element left over from a desktop-only layout.
 /// </summary>

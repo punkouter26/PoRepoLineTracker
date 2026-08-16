@@ -1,4 +1,4 @@
-/* Rule 4.3 — scoped styles for the header's session/logout cluster. */
+/* Scoped styles for the header's session/logout cluster. */
 
 .login-display ::deep .login-display__avatar {
     width: 32px;

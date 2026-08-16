@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Antiforgery;
 namespace PoRepoLineTracker.API.Features.Antiforgery;
 
 /// <summary>
-/// Issues the antiforgery request token the WASM client echoes back on state-changing calls
-/// (Rule 4.2). One endpoint, one job — the validation half lives in <c>AntiforgeryMiddleware</c>.
+/// Issues the antiforgery request token the WASM client echoes back on state-changing calls.
+/// One endpoint, one job — the validation half lives in <c>AntiforgeryMiddleware</c>.
 /// </summary>
 internal static class AntiforgeryEndpoints
 {

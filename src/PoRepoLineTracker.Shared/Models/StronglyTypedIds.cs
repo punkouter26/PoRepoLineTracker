@@ -2,13 +2,13 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-// Namespace note: these types physically live in .Shared (the leaf assembly, Rule 2.2) because
+// Namespace note: these types physically live in .Shared (the leaf assembly) because
 // both the DTOs here and the Domain entities need them, but they keep the Domain namespace so
 // they read as domain vocabulary — the same arrangement already used by SharedContractEnums.
 namespace PoRepoLineTracker.Domain.Models;
 
 /// <summary>
-/// Identity of a tracked repository (Rule 1.5 — no primitive obsession).
+/// Identity of a tracked repository (no primitive obsession).
 ///
 /// Why a wrapper rather than <see cref="Guid"/>: every ownership check in the API compares a
 /// repository id against a user id. As raw Guids those are the same type, so transposing the two
@@ -48,7 +48,7 @@ public readonly record struct RepositoryId(Guid Value) : IParsable<RepositoryId>
 }
 
 /// <summary>
-/// Identity of an authenticated user (Rule 1.5). See <see cref="RepositoryId"/> for the rationale.
+/// Identity of an authenticated user. See <see cref="RepositoryId"/> for the rationale.
 /// </summary>
 [JsonConverter(typeof(UserIdJsonConverter))]
 public readonly record struct UserId(Guid Value) : IParsable<UserId>

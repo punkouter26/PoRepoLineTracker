@@ -1,4 +1,4 @@
-/* Rule 4.3 — scoped styles for the repositories list (the app's home page).
+/* Scoped styles for the repositories list (the app's home page).
    See AddRepository.razor.css for the ::deep / doubled-class / !important pattern.
    Shared visuals that other pages also use (.stat-card, .onboarding-step, the fadeSlideUp
    keyframes) stay in app.css; only what used to sit on a style= attribute here lives below. */

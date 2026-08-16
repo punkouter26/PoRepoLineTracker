@@ -1,5 +1,5 @@
 // Cross-cutting namespaces every slice may use. Deliberately excludes
-// PoRepoLineTracker.API.Features.* — slices must not reference each other (Rule 2), so a slice
+// PoRepoLineTracker.API.Features.* — slices must not reference each other, so a slice
 // that needs another slice's type has to import it explicitly and justify the coupling.
 // Only the composition root (Extensions/) does that.
 global using PoRepoLineTracker.API.Auth;

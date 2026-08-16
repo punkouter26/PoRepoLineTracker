@@ -15,7 +15,7 @@ namespace PoRepoLineTracker.Integration;
 /// <summary>
 /// Unlike <see cref="CustomWebApplicationFactory"/>, this factory does NOT replace the
 /// authentication stack — the point of these tests is to exercise the real
-/// <see cref="FakeAuthHandler"/> the app ships (Rule 3.3). Storage is still mocked so the host
+/// <see cref="FakeAuthHandler"/> the app ships. Storage is still mocked so the host
 /// needs no Azurite.
 /// </summary>
 public class RealAuthFactory : WebApplicationFactory<Program>
@@ -64,7 +64,7 @@ public class RealAuthFactory : WebApplicationFactory<Program>
 }
 
 /// <summary>
-/// Rule 3.3 — header-driven dev/test auth, and Rule 3.2 — /diag returns masked configuration.
+/// Header-driven dev/test auth, and /diag returns masked configuration.
 /// </summary>
 public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
 {

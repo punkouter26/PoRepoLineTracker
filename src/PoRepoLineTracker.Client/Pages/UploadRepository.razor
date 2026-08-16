@@ -420,7 +420,7 @@
     }
 
     /// <summary>
-    /// Rule 4.3 — the upload log used to colour each line through an interpolated inline style.
+    /// The upload log used to colour each line through an interpolated inline style.
     /// The classification is discrete, so it maps to a modifier class and the colours live in
     /// UploadRepository.razor.css.
     /// </summary>
@@ -446,8 +446,8 @@
         return $"{size:0.##} {sizes[order]}";
     }
 
-    // UploadResult / UploadError moved to Shared (Rule 2.2): the API returned anonymous types that
-    // these two mirrored by hand, and an anonymous type cannot be source-generated (Rule 1.2).
+    // UploadResult / UploadError moved to Shared: the API returned anonymous types that
+    // these two mirrored by hand, and an anonymous type cannot be source-generated.
 
     private sealed class ProgressStreamContent(Stream source, long totalBytes, Func<long, long, Task> onProgress, int bufferSize) : HttpContent
     {

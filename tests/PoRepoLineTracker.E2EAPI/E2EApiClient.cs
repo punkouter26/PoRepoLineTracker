@@ -3,12 +3,12 @@ using System.Net.Http.Headers;
 namespace PoRepoLineTracker.E2EAPI;
 
 /// <summary>
-/// Shared HTTP access for the pure-API E2E tier (Rule 2.2). Targets a *running* instance at
+/// Shared HTTP access for the pure-API E2E tier. Targets a *running* instance at
 /// E2E_BASE_URL (default http://localhost:5000).
 ///
 /// Every request routes through here so that "the app is not running" is reported as a skip
 /// rather than a failure: this tier is executed locally and against the Test environment, and CI
-/// does not run tests (Rule 6.4), so an unreachable instance is an expected state, not a defect.
+/// does not run tests, so an unreachable instance is an expected state, not a defect.
 /// A real HTTP status — including a 401 — is always a result, never a skip.
 /// </summary>
 internal static class E2EApiClient

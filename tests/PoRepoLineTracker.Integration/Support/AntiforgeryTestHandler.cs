@@ -5,7 +5,7 @@ namespace PoRepoLineTracker.Integration;
 
 /// <summary>
 /// Supplies the antiforgery token on state-changing requests so the integration tier exercises
-/// <c>AntiforgeryMiddleware</c> (Rule 4.2) rather than bypassing it.
+/// <c>AntiforgeryMiddleware</c> rather than bypassing it.
 ///
 /// <para>Mirrors what the WASM client's <c>AntiforgeryHandler</c> does. Deliberately not a shared
 /// implementation: the point of these tests is that a real caller performing the documented

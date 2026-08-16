@@ -12,7 +12,7 @@ namespace PoRepoLineTracker.Shared.Models.Dtos;
 /// the payload roughly constant as the number of tracked repositories grows.</para>
 ///
 /// <para>A concrete named type, not an anonymous one, because the wire contract has to be
-/// source-generatable (Rule 1.2).</para>
+/// source-generatable.</para>
 /// </summary>
 public sealed class PortfolioInsightsDto
 {

@@ -8,7 +8,7 @@
          moment an SDK that implements it is installed, with no edit here. Revisit and pin to
          15.0 once that SDK is the one in global.json. -->
     <LangVersion>preview</LangVersion>
-    <!-- Git-Driven Versioning (Rule 1): MinVer derives AssemblyVersion/FileVersion/
+    <!-- Git-Driven Versioning: MinVer derives AssemblyVersion/FileVersion/
          InformationalVersion from the nearest Git tag (prefix "v", e.g. v1.2.3).
          With no tags it yields 0.0.0-alpha.0.<height> so fresh checkouts still build. -->
     <MinVerTagPrefix>v</MinVerTagPrefix>

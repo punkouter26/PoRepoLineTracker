@@ -4,7 +4,7 @@ using FluentAssertions;
 namespace PoRepoLineTracker.E2EAPI;
 
 /// <summary>
-/// Regression guard for the middleware ordering that the FallbackPolicy (Rule 3.3) made
+/// Regression guard for the middleware ordering that the FallbackPolicy made
 /// load-bearing: the authorization middleware applies the fallback to requests that matched no
 /// endpoint, and static files are served by middleware rather than endpoints. With
 /// UseStaticFiles/UseBlazorFrameworkFiles registered after UseAuthorization, every asset answered
@@ -39,7 +39,7 @@ public sealed class StaticAssetsApiTests
     [SkippableFact]
     public async Task ScopedComponentStylesheet_IsServed()
     {
-        // Rule 4.3 — the bundle Blazor generates from the .razor.css files. If CSS isolation is
+        // The bundle Blazor generates from the .razor.css files. If CSS isolation is
         // not wired up this 404s and every extracted component style silently disappears.
         var response = await E2EApiClient.GetAsync("/PoRepoLineTracker.Client.styles.css");
 

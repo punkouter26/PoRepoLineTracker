@@ -1,6 +1,13 @@
 # PoIdeas — PoRepoLineTracker Innovation Matrix
 
-> **Generated:** 2026-06-01 | **Codebase:** Blazor WASM + ASP.NET Core 10 | **Storage:** Azure Table Storage | **AI:** Heuristic AI Detection | **Auth:** GitHub OAuth + Microsoft OAuth + GUEST
+> ⚠️ **STALE — written 2026-06-01, before major removals.** These ideas reference types and
+> features that no longer exist: `AiDetectionService`, `AiConfidenceBand`, `CommitTagger`,
+> `SmartAlert`, and Microsoft OAuth were all deliberately deleted (see AGENT.MD). There is
+> **no AI in this app** (CLAUDE.md) — any idea below that assumes AI detection or proposes
+> LLM integration contradicts that standing decision and would need it revisited first.
+> Treat this file as a raw idea backlog, not a description of the codebase.
+
+> **Generated:** 2026-06-01 | **Codebase:** Blazor WASM + ASP.NET Core 10 | **Storage:** Azure Table Storage
 
 ---
 

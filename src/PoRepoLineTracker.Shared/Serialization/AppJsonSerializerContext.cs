@@ -7,13 +7,13 @@ using PoRepoLineTracker.Shared.Models.Dtos;
 namespace PoRepoLineTracker.Shared.Serialization;
 
 /// <summary>
-/// Source-generated metadata for every type that crosses the wire (Rule 1.2 — zero-reflection
+/// Source-generated metadata for every type that crosses the wire (zero-reflection
 /// serialization across the API and the WASM client).
 ///
 /// <para><b>Why it lives in Shared.</b> Both ends of every call deserialize the same contract, so
 /// generating the metadata once in the leaf assembly means the API and the client are provably
 /// using the same shape — and the WASM client never has to carry the reflection-based
-/// serializer, which is what lets the published output be trimmed (Rule 1.2 / .Client csproj).</para>
+/// serializer, which is what lets the published output be trimmed (see the .Client csproj).</para>
 ///
 /// <para><b>Options.</b> <see cref="JsonSerializerDefaults.Web"/> matches what both ASP.NET Core
 /// minimal APIs and Blazor's <c>HttpClientJsonExtensions</c> use by default: camelCase names,

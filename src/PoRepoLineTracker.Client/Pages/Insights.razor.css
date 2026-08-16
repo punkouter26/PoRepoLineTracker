@@ -1,8 +1,8 @@
 /* Scoped styles for the Insights dashboard.
 
    Colours come from the theme tokens in app.css rather than literals — the heatmap in particular
-   has to stay legible against both a white and a slate card, and a single hex ramp cannot
-   (Rule 4.5). The intensity ramp is therefore expressed as opacities over the primary hue, so it
+   has to stay legible against both a white and a slate card, and a single hex ramp cannot.
+   The intensity ramp is therefore expressed as opacities over the primary hue, so it
    inherits whatever the theme sets. */
 
 ::deep .ins-title.ins-title {
@@ -190,7 +190,7 @@
 }
 
 /* Native <progress>: the percentage rides in the value attribute, so the bar needs no inline
-   width (Rule 4.5) and is announced by assistive tech. */
+   width and is announced by assistive tech. */
 .ins-lang__bar {
     display: block;
     width: 100%;

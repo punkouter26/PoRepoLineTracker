@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 namespace PoRepoLineTracker.API.Telemetry;
 
 /// <summary>
-/// Rule 6.1 — source-generated, allocation-free logging for the high-frequency commit
+/// Source-generated, allocation-free logging for the high-frequency commit
 /// analysis loop. [LoggerMessage] emits the logging plumbing at compile time, eliminating
 /// the value boxing and message-template parsing that the ILogger.LogDebug extensions incur
 /// on every one of (potentially) thousands of per-commit calls.

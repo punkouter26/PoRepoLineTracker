@@ -10,7 +10,7 @@ internal static class AuthEndpoints
 {
     internal static void MapAuthEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        // Rule 3.1 — the whole /auth slice is anonymous by construction: these are the routes a
+        // The whole /auth slice is anonymous by construction: these are the routes a
         // signed-out browser must reach to sign in, so the group opts out of the FallbackPolicy once.
         var auth = endpoints.MapGroup("/auth")
             .WithTags("Auth")

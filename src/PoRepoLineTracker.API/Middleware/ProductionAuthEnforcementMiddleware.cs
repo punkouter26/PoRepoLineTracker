@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 namespace PoRepoLineTracker.API.Middleware;
 
 /// <summary>
-/// Rule 13 — Production Authentication Enforcement.
+/// Production Authentication Enforcement.
 /// In Production (non-Development), all unauthenticated requests to non-public
 /// endpoints are challenged to the default challenge scheme — GitHub OAuth, which
 /// is the only provider (Microsoft sign-in was removed: a Microsoft principal
@@ -58,7 +58,7 @@ public class ProductionAuthEnforcementMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         // In any non-Production environment (Development, Test), allow everything so GUEST
-        // mode, local development and E2E runs work. OAuth is enforced only in Production (Rule 13).
+        // mode, local development and E2E runs work. OAuth is enforced only in Production.
         if (!_env.IsProduction())
         {
             await _next(context);

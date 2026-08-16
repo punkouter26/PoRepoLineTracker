@@ -4,7 +4,7 @@ using FluentAssertions;
 namespace PoRepoLineTracker.E2EAPI;
 
 /// <summary>
-/// Rule 3.3 — deny-by-default, verified against a real running instance rather than a test host.
+/// Deny-by-default, verified against a real running instance rather than a test host.
 /// The integration tier proves the policy is configured; this tier proves the deployed process
 /// actually refuses an anonymous caller on every protected route.
 /// </summary>

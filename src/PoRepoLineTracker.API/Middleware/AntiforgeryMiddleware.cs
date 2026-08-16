@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Antiforgery;
 namespace PoRepoLineTracker.API.Middleware;
 
 /// <summary>
-/// Validates the antiforgery token on every state-changing API request (Rule 4.2).
+/// Validates the antiforgery token on every state-changing API request.
 ///
 /// <para><b>Why hand-rolled rather than <c>app.UseAntiforgery()</c>.</b> The framework middleware
 /// only validates endpoints whose metadata asks for it, and that metadata is added automatically
@@ -75,7 +75,7 @@ public sealed class AntiforgeryMiddleware(
 ///
 /// Applied with <c>.WithMetadata(new SkipAntiforgeryAttribute("reason"))</c>. The reason is
 /// required rather than optional so an exemption cannot be added silently — every use of this
-/// attribute is a hole in Rule 4.2 and should read as one.
+/// attribute is a hole in the antiforgery guarantee and should read as one.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
 public sealed class SkipAntiforgeryAttribute(string reason) : Attribute

@@ -4,7 +4,7 @@ namespace PoRepoLineTracker.Shared.Models.Dtos;
 /// <summary>
 /// Wire shape for a tracked repository. Property names mirror the Domain entity so the
 /// JSON contract is unchanged; keeping it in Shared lets the leaf assembly stay free of
-/// a Domain reference (Rule 2.2).
+/// a Domain reference.
 /// </summary>
 public sealed class GitHubRepositoryDto
 {

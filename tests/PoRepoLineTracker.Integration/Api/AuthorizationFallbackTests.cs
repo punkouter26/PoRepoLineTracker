@@ -4,7 +4,7 @@ using FluentAssertions;
 namespace PoRepoLineTracker.Integration;
 
 /// <summary>
-/// Rule 3.3 — proves the server-side FallbackPolicy denies by default: an unauthenticated caller
+/// Proves the server-side FallbackPolicy denies by default: an unauthenticated caller
 /// is refused everywhere except the routes that explicitly opt out with AllowAnonymous.
 ///
 /// Shares the collection's single host and signs out per request via

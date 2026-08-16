@@ -4,7 +4,7 @@ using Microsoft.Playwright;
 namespace PoRepoLineTracker.E2EUI;
 
 /// <summary>
-/// Rule 4.5 — WCAG 2.2 AA on interactive elements. These are the machine-checkable subset
+/// WCAG 2.2 AA on interactive elements. These are the machine-checkable subset
 /// (accessible names, document language, focus order, contrast-independent structure); they do
 /// not replace a manual audit, but they catch the regressions that reach production.
 /// </summary>

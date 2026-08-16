@@ -3,17 +3,17 @@ using Microsoft.Playwright;
 namespace PoRepoLineTracker.E2EUI;
 
 /// <summary>
-/// One Playwright browser shared by every UI E2E class (Rule 2.2). Launching a browser per class
+/// One Playwright browser shared by every UI E2E class. Launching a browser per class
 /// dominates the suite's wall-clock, and none of these tests mutate global browser state — each
 /// gets its own context and page.
 ///
 /// Both "Playwright browsers are not installed" and "no app instance is reachable" are reported
 /// as skips, never failures: this tier runs locally and against the Test environment, and CI does
-/// not execute tests (Rule 6.4).
+/// not execute tests.
 /// </summary>
 public sealed class E2EUiFixture : IAsyncLifetime
 {
-    /// <summary>Desktop and mobile viewports — Rule 2.2 requires the UI tier to cover both.</summary>
+    /// <summary>Desktop and mobile viewports — the UI tier must cover both.</summary>
     public static readonly ViewportSize Desktop = new() { Width = 1440, Height = 900 };
     public static readonly ViewportSize Mobile = new() { Width = 390, Height = 844 };
 

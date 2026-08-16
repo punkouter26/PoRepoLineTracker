@@ -9,7 +9,7 @@ internal static class ContributorEndpoints
     internal static void MapContributorEndpoints(this IEndpointRouteBuilder endpoints)
     {
         // Shares the /api/repositories prefix with RepositoryEndpoints but stays its own group so
-        // this route carries its own OpenAPI tag (Rule 3.1).
+        // this route carries its own OpenAPI tag.
         var contributors = endpoints.MapGroup("/api/repositories")
             .WithTags("Contributors")
             .RequireAuthorization();

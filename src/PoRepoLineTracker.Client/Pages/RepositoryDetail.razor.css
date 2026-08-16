@@ -66,7 +66,7 @@
 }
 
 /* Native <progress>: the percentage rides in the value attribute, so the bar needs no inline
-   style (Rule 4.3) and is announced by screen readers. */
+   style and is announced by screen readers. */
 .rd-ext-bar {
     display: block;
     width: 100%;

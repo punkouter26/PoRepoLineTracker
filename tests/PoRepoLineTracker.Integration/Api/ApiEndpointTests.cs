@@ -20,7 +20,7 @@ public class ApiEndpointTests
     public ApiEndpointTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
-        // Antiforgery-aware (Rule 4.2): this class exercises write endpoints, which now require
+        // Antiforgery-aware: this class exercises write endpoints, which now require
         // a token. The handler fetches one the same way the WASM client does.
         _client = factory.CreateAntiforgeryClient();
     }
@@ -62,7 +62,7 @@ public class ApiEndpointTests
     [Fact]
     public async Task Diagnostics_Endpoint_Masks_Secret_Values()
     {
-        // Rule 3.2 — /diag must never leak a secret value. The payload reports a
+        // /diag must never leak a secret value. The payload reports a
         // Configured/Not configured status per connection and nothing else.
         var response = await _client.GetAsync("/api/diagnostics");
         var content = await response.Content.ReadAsStringAsync();

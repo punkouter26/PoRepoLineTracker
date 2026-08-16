@@ -108,7 +108,7 @@ namespace PoRepoLineTracker.API
 
             if (app.Environment.IsDevelopment())
             {
-                // AllowAnonymous: the FallbackPolicy (Rule 3.3) would otherwise put the local
+                // AllowAnonymous: the FallbackPolicy would otherwise put the local
                 // API reference behind a login, which defeats its purpose during development.
                 app.MapOpenApi().AllowAnonymous();
                 app.MapScalarApiReference(options =>
@@ -126,7 +126,7 @@ namespace PoRepoLineTracker.API
                 app.UseHttpsRedirection();
             }
 
-            // Static assets MUST be served before UseAuthorization. The FallbackPolicy (Rule 3.3)
+            // Static assets MUST be served before UseAuthorization. The FallbackPolicy
             // is applied by the authorization middleware to requests that matched no endpoint —
             // and static files are served by middleware, not endpoints. With these two calls after
             // UseAuthorization every asset (css/app.css, _framework/*) answered 302-to-login, so the
@@ -138,11 +138,11 @@ namespace PoRepoLineTracker.API
             app.UseAuthentication();
             app.UseAuthorization();
 
-            // Rule 13 — Production Auth Enforcement: require Microsoft/GitHub OAuth in Production.
+            // Production Auth Enforcement: require Microsoft/GitHub OAuth in Production.
             // In Development this is a no-op (GUEST mode and local testing still work).
             app.UseMiddleware<ProductionAuthEnforcementMiddleware>();
 
-            // Rule 4.2 — antiforgery on every state-changing /api endpoint.
+            // Antiforgery on every state-changing /api endpoint.
             //
             // Ordered AFTER UseAuthorization deliberately: an unauthenticated POST then still
             // answers 401 rather than 400, which is both the more useful diagnosis and what the
@@ -159,7 +159,7 @@ namespace PoRepoLineTracker.API
             // caller's own claim, so it is not relying on the prefix for protection.
             app.MapHub<AnalysisHub>("/hubs/analysis");
 
-            // Both must opt out of the FallbackPolicy (Rule 3.3): /health is polled by the
+            // Both must opt out of the FallbackPolicy: /health is polled by the
             // deploy smoke test and Azure's probe with no credential, and the fallback file is
             // the Blazor shell itself — gating it would make the login page unreachable.
             app.MapHealthChecks("/health").AllowAnonymous();

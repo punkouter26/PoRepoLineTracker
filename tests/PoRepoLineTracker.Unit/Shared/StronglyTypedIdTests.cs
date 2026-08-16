@@ -4,7 +4,7 @@ using FluentAssertions;
 namespace PoRepoLineTracker.Unit;
 
 /// <summary>
-/// Rule 1.5 — the identity wrappers must buy type safety without changing anything observable:
+/// The identity wrappers must buy type safety without changing anything observable:
 /// the JSON the Blazor client parses and the Guid stored in Azure Table Storage are unchanged.
 /// </summary>
 public class StronglyTypedIdTests

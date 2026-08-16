@@ -1,4 +1,4 @@
-/* Rule 4.3 — scoped styles for the login screen. The `.login-canvas`, `.login-logomark` and
+/* Scoped styles for the login screen. The `.login-canvas`, `.login-logomark` and
    `.login-divider` elements are plain HTML in this page's markup, so they carry the isolation
    scope directly; everything Radzen renders is reached through ::deep. The blob/canvas/card
    layout rules themselves still live in app.css alongside their keyframes.

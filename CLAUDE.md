@@ -5,11 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `AGENT.MD` holds the long-form architecture rationale. Read it for *why*. This file is what you
 need to not waste a cycle.
 
-`NET_RULES.md` used to be the numbered rules that in-code comments cite (you will see "Rule 4.2",
-"Rule 3.3", etc.). The two have since diverged — `NET_RULES.md` was rewritten with different,
-shorter numbering (1.1–3.4) that no longer matches most in-code citations, some of which go as
-high as "Rule 13". Don't expect a `Rule X.Y` comment to resolve to matching content in
-`NET_RULES.md`; treat the comment's inline rationale as authoritative instead.
+`NET_RULES.md` holds the current numbered house rules (1.1–3.4). In-code comments used to cite
+an older, incompatible numbering ("Rule 4.2", "Rule 13", …); those dangling citations have been
+removed — comments now carry their rationale inline, and that inline rationale is authoritative.
 
 ## What this is
 

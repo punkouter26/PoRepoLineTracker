@@ -59,7 +59,7 @@
 }
 
 /* A native <progress> carries the percentage in its value attribute, so no inline style is
-   needed to draw the bar (Rule 4.3) and screen readers announce the value for free. The
+   needed to draw the bar and screen readers announce the value for free. The
    track/value pseudo-elements are not interchangeable across engines, hence the triple rule. */
 ::deep .cc-bar {
     flex: 1;

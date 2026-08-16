@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!--
-  Trimmer roots for the WASM client (Rule 1.2).
+  Trimmer roots for the WASM client.
 
   Blazor reaches components, layouts and their [Parameter] setters by reflection: the router
   activates a page from a Type, LayoutView instantiates a layout from typeof(MainLayout), and the

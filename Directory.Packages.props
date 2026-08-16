@@ -12,7 +12,7 @@
     <PackageVersion Include="Azure.Data.Tables" Version="12.11.0" />
     <!-- MediatR -->
     <PackageVersion Include="MediatR" Version="14.1.0" />
-    <!-- Validation (Rule 2.2 — FluentValidation rules live in .Shared) -->
+    <!-- Validation (FluentValidation rules live in .Shared) -->
     <PackageVersion Include="FluentValidation" Version="12.0.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
     <!-- Microsoft Core Extensions (.NET 10.0.1) -->
@@ -24,7 +24,7 @@
     <!-- Live analysis feed. Client-side only: the server hub ships in the ASP.NET Core shared
          framework, so nothing is added to the API for it. -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.5" />
-    <!-- Rule 5.4 — HybridCache is the standard cache abstraction (in-memory L1 with
+    <!-- HybridCache is the standard cache abstraction (in-memory L1 with
          stampede protection; an L2 is added by registering an IDistributedCache). -->
     <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.5" />

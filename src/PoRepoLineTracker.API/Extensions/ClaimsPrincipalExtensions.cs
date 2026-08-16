@@ -5,7 +5,7 @@ namespace PoRepoLineTracker.API.Extensions;
 /// <summary>
 /// Reads the caller's identity off the authenticated principal.
 ///
-/// Rule 1.5 — the claim name and the parse were previously repeated at every endpoint, so the
+/// The claim name and the parse were previously repeated at every endpoint, so the
 /// literal "UserId" appeared ~20 times and each site re-derived a raw <see cref="Guid"/>. One
 /// helper means one spelling of the claim and a <see cref="UserId"/> that cannot be transposed
 /// with a <see cref="RepositoryId"/> at the call site.

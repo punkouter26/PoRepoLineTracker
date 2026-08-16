@@ -4,8 +4,8 @@ using FluentAssertions;
 namespace PoRepoLineTracker.E2EAPI;
 
 /// <summary>
-/// Rule 2.2 — pure API E2E: exercises the running system over HTTP, no UI involved.
-/// Covers the two endpoints the deploy smoke test depends on (Rule 6.3): /health must answer 200
+/// Pure API E2E: exercises the running system over HTTP, no UI involved.
+/// Covers the two endpoints the deploy smoke test depends on: /health must answer 200
 /// without a credential, and /auth/me must answer a well-formed "not signed in" to an anonymous
 /// caller rather than a 401.
 /// </summary>
@@ -31,7 +31,7 @@ public sealed class HealthAndAuthApiTests
     [SkippableFact]
     public async Task Health_IsAnonymous_UnderFallbackPolicy()
     {
-        // Rule 3.3 — the FallbackPolicy authenticates by default; /health opts out explicitly
+        // The FallbackPolicy authenticates by default; /health opts out explicitly
         // because Azure's probe and the CI smoke test call it with no credential.
         var response = await E2EApiClient.GetAsync("/health");
 

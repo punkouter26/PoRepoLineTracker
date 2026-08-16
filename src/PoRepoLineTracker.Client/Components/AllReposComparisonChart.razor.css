@@ -90,8 +90,8 @@
     background: var(--bg-tertiary);
 }
 
-/* Not `outline: none` — the legend is now keyboard-operable and needs a visible focus ring
-   (Rule 4.7). The default ring is kept and simply pulled in off the rounded edge. */
+/* Not `outline: none` — the legend is now keyboard-operable and needs a visible focus ring.
+   The default ring is kept and simply pulled in off the rounded edge. */
 .arc-legend__item:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: 1px;

@@ -4,7 +4,7 @@ using Microsoft.Playwright;
 namespace PoRepoLineTracker.E2EUI;
 
 /// <summary>
-/// Rule 4.3 — inline styles are forbidden, so the rules that used to sit on <c>style=</c> must now
+/// Inline styles are forbidden, so the rules that used to sit on <c>style=</c> must now
 /// arrive from a scoped <c>.razor.css</c>. Asserting on the *computed* style is what makes the
 /// extraction verifiable: a class that never matched (a missing <c>::deep</c>, a wrong anchor)
 /// silently drops the styling, and only the computed value catches it.

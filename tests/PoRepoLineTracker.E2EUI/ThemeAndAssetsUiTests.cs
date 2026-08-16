@@ -4,7 +4,7 @@ using Microsoft.Playwright;
 namespace PoRepoLineTracker.E2EUI;
 
 /// <summary>
-/// Rule 4.3 — system-aware light/dark themes and design tokens exposed as CSS custom properties,
+/// System-aware light/dark themes and design tokens exposed as CSS custom properties,
 /// plus the static assets the shell needs in order to render at all.
 /// </summary>
 [Collection(E2EUiCollection.Name)]
@@ -63,7 +63,7 @@ public sealed class ThemeAndAssetsUiTests
     [SkippableFact]
     public async Task Theme_RespondsToTheSystemColorScheme()
     {
-        // Rule 4.3 — the app must follow the OS preference, not pick one and ignore it.
+        // The app must follow the OS preference, not pick one and ignore it.
         var light = await OpenWithSchemeAsync("light");
         await using var _ = light.Context;
         await light.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 20000 });
@@ -81,7 +81,7 @@ public sealed class ThemeAndAssetsUiTests
     [SkippableFact]
     public async Task DesignTokens_AreExposedAsCssCustomProperties()
     {
-        // Rule 4.3 — tokens live in :root custom properties rather than being inlined per element.
+        // Tokens live in :root custom properties rather than being inlined per element.
         var page = await OpenWithSchemeAsync("light");
         await using var _ = page.Context;
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 20000 });

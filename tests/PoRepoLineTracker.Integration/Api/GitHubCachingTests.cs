@@ -6,7 +6,7 @@ using NSubstitute;
 namespace PoRepoLineTracker.Integration;
 
 /// <summary>
-/// Rule 5.4 — the GitHub repository listing is served through HybridCache. GitHub's REST API is
+/// The GitHub repository listing is served through HybridCache. GitHub's REST API is
 /// rate-limited per token, so repeated page loads must collapse onto one upstream call.
 /// </summary>
 [Collection(IntegrationTestCollection.Name)]

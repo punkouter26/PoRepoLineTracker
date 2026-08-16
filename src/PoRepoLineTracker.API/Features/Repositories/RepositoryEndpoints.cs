@@ -33,7 +33,7 @@ internal static class RepositoryEndpoints
 
     internal static void MapRepositoryEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        // Rule 3.1 — one group carries the prefix and the authorization requirement for the whole
+        // One group carries the prefix and the authorization requirement for the whole
         // slice. Every route below is authenticated because the group says so, not because each
         // endpoint remembered to say so (the "#6 fix" comments below record the era when they didn't).
         var repos = endpoints.MapGroup("/api/repositories")
@@ -160,7 +160,7 @@ internal static class RepositoryEndpoints
                 var repoList = repositories?.ToList() ?? [];
                 Log.Information("Number of repositories in request: {Count}", repoList.Count);
 
-                // Rule 2.2 — validate each entry with the shared FluentValidation rules.
+                // Validate each entry with the shared FluentValidation rules.
                 foreach (var dto in repoList)
                 {
                     var v = await repoValidator.ValidateAsync(dto);

@@ -5,7 +5,7 @@ using FluentAssertions;
 namespace PoRepoLineTracker.Integration;
 
 /// <summary>
-/// Proves Rule 4.2 is actually enforced, not merely configured.
+/// Proves the antiforgery requirement is actually enforced, not merely configured.
 ///
 /// <see cref="ApiEndpointTests"/> uses a client that performs the token dance, so on its own it
 /// would still pass if the middleware were removed. These tests assert the negative: an

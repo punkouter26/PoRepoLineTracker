@@ -26,7 +26,7 @@ namespace PoRepoLineTracker.Integration
 
         /// <summary>
         /// Requests carrying this header are treated as signed out, so a single host can serve
-        /// both the authenticated tests and the FallbackPolicy denial tests (Rule 3.3). Spinning
+        /// both the authenticated tests and the FallbackPolicy denial tests. Spinning
         /// up a second WebApplicationFactory instead races the entry-point resolver.
         /// </summary>
         public const string AnonymousHeader = "X-Test-Anonymous";
@@ -69,7 +69,7 @@ namespace PoRepoLineTracker.Integration
             Path.Combine(Path.GetTempPath(), $"PoRepoLineTracker.Tests-{Environment.ProcessId}");
 
         /// <summary>
-        /// A client that performs the antiforgery token dance on state-changing calls (Rule 4.2).
+        /// A client that performs the antiforgery token dance on state-changing calls.
         ///
         /// Tests that assert on write endpoints use this; tests asserting that an *unauthenticated*
         /// write is rejected keep using <see cref="WebApplicationFactory{TEntryPoint}.CreateClient"/>,

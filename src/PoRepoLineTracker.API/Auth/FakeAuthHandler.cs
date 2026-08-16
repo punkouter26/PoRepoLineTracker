@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace PoRepoLineTracker.API.Auth;
 
 /// <summary>
-/// Dev/Test authentication driven entirely by request headers (Rule 3.3), so an automated
+/// Dev/Test authentication driven entirely by request headers, so an automated
 /// suite can act as any user without standing up a real OAuth provider:
 ///
 /// <list type="bullet">

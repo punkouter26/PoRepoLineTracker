@@ -39,7 +39,7 @@ public static class InfrastructureServiceExtensions
             return new Azure.Data.Tables.TableServiceClient("UseDevelopmentStorage=true");
         });
 
-        // Rule 2.2 — FluentValidation rules (defined in .Shared) for request DTOs.
+        // FluentValidation rules (defined in .Shared) for request DTOs.
         services.AddValidatorsFromAssemblyContaining<BulkRepositoryDtoValidator>();
 
         // OpenAPI
@@ -54,7 +54,7 @@ public static class InfrastructureServiceExtensions
             });
         });
 
-        // Rule 1.2 — source-generated JSON metadata ahead of the reflection resolver.
+        // Source-generated JSON metadata ahead of the reflection resolver.
         //
         // Inserting at index 0 means every type declared in AppJsonSerializerContext (i.e. every
         // wire contract) is resolved from generated metadata; the default reflection resolver
@@ -68,7 +68,7 @@ public static class InfrastructureServiceExtensions
         services.ConfigureHttpJsonOptions(options =>
             options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default));
 
-        // Rule 4.2 — antiforgery for every state-changing endpoint (see AntiforgeryMiddleware).
+        // Antiforgery for every state-changing endpoint (see AntiforgeryMiddleware).
         //
         // HeaderName is what makes this work for a JSON SPA at all: the default validator reads
         // the request token from a form field, and none of these endpoints post a form. With a
@@ -115,7 +115,7 @@ public static class InfrastructureServiceExtensions
             }
         });
 
-        // Rule 5.4 — HybridCache is the single caching abstraction. It is in-memory only here
+        // HybridCache is the single caching abstraction. It is in-memory only here
         // (no IDistributedCache registered), which is correct for a single App Service instance
         // and gains an L2 for free if Redis is ever added. Its stampede protection matters more
         // than raw hit rate: GitHub's REST API is rate-limited per token, so N concurrent page
@@ -139,7 +139,7 @@ public static class InfrastructureServiceExtensions
             if (!string.IsNullOrEmpty(pat))
                 client.DefaultRequestHeaders.Add("Authorization", $"token {pat}");
         })
-        // Rule 5.4 — the standard pipeline replaces the hand-rolled circuit-breaker-only handler:
+        // The standard pipeline replaces the hand-rolled circuit-breaker-only handler:
         // rate limiter → total timeout → retry → circuit breaker → attempt timeout. The retry is
         // what the old configuration was missing; a single 503 from GitHub used to surface to the
         // user instead of being retried with backoff.
