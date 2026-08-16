@@ -13,16 +13,16 @@ public class GitHubService : IGitHubService
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubService> _logger;
     private readonly string _localReposPath;
-    private readonly Dictionary<string, ILineCounter> _lineCounterMap; // New field for line counter map
-    private readonly IGitClient _gitClient; // Added for DIP
-    private readonly IFileIgnoreFilter _fileIgnoreFilter; // Added for file filtering
+    private readonly Dictionary<string, ILineCounter> _lineCounterMap;
+    private readonly GitClient _gitClient;
+    private readonly FileIgnoreFilter _fileIgnoreFilter;
 
-    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, IGitClient gitClient, IFileIgnoreFilter fileIgnoreFilter)
+    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, GitClient gitClient, FileIgnoreFilter fileIgnoreFilter)
     {
         _httpClient = httpClient;
         _logger = logger;
-        _gitClient = gitClient; // Initialize IGitClient
-        _fileIgnoreFilter = fileIgnoreFilter; // Initialize file ignore filter
+        _gitClient = gitClient;
+        _fileIgnoreFilter = fileIgnoreFilter;
 
         // Determine the base path for local repository clones.
         //
@@ -115,110 +115,15 @@ public class GitHubService : IGitHubService
     /// </summary>
     public async Task<IEnumerable<CommitStatsDto>> GetCommitStatsFromFullPathAsync(string fullPath, DateTime? sinceDate = null)
     {
-        return await Task.Run(() =>
-        {
-            _logger.LogInformation("Getting commit stats for local repository at full path {FullPath} since {SinceDate}", fullPath, sinceDate);
-
-            if (!Repository.IsValid(fullPath))
-            {
-                _logger.LogError("Local repository not found or invalid at {FullPath}. Cannot get commit stats.", fullPath);
-                return Enumerable.Empty<CommitStatsDto>();
-            }
-
-            var commitStatsList = new List<CommitStatsDto>();
-
-            using (var repo = _gitClient.OpenRepositoryFromPath(fullPath))
-            {
-                var filter = new CommitFilter
-                {
-                    SortBy = CommitSortStrategies.Time,
-                    IncludeReachableFrom = repo.Head
-                };
-
-                IEnumerable<Commit> commits = repo.Commits.QueryBy(filter);
-
-                // Apply date filter if provided
-                if (sinceDate.HasValue)
-                {
-                    var sinceDateUtc = sinceDate.Value.Kind == DateTimeKind.Utc ? sinceDate.Value : sinceDate.Value.ToUniversalTime();
-                    commits = commits.Where(c => c.Author.When.UtcDateTime >= sinceDateUtc);
-                }
-
-                var commitsList = commits.ToList();
-                _logger.LogInformation("Processing {CommitCount} commits for local repository at {FullPath}", commitsList.Count, fullPath);
-
-                foreach (var commit in commitsList)
-                {
-                    int linesAdded = 0;
-                    int linesRemoved = 0;
-
-                    if (commit.Parents.Any())
-                    {
-                        var patch = repo.Diff.Compare<Patch>(commit.Parents.First().Tree, commit.Tree);
-                        linesAdded = patch.LinesAdded;
-                        linesRemoved = patch.LinesDeleted;
-                    }
-                    else
-                    {
-                        var patch = repo.Diff.Compare<Patch>(null, commit.Tree);
-                        linesAdded = patch.LinesAdded;
-                        linesRemoved = 0;
-                    }
-
-                    commitStatsList.Add(new CommitStatsDto
-                    {
-                        Sha = commit.Sha,
-                        CommitDate = commit.Author.When.DateTime,
-                        LinesAdded = linesAdded,
-                        LinesRemoved = linesRemoved,
-                        AuthorName = commit.Author.Name,
-                        AuthorEmail = commit.Author.Email
-                    });
-                }
-            }
-            _logger.LogInformation("Found {CommitCount} commit stats for local repository at {FullPath}", commitStatsList.Count, fullPath);
-            return commitStatsList.AsEnumerable();
-        });
+        return await Task.Run(() => GetCommitStatsCore(fullPath, sinceDate));
     }
 
     /// <summary>
     /// Counts lines in a commit for a local repository at its full path.
     /// Used for locally uploaded repositories.
     /// </summary>
-    public async Task<Dictionary<string, int>> CountLinesInCommitFromFullPathAsync(string fullPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
-    {
-        _logger.LogInformation("Counting lines for commit {CommitSha} in local repository at {FullPath}. File extensions to count: {FileExtensions}", commitSha, fullPath, string.Join(", ", fileExtensionsToCount));
-
-        if (!Repository.IsValid(fullPath))
-        {
-            _logger.LogError("Local repository not found or invalid at {FullPath}. Cannot count lines.", fullPath);
-            return new Dictionary<string, int>();
-        }
-
-        var lineCounts = new Dictionary<string, int>();
-
-        using (var repo = _gitClient.OpenRepositoryFromPath(fullPath))
-        {
-            var commit = repo.Lookup<Commit>(commitSha);
-            if (commit == null)
-            {
-                _logger.LogWarning("Commit {CommitSha} not found in local repository at {FullPath}", commitSha, fullPath);
-                return lineCounts;
-            }
-
-            if (commit.Tree != null)
-            {
-                await ProcessTreeEntry(commit.Tree, fileExtensionsToCount, lineCounts, "");
-            }
-            else
-            {
-                _logger.LogWarning("Commit {CommitSha} has a null tree. Skipping line counting.", commitSha);
-            }
-
-            _logger.LogInformation("Finished counting lines for commit {CommitSha}. Total lines by type: {LineCounts}", commitSha, lineCounts);
-        }
-        return lineCounts;
-    }
+    public Task<Dictionary<string, int>> CountLinesInCommitFromFullPathAsync(string fullPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
+        => CountLinesInCommitCore(fullPath, commitSha, fileExtensionsToCount);
 
     public Task DeleteLocalRepositoryAsync(string localPath)
     {
@@ -251,32 +156,37 @@ public class GitHubService : IGitHubService
         });
     }
 
-    public async Task<Dictionary<string, int>> CountLinesInCommitAsync(string localPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
-    {
-        var fullLocalPath = Path.Combine(_localReposPath, localPath);
-        _logger.LogInformation("Counting lines for commit {CommitSha} in repository at {LocalPath}. File extensions to count: {FileExtensions}", commitSha, fullLocalPath, string.Join(", ", fileExtensionsToCount));
+    public Task<Dictionary<string, int>> CountLinesInCommitAsync(string localPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
+        => CountLinesInCommitCore(Path.Combine(_localReposPath, localPath), commitSha, fileExtensionsToCount);
 
-        if (!Repository.IsValid(fullLocalPath))
+    /// <summary>
+    /// Shared core for the relative-path and full-path count entry points — they used to be two
+    /// near-verbatim ~40-line copies whose only real difference was how the path was resolved.
+    /// Reads directly from the git object store; no working-tree checkout is needed.
+    /// </summary>
+    private async Task<Dictionary<string, int>> CountLinesInCommitCore(string fullRepoPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
+    {
+        _logger.LogInformation("Counting lines for commit {CommitSha} in repository at {RepoPath}. File extensions to count: {FileExtensions}", commitSha, fullRepoPath, string.Join(", ", fileExtensionsToCount));
+
+        if (!Repository.IsValid(fullRepoPath))
         {
-            _logger.LogError("Local repository not found or invalid at {LocalPath}. Cannot count lines.", fullLocalPath);
+            _logger.LogError("Local repository not found or invalid at {RepoPath}. Cannot count lines.", fullRepoPath);
             return new Dictionary<string, int>();
         }
 
         var lineCounts = new Dictionary<string, int>();
 
-        using (var repo = _gitClient.OpenRepository(fullLocalPath)) // Use IGitClient
+        using (var repo = _gitClient.OpenRepository(fullRepoPath))
         {
             var commit = repo.Lookup<Commit>(commitSha);
             if (commit == null)
             {
-                _logger.LogWarning("Commit {CommitSha} not found in repository at {LocalPath}", commitSha, fullLocalPath);
+                _logger.LogWarning("Commit {CommitSha} not found in repository at {RepoPath}", commitSha, fullRepoPath);
                 return lineCounts;
             }
 
-            // Read directly from the git object store (no working-tree checkout needed)
             if (commit.Tree != null)
             {
-                // Use a recursive function to traverse the tree
                 await ProcessTreeEntry(commit.Tree, fileExtensionsToCount, lineCounts, "");
             }
             else
@@ -388,77 +298,77 @@ public class GitHubService : IGitHubService
 
     public async Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(string localPath, DateTime? sinceDate = null)
     {
-        return await Task.Run(() =>
+        return await Task.Run(() => GetCommitStatsCore(Path.Combine(_localReposPath, localPath), sinceDate));
+    }
+
+    /// <summary>
+    /// Shared core for the relative-path and full-path commit-stats entry points — they used to
+    /// be two near-verbatim ~60-line copies whose only real difference was path resolution.
+    /// </summary>
+    private IEnumerable<CommitStatsDto> GetCommitStatsCore(string fullRepoPath, DateTime? sinceDate)
+    {
+        _logger.LogInformation("Getting commit stats for repository at {RepoPath} since {SinceDate}", fullRepoPath, sinceDate);
+
+        if (!Repository.IsValid(fullRepoPath))
         {
-            var fullLocalPath = Path.Combine(_localReposPath, localPath);
-            _logger.LogInformation("Getting commit stats for repository at {LocalPath} since {SinceDate}", fullLocalPath, sinceDate);
+            _logger.LogError("Local repository not found or invalid at {RepoPath}. Cannot get commit stats.", fullRepoPath);
+            return Enumerable.Empty<CommitStatsDto>();
+        }
 
-            if (!Repository.IsValid(fullLocalPath))
+        var commitStatsList = new List<CommitStatsDto>();
+
+        using (var repo = _gitClient.OpenRepository(fullRepoPath))
+        {
+            var filter = new CommitFilter
             {
-                _logger.LogError("Local repository not found or invalid at {LocalPath}. Cannot get commit stats.", fullLocalPath);
-                return Enumerable.Empty<CommitStatsDto>();
+                SortBy = CommitSortStrategies.Time,
+                IncludeReachableFrom = repo.Head
+            };
+
+            IEnumerable<Commit> commits = repo.Commits.QueryBy(filter);
+
+            if (sinceDate.HasValue)
+            {
+                // Convert sinceDate to UTC for comparison with commit dates
+                var sinceDateUtc = sinceDate.Value.Kind == DateTimeKind.Utc ? sinceDate.Value : sinceDate.Value.ToUniversalTime();
+                commits = commits.Where(c => c.Author.When.UtcDateTime >= sinceDateUtc);
             }
 
-            var commitStatsList = new List<CommitStatsDto>();
+            var commitsList = commits.ToList();
+            _logger.LogInformation("Processing {CommitCount} commits after date filtering", commitsList.Count);
 
-            // #2 fix: use _gitClient abstraction instead of direct Repository instantiation (DIP)
-            using (var repo = _gitClient.OpenRepository(fullLocalPath))
+            foreach (var commit in commitsList)
             {
-                var filter = new CommitFilter
-                {
-                    SortBy = CommitSortStrategies.Time,
-                    IncludeReachableFrom = repo.Head
-                };
+                int linesAdded;
+                int linesRemoved;
 
-                IEnumerable<Commit> commits = repo.Commits.QueryBy(filter);
-
-                // Apply date filter if provided
-                if (sinceDate.HasValue)
+                if (commit.Parents.Any())
                 {
-                    _logger.LogInformation("Filtering commits since {SinceDate} (UTC)", sinceDate.Value);
-                    // Convert sinceDate to UTC for comparison with commit dates
-                    var sinceDateUtc = sinceDate.Value.Kind == DateTimeKind.Utc ? sinceDate.Value : sinceDate.Value.ToUniversalTime();
-                    commits = commits.Where(c => c.Author.When.UtcDateTime >= sinceDateUtc);
+                    var patch = repo.Diff.Compare<Patch>(commit.Parents.First().Tree, commit.Tree);
+                    linesAdded = patch.LinesAdded;
+                    linesRemoved = patch.LinesDeleted;
+                }
+                else
+                {
+                    // Initial commit, count all lines as added
+                    var patch = repo.Diff.Compare<Patch>(null, commit.Tree);
+                    linesAdded = patch.LinesAdded;
+                    linesRemoved = 0;
                 }
 
-                var commitsList = commits.ToList();
-                _logger.LogInformation("Processing {CommitCount} commits after date filtering", commitsList.Count);
-
-                foreach (var commit in commitsList)
+                commitStatsList.Add(new CommitStatsDto
                 {
-                    int linesAdded = 0;
-                    int linesRemoved = 0;
-
-                    if (commit.Parents.Any())
-                    {
-                        var patch = repo.Diff.Compare<Patch>(commit.Parents.First().Tree, commit.Tree);
-                        linesAdded = patch.LinesAdded;
-                        linesRemoved = patch.LinesDeleted;
-                        _logger.LogDebug("Commit {CommitSha}: LinesAdded={LinesAdded}, LinesRemoved={LinesRemoved}", commit.Sha, linesAdded, linesRemoved);
-                    }
-                    else
-                    {
-                        // Initial commit, count all lines as added
-                        var patch = repo.Diff.Compare<Patch>(null, commit.Tree);
-                        linesAdded = patch.LinesAdded;
-                        linesRemoved = 0; // No lines removed in initial commit
-                        _logger.LogDebug("Initial Commit {CommitSha}: LinesAdded={LinesAdded}, LinesRemoved={LinesRemoved}", commit.Sha, linesAdded, linesRemoved);
-                    }
-
-                    commitStatsList.Add(new CommitStatsDto
-                    {
-                        Sha = commit.Sha,
-                        CommitDate = commit.Author.When.DateTime,
-                        LinesAdded = linesAdded,
-                        LinesRemoved = linesRemoved,
-                        AuthorName = commit.Author.Name,
-                        AuthorEmail = commit.Author.Email
-                    });
-                }
+                    Sha = commit.Sha,
+                    CommitDate = commit.Author.When.DateTime,
+                    LinesAdded = linesAdded,
+                    LinesRemoved = linesRemoved,
+                    AuthorName = commit.Author.Name,
+                    AuthorEmail = commit.Author.Email
+                });
             }
-            _logger.LogInformation("Found {CommitCount} commit stats for repository at {LocalPath}", commitStatsList.Count, fullLocalPath);
-            return commitStatsList.AsEnumerable();
-        });
+        }
+        _logger.LogInformation("Found {CommitCount} commit stats for repository at {RepoPath}", commitStatsList.Count, fullRepoPath);
+        return commitStatsList;
     }
 
     public async Task CheckConnectionAsync()

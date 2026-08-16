@@ -9,8 +9,10 @@ namespace PoRepoLineTracker.API.Storage;
 
 /// <summary>
 /// Filters files and directories that should be excluded from line counting.
+/// Consumed directly by <see cref="GitHubService"/> — the interface it used to sit behind had a
+/// single implementation, a single injection site, and was never substituted in a test.
 /// </summary>
-public class FileIgnoreFilter : IFileIgnoreFilter
+public class FileIgnoreFilter
 {
     private readonly ILogger<FileIgnoreFilter> _logger;
 
@@ -158,7 +160,11 @@ public class FileIgnoreFilter : IFileIgnoreFilter
         ];
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Determines whether a file should be ignored during line counting.
+    /// </summary>
+    /// <param name="fileName">The name of the file (e.g., "Program.cs").</param>
+    /// <param name="filePath">The full path to the file within the repository.</param>
     public bool ShouldIgnoreFile(string fileName, string filePath)
     {
         var nameLower = fileName.ToLowerInvariant();
@@ -207,7 +213,10 @@ public class FileIgnoreFilter : IFileIgnoreFilter
         return false;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Determines whether a directory should be ignored during repository traversal, judged by
+    /// its path alone. Prefer the entry-aware overload wherever child names are available.
+    /// </summary>
     public bool ShouldIgnoreDirectory(string directoryPath)
     {
         var normalized = NormalizePath(directoryPath) + "/";
@@ -225,7 +234,17 @@ public class FileIgnoreFilter : IFileIgnoreFilter
         return shouldIgnore;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Determines whether a directory should be ignored, given the names of its immediate
+    /// children.
+    /// </summary>
+    /// <remarks>
+    /// The path-only overload can only recognise vendored code whose *name* gives it away
+    /// (<c>node_modules</c>, <c>vendor</c>, a reverse-domain package folder). It cannot recognise
+    /// the common and much larger case: an entire third-party repository copied into a folder the
+    /// author named themselves. Those are identified by what they CONTAIN — a licence, a
+    /// <c>.github</c> directory, a <c>.gitmodules</c> file — which needs the child names.
+    /// </remarks>
     public bool ShouldIgnoreDirectory(string directoryPath, IEnumerable<string> entryNames)
     {
         if (ShouldIgnoreDirectory(directoryPath)) return true;

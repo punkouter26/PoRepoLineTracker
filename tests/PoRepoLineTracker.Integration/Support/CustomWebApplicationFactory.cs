@@ -230,7 +230,6 @@ namespace PoRepoLineTracker.Integration
                 });
 
                 // Mock external dependencies for testing
-                var mockGitClient = Substitute.For<IGitClient>();
                 var mockGitHubService = Substitute.For<IGitHubService>();
                 var mockUserPreferencesService = Substitute.For<IUserPreferencesService>();
                 var mockRepoDataService = Substitute.For<IRepositoryDataService>();
@@ -264,7 +263,6 @@ namespace PoRepoLineTracker.Integration
                     });
 
                 // Replace services with mocks
-                services.AddScoped(provider => mockGitClient);
                 services.AddScoped(provider => mockGitHubService);
 
                 if (_azuriteAvailable)

@@ -154,32 +154,13 @@ public static class InfrastructureServiceExtensions
             options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
         });
 
-        // Domain services
-        services.AddScoped<IGitClient, GitClient>();
-
-        // SourceLineCounter is registered once per tracked extension (plus "*" as the fallback for
-        // anything not listed here) so every extension gets the SAME blank/comment-line exclusion
-        // and generated-file skip — see the type remarks for why "only .cs gets it" was tried
-        // before and reverted.
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter("*"));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".cs", "//", ("/*", "*/")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".razor", "//", ("<!--", "-->")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".cshtml", "//", ("<!--", "-->")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".xaml", null, ("<!--", "-->")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".csproj", null, ("<!--", "-->")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".js", "//", ("/*", "*/")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".jsx", "//", ("/*", "*/")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".ts", "//", ("/*", "*/")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".tsx", "//", ("/*", "*/")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".mjs", "//", ("/*", "*/")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".cjs", "//", ("/*", "*/")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".html", null, ("<!--", "-->")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".css", "//", ("/*", "*/")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".scss", "//", ("/*", "*/")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".less", "//", ("/*", "*/")));
-        services.AddScoped<ILineCounter>(_ => new SourceLineCounter(".py", "#"));
-
-        services.AddScoped<IFileIgnoreFilter, FileIgnoreFilter>();
+        // Domain services. GitClient and FileIgnoreFilter are registered as their concrete
+        // selves — each has one implementation and one consumer (GitHubService), and no test
+        // ever substituted the interfaces they used to hide behind. The line-counter catalog
+        // lives in SourceLineCounter.DefaultSet (one counter per tracked extension plus the "*"
+        // fallback — see the type remarks for why every extension gets the same treatment).
+        services.AddScoped<GitClient>();
+        services.AddScoped<FileIgnoreFilter>();
 
         // Singleton: tracks live analysis progress across background Task.Run jobs, and pushes
         // each update to the owning user over AnalysisHub (hence AddSignalR below it — IHubContext
@@ -191,9 +172,9 @@ public static class InfrastructureServiceExtensions
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("GitHubClient"),
             sp.GetRequiredService<IConfiguration>(),
             sp.GetRequiredService<ILogger<GitHubService>>(),
-            sp.GetServices<ILineCounter>(),
-            sp.GetRequiredService<IGitClient>(),
-            sp.GetRequiredService<IFileIgnoreFilter>()));
+            SourceLineCounter.DefaultSet(),
+            sp.GetRequiredService<GitClient>(),
+            sp.GetRequiredService<FileIgnoreFilter>()));
 
         services.AddScoped<IRepositoryDataService, RepositoryDataService>();
         services.AddScoped<IUserService, UserService>();

@@ -58,6 +58,32 @@ namespace PoRepoLineTracker.API.Services
             _blockComment = blockComment;
         }
 
+        /// <summary>
+        /// One counter per tracked extension, plus the "*" fallback for anything not listed, so
+        /// every extension gets the SAME blank/comment-line exclusion and generated-file skip.
+        /// This table replaced 17 individual DI registrations that carried the same data.
+        /// </summary>
+        public static IReadOnlyList<ILineCounter> DefaultSet() =>
+        [
+            new SourceLineCounter("*"),
+            new SourceLineCounter(".cs", "//", ("/*", "*/")),
+            new SourceLineCounter(".razor", "//", ("<!--", "-->")),
+            new SourceLineCounter(".cshtml", "//", ("<!--", "-->")),
+            new SourceLineCounter(".xaml", null, ("<!--", "-->")),
+            new SourceLineCounter(".csproj", null, ("<!--", "-->")),
+            new SourceLineCounter(".js", "//", ("/*", "*/")),
+            new SourceLineCounter(".jsx", "//", ("/*", "*/")),
+            new SourceLineCounter(".ts", "//", ("/*", "*/")),
+            new SourceLineCounter(".tsx", "//", ("/*", "*/")),
+            new SourceLineCounter(".mjs", "//", ("/*", "*/")),
+            new SourceLineCounter(".cjs", "//", ("/*", "*/")),
+            new SourceLineCounter(".html", null, ("<!--", "-->")),
+            new SourceLineCounter(".css", "//", ("/*", "*/")),
+            new SourceLineCounter(".scss", "//", ("/*", "*/")),
+            new SourceLineCounter(".less", "//", ("/*", "*/")),
+            new SourceLineCounter(".py", "#")
+        ];
+
         public async Task<int> CountLinesAsync(Stream stream)
         {
             using var reader = new StreamReader(stream);
