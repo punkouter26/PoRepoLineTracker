@@ -132,24 +132,9 @@ jobs:
           # Async deploy returns once the deployment is accepted, which removes the
           # synchronous Kudu 504 risk. Nothing in this workflow verifies liveness
           # afterwards — the post-deploy smoke test that used to do so was removed.
-      # The DOTNETCORE runtime image has no git, but GitClient shells out to it for
-      # clone/pull — without this the site runs and every analysis fails with
-      # "git is not installed or not in PATH". startup.sh installs git, then execs the app.
-      # Setting it here (rather than by hand) also keeps the entry assembly correct across
-      # the .Api -> .API rename: the old literal `dotnet PoRepoLineTracker.Api.dll` startup
-      # command does not exist in the new build, and Linux paths are case-sensitive.
-      - name: Ensure startup command runs startup.sh
-        run: |
-          CURRENT=$(az webapp config show -n "${{ env.AZURE_WEBAPP_NAME }}" -g PoRepoLineTracker \
-                      --query appCommandLine -o tsv)
-          WANT="/home/site/wwwroot/startup.sh"
-          if [ "$CURRENT" != "$WANT" ]; then
-            echo "startup command is '$CURRENT' — setting to '$WANT'"
-            az webapp config set -n "${{ env.AZURE_WEBAPP_NAME }}" -g PoRepoLineTracker \
-              --startup-file "$WANT" -o none
-          else
-            echo "startup command already '$WANT'"
-          fi
+      # The startup command (/home/site/wwwroot/startup.sh, which installs git before exec-ing
+      # the app) is owned by infra/resources.bicep — a step here used to re-set it after every
+      # provision because the bicep said `dotnet …dll`; two owners flip-flopped the value.
 
   # Apply infrastructure (resource group, app settings, role assignments) from Bicep.
   # Manual only: run the workflow via "Run workflow" with deploy_infra=true. This keeps

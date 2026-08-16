@@ -101,11 +101,13 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
-      // startup.sh is deployed in the code package and installs git before starting the app.
-      // The workflow sets this AFTER code deployment to avoid a race condition where
-      // provision restarts the app before startup.sh exists in wwwroot.
-      // DO NOT rely on azd provision alone to set this — run the CI/CD pipeline.
-      appCommandLine: 'dotnet PoRepoLineTracker.API.dll'
+      // startup.sh ships in the code package and installs git (GitClient shells out to it)
+      // before exec-ing the app. Bicep is the single owner of this value — a workflow step
+      // used to reset it after every provision because this line said `dotnet …dll`, which
+      // flip-flopped the startup command (and restarted the site) twice per deploy.
+      // Until the first code deploy lands startup.sh the site cannot start; the code deploy
+      // in the same workflow run follows immediately and restarts it with the file present.
+      appCommandLine: '/home/site/wwwroot/startup.sh'
       // MUST stay false on F1: the Free tier does not offer Always On, and ARM rejects the
       // whole site write with SiteWithAlwaysOnNotSupportedForOffering rather than ignoring it.
       // The cost is a cold start on the first hit after the idle unload.
@@ -137,10 +139,6 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'AzureTableStorage__CommitLineCountTableName'
           value: 'PoRepoLineTrackerCommitLineCounts'
-        }
-        {
-          name: 'AzureTableStorage__FailedOperationTableName'
-          value: 'PoRepoLineTrackerFailedOperations'
         }
         {
           name: 'AzureTableStorage__UserTableName'
