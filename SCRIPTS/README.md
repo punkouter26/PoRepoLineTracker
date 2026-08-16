@@ -4,7 +4,7 @@ Utility scripts for local development and maintenance of PoRepoLineTracker.
 
 | Script | Purpose |
 |--------|---------|
-| `setup.ps1` | **First-run setup** for new machines. Installs prerequisites (Docker, .NET 10 SDK, Azure CLI) via Winget, starts the compose services (Azurite + Jaeger), checks `az login` for Key Vault access, and kills orphaned dotnet processes on ports 5000/5001. |
+| `setup.ps1` | **First-run setup** for new machines. Installs prerequisites (Docker, .NET 10 SDK, Azure CLI) via Winget, starts the compose services (Azurite + Jaeger), checks `az login` for Key Vault access, and kills orphaned dotnet processes on ports 5002/5003. |
 
 ## First-Run Setup (New Machine)
 

@@ -30,7 +30,7 @@ internal static class DiagnosticsEndpoints
                     // in Development it exists only in the composite provider the static-web-assets
                     // manifest builds — src/PoRepoLineTracker.API/wwwroot/index.html is not on
                     // disk at all. So the File.Exists guard was false every time locally and this
-                    // handler fell through to the JSON branch: opening https://localhost:5001/diag
+                    // handler fell through to the JSON branch: opening https://localhost:5003/diag
                     // in a browser, or refreshing it, returned a wall of raw configuration JSON
                     // instead of the page. It only looked like it worked because the sole route to
                     // /diag was the nav link, which Blazor handles client-side without ever asking

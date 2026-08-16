@@ -24,7 +24,7 @@ public sealed class E2EUiFixture : IAsyncLifetime
     /// is HTTPS, so testing over HTTPS is also the faithful target.
     /// </summary>
     public static string BaseUrl =>
-        Environment.GetEnvironmentVariable("E2E_BASE_URL") ?? "https://localhost:5001";
+        Environment.GetEnvironmentVariable("E2E_BASE_URL") ?? "https://localhost:5003";
 
     /// <summary>
     /// Identity sent as <c>X-Fake-User</c> by <see cref="OpenAuthenticatedAsync"/>. Repositories

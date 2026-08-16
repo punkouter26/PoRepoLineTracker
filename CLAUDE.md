@@ -38,7 +38,7 @@ composition root) has one.
 
 ```bash
 docker compose up -d                                   # Azurite (Table Storage) + Jaeger (traces)
-dotnet run --project src/PoRepoLineTracker.API --launch-profile https   # https://localhost:5001
+dotnet run --project src/PoRepoLineTracker.API --launch-profile https   # https://localhost:5003
 
 dotnet build
 dotnet test tests/PoRepoLineTracker.Unit          # 229 — no external deps

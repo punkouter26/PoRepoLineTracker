@@ -96,7 +96,8 @@ dotnet run --project src/PoRepoLineTracker.API --launch-profile https
 dotnet test tests/PoRepoLineTracker.Unit
 dotnet test tests/PoRepoLineTracker.Integration
 
-# E2E (C#) — target a running instance via E2E_BASE_URL (default https://localhost:5001);
+# E2E (C#) — target a running instance via E2E_BASE_URL (E2EAPI defaults to
+# http://localhost:5002, E2EUI to https://localhost:5003);
 # tests self-skip when no instance is reachable / Playwright browsers aren't installed.
 dotnet test tests/PoRepoLineTracker.E2EAPI
 dotnet test tests/PoRepoLineTracker.E2EUI   # first: pwsh tests/PoRepoLineTracker.E2EUI/bin/Debug/net10.0/playwright.ps1 install
@@ -106,11 +107,11 @@ dotnet test tests/PoRepoLineTracker.E2EUI   # first: pwsh tests/PoRepoLineTracke
 
 `Unit`, `Integration`, `E2EAPI` (pure API), `E2EUI` (C# Playwright) — single stack: **xunit + NSubstitute + FluentAssertions**. The legacy `E2ETests.TS` TypeScript Playwright project has been deleted; `E2EUI` supersedes it.
 
-Current counts (test cases, Theory rows included): **Unit 214 · Integration 76 · E2EAPI 62 · E2EUI 64** against targets of 100/50/25/25. All four tiers pass with **zero skips**.
+Current counts (test cases, Theory rows included): **Unit 112 · Integration 46 · E2EAPI 26 · E2EUI 27** against targets of 100/50/25/25. All four tiers pass with **zero skips**.
 
 E2EUI seeds its own chart data through `POST /api/dev/seed/repository` (Development only) — before
 that, twelve chart assertions skipped themselves on every run and the tier reported false health.
-A skip there now means the app is not reachable at `https://localhost:5001`, or is not in Development.
+A skip there now means the app is not reachable at `https://localhost:5003`, or is not in Development.
 
 ## Key Patterns
 
@@ -145,9 +146,9 @@ A skip there now means the app is not reachable at `https://localhost:5001`, or 
     (`7db2fe07-0780-41d0-b11f-3712297d4daf`) is now unused by this app.
   - **Local development needs its own OAuth App.** A GitHub OAuth App has exactly one callback
     URL and GitHub matches `redirect_uri` on host *and* port, so the production app can never
-    authorize `http://localhost:5000/signin-github` — the browser gets GitHub's "The redirect_uri
+    authorize `http://localhost:5002/signin-github` — the browser gets GitHub's "The redirect_uri
     is not associated with this application". Create a second OAuth App pointing at
-    `http://localhost:5000/signin-github` and put its ClientId/Secret in
+    `http://localhost:5002/signin-github` and put its ClientId/Secret in
     `src/PoRepoLineTracker.API/appsettings.Development.local.json` (gitignored; loaded after Key
     Vault, so it overrides prod locally and changes nothing about the deployment). See
     `appsettings.Development.local.json.template` for the exact steps. GitHub exposes **no API**

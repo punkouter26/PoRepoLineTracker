@@ -5,7 +5,7 @@
 #   1. Checks for and installs prerequisites via Winget (Docker, .NET 10 SDK, Azure CLI)
 #   2. Initializes Docker and starts Azurite
 #   3. Checks Azure CLI login status for Key Vault access
-#   4. Kills any orphaned dotnet processes holding ports 5000/5001
+#   4. Kills any orphaned dotnet processes holding ports 5002/5003
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -86,8 +86,8 @@ if ($LASTEXITCODE -ne 0 -or -not $azAccount) {
 }
 
 # ── 4. Kill Orphaned dotnet Processes ─────────────────────────────────────
-Write-Host "`nChecking for orphaned dotnet processes on ports 5000/5001..." -ForegroundColor Cyan
-$orphaned = Get-NetTCPConnection -LocalPort 5000,5001 -ErrorAction SilentlyContinue |
+Write-Host "`nChecking for orphaned dotnet processes on ports 5002/5003..." -ForegroundColor Cyan
+$orphaned = Get-NetTCPConnection -LocalPort 5002,5003 -ErrorAction SilentlyContinue |
     Select-Object -ExpandProperty OwningProcess -Unique
 if ($orphaned) {
     # $pid would shadow the read-only automatic $PID variable and throw in PS7
@@ -106,4 +106,4 @@ if ($orphaned) {
 # ── Done ───────────────────────────────────────────────────────────────────
 Write-Host "`n=== Setup Complete ===" -ForegroundColor Cyan
 Write-Host "Run the app with: dotnet run --project src/PoRepoLineTracker.API --launch-profile https" -ForegroundColor White
-Write-Host "API will be available at http://localhost:5000 / https://localhost:5001" -ForegroundColor White
+Write-Host "API will be available at http://localhost:5002 / https://localhost:5003" -ForegroundColor White

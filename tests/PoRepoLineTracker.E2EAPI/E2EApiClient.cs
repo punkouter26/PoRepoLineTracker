@@ -4,7 +4,7 @@ namespace PoRepoLineTracker.E2EAPI;
 
 /// <summary>
 /// Shared HTTP access for the pure-API E2E tier. Targets a *running* instance at
-/// E2E_BASE_URL (default http://localhost:5000).
+/// E2E_BASE_URL (default http://localhost:5002).
 ///
 /// Every request routes through here so that "the app is not running" is reported as a skip
 /// rather than a failure: this tier is executed locally and against the Test environment, and CI
@@ -14,7 +14,7 @@ namespace PoRepoLineTracker.E2EAPI;
 internal static class E2EApiClient
 {
     internal static readonly string BaseUrl =
-        Environment.GetEnvironmentVariable("E2E_BASE_URL") ?? "http://localhost:5000";
+        Environment.GetEnvironmentVariable("E2E_BASE_URL") ?? "http://localhost:5002";
 
     private static HttpClient CreateClient() => new(new HttpClientHandler
     {

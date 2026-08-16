@@ -1,5 +1,5 @@
 ### PoRepoLineTracker API Test Suite
-### Base URL: https://localhost:5001 (launch profile `https`)
+### Base URL: https://localhost:5003 (launch profile `https`)
 ### Requires: Azurite running (docker compose up -d) and the app in Development.
 ###
 ### Auth: there is no login route for tools — Development/Test requests authenticate by
@@ -7,7 +7,7 @@
 ### Writes additionally need the antiforgery pair: GET /api/antiforgery/token first (the
 ### response sets the cookie and returns the token), then echo it as X-CSRF-TOKEN.
 
-@baseUrl = https://localhost:5001
+@baseUrl = https://localhost:5003
 @fakeUser = 00000000-0000-0000-0000-000000000001
 
 # ============================================================
