@@ -55,7 +55,7 @@ public sealed class SecurityAndRoutingApiTests
     [SkippableFact]
     public async Task WrongVerbOnKnownRoute_IsAClientError()
     {
-        var response = await E2EApiClient.DeleteAsync("/api/feature-flags");
+        var response = await E2EApiClient.DeleteAsync("/auth/me");
 
         ((int)response.StatusCode).Should().BeLessThan(500);
     }
@@ -63,9 +63,9 @@ public sealed class SecurityAndRoutingApiTests
     [SkippableFact]
     public async Task MalformedRepositoryId_IsAClientError()
     {
-        // The route parameter binds to RepositoryId via IParsable (Rule 1.5); a non-GUID must
+        // The route parameter binds to RepositoryId via IParsable; a non-GUID must
         // fail to bind into a 4xx, never a 500 from a parse exception deeper in the handler.
-        var response = await E2EApiClient.GetAsync("/api/repositories/not-a-guid/top-files");
+        var response = await E2EApiClient.GetAsync("/api/repositories/not-a-guid/linehistory/30");
 
         ((int)response.StatusCode).Should().BeLessThan(500);
     }
@@ -83,7 +83,7 @@ public sealed class SecurityAndRoutingApiTests
     [SkippableFact]
     public async Task JsonEndpoint_ReturnsJsonContentType()
     {
-        var response = await E2EApiClient.GetAsync("/api/feature-flags");
+        var response = await E2EApiClient.GetAsync("/auth/me");
 
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
     }

@@ -23,8 +23,6 @@ public class ConfigKeysTests
         { ConfigKeys.GitHub.Pat, "GitHub:PAT" },
         { ConfigKeys.Telemetry.AppInsightsConnectionString, "APPLICATIONINSIGHTS_CONNECTION_STRING" },
         { ConfigKeys.Telemetry.OtlpEndpoint, "OpenTelemetry:OtlpEndpoint" },
-        
-        { ConfigKeys.ChartSettings.MaxLinesOfCode, "ChartSettings:MaxLinesOfCode" },
     };
 
     [Theory]

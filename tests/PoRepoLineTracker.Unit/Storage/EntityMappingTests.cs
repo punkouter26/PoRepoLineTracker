@@ -107,31 +107,6 @@ public class GitHubRepositoryEntityTests
     }
 }
 
-public class TopFileEntityTests
-{
-    [Fact]
-    public void FromDto_ToDto_RoundTrip()
-    {
-        var dto = new TopFileDto { FileName = "src/Program.cs", LineCount = 1500 };
-        var repoId = RepositoryId.New();
-
-        var entity = TopFileEntity.FromDto(repoId.Value, dto, 1);
-        var roundTripped = entity.ToDto();
-
-        roundTripped.FileName.Should().Be("src/Program.cs");
-        roundTripped.LineCount.Should().Be(1500);
-    }
-
-    [Fact]
-    public void FromDto_RowKey_IsPaddedRank()
-    {
-        var dto = new TopFileDto { FileName = "test.cs", LineCount = 100 };
-        var entity = TopFileEntity.FromDto(Guid.NewGuid(), dto, 5);
-
-        entity.RowKey.Should().Be("005");
-    }
-}
-
 public class UserPreferencesEntityTests
 {
     [Fact]

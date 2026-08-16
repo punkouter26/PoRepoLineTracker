@@ -17,10 +17,4 @@ public interface IRepositoryDataService
     Task DeleteRepositoryAsync(RepositoryId repositoryId);
     Task RemoveAllRepositoriesAsync(UserId userId); // Removes all repositories for a specific user
     Task CheckConnectionAsync();
-    Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync(); // Added for file extensions
-
-    // Top files storage (calculated during analysis, stored for retrieval without local git clone)
-    Task SaveTopFilesAsync(RepositoryId repositoryId, IEnumerable<TopFileDto> topFiles);
-    Task<IEnumerable<TopFileDto>> GetTopFilesAsync(RepositoryId repositoryId, int count = 5);
-    Task DeleteTopFilesForRepositoryAsync(RepositoryId repositoryId);
 }

@@ -10,7 +10,6 @@ public class RepositoryDataService : IRepositoryDataService
 {
     private readonly TableClient _repositoryTableClient;
     private readonly TableClient _commitLineCountTableClient;
-    private readonly TableClient _topFilesTableClient;
     private readonly ILogger<RepositoryDataService> _logger;
 
     // SemaphoreSlim(1,1) prevents concurrent background tasks from double-initializing tables
@@ -22,11 +21,9 @@ public class RepositoryDataService : IRepositoryDataService
         _logger = logger;
         var repositoryTableName = configuration[ConfigKeys.AzureTableStorage.RepositoryTableName] ?? "PoRepoLineTrackerRepositories";
         var commitLineCountTableName = configuration[ConfigKeys.AzureTableStorage.CommitLineCountTableName] ?? "PoRepoLineTrackerCommitLineCounts";
-        var topFilesTableName = configuration[ConfigKeys.AzureTableStorage.TopFilesTableName] ?? "PoRepoLineTrackerTopFiles";
 
         _repositoryTableClient = tableServiceClient.GetTableClient(repositoryTableName);
         _commitLineCountTableClient = tableServiceClient.GetTableClient(commitLineCountTableName);
-        _topFilesTableClient = tableServiceClient.GetTableClient(topFilesTableName);
     }
 
     private async Task EnsureTablesExistAsync()
@@ -38,7 +35,6 @@ public class RepositoryDataService : IRepositoryDataService
             if (_tablesInitialized) return; // double-check after acquiring lock
             await _repositoryTableClient.CreateIfNotExistsAsync();
             await _commitLineCountTableClient.CreateIfNotExistsAsync();
-            await _topFilesTableClient.CreateIfNotExistsAsync();
             _tablesInitialized = true;
         }
         catch (Exception ex)
@@ -244,16 +240,6 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
-    public async Task<IEnumerable<string>> GetConfiguredFileExtensionsAsync()
-    {
-        // Canonical fallback when a user has no stored preferences.
-        // Keep in sync with UserPreferences.DefaultFileExtensions — that list
-        // is the source of truth for new users.
-        _logger.LogInformation("Returning {Count} configured file extensions for line counting",
-            UserPreferences.DefaultFileExtensions.Count);
-        return await Task.FromResult(UserPreferences.DefaultFileExtensions.AsEnumerable());
-    }
-
     public async Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(RepositoryId repositoryId, int days)
     {
         _logger.LogInformation("Getting line count history for repository {RepositoryId} for the last {Days} days from Table Storage.", repositoryId, days);
@@ -383,99 +369,4 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
-    /// <summary>
-    /// Saves the top files for a repository to Azure Table Storage.
-    /// Replaces any existing top files for the repository.
-    /// </summary>
-    public async Task SaveTopFilesAsync(RepositoryId repositoryId, IEnumerable<TopFileDto> topFiles)
-    {
-        await EnsureTablesExistAsync();
-        _logger.LogInformation("Saving top files for repository {RepositoryId} to Table Storage.", repositoryId);
-
-        try
-        {
-            // Delete existing top files for this repository first
-            await DeleteTopFilesForRepositoryAsync(repositoryId);
-
-            // Save new top files with ranked row keys
-            var rank = 1;
-            foreach (var topFile in topFiles.Take(100)) // Store up to 100 for flexibility
-            {
-                var entity = TopFileEntity.FromDto(repositoryId.Value, topFile, rank);
-                await _topFilesTableClient.AddEntityAsync(entity);
-                rank++;
-            }
-
-            _logger.LogInformation("Saved {Count} top files for repository {RepositoryId}.", rank - 1, repositoryId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error saving top files for repository {RepositoryId}: {ErrorMessage}", repositoryId, ex.Message);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Retrieves the top files for a repository from Azure Table Storage.
-    /// </summary>
-    public async Task<IEnumerable<TopFileDto>> GetTopFilesAsync(RepositoryId repositoryId, int count = 5)
-    {
-        await EnsureTablesExistAsync();
-        _logger.LogInformation("Getting top {Count} files for repository {RepositoryId} from Table Storage.", count, repositoryId);
-
-        var topFiles = new List<TopFileDto>();
-        var partitionKey = repositoryId.ToString();
-
-        try
-        {
-            await foreach (var entity in _topFilesTableClient.QueryAsync<TopFileEntity>(e => e.PartitionKey == partitionKey))
-            {
-                topFiles.Add(entity.ToDto());
-            }
-
-            var result = topFiles
-                .OrderByDescending(f => f.LineCount)
-                .Take(count)
-                .ToList();
-
-            _logger.LogInformation("Retrieved {Count} top files for repository {RepositoryId}.", result.Count, repositoryId);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting top files for repository {RepositoryId}: {ErrorMessage}", repositoryId, ex.Message);
-            return Enumerable.Empty<TopFileDto>();
-        }
-    }
-
-    /// <summary>
-    /// Deletes all top files for a repository from Azure Table Storage.
-    /// </summary>
-    public async Task DeleteTopFilesForRepositoryAsync(RepositoryId repositoryId)
-    {
-        await EnsureTablesExistAsync();
-        _logger.LogInformation("Deleting top files for repository {RepositoryId} from Table Storage.", repositoryId);
-
-        var partitionKey = repositoryId.ToString();
-        var entitiesToDelete = new List<TopFileEntity>();
-
-        try
-        {
-            await foreach (var entity in _topFilesTableClient.QueryAsync<TopFileEntity>(e => e.PartitionKey == partitionKey))
-            {
-                entitiesToDelete.Add(entity);
-            }
-
-            var deleteTasks = entitiesToDelete.Select(entity =>
-                _topFilesTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, ETag.All));
-            await Task.WhenAll(deleteTasks);
-
-            _logger.LogInformation("Deleted {Count} top file entries for repository {RepositoryId}.", entitiesToDelete.Count, repositoryId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting top files for repository {RepositoryId}: {ErrorMessage}", repositoryId, ex.Message);
-            // Don't throw - this is a cleanup operation
-        }
-    }
 }

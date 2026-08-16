@@ -15,7 +15,7 @@ namespace PoRepoLineTracker.Client.Services;
 /// that builds.</para>
 ///
 /// <para>The practical effect is that the type argument is now inferred from the metadata rather
-/// than written by hand: <c>GetAppJsonAsync(url, AppJsonSerializerContext.Default.ListTopFileDto)</c>.
+/// than written by hand: <c>GetAppJsonAsync(url, AppJsonSerializerContext.Default.UserPreferences)</c>.
 /// A type missing from the context has no property to pass, so it fails at compile time instead
 /// of at runtime in the browser.</para>
 /// </summary>
@@ -35,9 +35,4 @@ internal static class AppHttpJsonExtensions
     public static Task<HttpResponseMessage> PutAppJsonAsync<T>(
         this HttpClient client, string requestUri, T value, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken = default)
         => client.PutAsJsonAsync(requestUri, value, typeInfo, cancellationToken);
-
-    /// <summary>POST a body serialized with source-generated metadata.</summary>
-    public static Task<HttpResponseMessage> PostAppJsonAsync<T>(
-        this HttpClient client, string requestUri, T value, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken = default)
-        => client.PostAsJsonAsync(requestUri, value, typeInfo, cancellationToken);
 }

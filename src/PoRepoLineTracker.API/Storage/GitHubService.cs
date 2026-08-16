@@ -220,52 +220,6 @@ public class GitHubService : IGitHubService
         return lineCounts;
     }
 
-    /// <summary>
-    /// Gets top files by line count from a local repository at its full path.
-    /// Used for locally uploaded repositories.
-    /// </summary>
-    public async Task<IEnumerable<TopFileDto>> GetTopFilesByLineCountFromFullPathAsync(string fullPath, IEnumerable<string> fileExtensionsToCount, int count = 5)
-    {
-        _logger.LogInformation("Getting top {Count} files by line count for local repository at {FullPath}", count, fullPath);
-
-        if (!Repository.IsValid(fullPath))
-        {
-            _logger.LogError("Local repository not found or invalid at {FullPath}. Cannot get top files.", fullPath);
-            return Enumerable.Empty<TopFileDto>();
-        }
-
-        var fileLineCounts = new List<(string FileName, int LineCount)>();
-
-        try
-        {
-            using (var repo = _gitClient.OpenRepositoryFromPath(fullPath))
-            {
-                var headCommit = repo.Head.Tip;
-                if (headCommit == null || headCommit.Tree == null)
-                {
-                    _logger.LogWarning("Local repository at {FullPath} has no HEAD commit or tree.", fullPath);
-                    return Enumerable.Empty<TopFileDto>();
-                }
-
-                await CollectFileLineCountsAsync(headCommit.Tree, fileExtensionsToCount, "", fileLineCounts);
-            }
-
-            var topFiles = fileLineCounts
-                .OrderByDescending(f => f.LineCount)
-                .Take(count)
-                .Select(f => new TopFileDto { FileName = f.FileName, LineCount = f.LineCount })
-                .ToList();
-
-            _logger.LogInformation("Found top {Count} files for local repository at {FullPath}", topFiles.Count, fullPath);
-            return topFiles;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting top files for local repository at {FullPath}: {ErrorMessage}", fullPath, ex.Message);
-            return Enumerable.Empty<TopFileDto>();
-        }
-    }
-
     public Task DeleteLocalRepositoryAsync(string localPath)
     {
         var fullLocalPath = Path.Combine(_localReposPath, localPath);
@@ -413,8 +367,7 @@ public class GitHubService : IGitHubService
 
     /// <summary>
     /// Counts a single blob's lines with the strategy registered for its extension, falling back
-    /// to the "*" strategy for anything without a dedicated one. Shared by the per-commit line
-    /// count and the top-files walk so both report the same number for the same file.
+    /// to the "*" strategy for anything without a dedicated one.
     /// </summary>
     private async Task<int> CountBlobLinesAsync(Blob blob, string fileExtension)
     {
@@ -506,96 +459,6 @@ public class GitHubService : IGitHubService
             _logger.LogInformation("Found {CommitCount} commit stats for repository at {LocalPath}", commitStatsList.Count, fullLocalPath);
             return commitStatsList.AsEnumerable();
         });
-    }
-
-    public async Task<IEnumerable<TopFileDto>> GetTopFilesByLineCountAsync(string localPath, IEnumerable<string> fileExtensionsToCount, int count = 5)
-    {
-        var fullLocalPath = Path.Combine(_localReposPath, localPath);
-        _logger.LogInformation("Getting top {Count} files by line count for repository at {LocalPath}", count, fullLocalPath);
-
-        if (!Repository.IsValid(fullLocalPath))
-        {
-            _logger.LogError("Local repository not found or invalid at {LocalPath}. Cannot get top files.", fullLocalPath);
-            return Enumerable.Empty<TopFileDto>();
-        }
-
-        var fileLineCounts = new List<(string FileName, int LineCount)>();
-
-        try
-        {
-            // #2 fix: use _gitClient abstraction instead of direct Repository instantiation (DIP)
-            using (var repo = _gitClient.OpenRepository(fullLocalPath))
-            {
-                var headCommit = repo.Head.Tip;
-                if (headCommit == null || headCommit.Tree == null)
-                {
-                    _logger.LogWarning("Repository at {LocalPath} has no HEAD commit or tree.", fullLocalPath);
-                    return Enumerable.Empty<TopFileDto>();
-                }
-
-                await CollectFileLineCountsAsync(headCommit.Tree, fileExtensionsToCount, "", fileLineCounts);
-            }
-
-            var topFiles = fileLineCounts
-                .OrderByDescending(f => f.LineCount)
-                .Take(count)
-                .Select(f => new TopFileDto { FileName = f.FileName, LineCount = f.LineCount })
-                .ToList();
-
-            _logger.LogInformation("Found top {Count} files for {LocalPath}", topFiles.Count, fullLocalPath);
-            return topFiles;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting top files for {LocalPath}: {ErrorMessage}", fullLocalPath, ex.Message);
-            return Enumerable.Empty<TopFileDto>();
-        }
-    }
-
-    private async Task CollectFileLineCountsAsync(Tree tree, IEnumerable<string> fileExtensionsToCount, string currentPath, List<(string FileName, int LineCount)> fileLineCounts)
-    {
-        foreach (var entry in tree)
-        {
-            var entryPath = string.IsNullOrEmpty(currentPath) ? entry.Name : $"{currentPath}/{entry.Name}";
-
-            if (entry.TargetType == TreeEntryTargetType.Tree)
-            {
-                // Same entry-aware check as ProcessTreeEntry — the "top files" list must exclude
-                // exactly what the line counts exclude, or the largest files in a repository would
-                // all be somebody else's.
-                var subTree = entry.Target as Tree;
-
-                if (subTree is null
-                        ? _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath)
-                        : _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath, subTree.Select(e => e.Name)))
-                {
-                    continue;
-                }
-
-                if (subTree is not null)
-                {
-                    await CollectFileLineCountsAsync(subTree, fileExtensionsToCount, entryPath, fileLineCounts);
-                }
-            }
-            else if (entry.TargetType == TreeEntryTargetType.Blob)
-            {
-                if (_fileIgnoreFilter.ShouldIgnoreFile(entry.Name, entryPath))
-                {
-                    continue;
-                }
-
-                var fileExtension = Path.GetExtension(entry.Name.ToLowerInvariant());
-                if (fileExtensionsToCount.Contains(fileExtension))
-                {
-                    var blob = entry.Target as Blob;
-                    if (blob != null)
-                    {
-                        var lineCount = await CountBlobLinesAsync(blob, fileExtension);
-                        fileLineCounts.Add((entry.Name, lineCount));
-                    }
-                }
-            }
-        }
     }
 
     public async Task CheckConnectionAsync()

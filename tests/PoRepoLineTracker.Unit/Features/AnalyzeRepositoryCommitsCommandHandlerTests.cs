@@ -57,8 +57,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
             .Returns("cloned-path");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
             .Returns(Enumerable.Empty<CommitStatsDto>());
-        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
-            .Returns(Enumerable.Empty<TopFileDto>());
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 
@@ -85,8 +83,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
             .Returns("pulled");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
             .Returns(Enumerable.Empty<CommitStatsDto>());
-        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
-            .Returns(Enumerable.Empty<TopFileDto>());
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 
@@ -113,8 +109,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
             .Returns(Enumerable.Empty<CommitStatsDto>());
-        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
-            .Returns(Enumerable.Empty<TopFileDto>());
 
         await _sut.Handle(
             new AnalyzeRepositoryCommitsCommand(repoId, ClearExistingData: true),
@@ -150,8 +144,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _dataService.CommitExistsAsync(repoId, "abc123").Returns(false);
         _gitHubService.CountLinesInCommitAsync(Arg.Any<string>(), "abc123", Arg.Any<IEnumerable<string>>())
             .Returns(lineCounts);
-        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
-            .Returns(Enumerable.Empty<TopFileDto>());
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 
@@ -185,8 +177,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(commitStats);
         _dataService.CommitExistsAsync(repoId, "existing-sha").Returns(true); // Already processed
-        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
-            .Returns(Enumerable.Empty<TopFileDto>());
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 
@@ -224,8 +214,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
             .ThrowsAsync(new Exception("boom"));
         _gitHubService.CountLinesInCommitAsync(Arg.Any<string>(), "good-sha", Arg.Any<IEnumerable<string>>())
             .Returns(new Dictionary<string, int> { { ".cs", 10 } });
-        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
-            .Returns(Enumerable.Empty<TopFileDto>());
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 
@@ -261,8 +249,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
             .Returns(Enumerable.Empty<CommitStatsDto>());
-        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
-            .Returns(Enumerable.Empty<TopFileDto>());
         _prefsService.GetFileExtensionsAsync(userId).Returns(new List<string> { ".cs", ".ts" });
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
@@ -304,8 +290,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
             .Returns(Enumerable.Empty<CommitStatsDto>());
-        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
-            .Returns(Enumerable.Empty<TopFileDto>());
         _prefsService.GetFileExtensionsAsync(userId).Returns(new List<string>());
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
@@ -314,32 +298,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         await _gitHubService.DidNotReceive().PullRepositoryAsync(Arg.Any<string>(), Arg.Is<string?>(t => t != null && t.StartsWith("EwBY")));
         // Must use the server-configured PAT instead
         await _gitHubService.Received(1).PullRepositoryAsync("/path", "ghp_server_side_pat");
-    }
-
-    [Fact]
-    public async Task Handle_TopFilesCalculationFails_DoesNotThrow()
-    {
-        var repoId = RepositoryId.New();
-        var repo = new GitHubRepository
-        {
-            Id = repoId,
-            Owner = "o",
-            Name = "n",
-            CloneUrl = "url",
-            LocalPath = "/path"
-        };
-
-        _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
-        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
-        _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
-        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
-            .Returns(Enumerable.Empty<CommitStatsDto>());
-        _gitHubService.GetTopFilesByLineCountAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<int>())
-            .ThrowsAsync(new InvalidOperationException("top files error"));
-
-        // Should NOT throw — top files errors are caught
-        var act = () => _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
-        await act.Should().NotThrowAsync();
     }
 
     [Fact]

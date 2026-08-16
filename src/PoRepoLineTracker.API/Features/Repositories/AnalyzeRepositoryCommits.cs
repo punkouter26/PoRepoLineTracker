@@ -358,31 +358,9 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                 }
             }
 
-            // ── Step 4: Calculate top files ───────────────────────────────────────────
+            // ── Step 4: Save results ──────────────────────────────────────────────────
             _progressService.ReportStep(request.RepositoryId, 4, "Saving",
-                $"Step 4/4 — Calculating top files for {repository.Owner}/{repository.Name}");
-            _logger.LogInformation("[Step 4/4] Calculating top files for repository ID: {RepositoryId}", request.RepositoryId);
-            // After processing all commits, calculate and store top files
-            _logger.LogInformation("Calculating top files for repository ID: {RepositoryId}", request.RepositoryId);
-            try
-            {
-                IEnumerable<TopFileDto> topFiles;
-                if (isLocalUpload)
-                {
-                    topFiles = await _gitHubService.GetTopFilesByLineCountFromFullPathAsync(fullRepoPath, fileExtensionsToCount, 100);
-                }
-                else
-                {
-                    topFiles = await _gitHubService.GetTopFilesByLineCountAsync(localPath, fileExtensionsToCount, 100);
-                }
-                await _repositoryDataService.SaveTopFilesAsync(request.RepositoryId, topFiles);
-                _logger.LogInformation("Saved top files for repository ID: {RepositoryId}", request.RepositoryId);
-            }
-            catch (Exception topFilesEx)
-            {
-                _logger.LogError(topFilesEx, "Error calculating/saving top files for repository {RepositoryId}", request.RepositoryId);
-                // Don't fail the whole analysis if top files calculation fails
-            }
+                $"Step 4/4 — Saving results for {repository.Owner}/{repository.Name}");
 
             // Update LastAnalyzedCommitDate to the latest commit date so the UI shows "Analyzed"
             if (commitStatsList.Any())

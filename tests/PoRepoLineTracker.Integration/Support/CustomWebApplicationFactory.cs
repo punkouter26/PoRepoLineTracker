@@ -242,14 +242,6 @@ namespace PoRepoLineTracker.Integration
                     .Returns(Task.FromResult<GitHubRepository?>(null));
                 mockRepoDataService.GetCommitLineCountsByRepositoryIdAsync(Arg.Any<RepositoryId>())
                     .Returns(Task.FromResult(Enumerable.Empty<CommitLineCount>()));
-                mockRepoDataService.GetTopFilesAsync(Arg.Any<RepositoryId>(), Arg.Any<int>())
-                    .Returns(Task.FromResult(Enumerable.Empty<TopFileDto>()));
-                mockRepoDataService.SaveTopFilesAsync(Arg.Any<RepositoryId>(), Arg.Any<IEnumerable<TopFileDto>>())
-                    .Returns(Task.CompletedTask);
-                mockRepoDataService.DeleteTopFilesForRepositoryAsync(Arg.Any<RepositoryId>())
-                    .Returns(Task.CompletedTask);
-                mockRepoDataService.GetConfiguredFileExtensionsAsync()
-                    .Returns(Task.FromResult<IEnumerable<string>>(new[] { ".cs", ".razor", ".js", ".ts", ".py", ".html", ".css" }));
                 mockRepoDataService.CheckConnectionAsync()
                     .Returns(Task.CompletedTask);
 

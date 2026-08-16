@@ -33,18 +33,11 @@ public interface IGitHubService
     Task<Dictionary<string, int>> CountLinesInCommitFromFullPathAsync(string fullPath, string commitSha, IEnumerable<string> fileExtensionsToCount);
 
     /// <summary>
-    /// Gets top files by line count from a local repository at its full path.
-    /// Used for locally uploaded repositories.
-    /// </summary>
-    Task<IEnumerable<TopFileDto>> GetTopFilesByLineCountFromFullPathAsync(string fullPath, IEnumerable<string> fileExtensionsToCount, int count = 5);
-
-    /// <summary>
     /// Deletes the local repository directory so it can be re-cloned from scratch.
     /// </summary>
     Task DeleteLocalRepositoryAsync(string localPath);
     Task<Dictionary<string, int>> CountLinesInCommitAsync(string localPath, string commitSha, IEnumerable<string> fileExtensionsToCount);
     Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(string localPath, DateTime? sinceDate = null);
-    Task<IEnumerable<TopFileDto>> GetTopFilesByLineCountAsync(string localPath, IEnumerable<string> fileExtensionsToCount, int count = 5);
     Task CheckConnectionAsync();
     Task<IEnumerable<GitHubUserRepositoryDto>> GetUserRepositoriesAsync(string accessToken);
 }

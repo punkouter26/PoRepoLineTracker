@@ -51,8 +51,6 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(List<RepositoryLineCountHistoryDto>))]
 [JsonSerializable(typeof(FileExtensionPercentageDto))]
 [JsonSerializable(typeof(List<FileExtensionPercentageDto>))]
-[JsonSerializable(typeof(TopFileDto))]
-[JsonSerializable(typeof(List<TopFileDto>))]
 [JsonSerializable(typeof(CommitStatsDto))]
 [JsonSerializable(typeof(List<CommitStatsDto>))]
 

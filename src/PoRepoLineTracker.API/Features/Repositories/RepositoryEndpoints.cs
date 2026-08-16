@@ -216,34 +216,6 @@ internal static class RepositoryEndpoints
         })
         .WithName("AddMultipleRepositories");
 
-        // #6 fix: added RequireAuthorization() - was unprotected
-        repos.MapPost("/{repositoryId}/analyses", async (RepositoryId repositoryId, [FromQuery] bool force, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
-        {
-            if (!ctx.User.TryGetUserId(out var userId))
-                return Results.Unauthorized();
-
-            var (_, error) = await AuthorizeOwnerAsync(repoDataService, repositoryId, userId, "trigger analysis for");
-            if (error != null) return error;
-
-            Log.Information("Background analysis queued for repository {RepositoryId} (force={Force})", repositoryId, force);
-            _ = Task.Run(async () =>
-            {
-                using var scope = scopeFactory.CreateScope();
-                var bgMediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-                try
-                {
-                    await bgMediator.Send(new AnalyzeRepositoryCommitsCommand(repositoryId, ForceReanalysis: force));
-                    Log.Information("Background analysis completed for repository {RepositoryId}", repositoryId);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Background analysis failed for repository {RepositoryId}", repositoryId);
-                }
-            });
-            return Results.Accepted();
-        })
-        .WithName("CreateRepositoryAnalysis");
-
         repos.MapPost("/{repositoryId}/reanalyze", async (RepositoryId repositoryId, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
@@ -293,28 +265,6 @@ internal static class RepositoryEndpoints
             }
         })
         .WithName("GetFileExtensionPercentages");
-
-        // #6 fix: added RequireAuthorization() - was unprotected
-        repos.MapGet("/{repositoryId}/top-files", async (RepositoryId repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService, int count = 5) =>
-        {
-            if (!ctx.User.TryGetUserId(out var userId))
-                return Results.Unauthorized();
-
-            var (_, error) = await AuthorizeOwnerAsync(repoDataService, repositoryId, userId, "read top-files for");
-            if (error != null) return error;
-
-            try
-            {
-                var topFiles = await mediator.Send(new GetTopFilesQuery(repositoryId, count));
-                return Results.Ok(topFiles);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error retrieving top files for repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error retrieving top files: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
-        })
-        .WithName("GetTopFiles");
 
         // Analysis progress endpoint — returns live step/commit progress for an active analysis job.
         // Ownership check: only the owning user may read progress for their repo.

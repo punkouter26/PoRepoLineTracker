@@ -80,12 +80,4 @@ public sealed class HealthAndAuthApiTests
         response.Headers.Location?.ToString().Should().Contain("/login");
     }
 
-    [SkippableFact]
-    public async Task FeatureFlags_Anonymous_Returns_200()
-    {
-        // MainLayout reads this before any session exists, to drive login-button visibility.
-        var response = await E2EApiClient.GetAsync("/api/feature-flags");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
 }

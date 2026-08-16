@@ -58,7 +58,6 @@ internal static class SeedEndpoints
             if (existing is not null)
             {
                 await repoDataService.DeleteCommitLineCountsForRepositoryAsync(existing.Id);
-                await repoDataService.DeleteTopFilesForRepositoryAsync(existing.Id);
                 await repoDataService.DeleteRepositoryAsync(existing.Id);
             }
 
@@ -106,13 +105,6 @@ internal static class SeedEndpoints
 
                 lastCommitDate = commitDate;
             }
-
-            await repoDataService.SaveTopFilesAsync(repository.Id,
-            [
-                new TopFileDto { FileName = "src/Program.cs", LineCount = 420 },
-                new TopFileDto { FileName = "src/Startup.cs", LineCount = 260 },
-                new TopFileDto { FileName = "src/App.razor", LineCount = 180 }
-            ]);
 
             // Without this the grid shows "Pending" and the page keeps a poll alive against a job
             // that does not exist.

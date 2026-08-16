@@ -32,8 +32,6 @@ public class AuthorizationFallbackTests
     [InlineData("/api/repositories")]
     [InlineData("/api/repositories/allcharts/30")]
     [InlineData("/api/settings/user-preferences")]
-    [InlineData("/api/settings/file-extensions")]
-    [InlineData("/api/settings/chart/max-lines")]
     [InlineData("/api/github/user-repositories")]
     [InlineData("/api/diagnostics")]
     public async Task ProtectedEndpoint_Anonymous_IsDenied(string route)
@@ -73,15 +71,6 @@ public class AuthorizationFallbackTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("false");
-    }
-
-    [Fact]
-    public async Task FeatureFlags_Anonymous_Returns_200()
-    {
-        // MainLayout reads this before a session exists, to drive login-button visibility.
-        var response = await _anonymous.GetAsync("/api/feature-flags");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

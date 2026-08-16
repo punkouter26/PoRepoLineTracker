@@ -21,9 +21,6 @@ public sealed class AuthorizationApiTests
     [InlineData("/api/repositories")]
     [InlineData("/api/repositories/allcharts/30")]
     [InlineData("/api/settings/user-preferences")]
-    [InlineData("/api/settings/user-extensions")]
-    [InlineData("/api/settings/file-extensions")]
-    [InlineData("/api/settings/chart/max-lines")]
     [InlineData("/api/github/user-repositories")]
     [InlineData("/api/diagnostics")]
     public async Task ProtectedGet_Anonymous_IsRefused(string route)
@@ -62,7 +59,7 @@ public sealed class AuthorizationApiTests
     {
         // A refusal, not a 404: authorization must run before the endpoint reveals whether a
         // given repository id exists.
-        var response = await E2EApiClient.GetAsync($"/api/repositories/{Guid.NewGuid()}/top-files");
+        var response = await E2EApiClient.GetAsync($"/api/repositories/{Guid.NewGuid()}/linehistory/30");
 
         ShouldBeRefused(response);
         response.StatusCode.Should().NotBe(HttpStatusCode.NotFound);

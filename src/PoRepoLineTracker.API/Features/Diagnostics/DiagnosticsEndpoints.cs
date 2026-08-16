@@ -81,7 +81,6 @@ internal static class DiagnosticsEndpoints
             ConfigKeys.AzureTableStorage.ServiceUrl,
             ConfigKeys.AzureTableStorage.RepositoryTableName,
             ConfigKeys.AzureTableStorage.CommitLineCountTableName,
-            ConfigKeys.AzureTableStorage.TopFilesTableName,
             ConfigKeys.AzureTableStorage.UserTableName,
             ConfigKeys.AzureTableStorage.UserPreferencesTableName,
             ConfigKeys.Telemetry.OtlpEndpoint,
@@ -190,46 +189,6 @@ internal static class DiagnosticsEndpoints
         });
     }
 
-    internal static void MapDevOnlyEndpoints(this IEndpointRouteBuilder endpoints)
-    {
-        var dev = endpoints.MapGroup("").WithTags("Dev");
-
-        // The former /dev-login/{userId} cookie-minting route is gone: Rule 3.3 makes
-        // FakeAuthHandler the single dev/test auth path. Send X-Fake-User (and optionally
-        // X-Fake-Roles) on the request instead of signing in first.
-
-        dev.MapPost("/api/log/client", ([FromBody] ClientLogEntry logEntry, ILogger<Program> logger) =>
-        {
-            var message = $"[CLIENT] {logEntry.Message}";
-            switch (logEntry.Level.ToUpperInvariant())
-            {
-                case "ERROR":
-                case "FATAL":
-                    logger.LogError(logEntry.Exception, message, logEntry.Properties); break;
-                case "WARNING":
-                case "WARN":
-                    logger.LogWarning(message, logEntry.Properties); break;
-                case "INFO":
-                case "INFORMATION":
-                    logger.LogInformation(message, logEntry.Properties); break;
-                case "DEBUG":
-                    logger.LogDebug(message, logEntry.Properties); break;
-                default:
-                    logger.LogInformation(message, logEntry.Properties); break;
-            }
-            return Results.Ok(new { Status = "Logged" });
-        })
-        .WithName("LogClientEvent")
-        .WithSummary("Accepts client-side log entries (Development only)");
-    }
 }
-
-// Records for dev/test endpoints — co-located with their mapping
-public record ClientLogEntry(
-    string Level,
-    string Message,
-    string? Exception = null,
-    Dictionary<string, object>? Properties = null
-);
 
 

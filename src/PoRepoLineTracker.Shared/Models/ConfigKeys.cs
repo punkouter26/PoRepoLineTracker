@@ -23,7 +23,6 @@ public static class ConfigKeys
         public const string ServiceUrl = "AzureTableStorage:ServiceUrl";
         public const string RepositoryTableName = "AzureTableStorage:RepositoryTableName";
         public const string CommitLineCountTableName = "AzureTableStorage:CommitLineCountTableName";
-        public const string TopFilesTableName = "AzureTableStorage:TopFilesTableName";
         public const string UserTableName = "AzureTableStorage:UserTableName";
         public const string UserPreferencesTableName = "AzureTableStorage:UserPreferencesTableName";
 
@@ -63,20 +62,6 @@ public static class ConfigKeys
         public const string AppInsightsInstrumentationKeySection = "ApplicationInsights:InstrumentationKey";
         public const string OtlpEndpoint = "OpenTelemetry:OtlpEndpoint";
         public const string EnableConsoleExporters = "EnableConsoleExporters";
-    }
-
-    /// <summary>Runtime strategy selectors (GoF Strategy).</summary>
-    public static class FeatureFlags
-    {
-        public const string EnableGitHubApi = "FeatureFlags:EnableGitHubApi";
-        public const string EnableBackgroundAnalysis = "FeatureFlags:EnableBackgroundAnalysis";
-        public const string EnableOpenTelemetryExport = "FeatureFlags:EnableOpenTelemetryExport";
-    }
-
-    /// <summary>Client-facing chart tuning.</summary>
-    public static class ChartSettings
-    {
-        public const string MaxLinesOfCode = "ChartSettings:MaxLinesOfCode";
     }
 
     /// <summary>Cookie and transport hardening.</summary>
