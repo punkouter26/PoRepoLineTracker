@@ -15,17 +15,18 @@ namespace PoRepoLineTracker.E2EAPI;
 /// </summary>
 public sealed class StaticAssetsApiTests
 {
+    // One row per serving path: the SPA fallback shell, a wwwroot static, and a Blazor
+    // framework file — each arrives through a different middleware branch.
     [SkippableTheory]
+    [InlineData("/")]
     [InlineData("/css/app.css")]
     [InlineData("/_framework/blazor.webassembly.js")]
-    [InlineData("/favicon.png")]
-    [InlineData("/manifest.json")]
     public async Task StaticAsset_Anonymous_IsServed(string asset)
     {
         var response = await E2EApiClient.GetAsync(asset);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
-            "an anonymous browser must be able to load the app shell's assets");
+            "an anonymous browser must be able to load the app shell and its assets");
     }
 
     [SkippableFact]
@@ -36,72 +37,54 @@ public sealed class StaticAssetsApiTests
         response.Content.Headers.ContentType?.MediaType.Should().Be("text/css");
     }
 
+    /// <summary>
+    /// One representative class per extracted component. A .razor.css that fails to compile into
+    /// the bundle takes its component's styling with it and produces no build error, so the
+    /// bundle's contents are the only cheap proof that the extraction is wired up.
+    /// </summary>
+    private static readonly (string CssClass, string Source)[] ExtractedComponentClasses =
+    [
+        ("login-cta-btn", "Login.razor.css"),
+        ("nav-section-label", "NavMenu.razor.css"),
+        ("settings-title", "Settings.razor.css"),
+        ("login-display__avatar", "LoginDisplay.razor.css"),
+        ("add-repo-title", "AddRepository.razor.css"),
+        ("brand-wordmark", "MainLayout.razor.css"),
+        ("ext-code", "ExtensionsCounted.razor.css"),
+        ("ghsel-list", "GitHubRepositorySelector.razor.css"),
+        // MobileRepoCard.razor(.css) was deleted: no page ever referenced the component, and the
+        // `.mobile-only` / `.desktop-only` classes written to switch it in were unused too.
+        // Radzen's own responsive DataGrid covers the case it was built for.
+        ("xc-env-card", "ExternalConnections.razor.css"),
+        ("ul-dropzone", "UploadRepository.razor.css"),
+        ("arc-legend__swatch", "AllReposComparisonChart.razor.css"),
+        ("chart-card__title", "ChartCard.razor.css"),
+        ("page-hero__actions", "PageHero.razor.css"),
+        ("cc-bar", "ContributorChart.razor.css"),
+        ("rd-ext-bar", "RepositoryDetail.razor.css"),
+        ("rp-lines-value", "Repositories.razor.css"),
+        ("rp-stat-icon", "PortfolioStatTiles.razor.css"),
+        ("status-cell", "AnalysisStatusCell.razor.css"),
+    ];
+
     [SkippableFact]
-    public async Task ScopedComponentStylesheet_IsServed()
+    public async Task ScopedComponentStylesheet_IsServed_Scoped_AndContainsEveryExtractedRule()
     {
         // The bundle Blazor generates from the .razor.css files. If CSS isolation is
         // not wired up this 404s and every extracted component style silently disappears.
         var response = await E2EApiClient.GetAsync("/PoRepoLineTracker.Client.styles.css");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
 
-    /// <summary>
-    /// One representative class per extracted component. A .razor.css that fails to compile into
-    /// the bundle takes its component's styling with it and produces no build error, so the
-    /// bundle's contents are the only cheap proof that the extraction is wired up.
-    /// </summary>
-    public static TheoryData<string, string> ExtractedComponentClasses() => new()
-    {
-        { "login-cta-btn", "Login.razor.css" },
-        { "nav-section-label", "NavMenu.razor.css" },
-        { "settings-title", "Settings.razor.css" },
-        { "login-display__avatar", "LoginDisplay.razor.css" },
-        { "add-repo-title", "AddRepository.razor.css" },
-        { "brand-wordmark", "MainLayout.razor.css" },
-        { "ext-code", "ExtensionsCounted.razor.css" },
-        { "ghsel-list", "GitHubRepositorySelector.razor.css" },
-        // MobileRepoCard.razor(.css) was deleted: no page ever referenced the component, and the
-        // `.mobile-only` / `.desktop-only` classes written to switch it in were unused too.
-        // Radzen's own responsive DataGrid covers the case it was built for.
-        { "xc-env-card", "ExternalConnections.razor.css" },
-        { "ul-dropzone", "UploadRepository.razor.css" },
-        { "arc-legend__swatch", "AllReposComparisonChart.razor.css" },
-        { "chart-card__title", "ChartCard.razor.css" },
-        { "page-hero__actions", "PageHero.razor.css" },
-        { "cc-bar", "ContributorChart.razor.css" },
-        { "rd-ext-bar", "RepositoryDetail.razor.css" },
-        { "rp-lines-value", "Repositories.razor.css" },
-        { "rp-stat-icon", "PortfolioStatTiles.razor.css" },
-        { "status-cell", "AnalysisStatusCell.razor.css" },
-    };
-
-    [SkippableTheory]
-    [MemberData(nameof(ExtractedComponentClasses))]
-    public async Task ScopedComponentStylesheet_ContainsTheExtractedRules(string cssClass, string source)
-    {
-        var response = await E2EApiClient.GetAsync("/PoRepoLineTracker.Client.styles.css");
         var css = await response.Content.ReadAsStringAsync();
 
-        css.Should().Contain(cssClass, $"{source} must be part of the scoped bundle");
-    }
-
-    [SkippableFact]
-    public async Task ScopedComponentStylesheet_CarriesIsolationAttributes()
-    {
         // Every rule in the bundle should be scoped (b-xxxxxxxxxx). A bundle with no scope
         // attributes would mean isolation silently degraded to global CSS.
-        var response = await E2EApiClient.GetAsync("/PoRepoLineTracker.Client.styles.css");
-        var css = await response.Content.ReadAsStringAsync();
-
         css.Should().MatchRegex(@"\[b-[a-z0-9]+\]");
-    }
 
-    [SkippableFact]
-    public async Task AppShell_IsServedAnonymously()
-    {
-        var response = await E2EApiClient.GetAsync("/");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        foreach (var (cssClass, source) in ExtractedComponentClasses)
+        {
+            css.Should().Contain(cssClass, $"{source} must be part of the scoped bundle");
+        }
     }
 }

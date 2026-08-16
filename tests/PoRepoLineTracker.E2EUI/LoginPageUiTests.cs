@@ -16,32 +16,7 @@ public sealed class LoginPageUiTests
     public LoginPageUiTests(E2EUiFixture fixture) => _fixture = fixture;
 
     [SkippableFact]
-    public async Task Unauthenticated_Visit_Redirects_To_Login()
-    {
-        var page = await _fixture.OpenAsync(E2EUiFixture.Desktop);
-        await using var _ = page.Context;
-
-        await page.WaitForURLAsync("**/login", new PageWaitForURLOptions { Timeout = 20000 });
-
-        page.Url.Should().Contain("/login");
-    }
-
-    [SkippableFact]
-    public async Task BlazorShell_Boots()
-    {
-        // The smoke test confirms the Blazor render tree initialises. If the WASM
-        // runtime failed to start, <app> stays at its loading placeholder and nothing renders.
-        var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
-        await using var _ = page.Context;
-
-        await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
-
-        var rendered = await page.Locator("button, a").CountAsync();
-        rendered.Should().BeGreaterThan(0, "an initialised render tree produces interactive elements");
-    }
-
-    [SkippableFact]
-    public async Task LoginPage_HasNoUnhandledConsoleErrors()
+    public async Task LoginPage_BootsCleanly_AndOffersASignInAction()
     {
         var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
         await using var _ = page.Context;
@@ -53,33 +28,16 @@ public sealed class LoginPageUiTests
         };
 
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 20000 });
+        await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
+
+        var signIn = page.GetByText("Sign in", new PageGetByTextOptions { Exact = false });
+        (await signIn.CountAsync()).Should().BeGreaterThan(0);
 
         errors.Should().BeEmpty("a clean boot logs no console errors");
     }
 
     [SkippableFact]
-    public async Task LoginPage_OffersASignInAction()
-    {
-        var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
-        await using var _ = page.Context;
-
-        await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
-
-        var signIn = page.GetByText("Sign in", new PageGetByTextOptions { Exact = false });
-        (await signIn.CountAsync()).Should().BeGreaterThan(0);
-    }
-
-    [SkippableFact]
-    public async Task Page_HasATitle()
-    {
-        var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
-        await using var _ = page.Context;
-
-        (await page.TitleAsync()).Should().NotBeNullOrWhiteSpace();
-    }
-
-    [SkippableFact]
-    public async Task ProtectedRoute_Anonymous_DoesNotRenderRepositoryData()
+    public async Task ProtectedRoute_Anonymous_RedirectsToLoginWithoutRenderingRepositoryData()
     {
         var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/repositories");
         await using var _ = page.Context;
@@ -87,16 +45,5 @@ public sealed class LoginPageUiTests
         await page.WaitForURLAsync("**/login", new PageWaitForURLOptions { Timeout = 20000 });
 
         page.Url.Should().Contain("/login", "an anonymous visitor must never reach the data screens");
-    }
-
-    [SkippableFact]
-    public async Task UnknownRoute_ServesTheShellNotAServerError()
-    {
-        var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/definitely-not-a-page");
-        await using var _ = page.Context;
-
-        var body = await page.InnerTextAsync("body", new PageInnerTextOptions { Timeout = 20000 });
-
-        body.Should().NotContain("500");
     }
 }

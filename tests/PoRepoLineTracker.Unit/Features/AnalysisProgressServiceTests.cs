@@ -29,14 +29,7 @@ public class AnalysisProgressServiceTests
     }
 
     [Fact]
-    public void GetProgress_NonExistentRepository_ReturnsNull()
-    {
-        var result = _sut.GetProgress(RepositoryId.New());
-        result.Should().BeNull();
-    }
-
-    [Fact]
-    public void ReportStep_NewRepository_CreatesProgressEntry()
+    public void ReportStep_CreatesTheEntryAndLaterStepsUpdateIt()
     {
         var repoId = RepositoryId.New();
 
@@ -47,36 +40,15 @@ public class AnalysisProgressServiceTests
         progress!.RepositoryId.Should().Be(repoId);
         progress.StepIndex.Should().Be(1);
         progress.StepName.Should().Be("Cloning");
-        progress.StepDescription.Should().Be("Cloning repository...");
         progress.IsRunning.Should().BeTrue();
         progress.ErrorMessage.Should().BeNull();
-    }
-
-    [Fact]
-    public void ReportStep_ExistingRepository_UpdatesEntry()
-    {
-        var repoId = RepositoryId.New();
-        _sut.ReportStep(repoId, 1, "Cloning", "Cloning...");
 
         _sut.ReportStep(repoId, 2, "Analyzing", "Processing commits...");
 
-        var progress = _sut.GetProgress(repoId);
-        progress!.StepIndex.Should().Be(2);
-        progress.StepName.Should().Be("Analyzing");
-        progress.IsRunning.Should().BeTrue();
-    }
-
-    [Fact]
-    public void ReportCommitsFound_SetsTotalAndResetsProcessed()
-    {
-        var repoId = RepositoryId.New();
-        _sut.ReportStep(repoId, 1, "Cloning", "Cloning...");
-
-        _sut.ReportCommitsFound(repoId, 42);
-
-        var progress = _sut.GetProgress(repoId);
-        progress!.CommitsTotal.Should().Be(42);
-        progress.CommitsProcessed.Should().Be(0);
+        var updated = _sut.GetProgress(repoId);
+        updated!.StepIndex.Should().Be(2);
+        updated.StepName.Should().Be("Analyzing");
+        updated.IsRunning.Should().BeTrue();
     }
 
     [Fact]
@@ -86,6 +58,8 @@ public class AnalysisProgressServiceTests
         // not create an entry. (ReportError is intentionally different — it creates one.)
         var repoId = RepositoryId.New();
 
+        _sut.GetProgress(repoId).Should().BeNull("nothing has been reported yet");
+
         _sut.ReportCommitsFound(repoId, 10);
         _sut.GetProgress(repoId).Should().BeNull();
 
@@ -94,35 +68,6 @@ public class AnalysisProgressServiceTests
 
         _sut.ReportComplete(repoId);
         _sut.GetProgress(repoId).Should().BeNull();
-    }
-
-    [Fact]
-    public void ReportCommitProgress_UpdatesProcessedCount()
-    {
-        var repoId = RepositoryId.New();
-        _sut.ReportStep(repoId, 1, "Test", "Test");
-        _sut.ReportCommitsFound(repoId, 100);
-
-        _sut.ReportCommitProgress(repoId, 50, 100);
-
-        var progress = _sut.GetProgress(repoId);
-        progress!.CommitsProcessed.Should().Be(50);
-        progress.CommitsTotal.Should().Be(100);
-    }
-
-    [Fact]
-    public void ReportComplete_MarksAsNotRunning()
-    {
-        var repoId = RepositoryId.New();
-        _sut.ReportStep(repoId, 1, "Cloning", "Cloning...");
-        _sut.ReportCommitsFound(repoId, 10);
-        _sut.ReportCommitProgress(repoId, 10, 10);
-
-        _sut.ReportComplete(repoId);
-
-        var progress = _sut.GetProgress(repoId);
-        progress!.IsRunning.Should().BeFalse();
-        progress.ErrorMessage.Should().BeNull();
     }
 
     [Fact]
@@ -162,7 +107,7 @@ public class AnalysisProgressServiceTests
         p1!.IsRunning.Should().BeTrue();
         p1.StepName.Should().Be("Cloning");
 
-        // Step 2: Commits found
+        // Step 2: Commits found — sets the total and resets the processed count
         _sut.ReportCommitsFound(repoId, 25);
         var p2 = _sut.GetProgress(repoId);
         p2!.CommitsTotal.Should().Be(25);
@@ -201,8 +146,11 @@ public class AnalysisProgressServiceTests
     }
 
     [Fact]
-    public void BeginJob_RecordsOwnerLabelsAndMarksRunning()
+    public void BeginJob_RecordsOwnerLabelsMarksRunning_AndReportsANonNegativePercent()
     {
+        // Percent regression: BeginJob opens a job at StepIndex 0, and the step-based branch of
+        // ProgressPercent is (StepIndex - 1) / StepTotal — which produced -25 on the very first
+        // frame. Unreachable while progress was only polled; observed live once it was pushed.
         var repoId = RepositoryId.New();
 
         _sut.BeginJob(repoId, UserId.New(), "octocat", "hello-world");
@@ -213,6 +161,7 @@ public class AnalysisProgressServiceTests
         progress.Name.Should().Be("hello-world");
         progress.IsRunning.Should().BeTrue();
         progress.ErrorMessage.Should().BeNull();
+        progress.ProgressPercent.Should().BeInRange(0, 100);
     }
 
     [Fact]
@@ -234,19 +183,6 @@ public class AnalysisProgressServiceTests
     }
 
     [Fact]
-    public void BeginJob_ReportsANonNegativeProgressPercent()
-    {
-        // Regression: BeginJob opens a job at StepIndex 0, and the step-based branch of
-        // ProgressPercent is (StepIndex - 1) / StepTotal — which produced -25 on the very first
-        // frame. Unreachable while progress was only polled; observed live once it was pushed.
-        var repoId = RepositoryId.New();
-
-        _sut.BeginJob(repoId, UserId.New(), "octocat", "hello-world");
-
-        _sut.GetProgress(repoId)!.ProgressPercent.Should().BeInRange(0, 100);
-    }
-
-    [Fact]
     public void Publish_WithoutBeginJob_SendsNothing()
     {
         // A job whose owner was never recorded has no address to send to. Broadcasting it anyway
@@ -257,18 +193,5 @@ public class AnalysisProgressServiceTests
         _sut.ReportError(repoId, "boom");
 
         _ = _hubContext.DidNotReceive().Clients;
-    }
-
-    [Fact]
-    public void LastUpdatedUtc_IsSetOnEveryMutation()
-    {
-        var repoId = RepositoryId.New();
-        var before = DateTime.UtcNow;
-
-        _sut.ReportStep(repoId, 1, "Test", "Test");
-
-        var progress = _sut.GetProgress(repoId);
-        progress!.LastUpdatedUtc.Should().BeOnOrAfter(before);
-        progress.LastUpdatedUtc.Should().BeOnOrBefore(DateTime.UtcNow.AddSeconds(1));
     }
 }

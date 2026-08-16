@@ -28,39 +28,7 @@ public class GetFileExtensionPercentagesQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_SingleCommit_CalculatesCorrectPercentages()
-    {
-        var repoId = RepositoryId.New();
-        var commits = new List<CommitLineCount>
-        {
-            new()
-            {
-                RepositoryId = repoId,
-                CommitSha = "abc",
-                CommitDate = DateTime.UtcNow,
-                TotalLines = 100,
-                LinesByFileType = new Dictionary<string, int>
-                {
-                    { ".cs", 75 },
-                    { ".js", 25 }
-                }
-            }
-        };
-
-        _dataService.GetCommitLineCountsByRepositoryIdAsync(repoId).Returns(commits);
-
-        var result = (await _sut.Handle(new GetFileExtensionPercentagesQuery(repoId), CancellationToken.None)).ToList();
-
-        result.Should().HaveCount(2);
-        result[0].FileExtension.Should().Be(".cs");
-        result[0].Percentage.Should().Be(75.0);
-        result[0].LineCount.Should().Be(75);
-        result[1].FileExtension.Should().Be(".js");
-        result[1].Percentage.Should().Be(25.0);
-    }
-
-    [Fact]
-    public async Task Handle_MultipleCommits_AggregatesCorrectly()
+    public async Task Handle_AggregatesAcrossCommits_RanksDescending_AndDropsZeroLineExtensions()
     {
         var repoId = RepositoryId.New();
         var commits = new List<CommitLineCount>
@@ -68,7 +36,7 @@ public class GetFileExtensionPercentagesQueryHandlerTests
             new()
             {
                 RepositoryId = repoId, CommitSha = "a1", CommitDate = DateTime.UtcNow,
-                LinesByFileType = new Dictionary<string, int> { { ".cs", 50 }, { ".js", 30 } }
+                LinesByFileType = new Dictionary<string, int> { { ".cs", 50 }, { ".js", 30 }, { ".txt", 0 } }
             },
             new()
             {
@@ -81,33 +49,13 @@ public class GetFileExtensionPercentagesQueryHandlerTests
 
         var result = (await _sut.Handle(new GetFileExtensionPercentagesQuery(repoId), CancellationToken.None)).ToList();
 
+        // .cs = 70/100 = 70%, .js = 30/100 = 30%, .txt dropped for having no lines
         result.Should().HaveCount(2);
-        // .cs = 70/100 = 70%, .js = 30/100 = 30%
-        result.First(r => r.FileExtension == ".cs").LineCount.Should().Be(70);
-        result.First(r => r.FileExtension == ".js").LineCount.Should().Be(30);
-        // Sorted descending by line count
-        result[0].FileExtension.Should().Be(".cs");
-    }
-
-    [Fact]
-    public async Task Handle_ZeroLineExtensions_AreExcluded()
-    {
-        var repoId = RepositoryId.New();
-        var commits = new List<CommitLineCount>
-        {
-            new()
-            {
-                RepositoryId = repoId, CommitSha = "x", CommitDate = DateTime.UtcNow,
-                LinesByFileType = new Dictionary<string, int> { { ".cs", 100 }, { ".txt", 0 } }
-            }
-        };
-
-        _dataService.GetCommitLineCountsByRepositoryIdAsync(repoId).Returns(commits);
-
-        var result = (await _sut.Handle(new GetFileExtensionPercentagesQuery(repoId), CancellationToken.None)).ToList();
-
-        result.Should().HaveCount(1);
-        result[0].FileExtension.Should().Be(".cs");
+        result[0].FileExtension.Should().Be(".cs", "sorted descending by line count");
+        result[0].LineCount.Should().Be(70);
+        result[0].Percentage.Should().Be(70.0);
+        result[1].FileExtension.Should().Be(".js");
+        result[1].Percentage.Should().Be(30.0);
     }
 }
 
@@ -123,11 +71,12 @@ public class AddMultipleRepositoriesCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_SkipsEmptyOwner()
+    public async Task Handle_SkipsEntriesWithAnEmptyOwnerOrName()
     {
         var repos = new List<BulkRepositoryDto>
         {
             new() { Owner = "", RepoName = "repo1", CloneUrl = "https://github.com/x/repo1.git" },
+            new() { Owner = "owner", RepoName = "", CloneUrl = "https://github.com/owner/x.git" },
             new() { Owner = "valid-owner", RepoName = "repo2", CloneUrl = "https://github.com/valid-owner/repo2.git" }
         };
         var userId = UserId.New();
@@ -139,19 +88,6 @@ public class AddMultipleRepositoriesCommandHandlerTests
 
         result.Should().HaveCount(1);
         result[0].Owner.Should().Be("valid-owner");
-    }
-
-    [Fact]
-    public async Task Handle_SkipsEmptyRepoName()
-    {
-        var repos = new List<BulkRepositoryDto>
-        {
-            new() { Owner = "owner", RepoName = "", CloneUrl = "https://github.com/owner/x.git" }
-        };
-
-        var result = (await _sut.Handle(new AddMultipleRepositoriesCommand(repos, UserId.New()), CancellationToken.None)).Added;
-
-        result.Should().BeEmpty();
     }
 
     [Fact]
@@ -220,30 +156,7 @@ public class GetAllRepositoriesLineCountHistoryQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_FiltersCommitsByDateRange()
-    {
-        var userId = UserId.New();
-        var repoId = RepositoryId.New();
-        var repos = new List<GitHubRepository> { new() { Id = repoId, Owner = "o", Name = "n", UserId = userId } };
-        var commits = new List<CommitLineCount>
-        {
-            new() { RepositoryId = repoId, CommitSha = "recent", CommitDate = DateTime.UtcNow.AddDays(-5), LinesAdded = 10, LinesRemoved = 5 },
-            new() { RepositoryId = repoId, CommitSha = "old", CommitDate = DateTime.UtcNow.AddDays(-60), LinesAdded = 100, LinesRemoved = 50 }
-        };
-
-        _dataService.GetAllRepositoriesAsync(userId).Returns(repos);
-        _dataService.GetCommitLineCountsByRepositoryIdAsync(repoId).Returns(commits);
-
-        var result = (await _sut.Handle(new GetAllRepositoriesLineCountHistoryQuery(30, userId), CancellationToken.None)).ToList();
-
-        result.Should().HaveCount(1);
-        var repoHistory = result[0];
-        repoHistory.DailyLineCounts.Should().HaveCount(1); // Only the recent commit
-        repoHistory.DailyLineCounts.First().TotalLinesAdded.Should().Be(10);
-    }
-
-    [Fact]
-    public async Task Handle_GroupsByDate_SumsCorrectly()
+    public async Task Handle_GroupsByDate_SumsWithinTheDay_AndExcludesCommitsOutsideTheWindow()
     {
         var userId = UserId.New();
         var repoId = RepositoryId.New();
@@ -252,7 +165,8 @@ public class GetAllRepositoriesLineCountHistoryQueryHandlerTests
         var commits = new List<CommitLineCount>
         {
             new() { RepositoryId = repoId, CommitSha = "a", CommitDate = today.AddHours(1), LinesAdded = 10, LinesRemoved = 2 },
-            new() { RepositoryId = repoId, CommitSha = "b", CommitDate = today.AddHours(5), LinesAdded = 20, LinesRemoved = 3 }
+            new() { RepositoryId = repoId, CommitSha = "b", CommitDate = today.AddHours(5), LinesAdded = 20, LinesRemoved = 3 },
+            new() { RepositoryId = repoId, CommitSha = "old", CommitDate = today.AddDays(-60), LinesAdded = 100, LinesRemoved = 50 }
         };
 
         _dataService.GetAllRepositoriesAsync(userId).Returns(repos);
@@ -260,8 +174,9 @@ public class GetAllRepositoriesLineCountHistoryQueryHandlerTests
 
         var result = (await _sut.Handle(new GetAllRepositoriesLineCountHistoryQuery(30, userId), CancellationToken.None)).ToList();
 
+        result.Should().HaveCount(1);
         var dailyCounts = result[0].DailyLineCounts.ToList();
-        dailyCounts.Should().HaveCount(1); // Both commits are on same day
+        dailyCounts.Should().HaveCount(1, "both in-window commits are on the same day and the 60-day-old one is outside the window");
         dailyCounts[0].TotalLinesAdded.Should().Be(30); // 10 + 20
         dailyCounts[0].TotalLinesDeleted.Should().Be(5); // 2 + 3
     }

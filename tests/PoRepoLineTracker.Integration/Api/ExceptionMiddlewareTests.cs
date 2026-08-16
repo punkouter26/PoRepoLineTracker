@@ -28,48 +28,20 @@ public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory
     }
 
     [Fact]
-    public async Task UnhandledException_Returns_500_ProblemDetails()
+    public async Task UnhandledException_Returns_500_ProblemDetails_With_TitleAndDetail()
     {
         // The factory configures GetLineCountHistoryQuery to throw
         var repoId = ExceptionMiddlewareFactory.ThrowingRepoId;
         var response = await _client.GetAsync($"/api/repositories/{repoId}/linehistory/365");
+
         response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
-    }
-
-    [Fact]
-    public async Task UnhandledException_Returns_ProblemJson_ContentType()
-    {
-        var repoId = ExceptionMiddlewareFactory.ThrowingRepoId;
-        var response = await _client.GetAsync($"/api/repositories/{repoId}/linehistory/365");
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
-    }
 
-    [Fact]
-    public async Task UnhandledException_ProblemDetails_Has_Title()
-    {
-        var repoId = ExceptionMiddlewareFactory.ThrowingRepoId;
-        var response = await _client.GetAsync($"/api/repositories/{repoId}/linehistory/365");
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        json.TryGetProperty("title", out var title).Should().BeTrue();
-        title.GetString().Should().NotBeNullOrEmpty();
-    }
-
-    [Fact]
-    public async Task UnhandledException_ProblemDetails_Has_Status_500()
-    {
-        var repoId = ExceptionMiddlewareFactory.ThrowingRepoId;
-        var response = await _client.GetAsync($"/api/repositories/{repoId}/linehistory/365");
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         json.TryGetProperty("status", out var status).Should().BeTrue();
         status.GetInt32().Should().Be(500);
-    }
-
-    [Fact]
-    public async Task UnhandledException_ProblemDetails_Has_Detail()
-    {
-        var repoId = ExceptionMiddlewareFactory.ThrowingRepoId;
-        var response = await _client.GetAsync($"/api/repositories/{repoId}/linehistory/365");
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        json.TryGetProperty("title", out var title).Should().BeTrue();
+        title.GetString().Should().NotBeNullOrEmpty();
         json.TryGetProperty("detail", out var detail).Should().BeTrue();
         detail.GetString().Should().NotBeNullOrEmpty();
     }

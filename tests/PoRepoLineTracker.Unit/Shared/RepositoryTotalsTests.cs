@@ -35,32 +35,15 @@ public class RepositoryTotalsTests
     /// <summary>
     /// Callers pass whatever the storage layer handed back, and Azure Table queries carry no
     /// ordering guarantee. Depending on sequence order here would make the figure depend on how
-    /// the rows happened to come out of the table.
+    /// the rows happened to come out of the table. The newest commit is also the smallest, so
+    /// this doubles as the shrinking-repository case: newest wins even when the repo shrank.
     /// </summary>
     [Fact]
-    public void LatestTotalLines_DoesNotAssumeTheSequenceIsOrdered()
+    public void LatestTotalLines_TakesTheNewestValueWhereverItSitsInTheSequence()
     {
-        var commits = new[] { At(2, 400), At(0, 100), At(1, 250) };
-
-        RepositoryTotals.LatestTotalLines(commits).Should().Be(400);
-    }
-
-    [Fact]
-    public void LatestTotalLines_IsTheNewestValueEvenWhenTheRepositoryShrank()
-    {
-        var commits = new[] { At(0, 5_000), At(1, 1_200) };
+        var commits = new[] { At(1, 5_000), At(2, 1_200), At(0, 3_000) };
 
         RepositoryTotals.LatestTotalLines(commits).Should().Be(1_200);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void LatestTotalLines_IsZeroWithNothingToReadFrom(bool useNull)
-    {
-        var commits = useNull ? null : Array.Empty<CommitLineCount>();
-
-        RepositoryTotals.LatestTotalLines(commits).Should().Be(0);
     }
 
     /// <summary>The behaviour the windowed derivation got wrong — age is not relevance.</summary>
@@ -80,14 +63,8 @@ public class RepositoryTotalsTests
         var commits = new[] { At(0, 100), At(5, 500), At(10, 900) };
 
         RepositoryTotals.TotalLinesAsOf(commits, Day0.AddDays(7)).Should().Be(500);
-    }
-
-    [Fact]
-    public void TotalLinesAsOf_IncludesACommitExactlyOnTheBoundary()
-    {
-        var commits = new[] { At(0, 100), At(5, 500) };
-
-        RepositoryTotals.TotalLinesAsOf(commits, Day0.AddDays(5)).Should().Be(500);
+        RepositoryTotals.TotalLinesAsOf(commits, Day0.AddDays(5)).Should().Be(500,
+            "a commit exactly on the boundary is included");
     }
 
     /// <summary>
@@ -103,16 +80,10 @@ public class RepositoryTotalsTests
     }
 
     [Fact]
-    public void TotalLinesAsOf_DoesNotAssumeTheSequenceIsOrdered()
+    public void BothFigures_AreZeroWithNothingToReadFrom()
     {
-        var commits = new[] { At(10, 900), At(0, 100), At(5, 500) };
-
-        RepositoryTotals.TotalLinesAsOf(commits, Day0.AddDays(7)).Should().Be(500);
-    }
-
-    [Fact]
-    public void TotalLinesAsOf_IsZeroWithNothingToReadFrom()
-    {
+        RepositoryTotals.LatestTotalLines(null).Should().Be(0);
+        RepositoryTotals.LatestTotalLines([]).Should().Be(0);
         RepositoryTotals.TotalLinesAsOf(null, Day0).Should().Be(0);
         RepositoryTotals.TotalLinesAsOf([], Day0).Should().Be(0);
     }

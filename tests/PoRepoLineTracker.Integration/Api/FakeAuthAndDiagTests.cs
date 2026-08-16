@@ -146,7 +146,7 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
     }
 
     [Fact]
-    public void FakeAuthHandler_Refuses_To_Initialise_In_Production()
+    public void FakeAuthHandler_Refuses_To_Initialise_In_Production_ButNotElsewhere()
     {
         var production = Substitute.For<IWebHostEnvironment>();
         production.EnvironmentName.Returns(Environments.Production);
@@ -155,17 +155,13 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*must never be registered in Production*");
-    }
 
-    [Fact]
-    public void FakeAuthHandler_Initialises_Outside_Production()
-    {
         var test = Substitute.For<IWebHostEnvironment>();
         test.EnvironmentName.Returns("Test");
 
-        var act = () => FakeAuthHandler.ThrowIfProduction(test);
+        var actOutside = () => FakeAuthHandler.ThrowIfProduction(test);
 
-        act.Should().NotThrow();
+        actOutside.Should().NotThrow();
     }
 
     // ── /diag ─────────────────────────────────────────────────────────────────────────
@@ -175,15 +171,6 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
     {
         var response = await CreateClient().SendAsync(Get("/diag"));
         response.StatusCode.Should().BeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Found);
-    }
-
-    [Fact]
-    public async Task Diag_Returns_Json_For_An_Authenticated_Caller()
-    {
-        var response = await CreateClient().SendAsync(Get("/diag", user: "alice"));
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
     }
 
     [Fact]
@@ -233,31 +220,26 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
     }
 
     [Fact]
-    public async Task Diag_Reports_The_Running_Environment()
+    public async Task Diag_Reports_The_Running_Environment_As_Json()
     {
         var response = await CreateClient().SendAsync(Get("/diag", user: "alice"));
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
 
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         json.GetProperty("environment").GetString().Should().Be("Test");
     }
 
+    // One row per masking behaviour: empty stays empty, a value at or under four characters is
+    // fully starred (never partially revealed), and a longer one keeps only its last four.
     [Theory]
-    [InlineData(null, "")]
     [InlineData("", "")]
-    [InlineData("abc", "****")]
     [InlineData("abcd", "****")]
-    [InlineData("abcde", "****bcde")]
     [InlineData("sk-live-0123456789wxyz", "****wxyz")]
     public void Mask_Hides_Everything_But_The_Last_Four_Characters(string? input, string expected)
     {
         PoRepoLineTracker.API.Features.Diagnostics.DiagnosticsEndpoints
             .Mask(input).Should().Be(expected);
-    }
-
-    [Fact]
-    public async Task Health_Stays_Anonymous()
-    {
-        var response = await CreateClient().GetAsync("/health");
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }

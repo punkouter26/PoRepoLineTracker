@@ -28,7 +28,7 @@ public class GitHubCachingTests
     }
 
     [Fact]
-    public async Task UserRepositories_RepeatedRequests_HitGitHubOnce()
+    public async Task UserRepositories_RepeatedRequests_HitGitHubOnce_AndTheHitStillReturnsThePayload()
     {
         await EvictUserRepositoriesAsync();
 
@@ -48,23 +48,8 @@ public class GitHubCachingTests
         third.StatusCode.Should().Be(HttpStatusCode.OK);
 
         await github.Received(1).GetUserRepositoriesAsync(Arg.Any<string>());
-    }
 
-    [Fact]
-    public async Task UserRepositories_CachedResponse_StillReturnsPayload()
-    {
-        await EvictUserRepositoriesAsync();
-
-        var client = _factory.CreateClient();
-        var github = _factory.Services.GetRequiredService<IGitHubService>();
-        github.GetUserRepositoriesAsync(Arg.Any<string>())
-            .Returns(Task.FromResult<IEnumerable<GitHubUserRepositoryDto>>(
-                [new GitHubUserRepositoryDto { Name = "cached-repo", Owner = "owner" }]));
-
-        await client.GetAsync("/api/github/user-repositories");
-        var cached = await client.GetAsync("/api/github/user-repositories");
-
-        var body = await cached.Content.ReadAsStringAsync();
+        var body = await third.Content.ReadAsStringAsync();
         body.Should().Contain("cached-repo", "a cache hit must return the same payload as a miss");
     }
 }

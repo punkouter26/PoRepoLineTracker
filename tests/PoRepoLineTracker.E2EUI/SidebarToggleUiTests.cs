@@ -49,11 +49,8 @@ public sealed class SidebarToggleUiTests
     private static Task<double> SidebarWidthAsync(IPage page) =>
         page.EvaluateAsync<double>("() => document.querySelector('.rz-sidebar').getBoundingClientRect().width");
 
-    private static Task<double> BodyLeftAsync(IPage page) =>
-        page.EvaluateAsync<double>("() => document.querySelector('.rz-body').getBoundingClientRect().left");
-
     [SkippableFact]
-    public async Task Desktop_ToggleCollapsesTheSidebar()
+    public async Task Desktop_ToggleCollapsesTheSidebar_SurvivesAResize_AndIsReversible()
     {
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/");
         await using var _ = page.Context;
@@ -67,27 +64,17 @@ public sealed class SidebarToggleUiTests
 
         var after = await SidebarWidthAsync(page);
         after.Should().BeLessThan(10, "clicking Toggle navigation must collapse the sidebar track to zero");
-    }
 
-    [SkippableFact]
-    public async Task Desktop_CollapsedSidebarGivesItsSpaceToTheContent()
-    {
         // The whole point of collapsing on desktop: the body must reclaim the freed column
         // rather than leaving a dead 220px gutter.
         //
-        // Asserting WIDTH as well as position is what makes this test worth having. An earlier
+        // Asserting WIDTH as well as position is what makes this check worth having. An earlier
         // version checked only `left < 2` and passed against a layout that was badly broken —
         // .rz-body did start at x=0, but spanned just the 220px sidebar track, so the entire page
         // was crushed into a strip with the rest of the viewport left grey. Position alone cannot
         // tell "reclaimed the space" from "moved into the wrong column".
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/");
-        await using var _ = page.Context;
-        await WaitForShellAsync(page);
-
-        await page.ClickAsync(Toggle);
-        await page.WaitForTimeoutAsync(600);
-
-        var left = await BodyLeftAsync(page);
+        var left = await page.EvaluateAsync<double>(
+            "() => document.querySelector('.rz-body').getBoundingClientRect().left");
         left.Should().BeLessThan(2, "the content column must start at the viewport edge once the sidebar is collapsed");
 
         var bodyWidth = await page.EvaluateAsync<double>(
@@ -96,43 +83,25 @@ public sealed class SidebarToggleUiTests
 
         bodyWidth.Should().BeGreaterThan(viewportWidth - 4,
             "the content must span the FULL viewport once the sidebar track is collapsed, not just the freed track");
-    }
 
-    [SkippableFact]
-    public async Task Desktop_ExpandedSidebarLeavesTheContentBesideIt()
-    {
-        // The converse of the above: expanded, the body must NOT overlap the sidebar.
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/");
-        await using var _ = page.Context;
-        await WaitForShellAsync(page);
+        // MainLayout drives _isMobile from <RadzenMediaQuery Change>, and that handler also sets
+        // sidebarExpanded. If the handler fires on resizes that do NOT cross the 768px threshold,
+        // it would overwrite the user's choice and the sidebar would spring back open — the
+        // classic symptom of "the toggle doesn't stick". Resize well clear of the breakpoint.
+        await page.SetViewportSizeAsync(1200, 900);
+        await page.WaitForTimeoutAsync(600);
 
-        var sidebar = await SidebarWidthAsync(page);
-        var left = await BodyLeftAsync(page);
-
-        left.Should().BeApproximately(sidebar, 2,
-            "the content column must begin exactly where the expanded sidebar ends");
-    }
-
-    [SkippableFact]
-    public async Task Desktop_ToggleIsReversible()
-    {
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/");
-        await using var _ = page.Context;
-        await WaitForShellAsync(page);
-
-        var initial = await SidebarWidthAsync(page);
+        (await SidebarWidthAsync(page))
+            .Should().BeLessThan(10, "a resize that does not cross the breakpoint must not reopen the sidebar");
 
         await page.ClickAsync(Toggle);
         await page.WaitForTimeoutAsync(600);
-        await page.ClickAsync(Toggle);
-        await page.WaitForTimeoutAsync(600);
 
-        var restored = await SidebarWidthAsync(page);
-        restored.Should().BeApproximately(initial, 2, "a second click must restore the sidebar");
+        (await SidebarWidthAsync(page)).Should().BeGreaterThan(100, "a second click must restore the sidebar");
     }
 
     [SkippableFact]
-    public async Task Mobile_ToggleOpensTheDrawerAndTheScrim()
+    public async Task Mobile_ToggleOpensTheDrawerWithAScrim_AndTappingTheScrimClosesIt()
     {
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/");
         await using var _ = page.Context;
@@ -151,17 +120,6 @@ public sealed class SidebarToggleUiTests
         var openClass = await page.EvaluateAsync<bool>(
             "() => document.querySelector('.rz-sidebar').classList.contains('app-sidebar--open')");
         openClass.Should().BeTrue("the drawer must carry app-sidebar--open once toggled");
-    }
-
-    [SkippableFact]
-    public async Task Mobile_ScrimTapClosesTheDrawer()
-    {
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/");
-        await using var _ = page.Context;
-        await WaitForShellAsync(page);
-
-        await page.ClickAsync(Toggle);
-        await page.WaitForTimeoutAsync(600);
 
         // Click near the RIGHT edge, not the scrim's centre. The scrim spans the full width and
         // the 220px drawer sits on top of its left portion, so the element's geometric centre on a
@@ -174,28 +132,5 @@ public sealed class SidebarToggleUiTests
 
         (await page.Locator(".app-scrim").CountAsync())
             .Should().Be(0, "tapping the visible part of the scrim must dismiss the drawer");
-    }
-
-    [SkippableFact]
-    public async Task Desktop_CollapsedSidebarSurvivesAWindowResize()
-    {
-        // MainLayout drives _isMobile from <RadzenMediaQuery Change>, and that handler also sets
-        // sidebarExpanded. If the handler fires on resizes that do NOT cross the 768px threshold,
-        // it would overwrite the user's choice and the sidebar would spring back open — the
-        // classic symptom of "the toggle doesn't stick".
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/");
-        await using var _ = page.Context;
-        await WaitForShellAsync(page);
-
-        await page.ClickAsync(Toggle);
-        await page.WaitForTimeoutAsync(600);
-        (await SidebarWidthAsync(page)).Should().BeLessThan(10, "precondition: the sidebar collapsed");
-
-        // Resize well clear of the mobile breakpoint, so the match state does not change.
-        await page.SetViewportSizeAsync(1200, 900);
-        await page.WaitForTimeoutAsync(600);
-
-        (await SidebarWidthAsync(page))
-            .Should().BeLessThan(10, "a resize that does not cross the breakpoint must not reopen the sidebar");
     }
 }

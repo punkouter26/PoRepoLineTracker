@@ -64,14 +64,16 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
     // ─── Storage ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task RemovesEveryRepositoryForTheRequestingUser_AndOnlyThatUser()
+    public async Task RemovesTheUsersStorageRowsAndTheConfiguredRepositoriesTree()
     {
-        var handler = HandlerFor(localReposPath: null);
+        var repos = GivenRepositoryTree();
+        var handler = HandlerFor(repos);
 
         await WhenRemovingAll(handler);
 
         await _dataService.Received(1).RemoveAllRepositoriesAsync(_userId);
         await _dataService.DidNotReceive().RemoveAllRepositoriesAsync(Arg.Is<UserId>(id => id != _userId));
+        Directory.Exists(repos).Should().BeFalse();
     }
 
     /// <summary>
@@ -90,17 +92,6 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
     }
 
     // ─── Local file system ───────────────────────────────────────────────────
-
-    [Fact]
-    public async Task DeletesTheConfiguredRepositoriesTree()
-    {
-        var repos = GivenRepositoryTree();
-        var handler = HandlerFor(repos);
-
-        await WhenRemovingAll(handler);
-
-        Directory.Exists(repos).Should().BeFalse();
-    }
 
     /// <summary>
     /// The blast-radius guard. Everything outside the configured path must survive — this is the

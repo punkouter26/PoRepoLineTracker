@@ -10,35 +10,28 @@ namespace PoRepoLineTracker.E2EAPI;
 /// </summary>
 public sealed class SecurityAndRoutingApiTests
 {
-    [SkippableTheory]
-    [InlineData("X-Content-Type-Options", "nosniff")]
-    [InlineData("X-Frame-Options", "DENY")]
-    [InlineData("Referrer-Policy", "strict-origin-when-cross-origin")]
-    [InlineData("X-DNS-Prefetch-Control", "off")]
-    public async Task SecurityHeader_IsPresentOnEveryResponse(string header, string expected)
-    {
-        var response = await E2EApiClient.GetAsync("/health");
-
-        response.Headers.TryGetValues(header, out var values).Should().BeTrue($"{header} must be set");
-        values!.Should().Contain(expected);
-    }
-
     [SkippableFact]
-    public async Task ContentSecurityPolicy_BlocksFraming()
+    public async Task SecurityHeaders_ArePresentOnEveryResponse()
     {
         var response = await E2EApiClient.GetAsync("/health");
 
-        response.Headers.TryGetValues("Content-Security-Policy", out var values).Should().BeTrue();
-        string.Join(' ', values!).Should().Contain("frame-ancestors 'none'");
-    }
+        foreach (var (header, expected) in new[]
+        {
+            ("X-Content-Type-Options", "nosniff"),
+            ("X-Frame-Options", "DENY"),
+            ("Referrer-Policy", "strict-origin-when-cross-origin"),
+            ("X-DNS-Prefetch-Control", "off"),
+        })
+        {
+            response.Headers.TryGetValues(header, out var values).Should().BeTrue($"{header} must be set");
+            values!.Should().Contain(expected);
+        }
 
-    [SkippableFact]
-    public async Task PermissionsPolicy_DisablesSensitiveDeviceApis()
-    {
-        var response = await E2EApiClient.GetAsync("/health");
+        response.Headers.TryGetValues("Content-Security-Policy", out var csp).Should().BeTrue();
+        string.Join(' ', csp!).Should().Contain("frame-ancestors 'none'");
 
-        response.Headers.TryGetValues("Permissions-Policy", out var values).Should().BeTrue();
-        var policy = string.Join(' ', values!);
+        response.Headers.TryGetValues("Permissions-Policy", out var permissions).Should().BeTrue();
+        var policy = string.Join(' ', permissions!);
         policy.Should().Contain("camera=()");
         policy.Should().Contain("microphone=()");
     }
@@ -78,13 +71,5 @@ public sealed class SecurityAndRoutingApiTests
 
         response.StatusCode.Should().NotBe(HttpStatusCode.NotFound,
             "the group root must resolve without a trailing slash");
-    }
-
-    [SkippableFact]
-    public async Task JsonEndpoint_ReturnsJsonContentType()
-    {
-        var response = await E2EApiClient.GetAsync("/auth/me");
-
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
     }
 }

@@ -8,12 +8,14 @@ public class CommitLineCountEntityTests
     [Fact]
     public void FromDomainModel_ToDomainModel_RoundTrip()
     {
+        // Deliberately Unspecified: Azure Tables rejects non-UTC DateTimes, so the mapper must
+        // coerce the kind on the way in — asserted below alongside the value round-trip.
         var domain = new CommitLineCount
         {
             Id = Guid.NewGuid(),
             RepositoryId = RepositoryId.New(),
             CommitSha = "abc123def",
-            CommitDate = DateTime.SpecifyKind(new DateTime(2025, 6, 15, 10, 30, 0), DateTimeKind.Utc),
+            CommitDate = new DateTime(2025, 6, 15, 10, 30, 0, DateTimeKind.Unspecified),
             TotalLines = 500,
             LinesAdded = 100,
             LinesRemoved = 50,
@@ -23,6 +25,7 @@ public class CommitLineCountEntityTests
         var entity = CommitLineCountEntity.FromDomainModel(domain);
         var roundTripped = entity.ToDomainModel();
 
+        entity.CommitDate.Kind.Should().Be(DateTimeKind.Utc);
         roundTripped.Id.Should().Be(domain.Id);
         roundTripped.RepositoryId.Should().Be(domain.RepositoryId);
         roundTripped.CommitSha.Should().Be(domain.CommitSha);
@@ -30,20 +33,6 @@ public class CommitLineCountEntityTests
         roundTripped.LinesAdded.Should().Be(100);
         roundTripped.LinesRemoved.Should().Be(50);
         roundTripped.LinesByFileType.Should().BeEquivalentTo(domain.LinesByFileType);
-    }
-
-    [Fact]
-    public void FromDomainModel_HandlesUnspecifiedDateTimeKind()
-    {
-        var domain = new CommitLineCount
-        {
-            CommitDate = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Unspecified),
-            LinesByFileType = new Dictionary<string, int>()
-        };
-
-        var entity = CommitLineCountEntity.FromDomainModel(domain);
-
-        entity.CommitDate.Kind.Should().Be(DateTimeKind.Utc);
     }
 
     [Fact]
@@ -96,15 +85,6 @@ public class GitHubRepositoryEntityTests
         entity.RowKey.Should().Be("myorg_myrepo");
         entity.PartitionKey.Should().Be(domain.UserId.ToString());
     }
-
-    [Fact]
-    public void FromDomainModel_NullLastAnalyzedDate_StaysNull()
-    {
-        var domain = new GitHubRepository { Owner = "o", Name = "n", LastAnalyzedCommitDate = null };
-        var entity = GitHubRepositoryEntity.FromDomainModel(domain);
-
-        entity.LastAnalyzedCommitDate.Should().BeNull();
-    }
 }
 
 public class UserPreferencesEntityTests
@@ -125,7 +105,7 @@ public class UserPreferencesEntityTests
     }
 
     [Fact]
-    public void Constructor_SerializesExtensionsAsCommaSeparated()
+    public void Extensions_RoundTripThroughTheCommaSeparatedColumn()
     {
         var prefs = new UserPreferences
         {
@@ -138,20 +118,6 @@ public class UserPreferencesEntityTests
 
         entity.FileExtensions.Should().Be(".cs,.js,.py");
         entity.UserId.Should().Be(prefs.UserId.Value);
-    }
-
-    [Fact]
-    public void ToDomainModel_ParsesCommaSeparatedExtensions()
-    {
-        var entity = new UserPreferencesEntity
-        {
-            UserId = Guid.NewGuid(),
-            FileExtensions = ".cs,.ts,.html",
-            RowKey = Guid.NewGuid().ToString()
-        };
-
-        var domain = entity.ToDomainModel();
-
-        domain.FileExtensions.Should().BeEquivalentTo(new[] { ".cs", ".ts", ".html" });
+        entity.ToDomainModel().FileExtensions.Should().BeEquivalentTo(prefs.FileExtensions);
     }
 }

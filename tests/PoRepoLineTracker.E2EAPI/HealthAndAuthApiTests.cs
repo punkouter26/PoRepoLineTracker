@@ -12,49 +12,26 @@ namespace PoRepoLineTracker.E2EAPI;
 public sealed class HealthAndAuthApiTests
 {
     [SkippableFact]
-    public async Task Health_Returns_200()
-    {
-        var response = await E2EApiClient.GetAsync("/health");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [SkippableFact]
-    public async Task Health_Reports_Healthy()
-    {
-        var response = await E2EApiClient.GetAsync("/health");
-        var body = await response.Content.ReadAsStringAsync();
-
-        body.Should().Contain("Healthy");
-    }
-
-    [SkippableFact]
-    public async Task Health_IsAnonymous_UnderFallbackPolicy()
+    public async Task Health_IsAnonymous_Returns_200_And_ReportsHealthy()
     {
         // The FallbackPolicy authenticates by default; /health opts out explicitly
         // because Azure's probe and the CI smoke test call it with no credential.
         var response = await E2EApiClient.GetAsync("/health");
 
-        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
-        response.StatusCode.Should().NotBe(HttpStatusCode.Found);
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "an anonymous probe must get 200, never a 401 or a redirect to sign-in");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Healthy");
     }
 
     [SkippableFact]
-    public async Task AuthMe_Anonymous_Returns_200_NotAuthenticated()
+    public async Task AuthMe_Anonymous_Returns_200_ReportingSignedOut()
     {
         var response = await E2EApiClient.GetAsync("/auth/me");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("isAuthenticated");
-    }
-
-    [SkippableFact]
-    public async Task AuthMe_Anonymous_ReportsSignedOut()
-    {
-        var response = await E2EApiClient.GetAsync("/auth/me");
-        var body = await response.Content.ReadAsStringAsync();
-
         body.Should().Contain("false", "an anonymous caller has no session");
     }
 
@@ -79,5 +56,4 @@ public sealed class HealthAndAuthApiTests
         response.StatusCode.Should().Be(HttpStatusCode.Found);
         response.Headers.Location?.ToString().Should().Contain("/login");
     }
-
 }

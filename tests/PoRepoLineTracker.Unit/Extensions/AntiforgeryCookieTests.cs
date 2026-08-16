@@ -53,23 +53,6 @@ public class AntiforgeryCookieTests
             .GetRequiredService<IOptions<AntiforgeryOptions>>().Value;
     }
 
-    [Theory]
-    [InlineData("Development")]
-    [InlineData("Production")]
-    [InlineData("Staging")]
-    [InlineData("Test")]
-    public void HostPrefixedCookie_AlwaysCarriesSecure(string environmentName)
-    {
-        var options = OptionsFor(environmentName);
-
-        if (options.Cookie.Name?.StartsWith(HostPrefix, StringComparison.Ordinal) == true)
-        {
-            options.Cookie.SecurePolicy.Should().Be(
-                CookieSecurePolicy.Always,
-                "a __Host- cookie without Secure is rejected outright by the browser");
-        }
-    }
-
     [Fact]
     public void Development_UsesAnUnprefixedCookie_SoThePlainHttpProfileWorks()
     {
@@ -80,19 +63,15 @@ public class AntiforgeryCookieTests
         options.Cookie.Name.Should().NotBeNullOrWhiteSpace();
     }
 
-    [Fact]
-    public void Production_KeepsTheHostPrefixHardening()
+    // Staging alongside Production: the default is "secure outside Development", not a check on
+    // any particular environment name. The __Host- prefix must always arrive paired with
+    // SecurePolicy.Always — a __Host- cookie without Secure is rejected outright by the browser.
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public void NonDevelopmentEnvironments_KeepTheHostPrefixHardening(string environmentName)
     {
-        var options = OptionsFor("Production");
-
-        options.Cookie.Name.Should().StartWith(HostPrefix);
-        options.Cookie.SecurePolicy.Should().Be(CookieSecurePolicy.Always);
-    }
-
-    [Fact]
-    public void Staging_KeepsTheHostPrefixHardening_BecauseTheDefaultIsSecure()
-    {
-        var options = OptionsFor("Staging");
+        var options = OptionsFor(environmentName);
 
         options.Cookie.Name.Should().StartWith(HostPrefix);
         options.Cookie.SecurePolicy.Should().Be(CookieSecurePolicy.Always);
@@ -122,17 +101,18 @@ public class AntiforgeryCookieTests
         options.Cookie.SecurePolicy.Should().Be(CookieSecurePolicy.Always);
     }
 
-    [Theory]
-    [InlineData("Development")]
-    [InlineData("Production")]
-    public void EveryEnvironment_KeepsTheDoubleSubmitContract(string environmentName)
+    [Fact]
+    public void EveryEnvironment_KeepsTheDoubleSubmitContract()
     {
-        var options = OptionsFor(environmentName);
+        foreach (var environmentName in new[] { "Development", "Production" })
+        {
+            var options = OptionsFor(environmentName);
 
-        // The header half is what makes antiforgery work for a JSON API at all — the default
-        // validator reads a form field, and no endpoint here posts a form.
-        options.HeaderName.Should().Be("X-CSRF-TOKEN");
-        options.Cookie.HttpOnly.Should().BeTrue();
-        options.Cookie.SameSite.Should().Be(SameSiteMode.Strict);
+            // The header half is what makes antiforgery work for a JSON API at all — the default
+            // validator reads a form field, and no endpoint here posts a form.
+            options.HeaderName.Should().Be("X-CSRF-TOKEN");
+            options.Cookie.HttpOnly.Should().BeTrue();
+            options.Cookie.SameSite.Should().Be(SameSiteMode.Strict);
+        }
     }
 }

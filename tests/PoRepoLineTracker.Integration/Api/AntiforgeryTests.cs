@@ -20,11 +20,13 @@ public class AntiforgeryTests(CustomWebApplicationFactory factory)
     private HttpClient TokenedClient => factory.CreateAntiforgeryClient();
 
     [Fact]
-    public async Task TokenEndpoint_Is_Anonymous_And_Returns_A_Token()
+    public async Task TokenEndpoint_Is_Anonymous_Returns_A_Token_And_Is_Not_Cacheable()
     {
         var response = await UntokenedClient.GetAsync("/api/antiforgery/token");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // A proxy replaying one caller's token to another would defeat the whole scheme.
+        response.Headers.CacheControl!.NoStore.Should().BeTrue();
 
         var payload = await response.Content.ReadFromJsonAsync<AntiforgeryTokenResponse>();
         payload.Should().NotBeNull();
@@ -33,48 +35,21 @@ public class AntiforgeryTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task TokenEndpoint_Response_Is_Not_Cacheable()
-    {
-        // A proxy replaying one caller's token to another would defeat the whole scheme.
-        var response = await UntokenedClient.GetAsync("/api/antiforgery/token");
-
-        response.Headers.CacheControl!.NoStore.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task Post_Without_Token_Is_Rejected()
+    public async Task EveryWriteVerb_Without_Token_Is_Rejected_And_The_Rejection_Names_The_Header()
     {
         var repo = new[] { new BulkRepositoryDto { Owner = "octocat", RepoName = "hello-world", CloneUrl = "https://github.com/octocat/hello-world.git" } };
+        (await UntokenedClient.PostAsJsonAsync("/api/repositories/bulk", repo))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        var response = await UntokenedClient.PostAsJsonAsync("/api/repositories/bulk", repo);
+        (await UntokenedClient.PutAsJsonAsync("/api/settings/user-preferences", new UserPreferences()))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
+        var deleteResponse = await UntokenedClient.DeleteAsync("/api/repositories/all");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-    [Fact]
-    public async Task Delete_Without_Token_Is_Rejected()
-    {
-        var response = await UntokenedClient.DeleteAsync("/api/repositories/all");
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Put_Without_Token_Is_Rejected()
-    {
-        var response = await UntokenedClient.PutAsJsonAsync("/api/settings/user-preferences", new UserPreferences());
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Rejection_Names_The_Header_To_Use()
-    {
         // The failure has to be self-explanatory: a developer hitting this should learn how to
         // fix it from the response, without the validation detail that would help an attacker.
-        var response = await UntokenedClient.DeleteAsync("/api/repositories/all");
-
-        var body = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+        var body = await deleteResponse.Content.ReadFromJsonAsync<ErrorResponse>();
         body.Should().NotBeNull();
         body!.error.Should().Be("antiforgery_validation_failed");
         body.Detail.Should().Contain("X-CSRF-TOKEN");

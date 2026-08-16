@@ -64,28 +64,19 @@ public sealed class ChartAndShellUiTests
     // ─── Shell layout ────────────────────────────────────────────────────────────
 
     [SkippableFact]
-    public async Task Mobile_SidebarDoesNotReserveADeadGutter()
+    public async Task Mobile_SidebarLeavesNoDeadGutter_AndHeaderControlsStayInsideTheHeader()
     {
-        // The bug: .rz-layout kept `grid-template-columns: 220px 1fr` at every width and the
+        // Bug one: .rz-layout kept `grid-template-columns: 220px 1fr` at every width and the
         // mobile rule only did `transform: translateX(-100%)` on the sidebar. The track stayed,
         // so a 390px phone lost 220px to an empty column and squeezed the body into the rest.
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/repositories");
         await using var _ = page.Context;
         await WaitForRepositoriesAsync(page);
 
-        var body = await page.EvaluateAsync<int>(
+        var bodyLeft = await page.EvaluateAsync<int>(
             "() => Math.round(document.querySelector('.rz-body').getBoundingClientRect().left)");
-
-        body.Should().BeLessThanOrEqualTo(1,
+        bodyLeft.Should().BeLessThanOrEqualTo(1,
             "the content column must start at the left edge once the sidebar becomes a drawer");
-    }
-
-    [SkippableFact]
-    public async Task Mobile_ContentUsesTheFullViewportWidth()
-    {
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/repositories");
-        await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
 
         var bodyWidth = await page.EvaluateAsync<int>(
             "() => Math.round(document.querySelector('.rz-body').getBoundingClientRect().width)");
@@ -94,19 +85,24 @@ public sealed class ChartAndShellUiTests
         // Allow a scrollbar's worth of slack; the old layout was ~220px short.
         bodyWidth.Should().BeGreaterThan(viewport - 20,
             "the body must span the viewport, not the viewport minus a phantom sidebar track");
-    }
 
-    [SkippableFact]
-    public async Task Mobile_RepositoriesPageDoesNotScrollHorizontally()
-    {
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/repositories");
-        await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
+        // Bug two: the header row is a fixed height. When the three header regions were all
+        // assigned to the same grid column they auto-placed into separate rows, and the drawer
+        // toggle spilled out below the coloured bar onto the page background.
+        var escaping = await page.EvaluateAsync<string[]>(
+            @"() => {
+                const header = document.querySelector('.rz-header');
+                const h = header.getBoundingClientRect();
+                return [...header.querySelectorAll('button, a')]
+                    .filter(el => el.offsetParent !== null)
+                    .filter(el => {
+                        const r = el.getBoundingClientRect();
+                        return r.height > 0 && (r.bottom > h.bottom + 1 || r.top < h.top - 1);
+                    })
+                    .map(el => el.tagName + '.' + (el.className || '(none)'));
+            }");
 
-        var overflow = await page.EvaluateAsync<int>(
-            "() => document.documentElement.scrollWidth - document.documentElement.clientWidth");
-
-        overflow.Should().BeLessThanOrEqualTo(1, "the data grid must not push the page sideways");
+        escaping.Should().BeEmpty("every header control must render inside the header bar");
     }
 
     [SkippableFact]
@@ -132,36 +128,10 @@ public sealed class ChartAndShellUiTests
             "the body must sit to the right of the sidebar, not underneath it");
     }
 
-    [SkippableFact]
-    public async Task Mobile_HeaderControlsStayInsideTheHeader()
-    {
-        // The header row is a fixed height. When the three header regions were all assigned to
-        // the same grid column they auto-placed into separate rows, and the drawer toggle spilled
-        // out below the coloured bar onto the page background.
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/repositories");
-        await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
-
-        var escaping = await page.EvaluateAsync<string[]>(
-            @"() => {
-                const header = document.querySelector('.rz-header');
-                const h = header.getBoundingClientRect();
-                return [...header.querySelectorAll('button, a')]
-                    .filter(el => el.offsetParent !== null)
-                    .filter(el => {
-                        const r = el.getBoundingClientRect();
-                        return r.height > 0 && (r.bottom > h.bottom + 1 || r.top < h.top - 1);
-                    })
-                    .map(el => el.tagName + '.' + (el.className || '(none)'));
-            }");
-
-        escaping.Should().BeEmpty("every header control must render inside the header bar");
-    }
-
     // ─── Theming ─────────────────────────────────────────────────────────────────
 
     [SkippableFact]
-    public async Task Theme_DataThemeAttributeIsAlwaysSet()
+    public async Task Theme_DataThemeAttributeIsAlwaysSet_AndFollowsTheOsPreferenceOnFirstVisit()
     {
         // The bug: index.html set data-theme only when the user actively toggled, but every dark
         // rule in app.css keyed off prefers-color-scheme. The two never agreed.
@@ -173,13 +143,9 @@ public sealed class ChartAndShellUiTests
             "() => document.documentElement.getAttribute('data-theme')");
 
         theme.Should().BeOneOf("light", "dark");
-    }
 
-    [SkippableFact]
-    public async Task Theme_FollowsTheOsPreferenceOnFirstVisit()
-    {
         var dark = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories", colorScheme: "dark");
-        await using var _ = dark.Context;
+        await using var __ = dark.Context;
         await WaitForRepositoriesAsync(dark);
 
         var attribute = await dark.EvaluateAsync<string?>(
@@ -208,10 +174,14 @@ public sealed class ChartAndShellUiTests
     // ─── Chart axes ──────────────────────────────────────────────────────────────
 
     [SkippableFact]
-    public async Task Chart_RendersBothAxisTitles()
+    public async Task Chart_RendersTitledTickedAxes_WithDistinctCategoryLabels()
     {
-        // No chart in the app declared <RadzenAxisTitle>, even though app.css styled
-        // `.rz-axis-title` — an element that never existed in the DOM.
+        // Two shipped bugs on one rendered chart. First: no chart in the app declared
+        // <RadzenAxisTitle>, even though app.css styled `.rz-axis-title` — an element that never
+        // existed in the DOM. Second: with only a few days of history in a wide card, the axis
+        // placed ticks less than a day apart, and the "MMM d" format rendered them as repeats —
+        // "Jul 21, Jul 21, Jul 22, Jul 22". Neither the default spacing nor a pixel-based
+        // TickDistance avoids it; the step has to be quantised to whole days.
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories");
         await using var _ = page.Context;
         await SeedAndWaitForChartAsync(page);
@@ -221,34 +191,10 @@ public sealed class ChartAndShellUiTests
 
         text.Should().Contain("Date", "the category axis must be labelled");
         text.Should().Contain("Lines of Code", "the value axis must be labelled");
-    }
-
-    [SkippableFact]
-    public async Task Chart_RendersTickLabelsOnBothAxes()
-    {
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories");
-        await using var _ = page.Context;
-        await SeedAndWaitForChartAsync(page);
 
         // Tick labels are every non-empty text node that is not one of the two axis titles.
-        var ticks = await page.EvaluateAsync<string[]>(
-            @"() => [...document.querySelectorAll('.rz-chart text')]
-                .map(t => t.textContent.trim())
-                .filter(t => t && t !== 'Date' && t !== 'Lines of Code')");
-
+        var ticks = text.Where(t => !string.IsNullOrEmpty(t) && t != "Date" && t != "Lines of Code").ToArray();
         ticks.Should().HaveCountGreaterThan(2, "both axes must draw readable tick values");
-    }
-
-    [SkippableFact]
-    public async Task Chart_CategoryLabelsAreAllDistinct()
-    {
-        // The bug this pins down: with only a few days of history in a wide card, the axis placed
-        // ticks less than a day apart, and the "MMM d" format rendered them as repeats —
-        // "Jul 21, Jul 21, Jul 22, Jul 22". Neither the default spacing nor a pixel-based
-        // TickDistance avoids it; the step has to be quantised to whole days.
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories");
-        await using var _ = page.Context;
-        await SeedAndWaitForChartAsync(page);
 
         var labels = await page.EvaluateAsync<string[]>(
             @"() => [...document.querySelectorAll('.rz-chart .rz-category-axis text')]
@@ -312,6 +258,23 @@ public sealed class ChartAndShellUiTests
         escaping.Should().BeEmpty("every axis label and title must render inside its own card");
     }
 
+    [SkippableFact]
+    public async Task Mobile_ChartHeightIsReducedNotPinnedAt400px()
+    {
+        // `min-height: 400px` on .rz-chart outranked the mobile `height: 240px`, so phones got a
+        // full-height chart regardless. One clamp() replaces all three declarations.
+        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/repositories");
+        await using var _ = page.Context;
+        await WaitForRepositoriesAsync(page);
+        await SeedAndWaitForChartAsync(page);
+
+        var height = await page.EvaluateAsync<double>(
+            "() => document.querySelector('.rz-chart').getBoundingClientRect().height");
+
+        height.Should().BeLessThan(400, "the chart must shrink on a phone");
+        height.Should().BeGreaterThan(150, "but must stay tall enough to read");
+    }
+
     // ─── Repository detail ───────────────────────────────────────────────────────
 
     /// <summary>
@@ -339,7 +302,7 @@ public sealed class ChartAndShellUiTests
     }
 
     [SkippableFact]
-    public async Task Detail_RendersAllThreeChartPanels()
+    public async Task Detail_RendersAllThreeChartPanels_WithLabelledLineHistoryAxes_AndADonut()
     {
         var page = await OpenFirstRepositoryAsync(E2EUiFixture.Desktop);
         await using var _ = page.Context;
@@ -350,13 +313,6 @@ public sealed class ChartAndShellUiTests
         titles.Should().Contain("Line Count History");
         titles.Should().Contain("By Extension");
         titles.Should().Contain("Top Contributors");
-    }
-
-    [SkippableFact]
-    public async Task Detail_LineHistoryChartLabelsBothAxes()
-    {
-        var page = await OpenFirstRepositoryAsync(E2EUiFixture.Desktop);
-        await using var _ = page.Context;
 
         await page.WaitForSelectorAsync(".rz-chart svg", new PageWaitForSelectorOptions { Timeout = 25000 });
 
@@ -365,16 +321,9 @@ public sealed class ChartAndShellUiTests
 
         text.Should().Contain("Date");
         text.Should().Contain("Lines of Code");
-    }
 
-    [SkippableFact]
-    public async Task Detail_ExtensionBreakdownRendersADonut()
-    {
         // The extension panel was a stack of bare <progress> bars; a donut states the
         // part-of-whole relationship the data actually describes.
-        var page = await OpenFirstRepositoryAsync(E2EUiFixture.Desktop);
-        await using var _ = page.Context;
-
         var hasDonut = await page.EvaluateAsync<bool>(
             @"() => [...document.querySelectorAll('.chart-card')]
                 .some(c => c.querySelector('.chart-card__title')?.textContent.trim() === 'By Extension'
@@ -387,7 +336,7 @@ public sealed class ChartAndShellUiTests
     }
 
     [SkippableFact]
-    public async Task Detail_MobileDoesNotScrollHorizontally()
+    public async Task Detail_MobileFitsTheViewport_AndMeetsTheMinimumTapTargetSize()
     {
         var page = await OpenFirstRepositoryAsync(E2EUiFixture.Mobile);
         await using var _ = page.Context;
@@ -397,53 +346,8 @@ public sealed class ChartAndShellUiTests
 
         overflow.Should().BeLessThanOrEqualTo(1,
             "the contributor grid and chart panels must fit the phone viewport");
-    }
 
-    [SkippableFact]
-    public async Task Detail_MobileTapTargetsAreLargeEnough()
-    {
-        var page = await OpenFirstRepositoryAsync(E2EUiFixture.Mobile);
-        await using var _ = page.Context;
-
-        var undersized = await page.EvaluateAsync<string[]>(
-            @"() => [...document.querySelectorAll('button, a')]
-                .filter(el => el.offsetParent !== null)
-                .filter(el => {
-                    const r = el.getBoundingClientRect();
-                    return r.width > 0 && r.height > 0 && (r.width < 24 || r.height < 24);
-                })
-                .map(el => el.tagName + '.' + (el.className || '(none)'))");
-
-        undersized.Should().BeEmpty("every visible control must meet the 24x24 minimum target size");
-    }
-
-    // ─── Mobile chart sizing ─────────────────────────────────────────────────────
-
-    [SkippableFact]
-    public async Task Mobile_ChartHeightIsReducedNotPinnedAt400px()
-    {
-        // `min-height: 400px` on .rz-chart outranked the mobile `height: 240px`, so phones got a
-        // full-height chart regardless. One clamp() replaces all three declarations.
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/repositories");
-        await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
-        await SeedAndWaitForChartAsync(page);
-
-        var height = await page.EvaluateAsync<double>(
-            "() => document.querySelector('.rz-chart').getBoundingClientRect().height");
-
-        height.Should().BeLessThan(400, "the chart must shrink on a phone");
-        height.Should().BeGreaterThan(150, "but must stay tall enough to read");
-    }
-
-    [SkippableFact]
-    public async Task Mobile_TapTargetsOnTheRepositoriesPageAreLargeEnough()
-    {
         // WCAG 2.2 AA, 2.5.8 Target Size (Minimum) — 24x24 CSS pixels.
-        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/repositories");
-        await using var _ = page.Context;
-        await WaitForRepositoriesAsync(page);
-
         var undersized = await page.EvaluateAsync<string[]>(
             @"() => [...document.querySelectorAll('button, a')]
                 .filter(el => el.offsetParent !== null)

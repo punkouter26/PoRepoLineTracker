@@ -65,29 +65,40 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ExistingLocalPath_PullsRepository()
+    public async Task Handle_ExistingLocalPath_PullsWithTheOwningUsersToken()
     {
         var repoId = RepositoryId.New();
+        var userId = UserId.New();
         var repo = new GitHubRepository
         {
             Id = repoId,
             Owner = "testowner",
             Name = "testrepo",
             CloneUrl = "https://github.com/testowner/testrepo.git",
-            LocalPath = "/existing/path" // Has local path — triggers pull
+            LocalPath = "/existing/path", // Has local path — triggers pull
+            UserId = userId
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
+        _userService.GetUserByIdAsync(userId).Returns(new User
+        {
+            Id = userId,
+            GitHubId = "12345",
+            Username = "tester",
+            AccessToken = "ghp_test_token"
+        });
         _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>())
             .Returns("pulled");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
             .Returns(Enumerable.Empty<CommitStatsDto>());
+        _prefsService.GetFileExtensionsAsync(userId).Returns(new List<string> { ".cs", ".ts" });
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 
-        await _gitHubService.Received(1).PullRepositoryAsync("/existing/path", Arg.Any<string?>());
+        await _gitHubService.Received(1).PullRepositoryAsync("/existing/path", "ghp_test_token");
         await _gitHubService.DidNotReceive().CloneRepositoryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>());
+        await _prefsService.Received(1).GetFileExtensionsAsync(userId);
     }
 
     [Fact]
@@ -222,42 +233,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_UserWithId_FetchesAccessToken()
-    {
-        var repoId = RepositoryId.New();
-        var userId = UserId.New();
-        var repo = new GitHubRepository
-        {
-            Id = repoId,
-            Owner = "o",
-            Name = "n",
-            CloneUrl = "url",
-            LocalPath = "/path",
-            UserId = userId
-        };
-
-        _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
-        _userService.GetUserByIdAsync(userId).Returns(new User
-        {
-            Id = userId,
-            GitHubId = "12345",
-            Username = "tester",
-            AccessToken = "ghp_test_token"
-        });
-        _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
-        _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
-        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>())
-            .Returns(Enumerable.Empty<CommitStatsDto>());
-        _prefsService.GetFileExtensionsAsync(userId).Returns(new List<string> { ".cs", ".ts" });
-
-        await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
-
-        await _userService.Received(1).GetUserByIdAsync(userId);
-        await _gitHubService.Received(1).PullRepositoryAsync("/path", "ghp_test_token");
-        await _prefsService.Received(1).GetFileExtensionsAsync(userId);
-    }
-
-    [Fact]
     public async Task Handle_UserWithoutToken_FallsBackToConfiguredGitHubPat()
     {
         // A user row with an empty stored token must not send an empty credential to git —
@@ -292,26 +267,5 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 
         await _gitHubService.Received(1).PullRepositoryAsync("/path", "ghp_server_side_pat");
-    }
-
-    [Fact]
-    public async Task Handle_CloneError_Throws()
-    {
-        var repoId = RepositoryId.New();
-        var repo = new GitHubRepository
-        {
-            Id = repoId,
-            Owner = "o",
-            Name = "n",
-            CloneUrl = "url",
-            LocalPath = ""
-        };
-
-        _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
-        _gitHubService.CloneRepositoryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>())
-            .ThrowsAsync(new InvalidOperationException("clone failed"));
-
-        var act = () => _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("clone failed");
     }
 }

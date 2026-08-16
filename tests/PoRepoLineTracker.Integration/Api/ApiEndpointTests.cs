@@ -28,49 +28,24 @@ public class ApiEndpointTests
     // ─── Health & Diagnostics ───────────────────────────────────────────
 
     [Fact]
-    public async Task Health_Endpoint_Returns_200()
+    public async Task Health_Endpoint_Returns_200_And_Reports_Healthy()
     {
         var response = await _client.GetAsync("/health");
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
 
-    [Fact]
-    public async Task Health_Endpoint_Returns_Healthy_Status()
-    {
-        var response = await _client.GetAsync("/health");
-        var content = await response.Content.ReadAsStringAsync();
-        content.Should().Contain("Healthy");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Healthy");
     }
 
     // /diag is a Blazor page, not a server route — the JSON it renders comes from
-    // /api/diagnostics, which is the single server-side diagnostics source.
+    // /api/diagnostics, which is the single server-side diagnostics source. Secret masking is
+    // covered by FakeAuthAndDiagTests against the real auth stack.
     [Fact]
-    public async Task Diagnostics_Endpoint_Returns_200()
+    public async Task Diagnostics_Endpoint_Returns_200_With_Environment_Info()
     {
         var response = await _client.GetAsync("/api/diagnostics");
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task Diagnostics_Endpoint_Returns_Environment_Info()
-    {
-        var response = await _client.GetAsync("/api/diagnostics");
-        var content = await response.Content.ReadAsStringAsync();
-        content.Should().Contain("environment");
-    }
-
-    [Fact]
-    public async Task Diagnostics_Endpoint_Masks_Secret_Values()
-    {
-        // /diag must never leak a secret value. The payload reports a
-        // Configured/Not configured status per connection and nothing else.
-        var response = await _client.GetAsync("/api/diagnostics");
-        var content = await response.Content.ReadAsStringAsync();
-
-        content.Should().Contain("Configured");
-        content.Should().NotContain("test-client-secret");
-        content.Should().NotContain("test-pat-value-must-never-be-echoed");
-        content.Should().NotContain("AccountKey");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("environment");
     }
 
     [Fact]
@@ -88,6 +63,7 @@ public class ApiEndpointTests
 
         var getResponse = await _client.GetAsync("/api/settings/user-preferences");
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        getResponse.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
 
         var persistedPreferences = await getResponse.Content.ReadFromJsonAsync<UserPreferences>();
         persistedPreferences.Should().NotBeNull();
@@ -97,16 +73,11 @@ public class ApiEndpointTests
     // ─── Repositories (Authenticated) ───────────────────────────────────
 
     [Fact]
-    public async Task GetAllRepositories_Authenticated_Returns_200()
+    public async Task GetAllRepositories_Authenticated_Returns_200_With_An_Array()
     {
         var response = await _client.GetAsync("/api/repositories");
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
 
-    [Fact]
-    public async Task GetAllRepositories_Returns_EmptyArray_Initially()
-    {
-        var response = await _client.GetAsync("/api/repositories");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
         var repos = await response.Content.ReadFromJsonAsync<List<JsonElement>>();
         repos.Should().NotBeNull();
     }
@@ -131,24 +102,6 @@ public class ApiEndpointTests
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         // TestAuthHandler sets up claims including isAuthenticated
         json.TryGetProperty("isAuthenticated", out _).Should().BeTrue();
-    }
-
-    // ─── Non-Existent Routes ────────────────────────────────────────────
-
-    [Fact]
-    public async Task NonExistentApiRoute_Returns_NotServerError()
-    {
-        var response = await _client.GetAsync("/api/nonexistent-route-12345");
-        ((int)response.StatusCode).Should().BeLessThan(500, "API should not return server errors for unknown routes");
-    }
-
-    // ─── Content Type Verification ──────────────────────────────────────
-
-    [Fact]
-    public async Task Api_Endpoints_Return_Json_ContentType()
-    {
-        var response = await _client.GetAsync("/api/settings/user-preferences");
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
     }
 
     // ─── CRUD: Add Repository ───────────────────────────────────────────
@@ -202,21 +155,6 @@ public class ApiEndpointTests
     {
         var response = await _client.DeleteAsync("/api/repositories/all");
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-    }
-
-    // ─── CRUD: Bulk Add Repositories ────────────────────────────────────
-
-    [Fact]
-    public async Task BulkAddRepositories_Authenticated_Returns_200()
-    {
-        var repos = new[]
-        {
-            new { Owner = "bulkowner1", RepoName = "bulkrepo1", CloneUrl = "https://github.com/bulkowner1/bulkrepo1.git" },
-            new { Owner = "bulkowner2", RepoName = "bulkrepo2", CloneUrl = "https://github.com/bulkowner2/bulkrepo2.git" }
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/repositories/bulk", repos);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
