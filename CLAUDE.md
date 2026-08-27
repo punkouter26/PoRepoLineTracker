@@ -41,9 +41,9 @@ docker compose up -d                                   # Azurite (Table Storage)
 dotnet run --project src/PoRepoLineTracker.API --launch-profile https   # https://localhost:5003
 
 dotnet build
-dotnet test tests/PoRepoLineTracker.Unit          # 156 — no external deps
+dotnet test tests/PoRepoLineTracker.Unit          # 185 — no external deps
 dotnet test tests/PoRepoLineTracker.Integration   # 54  — WebApplicationFactory + Testcontainers Azurite
-dotnet test tests/PoRepoLineTracker.E2EAPI        # 30  — needs the app running
+dotnet test tests/PoRepoLineTracker.E2EAPI        # 31  — needs the app running
 dotnet test tests/PoRepoLineTracker.E2EUI         # 40  — needs the app running + Playwright (~3m30s)
 ```
 
@@ -200,6 +200,37 @@ groups extensions by the syntax they actually use. Plain `.css` has **no** line-
 `url(https://…)` lost its tail and a line holding nothing else counted as blank. `.scss`/`.less` do
 have `//`, which is exactly why they cannot share an entry with `.css`; `.razor`/`.cshtml` use
 `@* *@` and `<!-- -->`, never `//`.
+
+**Code health is proxies, not a parser — say so wherever it is shown.** `/api/code-health/{id}`
+scores a repository's source at its newest commit on six line-oriented factors (branch density,
+nesting, file size, comment ratio, debt markers, line length). It is deliberately NOT Visual
+Studio's Maintainability Index: that needs Halstead volume and a control-flow graph, which means a
+parser per language and a resolved compilation, and this app reads blobs across a dozen languages
+and builds nothing. The ranking is the reliable part; the absolute number is a guide. `CodeHealthCard`
+states this on the card rather than in a tooltip.
+
+Three things about it that are load-bearing:
+
+- **Measuring and judging are separate types.** `CodeMetricsAnalyzer` counts; `CodeHealthScoring`
+  judges. Re-weighting the report must not risk changing what was counted.
+- **Nesting is the 90th-percentile line depth, not the maximum.** One wrapped argument list is
+  indented far past the structure around it, and using the max let a 40-line middleware holding a
+  wrapped CSS string measure 14 levels deep and outrank genuinely tangled files.
+- **Markup is judged on its own nesting band.** Nested components are not a smell, and scoring
+  `.razor` against the code band gave this repository's own markup a 48 against 94 for its C# —
+  a fact about the file format, not the code.
+
+**Comment syntax lives in one table.** `CommentSyntax` maps extension → line/block markers, and both
+`SourceLineCounter` (which discards comments) and `CodeMetricsAnalyzer` (which counts them, and must
+strip them before looking for branch keywords) read it. Two copies would drift, and both sides would
+go on producing plausible numbers. Registrations are grouped by family because listing them one at a
+time is how `.css` and `.razor` ended up with C-style `//` line comments they do not have.
+
+**Repository ownership is checked by `Auth/RepositoryOwnership`, not by a slice.** Any route taking
+a repository id from the URL needs it, repository ids appear in more than one slice, and slices may
+not reference each other — so leaving it as a private helper meant the second slice to need it would
+copy it. A copied authorization check fails quietly: the copy stops matching and the symptom is a
+route serving another user's data, not a broken build.
 
 **Contributor share is weighted by lines added**, not averaged per commit — a one-line commit and
 a 2,000-line refactor are not the same event. (This rule used to describe an "AI share"; the
