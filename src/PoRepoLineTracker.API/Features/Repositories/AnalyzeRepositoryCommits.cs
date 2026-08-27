@@ -33,6 +33,13 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
     // #10 fix: per-repository semaphore prevents git Checkout() race conditions on shared local path
     private static readonly ConcurrentDictionary<RepositoryId, SemaphoreSlim> _repoLocks = new();
 
+    /// <summary>
+    /// How many file types the live view is told about. It renders them as a row of chips that
+    /// light up as each is discovered; past a dozen the row wraps into a wall and the tail is
+    /// all single-file extensions nobody is watching for.
+    /// </summary>
+    private const int ReportedExtensionCount = 12;
+
     public AnalyzeRepositoryCommitsCommandHandler(
         IGitHubService gitHubService,
         IRepositoryDataService repositoryDataService,
@@ -242,6 +249,12 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             _logger.LogInformation("[Step 3/4] Processing commits for repository {RepositoryId}", request.RepositoryId);
 
             int processedCount = 0;
+
+            // Live-view tallies, reported alongside the commit counts. Kept here rather than
+            // recomputed by the progress service because this loop is the only place the
+            // per-commit breakdown exists — the service holds one snapshot, not a history.
+            long linesCountedSoFar = 0;
+            var extensionTotals = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
             // Process each commit
             foreach (var commitStat in commitStatsList)
             {
@@ -312,6 +325,10 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                     };
 
 
+                    linesCountedSoFar += totalLines;
+                    foreach (var (extension, lines) in lineCounts)
+                        extensionTotals[extension] = extensionTotals.GetValueOrDefault(extension) + lines;
+
                     await _repositoryDataService.AddCommitLineCountAsync(commitLineCount);
                     _logger.ProcessedCommit(commitStat.Sha, totalLines, commitStat.LinesAdded, commitStat.LinesRemoved);
 
@@ -319,7 +336,19 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                     processedCount++;
                     if (processedCount % 5 == 0 || processedCount == commitStatsList.Count)
                     {
-                        _progressService.ReportCommitProgress(request.RepositoryId, processedCount, commitStatsList.Count);
+                        // A fresh list each time: the progress DTO is serialized on a
+                        // background task, so handing it a collection this loop keeps mutating
+                        // would throw mid-send.
+                        _progressService.ReportCommitProgress(
+                            request.RepositoryId,
+                            processedCount,
+                            commitStatsList.Count,
+                            linesCountedSoFar,
+                            extensionTotals
+                                .OrderByDescending(kv => kv.Value)
+                                .Take(ReportedExtensionCount)
+                                .Select(kv => kv.Key)
+                                .ToList());
                     }
                 }
                 catch (Exception ex)

@@ -128,8 +128,8 @@ public sealed class GetPortfolioInsightsQueryHandler(
 
         var activeDates = commitsByDay.Keys.ToHashSet();
         insights.ActiveDays30 = activeDates.Count(d => d >= recentCutoff);
-        insights.CurrentStreakDays = CurrentStreak(activeDates, today);
-        insights.LongestStreakDays = LongestStreak(activeDates);
+        insights.CurrentStreakDays = CommitStreaks.Current(activeDates, today);
+        insights.LongestStreakDays = CommitStreaks.Longest(activeDates);
 
         logger.LogInformation(
             "Portfolio insights for user {UserId}: {Repos} repos, {Lines} lines, {Commits} commits in {Days}d",
@@ -200,40 +200,5 @@ public sealed class GetPortfolioInsightsQueryHandler(
             days.Add(new ActivityDayDto { Date = date, Commits = entry.Commits, LinesAdded = entry.LinesAdded });
         }
         return days;
-    }
-
-    /// <summary>
-    /// Consecutive active days ending today — or ending yesterday, since a day with no commits yet
-    /// should not read as having broken a streak before it is over.
-    /// </summary>
-    private static int CurrentStreak(HashSet<DateTime> activeDates, DateTime today)
-    {
-        var cursor = activeDates.Contains(today) ? today : today.AddDays(-1);
-
-        var streak = 0;
-        while (activeDates.Contains(cursor))
-        {
-            streak++;
-            cursor = cursor.AddDays(-1);
-        }
-        return streak;
-    }
-
-    private static int LongestStreak(HashSet<DateTime> activeDates)
-    {
-        var longest = 0;
-        foreach (var date in activeDates)
-        {
-            // Only count from the start of a run, so each run is walked once rather than once per
-            // day it contains.
-            if (activeDates.Contains(date.AddDays(-1))) continue;
-
-            var length = 0;
-            for (var cursor = date; activeDates.Contains(cursor); cursor = cursor.AddDays(1))
-                length++;
-
-            if (length > longest) longest = length;
-        }
-        return longest;
     }
 }

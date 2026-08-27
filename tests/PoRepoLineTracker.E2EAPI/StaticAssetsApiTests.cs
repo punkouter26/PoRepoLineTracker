@@ -64,6 +64,9 @@ public sealed class StaticAssetsApiTests
         ("rp-lines-value", "Repositories.razor.css"),
         ("rp-stat-icon", "PortfolioStatTiles.razor.css"),
         ("status-cell", "AnalysisStatusCell.razor.css"),
+        ("feed__stage-dot", "AnalysisActivityFeed.razor.css"),
+        ("digest__stat-value", "DigestBanner.razor.css"),
+        ("rc-kicker", "Recap.razor.css"),
     ];
 
     [SkippableFact]

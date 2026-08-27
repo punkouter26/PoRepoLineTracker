@@ -39,6 +39,33 @@ public sealed class AnalysisProgressDto
     /// <summary>Total commits to process (0 until fetched).</summary>
     public int CommitsTotal { get; set; }
 
+    /// <summary>
+    /// UTC time the job was opened. Present so the UI can show elapsed time, throughput and an
+    /// ETA without having to have been watching since the job started — a page opened mid-analysis
+    /// previously had no way to know when "now" began.
+    /// </summary>
+    public DateTime StartedUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Running total of lines counted so far in this run, across every commit processed.
+    ///
+    /// <para>Churn, not a repository size: it accumulates each processed commit's whole-repository
+    /// snapshot, so it climbs far past the repository's actual line count. It exists to give the
+    /// live view a number that visibly moves while a long analysis grinds through history, and the
+    /// UI labels it as lines counted rather than lines of code.</para>
+    /// </summary>
+    public long LinesCounted { get; set; }
+
+    /// <summary>
+    /// File extensions seen so far, most lines first, capped by the reporter.
+    ///
+    /// <para>Replaced wholesale on every update rather than mutated in place. The progress service
+    /// pushes this object over SignalR on a fire-and-forget task while the analysis loop keeps
+    /// reporting, so a collection mutated after the send began would throw mid-serialization;
+    /// assigning a fresh list means the serializer always sees one complete snapshot or another.</para>
+    /// </summary>
+    public List<string> Extensions { get; set; } = [];
+
     /// <summary>UTC timestamp of the last progress update.</summary>
     public DateTime LastUpdatedUtc { get; set; }
 

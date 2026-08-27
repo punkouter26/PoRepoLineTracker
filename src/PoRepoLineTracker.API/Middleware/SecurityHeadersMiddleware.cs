@@ -53,6 +53,16 @@ public class SecurityHeadersMiddleware
                         // late and engines disagreed for years — an omitted scheme here fails as a
                         // silently blocked connection, so it is named rather than assumed.
                         "connect-src 'self' https: wss:; " +
+                        // Both named rather than left to fall back, for the same reason wss: is.
+                        // worker-src falls back through child-src to script-src, and manifest-src
+                        // falls back to default-src — so the app is installable today by accident
+                        // of those chains rather than by intent. Tightening script-src later (the
+                        // obvious next hardening step, since it currently allows https: wholesale)
+                        // would silently take the service worker with it, and a blocked worker
+                        // fails as "the install button never appears", which is close to
+                        // undiagnosable.
+                        "worker-src 'self'; " +
+                        "manifest-src 'self'; " +
                         "frame-ancestors 'none'; " +
                         "upgrade-insecure-requests;";
 

@@ -23,6 +23,10 @@ public sealed class AuthorizationApiTests
     [InlineData("/api/settings/user-preferences")]
     [InlineData("/api/github/user-repositories")]
     [InlineData("/api/diagnostics")]
+    [InlineData("/api/insights/portfolio")]
+    [InlineData("/api/insights/digest")]
+    [InlineData("/api/recap")]
+    [InlineData("/api/recap/2024")]
     public async Task ProtectedGet_Anonymous_IsRefused(string route)
     {
         var response = await E2EApiClient.GetAsync(route);

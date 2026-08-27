@@ -1,0 +1,101 @@
+@inject IJSRuntime JS
+@inject ILogger<InstallAppButton> Logger
+@implements IDisposable
+@using Radzen
+@using Radzen.Blazor
+
+@* Offers to install the app, and only when the browser says that is possible.
+
+   There is no way to ask a browser "are you willing to install this" — the only signal is the
+   `beforeinstallprompt` event, which fires once, may fire before the WASM runtime has started, and
+   never fires at all on browsers that do not support installation (every Firefox, every desktop
+   Safari) or for an app already installed. So this renders nothing by default and appears only
+   once the boot script in index.html has actually caught the event. A button that were always
+   present would do nothing at all for most visitors. *@
+
+@if (_canInstall)
+{
+    <RadzenButton Icon="install_desktop"
+                  ButtonStyle="ButtonStyle.Light"
+                  Variant="Variant.Text"
+                  class="header-icon-btn"
+                  title="Install PoRepoLineTracker as an app"
+                  aria-label="Install PoRepoLineTracker as an app"
+                  Click="@InstallAsync" />
+}
+
+@code {
+    private bool _canInstall;
+    private DotNetObjectReference<InstallAppButton>? _selfRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            // Nothing to offer inside an installed window. Checked before registering so the
+            // listener is not left holding a reference for a button that can never appear.
+            if (await JS.InvokeAsync<bool>("isStandalone")) return;
+
+            _selfRef = DotNetObjectReference.Create(this);
+
+            // The call returns the CURRENT availability as well as subscribing, which is what
+            // covers the common case: the event fired during boot, before this component existed.
+            _canInstall = await JS.InvokeAsync<bool>("registerInstallListener", _selfRef);
+
+            if (_canInstall) StateHasChanged();
+        }
+        catch (JSException ex)
+        {
+            // An install prompt is a nicety. A browser that cannot provide one is not a fault
+            // worth reporting to the user.
+            Logger.LogDebug(ex, "Install prompt unavailable");
+        }
+    }
+
+    /// <summary>
+    /// Called from the boot script when the browser offers, or withdraws, an install prompt.
+    /// Public and <c>[JSInvokable]</c> because that is the only shape JS interop can call back on.
+    /// </summary>
+    [JSInvokable]
+    public Task OnInstallAvailabilityChanged(bool available)
+    {
+        _canInstall = available;
+        // The callback arrives on the interop context, not the renderer's.
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task InstallAsync()
+    {
+        try
+        {
+            // The result is deliberately ignored. Accepted or dismissed, the captured event is
+            // spent either way — the boot script raises OnInstallAvailabilityChanged(false) for
+            // both outcomes, which is what actually retires the button.
+            await JS.InvokeAsync<bool>("promptInstall");
+        }
+        catch (JSException ex)
+        {
+            Logger.LogDebug(ex, "Install prompt failed");
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_selfRef is null) return;
+
+        try
+        {
+            // Fire-and-forget: Dispose cannot await, and leaving the listener holding a disposed
+            // reference would make every later availability change throw in the browser.
+            _ = JS.InvokeVoidAsync("unregisterInstallListener");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The JS side is already gone; there is nothing left to unregister.
+        }
+
+        _selfRef.Dispose();
+    }
+}

@@ -47,6 +47,10 @@
             </div>
 
             <div class="app-header__session">
+                @* Renders nothing unless the browser has actually offered an install prompt —
+                   see InstallAppButton. It sits before the theme toggle so the controls that are
+                   always present keep a stable position when it does appear. *@
+                <InstallAppButton />
                 <RadzenButton Icon="@(_isDarkMode ? "light_mode" : "dark_mode")"
                               ButtonStyle="ButtonStyle.Light"
                               Variant="Variant.Text"
@@ -193,6 +197,11 @@
         {
             "" or "/" => (null, null, null),
             "/insights" => ("Global Insights", null, null),
+            "/recap" => ("Year in Code", null, null),
+            // /recap/2024 is the same page under an explicit year, so it reads as a child of the
+            // year-less route rather than as a destination of its own.
+            _ when path.StartsWith("/recap/") && path.Length > "/recap/".Length
+                => (path["/recap/".Length..], "Year in Code", "/recap"),
             "/settings" => ("Settings", null, null),
             "/settings/extensions-counted" => ("Settings", null, null),
             "/diag" => ("Diagnostics", null, null),

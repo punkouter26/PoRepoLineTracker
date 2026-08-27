@@ -1,0 +1,436 @@
+/* Scoped styles for the Year in Code recap.
+
+   Rules that must reach a Radzen-rendered element (the cards, the page title, the empty-state
+   icon) go through ::deep — nothing Radzen emits carries this file's scope id, so a plain
+   selector for one of those would compile to `.rc-card[b-…]` and match nothing. Everything
+   targeting our own markup is a plain selector. */
+
+::deep .rc-title.rc-title {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .rc-lede.rc-lede {
+    margin: 0 !important;
+    color: var(--text-secondary) !important;
+}
+
+/* ── Reveal ─────────────────────────────────────────────────────────────────────────────────
+   A card that has not been revealed yet is HIDDEN, not absent: it holds its place so the page
+   does not reflow as each one lands, which would move the scroll position under anyone reading
+   the card above.
+
+   `visibility` rather than `display` for the same reason — a display-toggled card contributes no
+   height, which is exactly the reflow this avoids. */
+.rc-slot {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(14px);
+}
+
+.rc-slot--in {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition: opacity 0.45s ease-out, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Reduced motion: the cards still appear in sequence (the reveal is driven from C#, not from
+   CSS), they just stop sliding. The pacing is the point; the movement is decoration. */
+@media (prefers-reduced-motion: reduce) {
+    .rc-slot { transform: none; }
+    .rc-slot--in { transition: opacity 0.2s linear; }
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────────────────────────────── */
+::deep .rc-card.rc-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* The headline card gets the accent wash. Exactly one card on the page carries it — a gradient
+   on every card would flatten the sequence back into a grid. */
+::deep .rc-card--hero.rc-card--hero {
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--brand-violet) 16%, transparent),
+        color-mix(in srgb, var(--accent-secondary) 10%, transparent));
+    border: 1px solid color-mix(in srgb, var(--brand-violet) 28%, transparent);
+}
+
+.rc-kicker {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.rc-sub-kicker {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.rc-sentence {
+    margin: 0;
+    font-size: var(--text-base);
+    line-height: 1.55;
+    color: var(--text-secondary);
+}
+
+.rc-emph {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.rc-emph--pos { color: var(--status-pos); }
+.rc-emph--neg { color: var(--status-neg); }
+
+/* ── Headline number ───────────────────────────────────────────────────────────────────────
+   clamp() rather than a breakpoint: the number is the only thing on the card, so it should take
+   whatever width is going, and a fixed size either overflows a phone or looks timid on a desktop. */
+.rc-hero-number {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+::deep .rc-hero-value {
+    font-size: clamp(2.5rem, 9vw, 4.5rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    /* The value counts up on first paint; proportional digits make it jitter sideways as it does. */
+    font-variant-numeric: tabular-nums;
+}
+
+.rc-hero-unit {
+    font-size: var(--text-lg);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.rc-hero-sub {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+/* ── Stat tiles ────────────────────────────────────────────────────────────────────────────── */
+.rc-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+    gap: 0.5rem 1rem;
+}
+
+.rc-tile {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.rc-tile-value {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.rc-tile-label {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+/* ── Month + hour charts ───────────────────────────────────────────────────────────────────
+   Both draw from a `--bar` custom property set on the element by the page. The percentage is the
+   only thing the C# decides; every other aspect of the geometry lives here, which is why the
+   inline value is a variable rather than a `height`. */
+.rc-months,
+.rc-hours {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 84px;
+}
+
+.rc-month,
+.rc-hour {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1 1 0;
+    height: 100%;
+    min-width: 0;
+    gap: 3px;
+}
+
+/* min-height keeps an empty bucket visible as a baseline tick. A zero-height bar is
+   indistinguishable from a missing column, and a missing column reads as no data rather than as
+   no commits. */
+.rc-month-bar,
+.rc-hour-bar {
+    width: 100%;
+    height: var(--bar, 0%);
+    min-height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--series-0);
+    transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rc-hour-bar {
+    background: var(--series-6);
+}
+
+.rc-hour--peak .rc-hour-bar {
+    background: var(--accent-secondary);
+}
+
+.rc-month-label {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    line-height: 1;
+}
+
+.rc-hours-axis {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6rem;
+    color: var(--text-muted);
+}
+
+/* ── Weekday chart ──────────────────────────────────────────────────────────────────────────
+   Taller than the month and hour strips and it labels each bar with its own value. There are only
+   seven bars, so there is room for the number — and unlike the other two this chart plots an
+   average rather than a count, which is not a figure anyone can read off a bar height. */
+.rc-weekdays {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.35rem;
+    height: 120px;
+    margin-top: 0.35rem;
+}
+
+.rc-weekday {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1 1 0;
+    height: 100%;
+    min-width: 0;
+    gap: 3px;
+}
+
+.rc-weekday-value {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.rc-weekday-bar {
+    width: 100%;
+    height: var(--bar, 0%);
+    min-height: 2px;
+    border-radius: 3px 3px 0 0;
+    background: var(--series-5);
+    transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The busiest weekday, in the same accent the peak hour uses — one visual language for "this is
+   the one" across both charts on the card. */
+.rc-weekday--peak .rc-weekday-bar {
+    background: var(--accent-secondary);
+}
+
+.rc-weekday--peak .rc-weekday-value,
+.rc-weekday--peak .rc-weekday-label {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.rc-weekday-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rc-month-bar,
+    .rc-hour-bar,
+    .rc-weekday-bar { transition: none; }
+}
+
+/* ── Biggest commits ───────────────────────────────────────────────────────────────────────── */
+.rc-commits {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.rc-commit {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: var(--text-xs);
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.rc-commit:last-child { border-bottom: none; }
+
+.rc-commit-sha {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--code-color);
+}
+
+.rc-commit-repo {
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Takes the slack so the figures stay right-aligned against each other. */
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.rc-commit-lines {
+    font-weight: 700;
+    color: var(--status-pos);
+    font-variant-numeric: tabular-nums;
+}
+
+.rc-commit-date {
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* ── Repository ranking ────────────────────────────────────────────────────────────────────── */
+.rc-repos {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.rc-repo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    text-decoration: none;
+    padding: 0.35rem 0.5rem;
+    border-radius: 8px;
+    transition: background 0.15s ease;
+}
+
+.rc-repo:hover,
+.rc-repo:focus-visible {
+    background: var(--bg-tertiary);
+}
+
+.rc-repo-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.rc-repo-name {
+    font-weight: 600;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.rc-repo-bar-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--bg-tertiary);
+    overflow: hidden;
+}
+
+.rc-repo-bar {
+    height: 100%;
+    width: var(--bar, 0%);
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--series-0), var(--series-1));
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rc-repo-figures {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+}
+
+.rc-repo-commits { color: var(--text-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+    .rc-repo-bar { transition: none; }
+}
+
+/* ── Language drift ────────────────────────────────────────────────────────────────────────
+   A grid, not a flex row: the five columns must line up between rows for the arrows to read as a
+   single before/after column pair rather than as five unrelated sentences. */
+.rc-drift {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.rc-drift-row {
+    display: grid;
+    grid-template-columns: minmax(3.5rem, auto) 1fr auto 1fr auto;
+    align-items: baseline;
+    gap: 0.4rem;
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    padding: 0.2rem 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.rc-drift-row:last-child { border-bottom: none; }
+
+.rc-drift-ext {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--code-color);
+}
+
+.rc-drift-from { color: var(--text-muted); text-align: right; }
+.rc-drift-arrow { color: var(--text-muted); }
+.rc-drift-to { color: var(--text-primary); font-weight: 600; }
+
+/* Direction is carried by the sign as well as the colour — colour alone is not an accessible
+   signal. */
+.rc-drift-delta {
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.rc-drift-delta--pos { color: var(--status-pos); }
+.rc-drift-delta--neg { color: var(--status-neg); }
+
+/* ── Empty state ───────────────────────────────────────────────────────────────────────────── */
+::deep .rc-empty.rc-empty {
+    padding: var(--space-xl);
+    text-align: center;
+}
+
+::deep .rc-empty-icon.rc-empty-icon {
+    font-size: 2.5rem !important;
+    color: var(--text-muted) !important;
+}
+
+::deep .rc-empty-lede.rc-empty-lede {
+    color: var(--text-secondary) !important;
+    margin: 0 !important;
+}

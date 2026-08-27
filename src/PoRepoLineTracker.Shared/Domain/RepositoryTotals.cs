@@ -73,4 +73,39 @@ public static class RepositoryTotals
 
         return value;
     }
+
+    /// <summary>
+    /// The per-extension breakdown as of <paramref name="asOf"/>: the <c>LinesByFileType</c> map on
+    /// the newest commit at or before that instant, or an empty map if the repository had no
+    /// commits yet.
+    ///
+    /// <para>Same snapshot rule as <see cref="TotalLinesAsOf"/>, applied per extension — the map on
+    /// a commit describes the whole repository at that commit, so a language mix "as of" a date is
+    /// one commit's map, never an accumulation of several.</para>
+    ///
+    /// <para>Returns the stored dictionary itself rather than a copy, so callers must not mutate
+    /// it. Every caller aggregates into its own accumulator.</para>
+    /// </summary>
+    public static IReadOnlyDictionary<string, int> LinesByFileTypeAsOf(
+        IEnumerable<CommitLineCount>? commits, DateTime asOf)
+    {
+        if (commits is null) return EmptyBreakdown;
+
+        IReadOnlyDictionary<string, int> value = EmptyBreakdown;
+        DateTime? bestDate = null;
+
+        foreach (var commit in commits)
+        {
+            if (commit.CommitDate > asOf) continue;
+            if (bestDate is null || commit.CommitDate > bestDate)
+            {
+                bestDate = commit.CommitDate;
+                value = commit.LinesByFileType;
+            }
+        }
+
+        return value;
+    }
+
+    private static readonly Dictionary<string, int> EmptyBreakdown = [];
 }

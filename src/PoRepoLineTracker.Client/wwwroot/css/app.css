@@ -465,16 +465,17 @@ a:focus-visible, .btn-link:focus-visible {
     background-color: var(--bg-secondary);
     background-image: radial-gradient(ellipse 60% 45% at 50% -10%, var(--ambient-glow), transparent 70%);
     background-size: 140% 140%;
-    animation: ambientPulse 22s var(--ease-standard) infinite alternate;
+    /* The glow is STATIC. It used to drift on a 22s `ambientPulse` loop across this element —
+       which is the whole content well, so the moving edge of the gradient swept the full width of
+       the page behind everything on it. On a light theme that edge reads as a pale band travelling
+       across the UI, and reported as "a white flash going through the component". A decoration
+       that large cannot move without competing with the content it sits behind, and nothing about
+       it carried information. The gradient itself is kept: it is the depth cue, and it costs
+       nothing once it stops animating. */
     transition: grid-column-start 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     container: appwell / inline-size;
     /* Without this a wide grid child can force the grid track wider than its 1fr share. */
     min-width: 0;
-}
-
-@keyframes ambientPulse {
-    from { background-position: 50% -10%; }
-    to   { background-position: 42% 4%; }
 }
 
 /* Desktop collapsed state: when the user has toggled the sidebar shut on a wide viewport,

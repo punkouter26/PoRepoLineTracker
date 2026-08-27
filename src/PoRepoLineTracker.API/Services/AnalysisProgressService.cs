@@ -39,6 +39,9 @@ public sealed class AnalysisProgressService(
             StepIndex = 0,
             StepName = "Queued",
             StepDescription = $"Queued analysis for {owner}/{name}",
+            // Stamped once, here, so a page that opens mid-analysis still knows when the job
+            // began and can render elapsed time, throughput and an ETA.
+            StartedUtc = DateTime.UtcNow,
             LastUpdatedUtc = DateTime.UtcNow
         };
 
@@ -69,12 +72,21 @@ public sealed class AnalysisProgressService(
         }
     }
 
-    public void ReportCommitProgress(RepositoryId repositoryId, int processed, int total)
+    public void ReportCommitProgress(
+        RepositoryId repositoryId,
+        int processed,
+        int total,
+        long linesCounted = 0,
+        List<string>? extensions = null)
     {
         if (_progress.TryGetValue(repositoryId, out var dto))
         {
             dto.CommitsProcessed = processed;
             dto.CommitsTotal = total;
+            dto.LinesCounted = linesCounted;
+            // Assigned, never appended to: this object is serialized on a fire-and-forget task
+            // while the loop keeps reporting, and mutating a live collection mid-send throws.
+            if (extensions is not null) dto.Extensions = extensions;
             dto.LastUpdatedUtc = DateTime.UtcNow;
             Publish(dto);
         }

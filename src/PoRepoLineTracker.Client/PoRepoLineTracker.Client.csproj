@@ -26,7 +26,19 @@
          outright, so the members the trimmer cannot prove reachable are in fact kept — remove the
          roots and these must be un-suppressed with them. -->
     <NoWarn>$(NoWarn);IL2110;IL2111</NoWarn>
+    <!-- Emits wwwroot/service-worker-assets.js at publish time: one entry per published asset
+         with its integrity hash, plus a version stamp derived from them. service-worker.published.js
+         imports it to build its cache and to name that cache, which is what makes a deploy
+         invalidate the previous shell instead of merging into it. -->
+    <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The dev worker is a no-op and the published one caches the shell; see the header comment
+         in each. Swapping them at publish time is what keeps a stale cache from masquerading as a
+         failed local build. -->
+    <ServiceWorker Include="wwwroot\service-worker.js" PublishedContent="wwwroot\service-worker.published.js" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />

@@ -111,6 +111,89 @@
                     });
             }
         })();
+
+        // ── Install prompt ──────────────────────────────────────────────────────────
+        //
+        // Captured HERE, in the boot script, rather than in a module the app imports
+        // later. `beforeinstallprompt` fires once and does not replay: on a warm load
+        // Chromium can raise it before the WASM runtime has finished starting, and a
+        // listener attached after that point never hears about it — the install button
+        // then never appears for exactly the returning users most likely to want it.
+        //
+        // The event is also the ONLY way to know the browser considers the app
+        // installable. There is no queryable "is installable" state, which is why the
+        // button is driven by a listener instead of a poll.
+        var deferredInstallPrompt = null;
+        var installListener = null;
+
+        function notifyInstallAvailability(available) {
+            // Fire-and-forget: the .NET side may already be gone (navigation, teardown),
+            // and a rejected interop call must not take out the page.
+            if (installListener) {
+                installListener.invokeMethodAsync('OnInstallAvailabilityChanged', available)
+                    .catch(function () { installListener = null; });
+            }
+        }
+
+        window.addEventListener('beforeinstallprompt', function (e) {
+            // Suppressing the browser's own mini-infobar is what earns the right to
+            // show the prompt later from our own button.
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            notifyInstallAvailability(true);
+        });
+
+        window.addEventListener('appinstalled', function () {
+            deferredInstallPrompt = null;
+            notifyInstallAvailability(false);
+        });
+
+        // Returns the state as of NOW, so a component that mounts after the event has
+        // already fired gets the right answer without waiting for a second one that
+        // will never come.
+        function registerInstallListener(dotNetRef) {
+            installListener = dotNetRef;
+            return deferredInstallPrompt !== null;
+        }
+
+        function unregisterInstallListener() {
+            installListener = null;
+        }
+
+        async function promptInstall() {
+            if (!deferredInstallPrompt) return false;
+
+            deferredInstallPrompt.prompt();
+            var choice = await deferredInstallPrompt.userChoice;
+
+            // Spent either way: the captured event cannot be prompted twice, so a
+            // dismissed prompt has to retire the button until the browser offers a new
+            // one.
+            deferredInstallPrompt = null;
+            notifyInstallAvailability(false);
+            return choice.outcome === 'accepted';
+        }
+
+        // Already installed and launched from the home screen — there is nothing left to
+        // offer, and `navigator.standalone` covers iOS, which does not implement
+        // display-mode.
+        function isStandalone() {
+            return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+                || window.navigator.standalone === true;
+        }
+
+        // Registered on load rather than immediately: installing a worker competes with
+        // the framework download for connections, and the shell it caches is the one
+        // that just finished loading anyway.
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('service-worker.js').catch(function (err) {
+                    // A blocked or unsupported worker costs the install prompt and offline
+                    // load, not the app. Logged, not surfaced.
+                    console.warn('Service worker registration failed', err);
+                });
+            });
+        }
     </script>
 </body>
 

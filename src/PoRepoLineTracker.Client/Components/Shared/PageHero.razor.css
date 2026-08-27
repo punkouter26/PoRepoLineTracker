@@ -1,9 +1,13 @@
 /* Scoped styles for PageHero. Rooted at a plain <div>, so the scope id lands correctly. */
 
 /* The static linear-gradient is declared first and stays as the fallback. The layered radial
-   mesh below it replaces the flat wash with three drifting colour wells — `background-position`
-   is the only animated property, and the layer is already promoted, so the drift composites
-   rather than repainting the strip.
+   mesh below it replaces the flat wash with three colour wells.
+
+   The wells no longer drift. They ran on a 28s `heroDrift` loop, alongside the 22s ambient drift
+   on the content well behind them — two large, slow, unsynchronised gradients moving over the top
+   of every page at once. The visible result was a pale band crossing the UI at irregular
+   intervals, which is what "a white flash going through the component" describes. Neither loop
+   carried information, and the mesh reads the same standing still.
 
    Scoped here rather than as a global utility because a full-bleed backdrop would paint an
    opaque `background-color`; the hero has to stay transparent over whatever surface the page
@@ -15,22 +19,11 @@
         radial-gradient(ellipse 45% 90% at 42% 90%, color-mix(in srgb, var(--brand-violet) 9%, transparent), transparent 58%),
         radial-gradient(ellipse 60% 80% at 88% 20%, rgba(52, 195, 179, 0.07), transparent 60%);
     background-size: 160% 160%, 150% 150%, 170% 170%;
-    animation: heroDrift 28s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+    background-position: 0% 50%, 40% 100%, 100% 0%;
     padding: var(--space-sm) var(--space-sm) var(--space-md);
     margin-bottom: var(--space-xs);
     border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 8%, transparent);
     border-radius: 8px 8px 0 0;
-}
-
-@keyframes heroDrift {
-    from { background-position:  0% 50%, 40% 100%, 100% 0%; }
-    to   { background-position: 18% 35%, 55%  70%,  82% 22%; }
-}
-
-/* app.css zeroes every animation duration under reduced motion, which stops the drift but leaves
-   the layer live. Removing the animation outright is what actually stops the work. */
-@media (prefers-reduced-motion: reduce) {
-    .page-hero { animation: none; }
 }
 
 /* Flex with intrinsic sizing, not the 12-column Size="12" SizeMD="8"/"4" split this used to be.

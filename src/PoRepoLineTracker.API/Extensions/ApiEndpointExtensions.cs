@@ -5,6 +5,7 @@ using PoRepoLineTracker.API.Features.Dev;
 using PoRepoLineTracker.API.Features.Diagnostics;
 using PoRepoLineTracker.API.Features.GitHub;
 using PoRepoLineTracker.API.Features.Insights;
+using PoRepoLineTracker.API.Features.Recap;
 using PoRepoLineTracker.API.Features.Repositories;
 using PoRepoLineTracker.API.Features.Settings;
 
@@ -37,6 +38,7 @@ public static class ApiEndpointExtensions
         app.MapUploadEndpoints();
         app.MapContributorEndpoints();
         app.MapInsightsEndpoints();
+        app.MapRecapEndpoints();
 
         if (isDevelopment)
         {

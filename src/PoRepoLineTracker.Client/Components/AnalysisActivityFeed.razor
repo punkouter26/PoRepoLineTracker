@@ -9,7 +9,13 @@
 
    Renders nothing at all while idle. A permanently visible "no activity" panel would push the
    repository grid down the page to say nothing; this appears when something starts and stays
-   until the page is left. *@
+   until the page is left.
+
+   A running job gets the full treatment — step rail, running line tally, throughput, ETA and the
+   file types as they are discovered — because analysing a repository with a few thousand commits
+   takes minutes, and the previous rendering was a percentage that crept a point every few seconds
+   next to a bar. That is indistinguishable from a hang, and the most common thing a user did with
+   it was reload the page mid-job. Everything here comes off frames the hub already sends. *@
 
 @* Rooted at a plain <div>, following ChartCard. The component used to root at <RadzenCard>, which
    left nothing carrying this file's scope id — so `.feed` compiled to `.feed[b-feed]` and matched
@@ -38,7 +44,7 @@
         <ul class="feed__list">
             @foreach (var entry in Ordered)
             {
-                <li class="feed__row">
+                <li class="@RowClass(entry)">
                     <div class="feed__head">
                         <span class="feed__repo" title="@entry.Label">@entry.Label</span>
                         @if (entry.Error is not null)
@@ -56,6 +62,47 @@
                         <span class="feed__time">@ChartFormat.RelativeTime(entry.UpdatedUtc)</span>
                     </div>
 
+                    @if (entry.Running && entry.Error is null)
+                    {
+                        @* ── The stage the job is on ──────────────────────────────────────────
+                           Named stages rather than "step 3 of 4": cloning a large repository and
+                           saving its results fail for completely different reasons, and knowing
+                           which one is slow is the difference between waiting and investigating. *@
+                        <ol class="feed__rail" aria-label="Analysis stages">
+                            @for (var i = 0; i < Stages.Length; i++)
+                            {
+                                var reached = i <= entry.StageIndex;
+                                var current = i == entry.StageIndex;
+                                <li class="@($"feed__stage{(reached ? " feed__stage--done" : "")}{(current ? " feed__stage--now" : "")}")">
+                                    <span class="feed__stage-dot" aria-hidden="true"></span>
+                                    <span class="feed__stage-name">@Stages[i]</span>
+                                </li>
+                            }
+                        </ol>
+
+                        <div class="feed__metrics">
+                            <div class="feed__counter">
+                                @* The one number on the panel that moves continuously. It is
+                                   cumulative churn across every commit replayed, not the
+                                   repository's size — hence the label. *@
+                                <AnimatedNumber Value="@entry.LinesCounted" Class="feed__counter-value" />
+                                <span class="feed__counter-label">lines counted</span>
+                            </div>
+
+                            <div class="feed__rate">
+                                @if (entry.CommitsPerSecond is { } rate)
+                                {
+                                    <span class="feed__rate-item">@rate.ToString("N1") commits/s</span>
+                                }
+                                @if (entry.Remaining is { } remaining)
+                                {
+                                    <span class="feed__rate-item">@FormatEta(remaining) left</span>
+                                }
+                                <span class="feed__rate-item">@FormatElapsed(entry.Elapsed) elapsed</span>
+                            </div>
+                        </div>
+                    }
+
                     <div class="feed__detail">
                         @(entry.Error ?? entry.Detail)
                     </div>
@@ -68,6 +115,19 @@
                                            Value="@entry.Percent"
                                            ShowValue="false"
                                            class="feed__bar" />
+                    }
+
+                    @* File types light up as the walk discovers them. Kept below the bar so the
+                       row's height only grows once there is something to show — an empty chip row
+                       reserving space would make every job start by jumping the layout. *@
+                    @if (entry.Extensions.Count > 0)
+                    {
+                        <div class="feed__chips">
+                            @foreach (var extension in entry.Extensions)
+                            {
+                                <span class="feed__chip" @key="extension">@extension</span>
+                            }
+                        </div>
                     }
                 </li>
             }
@@ -84,8 +144,23 @@
     /// </summary>
     private const int MaxEntries = 12;
 
+    /// <summary>
+    /// The stage rail, in order. These are the <c>StepName</c> values the analysis command reports,
+    /// matched by name rather than by <c>StepIndex</c>: the index is 1-based over four steps and
+    /// has no value for the queued state, which is the one a user stares at longest during a bulk
+    /// import.
+    /// </summary>
+    private static readonly string[] Stages = ["Queued", "Cloning", "Fetching", "Processing", "Saving"];
+
     /// <summary>Keyed by repository so successive frames for one job update a row rather than adding one.</summary>
     private readonly Dictionary<RepositoryId, FeedEntry> _entries = [];
+
+    /// <summary>
+    /// Repositories whose completion has already been rendered. The finish flash is a CSS
+    /// animation that runs when its class first appears, so the class has to stop being applied
+    /// afterwards — otherwise every subsequent frame for any other job would replay it.
+    /// </summary>
+    private readonly HashSet<RepositoryId> _flashed = [];
 
     private IEnumerable<FeedEntry> Ordered =>
         _entries.Values.OrderByDescending(e => e.Running).ThenByDescending(e => e.UpdatedUtc);
@@ -103,6 +178,10 @@
             ? progress.RepositoryId.ToString()
             : $"{progress.Owner}/{progress.Name}";
 
+        var justFinished = !progress.IsRunning
+            && progress.ErrorMessage is null
+            && _flashed.Add(progress.RepositoryId);
+
         _entries[progress.RepositoryId] = new FeedEntry(
             label,
             string.IsNullOrEmpty(progress.StepName) ? "Working" : progress.StepName,
@@ -111,7 +190,20 @@
             progress.CommitsTotal > 0,
             progress.IsRunning,
             progress.ErrorMessage,
-            DateTime.UtcNow);
+            DateTime.UtcNow,
+            StageIndexOf(progress.StepName),
+            // Clamped rather than truncated: the tally is a long on the wire because a large
+            // history genuinely overflows an int, and AnimatedNumber counts in int. Pinning at
+            // int.MaxValue keeps a runaway total readable instead of wrapping negative.
+            (int)Math.Min(progress.LinesCounted, int.MaxValue),
+            progress.Extensions,
+            Elapsed(progress),
+            CommitsPerSecond(progress),
+            RemainingTime(progress),
+            justFinished);
+
+        // A re-analysis of the same repository must be able to flash again when IT finishes.
+        if (progress.IsRunning) _flashed.Remove(progress.RepositoryId);
 
         // Evicted by age, and only among finished jobs — a running job pushed off the end would
         // stop updating anywhere the user can see it.
@@ -123,12 +215,82 @@
                 .Select(kv => (RepositoryId?)kv.Key)
                 .FirstOrDefault();
 
-            if (stalest.HasValue) _entries.Remove(stalest.Value);
+            if (stalest.HasValue)
+            {
+                _entries.Remove(stalest.Value);
+                _flashed.Remove(stalest.Value);
+            }
         }
 
         // Frames arrive on the hub's callback context, not the renderer's.
         await InvokeAsync(StateHasChanged);
     }
+
+    private string RowClass(FeedEntry entry) =>
+        entry.JustFinished ? "feed__row feed__row--finished" : "feed__row";
+
+    /// <summary>
+    /// Position on the rail. An unrecognised step name parks the marker at the start rather than
+    /// hiding the rail — a step this component has not been taught about is still progress, and a
+    /// rail that vanishes mid-job reads as a failure.
+    /// </summary>
+    private static int StageIndexOf(string? stepName)
+    {
+        if (string.IsNullOrEmpty(stepName)) return 0;
+        var index = Array.IndexOf(Stages, stepName);
+        return index < 0 ? 0 : index;
+    }
+
+    private static TimeSpan Elapsed(AnalysisProgressDto progress)
+    {
+        var elapsed = progress.LastUpdatedUtc - progress.StartedUtc;
+        return elapsed > TimeSpan.Zero ? elapsed : TimeSpan.Zero;
+    }
+
+    /// <summary>
+    /// Throughput over the whole run so far, not over the last frame. A per-frame rate computed
+    /// from five commits swings wildly enough to be unreadable; the cumulative average settles
+    /// within a few seconds and is what the ETA is derived from anyway.
+    ///
+    /// <para>Null until there is enough of a run to divide by — a rate quoted off the first
+    /// half-second is noise.</para>
+    /// </summary>
+    private static double? CommitsPerSecond(AnalysisProgressDto progress)
+    {
+        var seconds = Elapsed(progress).TotalSeconds;
+        if (seconds < 1 || progress.CommitsProcessed <= 0) return null;
+        return progress.CommitsProcessed / seconds;
+    }
+
+    /// <summary>
+    /// Time left at the current average rate. Null unless the commit total is known — before the
+    /// fetch step there is no denominator, and an ETA invented from a step index would be a
+    /// number the user has every reason to believe and no reason to trust.
+    /// </summary>
+    private static TimeSpan? RemainingTime(AnalysisProgressDto progress)
+    {
+        if (progress.CommitsTotal <= 0) return null;
+        if (CommitsPerSecond(progress) is not { } rate || rate <= 0) return null;
+
+        var remaining = progress.CommitsTotal - progress.CommitsProcessed;
+        if (remaining <= 0) return null;
+
+        return TimeSpan.FromSeconds(remaining / rate);
+    }
+
+    private static string FormatEta(TimeSpan remaining) =>
+        remaining.TotalSeconds < 60
+            ? $"~{Math.Max(1, (int)remaining.TotalSeconds)}s"
+            : remaining.TotalMinutes < 60
+                ? $"~{(int)remaining.TotalMinutes}m {remaining.Seconds}s"
+                : $"~{(int)remaining.TotalHours}h {remaining.Minutes}m";
+
+    private static string FormatElapsed(TimeSpan elapsed) =>
+        elapsed.TotalMinutes < 1
+            ? $"{(int)elapsed.TotalSeconds}s"
+            : elapsed.TotalHours < 1
+                ? $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s"
+                : $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m";
 
     private static string Describe(AnalysisProgressDto progress)
     {
@@ -148,7 +310,14 @@
         bool Determinate,
         bool Running,
         string? Error,
-        DateTime UpdatedUtc);
+        DateTime UpdatedUtc,
+        int StageIndex,
+        int LinesCounted,
+        List<string> Extensions,
+        TimeSpan Elapsed,
+        double? CommitsPerSecond,
+        TimeSpan? Remaining,
+        bool JustFinished);
 
     /// <summary>
     /// Unsubscribes without disposing the connection — <see cref="AnalysisFeedClient"/> is shared

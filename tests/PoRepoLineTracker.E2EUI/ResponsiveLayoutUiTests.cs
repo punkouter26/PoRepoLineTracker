@@ -52,6 +52,7 @@ public sealed class ResponsiveLayoutUiTests
     [InlineData("mobile", "/repositories")]
     [InlineData("mobile", "/insights")]
     [InlineData("mobile", "/settings")]
+    [InlineData("mobile", "/recap")]
     public async Task NoHorizontalScroll(string viewportName, string route)
     {
         var page = await OpenRouteAsync(viewportName, route);
@@ -77,6 +78,7 @@ public sealed class ResponsiveLayoutUiTests
     [InlineData("/login")]
     [InlineData("/repositories")]
     [InlineData("/insights")]
+    [InlineData("/recap")]
     public async Task Mobile_TapTargetsAreLargeEnough(string route)
     {
         var page = await OpenRouteAsync("mobile", route);

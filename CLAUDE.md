@@ -41,10 +41,10 @@ docker compose up -d                                   # Azurite (Table Storage)
 dotnet run --project src/PoRepoLineTracker.API --launch-profile https   # https://localhost:5003
 
 dotnet build
-dotnet test tests/PoRepoLineTracker.Unit          # 229 — no external deps
-dotnet test tests/PoRepoLineTracker.Integration   # 75  — WebApplicationFactory + Testcontainers Azurite
-dotnet test tests/PoRepoLineTracker.E2EAPI        # 60  — needs the app running
-dotnet test tests/PoRepoLineTracker.E2EUI         # 72  — needs the app running + Playwright (~3m30s)
+dotnet test tests/PoRepoLineTracker.Unit          # 141 — no external deps
+dotnet test tests/PoRepoLineTracker.Integration   # 54  — WebApplicationFactory + Testcontainers Azurite
+dotnet test tests/PoRepoLineTracker.E2EAPI        # 30  — needs the app running
+dotnet test tests/PoRepoLineTracker.E2EUI         # 34  — needs the app running + Playwright (~3m30s)
 ```
 
 **Traces**: `docker compose` also runs Jaeger. `OpenTelemetry:OtlpEndpoint` in
@@ -100,6 +100,26 @@ one *with* `Secure` never comes back over http — either way every state-changi
 while reads look fine. The integration tier runs as environment `"Test"` over plain HTTP and opts
 out explicitly.
 
+**The service worker must never answer a server route from the cached shell.** The stock Blazor
+template serves `index.html` for every navigation. Here that breaks sign-in outright: the GitHub
+OAuth round-trip is a sequence of top-level navigations, and returning the Blazor shell in place of
+one strands the user on a page that thinks it is logged out. `service-worker.published.js` keeps a
+`serverRoutePrefixes` list (`/api/`, `/auth/`, `/hubs/`, `/health`, `/signin-`, `/signout-`) that
+goes straight to the network. `service-worker.js` — the development one — is a deliberate no-op,
+because a worker serving yesterday's `_framework/*.wasm` is indistinguishable from a build that
+silently did not take. The swap happens via the `<ServiceWorker>` item in the client csproj, and
+`RecapAndInstallUiTests` asserts the dev worker holds no cache, which is what proves the swap is
+real rather than the published file having been served all along.
+
+**The install button is driven by an event, not a query.** There is no "is this installable" API;
+the only signal is `beforeinstallprompt`, which fires once, does not replay, and can fire before
+the WASM runtime has started. It is therefore captured in the boot script in `index.html`, not in a
+module the app imports later, and `InstallAppButton` subscribes through
+`registerInstallListener` — which returns the *current* availability as well as subscribing, so a
+component mounting after the event still gets the right answer. `worker-src` and `manifest-src` are
+named explicitly in the CSP rather than left to fall back through `script-src`, so tightening
+`script-src` later cannot silently take the worker with it.
+
 **Scoped CSS needs a plain element at the component root.** A `.razor.css` rule compiles to
 `.foo[b-xxx]`, and nothing a Radzen component renders carries that attribute. Root at a plain
 `<div>` (see `ChartCard`, `AnalysisStatusCell`) and use `::deep` for anything Radzen renders.
@@ -152,8 +172,47 @@ poll in `Repositories.razor` exists only for when the hub is unreachable, and it
 same frames* rather than handling completion itself. Do not add a second completion path — there
 used to be three, and they had drifted.
 
+**Progress frames carry live tallies, and the collection on them is replaced, never mutated.**
+`AnalysisProgressDto` now also carries `StartedUtc`, `LinesCounted` and `Extensions`, so
+`AnalysisActivityFeed` can show a stage rail, a running line count, throughput and an ETA instead
+of a percentage that creeps a point every few seconds. `Publish` serialises that object on a
+fire-and-forget task while the loop keeps reporting, so appending to `Extensions` in place would
+throw mid-serialization — the analysis loop hands over a fresh list each time. `LinesCounted` is
+cumulative churn across replayed commits, not a repository size, and the UI labels it that way.
+
 **Saved preferences live in `UserPreferencesClient`**, which raises `Changed` after a write. Pages
 read from it and subscribe; they do not render their own copy of a settings control.
+
+**Streaks and per-extension snapshots have one definition each, in Shared.** `CommitStreaks`
+(current/longest run of active days) and `RepositoryTotals.LinesByFileTypeAsOf` sit next to
+`RepositoryTotals` for the reason stated there: three surfaces now print a streak — Insights, the
+digest banner, the recap — and they live in different slices, which may not reference each other.
+Without a shared home each would grow its own copy, and a streak reading 12 on one page and 11 on
+another is indistinguishable from a data bug.
+
+**The recap's windows are calendar edges, the dashboard's are trailing.** `/api/recap/{year}`
+answers "what did this year look like" — fixed 1 January to 31 December boundaries, an answer that
+stops changing once the year is over, and figures (peak hour, weekday rhythm, language drift,
+biggest single commit) that appear nowhere else. That is why it is its own slice while the digest,
+which is the portfolio question over a different window, sits beside `GetPortfolioInsightsQuery`.
+
+**Language drift is measured in share, not lines.** A file type's share of the portfolio can grow
+while the type itself shrinks — everything else shrank faster. That is the recap's one genuinely
+non-obvious figure and a line-count delta cannot show it.
+
+**The digest's read and its "mark seen" write are separate calls, deliberately.**
+`GET /api/insights/digest` never records the visit; `POST /api/insights/digest/seen` does, and the
+banner only calls it once it has actually rendered. Merge them and a page opened and closed without
+the user looking consumes the window, leaving the next real visit with nothing to report. The write
+is read-modify-write because `SavePreferencesAsync` upserts with `TableUpdateMode.Replace` — build
+the preferences object from anything less than the stored row and recording a visit silently blanks
+the user's counted-extensions list. `RecapAndDigestTests` pins exactly that.
+
+**A last visit is only used when it is between 12 hours and 90 days old.** Anything more recent
+falls back to a trailing 7 days: someone who reloaded twenty minutes ago has no news, and a banner
+announcing "0 commits since you were last here" looks broken on the one path — an engaged user —
+where it most needs not to. Anything older falls back too; reporting a year under that label is the
+recap's job.
 
 ## Conventions
 

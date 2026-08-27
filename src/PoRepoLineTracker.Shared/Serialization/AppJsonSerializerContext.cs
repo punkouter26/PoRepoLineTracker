@@ -61,6 +61,17 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(ActivityDayDto))]
 [JsonSerializable(typeof(PortfolioTrendPointDto))]
 
+// ─── Year in Code recap ─────────────────────────────────────────────────────────────────────
+[JsonSerializable(typeof(YearInCodeDto))]
+[JsonSerializable(typeof(RecapDayDto))]
+[JsonSerializable(typeof(RecapRepoDto))]
+[JsonSerializable(typeof(RecapCommitDto))]
+[JsonSerializable(typeof(LanguageDriftDto))]
+
+// ─── Since-you-were-away digest ─────────────────────────────────────────────────────────────
+[JsonSerializable(typeof(WeeklyDigestDto))]
+[JsonSerializable(typeof(DigestRepoDto))]
+
 // ─── Contributor DTOs ────────────────────────────────────────────────────────────────────────
 [JsonSerializable(typeof(ContributorStatsDto))]
 [JsonSerializable(typeof(List<ContributorStatsDto>))]

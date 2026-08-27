@@ -1,0 +1,498 @@
+@page "/recap"
+@page "/recap/{Year:int}"
+@attribute [Authorize]
+@inject HttpClient Http
+@inject ILogger<Recap> Logger
+@inject NavigationManager Navigation
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using PoRepoLineTracker.Shared.Serialization
+@using Radzen
+@using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
+
+@* Year in Code — the portfolio as a story rather than a dashboard.
+
+   Every other page answers "what is true now". This one answers "what did this year look like",
+   which is a different question with different boundaries: fixed calendar edges instead of
+   trailing windows, and an answer that stops changing once the year is over.
+
+   The cards reveal in sequence rather than all at once. That is the whole point of the page — a
+   recap read top to bottom lands differently from the same numbers in a grid, and the figures are
+   otherwise available on Insights anyway. Under prefers-reduced-motion the reveal collapses to a
+   plain render, which loses the pacing and nothing else. *@
+
+<div class="app-stack">
+    <PageHero>
+        <Heading>
+            <RadzenStack Gap="0.125rem">
+                <RadzenText TextStyle="TextStyle.H3" class="rc-title">@_year in Code</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="rc-lede">
+                    @if (_isLoading)
+                    {
+                        <span>Replaying your year…</span>
+                    }
+                    else if (_recap is { HasData: true } recap)
+                    {
+                        <span>
+                            @recap.Commits.ToString("N0") commits across
+                            @recap.ReposTouched @(recap.ReposTouched == 1 ? "repository" : "repositories")@(recap.IsPartialYear ? " · so far" : "")
+                        </span>
+                    }
+                    else if (_recap is not null)
+                    {
+                        <span>No commits recorded in @_year.</span>
+                    }
+                </RadzenText>
+            </RadzenStack>
+        </Heading>
+        <Actions>
+            @* A picker over the years the user actually has commits in, rather than a free date
+               range. Every other year is guaranteed empty, and offering it would make an empty
+               recap look like a failure rather than a fact. *@
+            @if (_recap is { AvailableYears.Count: > 1 })
+            {
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" Wrap="FlexWrap.Wrap">
+                    @foreach (var year in _recap.AvailableYears)
+                    {
+                        <RadzenButton Text="@year.ToString()"
+                                      ButtonStyle="@(year == _year ? ButtonStyle.Primary : ButtonStyle.Light)"
+                                      Variant="@(year == _year ? Variant.Filled : Variant.Outlined)"
+                                      Size="ButtonSize.Small"
+                                      Click="@(() => Navigation.NavigateTo($"/recap/{year}"))" />
+                    }
+                </RadzenStack>
+            }
+        </Actions>
+    </PageHero>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true" Close="@(() => _error = string.Empty)">
+            @_error
+        </RadzenAlert>
+    }
+
+    @if (_isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1rem">
+                <RadzenSkeleton Width="240px" Height="32px" />
+                <RadzenSkeleton Height="120px" />
+                <RadzenSkeleton Height="120px" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (_recap is { HasData: false })
+    {
+        <RadzenCard class="rc-empty">
+            <RadzenStack AlignItems="AlignItems.Center" Gap="0.75rem">
+                <RadzenIcon Icon="event_busy" class="rc-empty-icon" />
+                <RadzenText TextStyle="TextStyle.H5">Nothing to recap for @_year</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="rc-empty-lede">
+                    @if (_recap.AvailableYears.Count > 0)
+                    {
+                        <span>Pick a year above that has commits in it.</span>
+                    }
+                    else
+                    {
+                        <span>Add a repository and run an analysis, then come back.</span>
+                    }
+                </RadzenText>
+                <RadzenButton Text="Repositories" Icon="storage" ButtonStyle="ButtonStyle.Primary"
+                              Click="@(() => Navigation.NavigateTo("/"))" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (_recap is { HasData: true } recap)
+    {
+        @* ── 1. The headline ─────────────────────────────────────────────────────────────── *@
+        <div class="@CardClass(0)">
+            <RadzenCard class="rc-card rc-card--hero u-glass">
+                <span class="rc-kicker">You wrote</span>
+                <div class="rc-hero-number">
+                    <AnimatedNumber Value="@recap.LinesAdded" Class="rc-hero-value" />
+                    <span class="rc-hero-unit">lines</span>
+                </div>
+                <span class="rc-hero-sub">
+                    and deleted @recap.LinesRemoved.ToString("N0") ·
+                    @* Growth is the difference between two whole-repository snapshots, not
+                       added-minus-deleted. The two diverge whenever a line was written and
+                       rewritten inside the year, and only the snapshot difference describes the
+                       code that actually survived it. *@
+                    the portfolio @(recap.NetGrowth >= 0 ? "grew" : "shrank") by
+                    <span class="@($"rc-emph rc-emph--{(recap.NetGrowth < 0 ? "neg" : "pos")}")">@Math.Abs(recap.NetGrowth).ToString("N0")</span>
+                </span>
+            </RadzenCard>
+        </div>
+
+        @* ── 2. The shape of the year ────────────────────────────────────────────────────── *@
+        <div class="@CardClass(1)">
+            <RadzenCard class="rc-card u-glass">
+                <span class="rc-kicker">The shape of it</span>
+                <div class="rc-tiles">
+                    <div class="rc-tile">
+                        <span class="rc-tile-value">@recap.Commits.ToString("N0")</span>
+                        <span class="rc-tile-label">commits</span>
+                    </div>
+                    <div class="rc-tile">
+                        <span class="rc-tile-value">@recap.ActiveDays.ToString("N0")</span>
+                        <span class="rc-tile-label">active days</span>
+                    </div>
+                    <div class="rc-tile">
+                        <span class="rc-tile-value">@recap.LongestStreakDays.ToString("N0")</span>
+                        <span class="rc-tile-label">longest streak</span>
+                    </div>
+                    <div class="rc-tile">
+                        <span class="rc-tile-value">@recap.ReposTouched.ToString("N0")</span>
+                        <span class="rc-tile-label">repos touched</span>
+                    </div>
+                    <div class="rc-tile">
+                        <span class="rc-tile-value">@recap.ReposStarted.ToString("N0")</span>
+                        <span class="rc-tile-label">repos started</span>
+                    </div>
+                </div>
+
+                @* Twelve bars, always all twelve. A month with no commits is part of the shape of
+                   the year, so it renders as an empty column rather than being dropped — a sparse
+                   chart would silently compress a quiet spring into nothing. *@
+                <div class="rc-months" role="img" aria-label="@MonthsSummary(recap)">
+                    @for (var month = 0; month < 12; month++)
+                    {
+                        var commits = recap.CommitsByMonth[month];
+                        <div class="rc-month" title="@($"{MonthNames[month]}: {commits:N0} commits")">
+                            <div class="rc-month-bar" style="@BarHeight(commits, recap.CommitsByMonth)"></div>
+                            <span class="rc-month-label">@MonthNames[month][..1]</span>
+                        </div>
+                    }
+                </div>
+            </RadzenCard>
+        </div>
+
+        @* ── 3. Your rhythm ──────────────────────────────────────────────────────────────── *@
+        <div class="@CardClass(2)">
+            <RadzenCard class="rc-card u-glass">
+                <span class="rc-kicker">Your rhythm</span>
+                <p class="rc-sentence">
+                    You commit most on <span class="rc-emph">@recap.PeakWeekday</span>s —
+                    <span class="rc-emph">@recap.PeakWeekdayAverage.ToString("N2")</span> commits per @recap.PeakWeekday on average —
+                    around <span class="rc-emph">@FormatHour(recap.PeakHour)</span>.
+                    @if (recap.NightOwlPercent >= 20)
+                    {
+                        <span> @recap.NightOwlPercent.ToString("N1")% of your commits landed after 10pm — night owl.</span>
+                    }
+                    else if (recap.NightOwlPercent <= 5)
+                    {
+                        <span> Only @recap.NightOwlPercent.ToString("N1")% landed after 10pm — you keep daylight hours.</span>
+                    }
+                </p>
+
+                <div class="rc-hours" role="img" aria-label="@HoursSummary(recap)">
+                    @for (var hour = 0; hour < 24; hour++)
+                    {
+                        var commits = recap.CommitsByHour[hour];
+                        <div class="@($"rc-hour{(hour == recap.PeakHour ? " rc-hour--peak" : "")}")"
+                             title="@($"{FormatHour(hour)}: {commits:N0} commits")">
+                            <div class="rc-hour-bar" style="@BarHeight(commits, recap.CommitsByHour)"></div>
+                        </div>
+                    }
+                </div>
+                <div class="rc-hours-axis">
+                    <span>12am</span><span>6am</span><span>noon</span><span>6pm</span><span>11pm</span>
+                </div>
+
+                @* ── Weekday chart ────────────────────────────────────────────────────────
+                   Plotted as commits PER OCCURRENCE of the weekday, not as raw totals. The
+                   weekdays of a window are not equally numerous — a year in progress that ends on
+                   a Wednesday has had one more Monday than Friday, and a full year has 53 of
+                   whichever day it opens on. Ranking totals would hand a standing advantage to
+                   whichever days simply came round more often, which is a fact about the calendar
+                   rather than about how the user works. The raw count is still in the tooltip,
+                   because that is the figure someone will want to sanity-check the average
+                   against. *@
+                <div class="rc-weekdays" role="img" aria-label="@WeekdaySummary(recap)">
+                    @for (var day = 0; day < 7; day++)
+                    {
+                        var average = recap.AverageCommitsByWeekday.Count == 7 ? recap.AverageCommitsByWeekday[day] : 0;
+                        var total = recap.CommitsByWeekday[day];
+                        var occurrences = recap.WeekdayOccurrences.Count == 7 ? recap.WeekdayOccurrences[day] : 0;
+                        <div class="@($"rc-weekday{(day == (int)recap.PeakWeekday ? " rc-weekday--peak" : "")}")"
+                             title="@($"{WeekdayNames[day]}: {average:N2} commits on average ({total:N0} across {occurrences:N0} {WeekdayNames[day]}s)")">
+                            <span class="rc-weekday-value">@average.ToString("N2")</span>
+                            <div class="rc-weekday-bar" style="@BarHeight(average, recap.AverageCommitsByWeekday)"></div>
+                            <span class="rc-weekday-label">@WeekdayNames[day][..3]</span>
+                        </div>
+                    }
+                </div>
+            </RadzenCard>
+        </div>
+
+        @* ── 4. The biggest day ──────────────────────────────────────────────────────────── *@
+        @if (recap.BiggestDay is { } biggestDay)
+        {
+            <div class="@CardClass(3)">
+                <RadzenCard class="rc-card u-glass">
+                    <span class="rc-kicker">Your biggest day</span>
+                    <p class="rc-sentence">
+                        <span class="rc-emph">@biggestDay.Date.ToString("dddd, d MMMM")</span> —
+                        @biggestDay.LinesAdded.ToString("N0") lines across
+                        @biggestDay.Commits @(biggestDay.Commits == 1 ? "commit" : "commits").
+                    </p>
+
+                    @if (recap.BiggestCommits.Count > 0)
+                    {
+                        <div class="rc-commits">
+                            <span class="rc-sub-kicker">Largest single commits</span>
+                            @foreach (var commit in recap.BiggestCommits)
+                            {
+                                <div class="rc-commit">
+                                    @* The SHA is the whole of a commit's printable identity here —
+                                       commit messages are not stored by the analyser. *@
+                                    <code class="rc-commit-sha">@commit.Sha</code>
+                                    <span class="rc-commit-repo">@commit.Owner/@commit.Name</span>
+                                    <span class="rc-commit-lines">+@commit.LinesAdded.ToString("N0")</span>
+                                    <span class="rc-commit-date">@commit.Date.ToString("d MMM")</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </RadzenCard>
+            </div>
+        }
+
+        @* ── 5. Where the year went ──────────────────────────────────────────────────────── *@
+        @if (recap.TopRepos.Count > 0)
+        {
+            <div class="@CardClass(4)">
+                <RadzenCard class="rc-card u-glass">
+                    <span class="rc-kicker">Where the year went</span>
+                    <div class="rc-repos">
+                        @foreach (var repo in recap.TopRepos)
+                        {
+                            <a class="rc-repo" href="@($"/repositories/{repo.RepositoryId}")">
+                                <div class="rc-repo-head">
+                                    <span class="rc-repo-name">@repo.Name</span>
+                                    @if (repo.StartedThisYear)
+                                    {
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="New" />
+                                    }
+                                </div>
+                                <div class="rc-repo-bar-track">
+                                    <div class="rc-repo-bar" style="@RepoBarWidth(repo, recap.TopRepos)"></div>
+                                </div>
+                                <div class="rc-repo-figures">
+                                    <span class="@($"rc-emph rc-emph--{(repo.NetGrowth < 0 ? "neg" : "pos")}")">
+                                        @(repo.NetGrowth >= 0 ? "+" : "-")@Math.Abs(repo.NetGrowth).ToString("N0")
+                                    </span>
+                                    <span class="rc-repo-commits">@repo.Commits.ToString("N0") commits</span>
+                                </div>
+                            </a>
+                        }
+                    </div>
+                </RadzenCard>
+            </div>
+        }
+
+        @* ── 6. Language drift ───────────────────────────────────────────────────────────── *@
+        @if (recap.LanguageDrift.Count > 0)
+        {
+            <div class="@CardClass(5)">
+                <RadzenCard class="rc-card u-glass">
+                    <span class="rc-kicker">What you drifted toward</span>
+                    <p class="rc-sentence">
+                        @if (recap.RisingLanguage is { } rising)
+                        {
+                            <span><span class="rc-emph">@rising</span> gained the most ground this year.</span>
+                        }
+                        @if (recap.FadingLanguage is { } fading)
+                        {
+                            <span> <span class="rc-emph">@fading</span> gave up the most.</span>
+                        }
+                    </p>
+
+                    <div class="rc-drift">
+                        @foreach (var drift in recap.LanguageDrift)
+                        {
+                            <div class="rc-drift-row">
+                                <code class="rc-drift-ext">@drift.Extension</code>
+                                <span class="rc-drift-from">@drift.StartPercent.ToString("N1")%</span>
+                                <span class="rc-drift-arrow" aria-hidden="true">→</span>
+                                <span class="rc-drift-to">@drift.EndPercent.ToString("N1")%</span>
+                                @* A share can grow while the language itself shrinks — that means
+                                   everything else shrank faster, and it is the one figure here
+                                   that a line-count delta cannot show. *@
+                                <span class="@($"rc-drift-delta rc-drift-delta--{(drift.PercentDelta < 0 ? "neg" : "pos")}")">
+                                    @(drift.PercentDelta >= 0 ? "+" : "")@drift.PercentDelta.ToString("N1") pts
+                                </span>
+                            </div>
+                        }
+                    </div>
+                </RadzenCard>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    /// <summary>Route parameter. Null on <c>/recap</c>, which the server resolves to the current year.</summary>
+    [Parameter] public int? Year { get; set; }
+
+    private static readonly string[] MonthNames =
+        ["January", "February", "March", "April", "May", "June",
+         "July", "August", "September", "October", "November", "December"];
+
+    /// <summary>Sunday first, so the index matches <see cref="DayOfWeek"/> and the DTO's own buckets.</summary>
+    private static readonly string[] WeekdayNames =
+        ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+    /// <summary>
+    /// Milliseconds between one card appearing and the next. Long enough to read as a sequence,
+    /// short enough that the whole page has settled before someone scrolls past it.
+    /// </summary>
+    private const int RevealStepMs = 260;
+
+    /// <summary>How many cards the page can render. The reveal walks this many steps and stops.</summary>
+    private const int CardCount = 6;
+
+    private YearInCodeDto? _recap;
+    private bool _isLoading = true;
+    private string _error = string.Empty;
+    private int _year = DateTime.UtcNow.Year;
+
+    /// <summary>How many cards have been revealed so far. Every card past this is rendered hidden.</summary>
+    private int _revealed;
+
+    /// <summary>
+    /// Guards the reveal against a second run. <c>OnParametersSetAsync</c> fires again on every
+    /// navigation between years, and two concurrent reveal loops would race each other to set
+    /// <see cref="_revealed"/> and produce cards appearing out of order.
+    /// </summary>
+    private int _revealGeneration;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _year = Year ?? DateTime.UtcNow.Year;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+        _revealed = 0;
+        var generation = ++_revealGeneration;
+
+        try
+        {
+            // The route without a year means "the current one, as the server reckons it" — the
+            // browser's clock is not the one every other window on this app is measured against.
+            var url = Year is { } year ? $"/api/recap/{year}" : "/api/recap";
+            _recap = await Http.GetAppJsonAsync(url, AppJsonSerializerContext.Default.YearInCodeDto);
+
+            // Trust the response over the route: /recap has no year in it, and the picker has to
+            // highlight the year actually returned.
+            if (_recap is not null) _year = _recap.Year;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load recap for {Year}", _year);
+            _error = "Could not build your recap. Try again in a moment.";
+            _recap = null;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+
+        if (_recap is { HasData: true }) await RevealAsync(generation);
+    }
+
+    /// <summary>
+    /// Walks the cards into view one at a time.
+    ///
+    /// <para>Driven from C# rather than by a CSS <c>animation-delay</c> per card: the delay would
+    /// restart from the top on every re-render (a year switch, a resize that re-renders the
+    /// grid), replaying the whole sequence. Stepping a counter means a card that has appeared
+    /// stays appeared.</para>
+    /// </summary>
+    private async Task RevealAsync(int generation)
+    {
+        for (var i = 0; i < CardCount; i++)
+        {
+            // A newer load has started — abandon this walk rather than fight it for _revealed.
+            if (generation != _revealGeneration) return;
+
+            _revealed = i + 1;
+            StateHasChanged();
+            await Task.Delay(RevealStepMs);
+        }
+    }
+
+    /// <summary>
+    /// The wrapper class for card <paramref name="index"/>. Not yet revealed means hidden, not
+    /// absent: the card still renders so the page does not reflow as each one lands, which would
+    /// yank the scroll position out from under anyone reading.
+    /// </summary>
+    private string CardClass(int index) =>
+        index < _revealed ? "rc-slot rc-slot--in" : "rc-slot";
+
+    /// <summary>
+    /// Bar height as a percentage of the tallest bucket. Written as a CSS custom property on the
+    /// element rather than a height, because scoped CSS owns the geometry and this owns only the
+    /// magnitude — and an inline `height` would be the inline style the E2E tier forbids on our
+    /// own markup.
+    /// </summary>
+    private static string BarHeight(int value, List<int> buckets)
+    {
+        var max = buckets.Count == 0 ? 0 : buckets.Max();
+        // A completely empty series would divide by zero; every bar is then legitimately zero.
+        var percent = max <= 0 ? 0 : (int)Math.Round((double)value / max * 100);
+        return $"--bar: {percent}%";
+    }
+
+    /// <summary>
+    /// Same as the int overload, for the weekday averages. Kept as a separate method rather than a
+    /// generic one: the two differ only in the numeric type, and a constrained generic over
+    /// <c>INumber&lt;T&gt;</c> here would be more machinery than the six lines it replaces.
+    /// </summary>
+    private static string BarHeight(double value, List<double> buckets)
+    {
+        var max = buckets.Count == 0 ? 0 : buckets.Max();
+        var percent = max <= 0 ? 0 : (int)Math.Round(value / max * 100);
+        return $"--bar: {percent}%";
+    }
+
+    private static string RepoBarWidth(RecapRepoDto repo, List<RecapRepoDto> repos)
+    {
+        // Scaled against the largest ABSOLUTE movement, so a repository that shrank by a lot draws
+        // as long a bar as one that grew by a lot. Ranking by signed growth and scaling by
+        // magnitude are different jobs.
+        var max = repos.Count == 0 ? 0 : repos.Max(r => Math.Abs(r.NetGrowth));
+        var percent = max <= 0 ? 0 : (int)Math.Round((double)Math.Abs(repo.NetGrowth) / max * 100);
+        return $"--bar: {percent}%";
+    }
+
+    private static string FormatHour(int hour) => hour switch
+    {
+        0 => "midnight",
+        12 => "noon",
+        < 12 => $"{hour}am",
+        _ => $"{hour - 12}pm"
+    };
+
+    /// <summary>Text alternative for the month chart, which is otherwise pure geometry.</summary>
+    private static string MonthsSummary(YearInCodeDto recap)
+    {
+        var busiest = 0;
+        for (var i = 1; i < recap.CommitsByMonth.Count; i++)
+            if (recap.CommitsByMonth[i] > recap.CommitsByMonth[busiest]) busiest = i;
+
+        return $"Commits by month. Busiest: {MonthNames[busiest]}, {recap.CommitsByMonth[busiest]:N0} commits.";
+    }
+
+    /// <summary>Text alternative for the weekday chart, which is otherwise pure geometry.</summary>
+    private static string WeekdaySummary(YearInCodeDto recap) =>
+        $"Average commits per weekday. Highest: {recap.PeakWeekday}, {recap.PeakWeekdayAverage:N2} commits per {recap.PeakWeekday} on average.";
+
+    private static string HoursSummary(YearInCodeDto recap) =>
+        $"Commits by hour of day. Peak: {FormatHour(recap.PeakHour)}, {recap.CommitsByHour[recap.PeakHour]:N0} commits.";
+}
