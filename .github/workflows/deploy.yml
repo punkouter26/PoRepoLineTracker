@@ -12,13 +12,22 @@ on:
         type: boolean
         default: false
 
-# Block any other workflow or process from acquiring this lock while a deploy is
-# in flight — App Service restarts are exclusive, so a parallel run can leave the
-# slot in a half-upgraded state.
+# One deploy at a time — App Service restarts are exclusive, and a parallel run can leave the
+# site half-upgraded.
+#
+# cancel-in-progress is FALSE, deliberately. It used to be true, which caused the very thing the
+# comment above says the lock prevents: push twice in quick succession and the first run was
+# killed, potentially mid-upload, leaving the site serving a partially-written package. Queueing
+# costs a few minutes; cancelling a deploy costs a broken site.
 concurrency:
   group: deploy-${{ github.repository }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
+# Action majors are kept at the current release of each (checkout v7, setup-dotnet v6, cache v6,
+# upload-artifact v7, download-artifact v8). They float within a major on purpose — a security fix
+# to an action should land without a commit here — but upload-artifact and download-artifact must
+# be upgraded TOGETHER: an artifact written by one major is not readable by an older one, and the
+# failure is a deploy that cannot find the package it just built.
 permissions:
   contents: read
   # OIDC federated credential — the workflow exchanges the GitHub OIDC token
@@ -28,6 +37,7 @@ permissions:
 env:
   DOTNET_VERSION: '10.0.x'
   AZURE_WEBAPP_NAME: app-porepolinetracker
+  AZURE_WEBAPP_URL: https://app-porepolinetracker.azurewebsites.net
   # Casing matters: the runner is Linux, and the project is .API (not .Api).
   API_PROJECT_PATH: src/PoRepoLineTracker.API/PoRepoLineTracker.API.csproj
 
@@ -40,27 +50,40 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+      # Cached: `az bicep install` pulls the CLI from GitHub releases on every run otherwise,
+      # which was ~20s of the job's total.
+      - name: Cache Bicep CLI
+        uses: actions/cache@v6
+        with:
+          path: ~/.azure/bin
+          key: bicep-${{ runner.os }}
       - name: Install Bicep CLI
         run: az bicep install
+      # Every .bicep in the folder, not a hand-listed pair. The list version compiled main and
+      # resources only, so a template added later was linted by nobody — and `find` cannot fall
+      # out of date.
       - name: Compile Bicep → ARM (catches template errors)
         run: |
-          az bicep build --file infra/main.bicep --stdout > /dev/null
-          az bicep build --file infra/resources.bicep --stdout > /dev/null
+          set -euo pipefail
+          find infra -name '*.bicep' -print0 | while IFS= read -r -d '' f; do
+            echo "→ $f"
+            az bicep build --file "$f" --stdout > /dev/null
+          done
 
   build:
-    name: Build
+    name: Build & Test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       # NuGet cache — keyed on csproj + Directory.Packages.props, so a code-only
       # change still reuses the cache and skips the network restore.
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
@@ -69,21 +92,28 @@ jobs:
         run: dotnet restore
       - name: Build (Release, no-restore, treat-warnings-as-errors)
         run: dotnet build --no-restore -c Release
-      # Unit tier gates the deploy: no I/O, no Docker, ~1s, so there is no reason to ship
-      # without it. The Integration/E2E tiers still run locally and in the Test environment —
-      # they need Azurite via Testcontainers and a live host.
       - name: Test (Unit)
         run: dotnet test tests/PoRepoLineTracker.Unit --no-build -c Release --verbosity minimal
-      # Publish fresh every run. (Publish-output caching was removed: its key did not
-      # hash *.cs, so pure C# changes hit the cache and shipped stale binaries.)
+      # The Integration tier gates the deploy too, because the Unit tier provably does not catch
+      # what breaks a running host: composition-root changes are invisible to it by design (see
+      # CLAUDE.md, "Unit tests alone are not enough before committing"). GitHub's Ubuntu runners
+      # ship Docker, which is all Testcontainers needs to bring up Azurite — the whole tier runs
+      # in a few seconds.
+      - name: Test (Integration — Testcontainers Azurite)
+        run: dotnet test tests/PoRepoLineTracker.Integration --no-build -c Release --verbosity minimal
+      # --no-build, not just --no-restore. Without it publish re-ran the entire Release build that
+      # the step above had already done, compiling every project twice per pipeline.
       - name: Publish API
-        run: dotnet publish ${{ env.API_PROJECT_PATH }} -c Release --no-restore -o publish
+        run: dotnet publish ${{ env.API_PROJECT_PATH }} -c Release --no-build -o publish
       - name: Upload webapp artifact
         uses: actions/upload-artifact@v7
         with:
           name: webapp
           path: publish
-          retention-days: 1
+          # Long enough to redeploy a known-good build by hand after a bad one. At the previous
+          # single day, the only way back from a broken deploy was a revert commit through the
+          # whole pipeline — F1 has no deployment slots to swap.
+          retention-days: 14
 
   deploy:
     name: Deploy to Azure
@@ -91,10 +121,19 @@ jobs:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     timeout-minutes: 15
+    # Records the deploy in GitHub's Environments view and gives the URL a home. Add a required
+    # reviewer on the environment to gate production without touching this file.
+    environment:
+      name: production
+      url: ${{ env.AZURE_WEBAPP_URL }}
     steps:
-      # Needed for infra/ — this job used to consume only the build artifact, so the Bicep
-      # the provision step applies would not otherwise be on disk.
-      - uses: actions/checkout@v6
+      # Full history, not the default shallow clone. The infra-changed check below diffs against
+      # github.event.before, and a depth-1 checkout does not contain that commit — the diff fails,
+      # the guard falls through to "changed", and infra is applied on every push exactly as it was
+      # before the guard existed.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
           name: webapp
@@ -106,46 +145,99 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      # Apply the Bicep, do not merely compile it. lint-infra proves the templates are VALID;
-      # nothing here ever proved they were APPLIED. The App Service went missing and every run
-      # kept publishing green while the deploy step failed with "Resource app-porepolinetracker
-      # of type Microsoft.Web/Sites doesn't exist" — the pipeline had no way to create it.
-      # Idempotent: a no-op when the infra already matches. The apply-infra job below stays as
-      # the manual path, for previewing a change with what-if before pushing it.
+
+      # Infra is applied only when the templates actually changed, or when asked for by hand.
+      #
+      # It used to run on every push. That was added because the App Service had gone missing and
+      # nothing in the pipeline could recreate it — a real problem, fixed the blunt way. The cost
+      # was that every code-only deploy paid for a subscription-scoped deployment, and a Bicep
+      # edit reached production with no what-if in front of it. Gating on the diff keeps the
+      # self-healing property for the case that motivated it while taking it off the hot path.
+      - name: Did infra change?
+        id: infra
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet ${{ github.event.before }} ${{ github.sha }} -- infra/ 2>/dev/null; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Provision infra (Bicep)
+        if: steps.infra.outputs.changed == 'true'
         run: |
           az deployment sub create \
             --location eastus2 \
             --template-file infra/main.bicep \
             --name porepolinetracker-${{ github.run_id }} \
             -o none
+
       - name: Package and zip deploy
         run: |
           cd publish
           zip -r ../webapp.zip . -q
           cd ..
+
       - name: Deploy to App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: webapp.zip
-          # Async deploy returns once the deployment is accepted, which removes the
-          # synchronous Kudu 504 risk. Nothing in this workflow verifies liveness
-          # afterwards — the post-deploy smoke test that used to do so was removed.
-      # The startup command (/home/site/wwwroot/startup.sh, which installs git before exec-ing
-      # the app) is owned by infra/resources.bicep — a step here used to re-set it after every
-      # provision because the bicep said `dotnet …dll`; two owners flip-flopped the value.
+
+      # The deploy step returns once the package is ACCEPTED, not once the site is serving it —
+      # so without this a crash-on-startup shipped green and nobody knew until someone opened the
+      # page. Polls /health (anonymous, and the same endpoint Azure's own probe uses) until it
+      # answers, then checks that an app route and a static asset are really being served.
+      - name: Smoke test the deployed site
+        run: |
+          set -euo pipefail
+          echo "Waiting for ${{ env.AZURE_WEBAPP_URL }}/health …"
+          for attempt in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/health" || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "health OK after ${attempt} attempt(s)"
+              break
+            fi
+            if [ "$attempt" = "30" ]; then
+              echo "::error::Site did not become healthy after the deploy (last status: $code)"
+              exit 1
+            fi
+            sleep 10
+          done
+
+          # The shell must be reachable without signing in, or the sign-in page cannot load.
+          login=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/login")
+          [ "$login" = "200" ] || { echo "::error::/login returned $login, expected 200"; exit 1; }
+
+          # A protected API route must say 401, not redirect an XHR off-origin.
+          api=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/api/repositories")
+          [ "$api" = "401" ] || { echo "::error::/api/repositories returned $api, expected 401"; exit 1; }
+
+          # An unknown API route must say 404, not 401 and not the HTML shell.
+          missing=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/api/no-such-route-smoke-test")
+          [ "$missing" = "404" ] || { echo "::error::unknown API route returned $missing, expected 404"; exit 1; }
+
+          # An unauthenticated page must land on THIS origin's login page, not at the OAuth
+          # provider — the installed PWA starts at "/" and would otherwise leave its own scope.
+          root_target=$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/")
+          case "$root_target" in
+            ""|"${{ env.AZURE_WEBAPP_URL }}"*) echo "root OK (${root_target:-200 served})" ;;
+            *) echo "::error::/ redirected off-origin to $root_target"; exit 1 ;;
+          esac
+
+          echo "Smoke test passed."
 
   # Apply infrastructure (resource group, app settings, role assignments) from Bicep.
-  # Manual only: run the workflow via "Run workflow" with deploy_infra=true. This keeps
-  # surprise infra changes out of routine code deploys while making provisioning repeatable.
+  # Manual only: run the workflow via "Run workflow" with deploy_infra=true. This is the path for
+  # previewing a change with what-if before it reaches production.
   apply-infra:
     name: Apply Infra (manual)
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && inputs.deploy_infra
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}

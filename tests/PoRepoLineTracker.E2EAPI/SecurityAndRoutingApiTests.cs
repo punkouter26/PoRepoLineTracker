@@ -36,13 +36,26 @@ public sealed class SecurityAndRoutingApiTests
         policy.Should().Contain("microphone=()");
     }
 
+    /// <summary>
+    /// A typo must say "no such route", not "you are logged out" and not 200-with-HTML.
+    ///
+    /// <para>This used to assert only "below 500", which passed on both of the wrong answers it
+    /// was hiding: in Production the auth gate answered 401 for every /api path before routing
+    /// could tell a real endpoint from a typo, and elsewhere the request fell through to the
+    /// Blazor fallback and came back as a 200 carrying the app shell to a caller expecting
+    /// JSON.</para>
+    /// </summary>
     [SkippableFact]
-    public async Task UnknownApiRoute_IsAClientError()
+    public async Task UnknownApiRoute_Is404WithJson_NotTheAppShellAndNot401()
     {
         var response = await E2EApiClient.GetAsync("/api/definitely-not-a-route-12345");
 
-        ((int)response.StatusCode).Should().BeLessThan(500,
-            "an unknown route must not surface as a server error");
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/json",
+            "an API caller must never be handed the HTML shell");
+
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("route_not_found");
     }
 
     [SkippableFact]

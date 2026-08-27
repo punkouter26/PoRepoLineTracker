@@ -1,25 +1,29 @@
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-
 namespace PoRepoLineTracker.API.Middleware;
 
 /// <summary>
-/// Production Authentication Enforcement.
-/// In Production (non-Development), all unauthenticated requests to non-public
-/// endpoints are challenged to the default challenge scheme — GitHub OAuth, which
-/// is the only provider (Microsoft sign-in was removed: a Microsoft principal
-/// carries no GitHub credential, so it could sign in but read no repository).
+/// Production sign-in gate for PAGE navigations.
 ///
-/// In Development, this middleware is a no-op, allowing GUEST mode and
-/// unauthenticated local development.
+/// <para>In Production an unauthenticated browser asking for an app route is sent to the app's own
+/// <c>/login</c> page. In Development and Test this is a no-op, so local runs and the E2E tiers
+/// work unauthenticated — which is also why nothing in those tiers exercises the behaviour below,
+/// and why it is unit-tested directly.</para>
 ///
-/// Public endpoints that are always accessible:
-/// - /health (health checks)
-/// - /diag (diagnostics — requires auth internally)
-/// - /auth/* (login/logout endpoints)
-/// - /login (Blazor login page)
-/// - /_framework/* (Blazor WASM framework files)
-/// - /css/*, /favicon.png, /icon-192.png, /manifest.json (static assets)
+/// <para><b>It redirects to /login, not to the OAuth provider.</b> It used to call
+/// <c>ChallengeAsync</c>, which sent the browser straight to
+/// <c>github.com/login/oauth/authorize</c>. Two things were wrong with that. The branded
+/// <c>/login</c> page — which exists, and is the only place that explains what the app wants
+/// access to — was never seen by anyone. And the installed PWA declares
+/// <c>start_url: "/"</c>, so launching it navigated OUT of the app's scope on the first request,
+/// which breaks the standalone window and any offline start. Sign-in still ends at GitHub; the
+/// user gets there by pressing the button on <c>/login</c>, which hits <c>/auth/login</c>.</para>
+///
+/// <para><b>It does not touch /api.</b> Those routes are already deny-by-default through the
+/// authorization FallbackPolicy, and the cookie handler's <c>OnRedirectToLogin</c> already turns an
+/// unauthenticated API request into a 401 rather than a redirect. Blanket-401ing the whole prefix
+/// here ran *before* routing, so it could not tell a real endpoint from a typo and answered 401 for
+/// both — a misspelled client URL surfaced as "you are logged out" instead of "no such route".
+/// Letting the request through to routing means the catch-all in ApiEndpointExtensions can answer
+/// 404.</para>
 /// </summary>
 public class ProductionAuthEnforcementMiddleware
 {
@@ -27,23 +31,24 @@ public class ProductionAuthEnforcementMiddleware
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<ProductionAuthEnforcementMiddleware> _logger;
 
-    // Paths that are always accessible without auth (even in production).
-    // Mirrors the endpoints marked .AllowAnonymous() in the API — keeping the two
-    // lists in sync is the canonical way to make the Blazor UI render in production.
-    private static readonly HashSet<string> PublicPaths = new(StringComparer.OrdinalIgnoreCase)
-    {
+    /// <summary>
+    /// Page paths reachable without signing in.
+    ///
+    /// <para>Short, because it no longer has to mirror the static assets. This middleware is
+    /// registered AFTER <c>UseStaticFiles</c>, so every physical file — the framework payload,
+    /// css, icons, the manifest, the service worker — is already served and short-circuited long
+    /// before the request arrives here. The list used to name them anyway, which read as though
+    /// forgetting one would gate an asset; it would not, and the entries were dead. What is left
+    /// is the set of real endpoints that must answer anonymously.</para>
+    /// </summary>
+    private static readonly string[] PublicPaths =
+    [
         "/health",
-        "/auth/login",
-        "/auth/logout",
-        "/auth/me",
-        "/login",
-        "/_framework",
-        "/css",
-        "/favicon.png",
-        "/icon-192.png",
-        "/manifest.json",
-        "/web.config",
-    };
+        "/auth",   // covers /auth/login, /auth/logout, /auth/me and the OAuth callback
+        "/login",  // the page this middleware redirects TO — gating it would be an infinite loop
+        "/signin-github",
+        "/signout-github"
+    ];
 
     public ProductionAuthEnforcementMiddleware(
         RequestDelegate next,
@@ -57,61 +62,44 @@ public class ProductionAuthEnforcementMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // In any non-Production environment (Development, Test), allow everything so GUEST
-        // mode, local development and E2E runs work. OAuth is enforced only in Production.
-        if (!_env.IsProduction())
+        if (!_env.IsProduction() || ShouldPassThrough(context))
         {
             await _next(context);
             return;
         }
 
-        // In Production: check if the path is public
-        var path = context.Request.Path;
-        if (IsPublicPath(path))
+        if (context.User.Identity?.IsAuthenticated == true)
         {
             await _next(context);
             return;
         }
 
-        // In Production: if user is not authenticated, challenge the configured OAuth provider
-        if (context.User.Identity?.IsAuthenticated != true)
-        {
-            _logger.LogInformation(
-                "Production auth enforcement: unauthenticated request to {Path} — challenging the default scheme",
-                path);
+        var target = context.Request.Path + context.Request.QueryString;
+        _logger.LogInformation(
+            "Production auth enforcement: unauthenticated request to {Path} — sending to /login", context.Request.Path);
 
-            // For API calls, return 401
-            if (path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
-            {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                context.Response.Headers.WWWAuthenticate = "Bearer";
-                return;
-            }
-
-            // For page requests, challenge the DEFAULT challenge scheme rather than naming one.
-            // This used to pass the literal "Microsoft", which outlived the Entra sign-in that
-            // registered it: in Production every page request threw
-            // "No authentication handler is registered for the scheme 'Microsoft'" and the site
-            // served a 500 on '/'. AuthServiceExtensions already resolves the right scheme —
-            // GitHub when it is configured, cookies otherwise — so defer to it.
-            await context.ChallengeAsync(new AuthenticationProperties
-            {
-                RedirectUri = path
-            });
-            return;
-        }
-
-        await _next(context);
+        // returnUrl is a path on this origin, not a full URI, and /auth/login hands it to the
+        // OAuth properties as-is. Keeping it relative is what stops it being usable as an open
+        // redirect to somebody else's host after a successful sign-in.
+        context.Response.Redirect($"/login?returnUrl={Uri.EscapeDataString(target)}");
     }
 
-    private static bool IsPublicPath(PathString path)
+    private static bool ShouldPassThrough(HttpContext context)
     {
-        // Segment-aware match: "/login" matches "/login" and "/login/x" but NOT "/loginfoo".
-        // Using raw string StartsWith here would let "/loginfoo" or "/cssfoo" bypass auth.
+        var path = context.Request.Path;
+
+        // Left to routing and the FallbackPolicy — see the type remarks.
+        if (path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)) return true;
+
+        // SignalR negotiates over a path the browser cannot follow a redirect on; the hub carries
+        // [Authorize] and rejects an unauthenticated connection itself.
+        if (path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase)) return true;
+
+        // Segment-aware: "/login" matches "/login" and "/login/x" but NOT "/loginfoo". A raw
+        // StartsWith would let "/loginfoo" walk straight past the gate.
         foreach (var publicPath in PublicPaths)
         {
-            if (path.StartsWithSegments(publicPath, StringComparison.OrdinalIgnoreCase))
-                return true;
+            if (path.StartsWithSegments(publicPath, StringComparison.OrdinalIgnoreCase)) return true;
         }
 
         return false;

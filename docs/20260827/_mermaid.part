@@ -1,0 +1,19 @@
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) {
+    mermaid.initialize({
+      "startOnLoad": true,
+      "theme": "neutral",
+      "themeVariables": { "fontSize": "15px", "fontFamily": "-apple-system,Segoe UI,Roboto,sans-serif" },
+      "flowchart": { "useMaxWidth": true, "htmlLabels": true, "curve": "basis" },
+      "sequence": { "useMaxWidth": true, "actorFontSize": 14, "noteFontSize": 13, "messageFontSize": 13 },
+      "er": { "useMaxWidth": true, "fontSize": 14 }
+    });
+  } else {
+    document.querySelectorAll('.mermaid').forEach(function (el) {
+      var pre = document.createElement('pre');
+      pre.textContent = el.textContent;
+      el.replaceWith(pre);
+    });
+  }
+</script>
