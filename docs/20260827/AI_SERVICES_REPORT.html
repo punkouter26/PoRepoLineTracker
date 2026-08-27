@@ -103,6 +103,28 @@
     header.doc{background:#fff;color:#000;border-bottom:2px solid #000}
     header.doc h1,header.doc p.sub,header.doc .eyebrow,header.doc .meta{color:#000}
   }
+  /* ── Dark scheme ──────────────────────────────────────────────────────────────
+     Tokens only, plus the five rules that carry a hard-coded light value
+     (the dark header, the two tier pills, the table head, the row hover).
+     Neutrals are biased a few degrees toward the accent blue so the greys read as
+     chosen rather than inherited. */
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#101319; --panel:#171b23; --ink:#e6ebf3; --ink-2:#aeb8c7; --ink-3:#8b98aa;
+      --line:#2a313c; --line-2:#232933;
+      --accent:#8ab0ff; --accent-soft:#17233c;
+      --ok:#4ecf95; --ok-soft:#11291f;
+      --warn:#e8b95f; --warn-soft:#2a2214;
+      --bad:#ff8f93; --bad-soft:#2e181a;
+    }
+    header.doc{background:#080a0f;color:#f1f4f9}
+    .t2{background:#251c46;color:#c0aeff}
+    .t3{background:#11291f;color:var(--ok)}
+    thead th{background:#1d232d}
+    tbody tr:hover{background:#1c222c}
+    /* Mermaid renders its own SVG palette; give it a surface that matches the card. */
+    figure{background:var(--panel)}
+  }
 </style>
 </head>
 <body>
@@ -510,7 +532,7 @@ public sealed class CodeHealthFactorDto
   if (window.mermaid) {
     mermaid.initialize({
       "startOnLoad": true,
-      "theme": "neutral",
+      "theme": (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "neutral",
       "themeVariables": { "fontSize": "15px" },
       "flowchart": { "useMaxWidth": true, "htmlLabels": true, "curve": "basis" }
     });

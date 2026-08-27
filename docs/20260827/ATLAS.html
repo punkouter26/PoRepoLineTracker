@@ -1,0 +1,1308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PoRepoLineTracker Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+</head>
+<body>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tokens. Light is the bare :root; dark is redefined twice — once for the OS
+   setting (guarded so an explicit light stamp still wins) and once for the
+   viewer's own toggle. Nothing below defines a colour anywhere else.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --plane:#eef1f6;
+  --surface:#ffffff;
+  --surface-2:#f6f8fb;
+  --ink:#0d1117;
+  --ink-2:#414b59;
+  --tick:#69748444;
+  --ink-mute:#697484;
+  --rule:#d7dee8;
+  --rule-2:#e8edf4;
+  --accent:#1f5fc4;
+  --accent-wash:#e8effb;
+  --series-1:#2a78d6;
+  --series-track:#e3eaf4;
+  --good:#0ca30c;
+  --warn:#fab219;
+  --serious:#ec835a;
+  --critical:#d03b3b;
+  --good-ink:#046604;
+  --warn-ink:#8a5a00;
+  --critical-ink:#a8242b;
+  --plate:#fbfbf9;          /* diagram plates stay light in both themes, by choice */
+  --plate-rule:#dcdfd8;
+  --shadow:0 1px 2px rgba(13,17,23,.06), 0 8px 24px -12px rgba(13,17,23,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --plane:#080b10;
+    --surface:#141922;
+    --surface-2:#1a212c;
+    --ink:#e9eef6;
+    --ink-2:#aeb9c9;
+    --tick:#7d8b9d44;
+    --ink-mute:#8b98aa;
+    --rule:#252e3b;
+    --rule-2:#1d242f;
+    --accent:#7fa9f5;
+    --accent-wash:#152238;
+    --series-1:#3987e5;
+    --series-track:#212a37;
+    --good:#0ca30c;
+    --warn:#fab219;
+    --serious:#ec835a;
+    --critical:#d03b3b;
+    --good-ink:#3fc73f;
+    --warn-ink:#e0a83a;
+    --critical-ink:#ff8f93;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --plane:#080b10;
+  --surface:#141922;
+  --surface-2:#1a212c;
+  --ink:#e9eef6;
+  --ink-2:#aeb9c9;
+  --tick:#7d8b9d44;
+  --ink-mute:#8b98aa;
+  --rule:#252e3b;
+  --rule-2:#1d242f;
+  --accent:#7fa9f5;
+  --accent-wash:#152238;
+  --series-1:#3987e5;
+  --series-track:#212a37;
+  --good:#0ca30c;
+  --warn:#fab219;
+  --serious:#ec835a;
+  --critical:#d03b3b;
+  --good-ink:#3fc73f;
+  --warn-ink:#e0a83a;
+  --critical-ink:#ff8f93;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);
+     font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+     font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.atlas{--gutter:3.25rem;max-width:1220px;margin:0 auto;padding:0 1.25rem 6rem}
+h1,h2,h3,h4{font-family:Archivo,"IBM Plex Sans",system-ui,sans-serif;
+     text-wrap:balance;letter-spacing:-.015em;margin:0}
+p{margin:0}
+a{color:var(--accent)}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace}
+code{font-size:.86em;background:var(--surface-2);border:1px solid var(--rule-2);
+     padding:.05em .35em;border-radius:4px;white-space:nowrap}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ── Top bar: the depth control lives here and scopes the whole page ───────── */
+.topbar{position:sticky;top:0;z-index:20;background:var(--surface);
+     border-bottom:1px solid var(--rule);box-shadow:var(--shadow)}
+.topbar .inner{max-width:1220px;margin:0 auto;padding:.7rem 1.25rem;
+     display:flex;flex-wrap:wrap;align-items:center;gap:.75rem 1.5rem}
+.wordmark{display:flex;align-items:baseline;gap:.5rem;margin-right:auto}
+.wordmark b{font-family:Archivo,sans-serif;font-weight:700;font-size:1rem;letter-spacing:-.01em}
+.wordmark span{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.16em;
+     text-transform:uppercase;color:var(--ink-mute)}
+.depth{display:flex;align-items:center;gap:.55rem}
+.depth>.lbl{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.13em;
+     text-transform:uppercase;color:var(--ink-mute)}
+.seg{display:flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--surface-2)}
+.seg button{appearance:none;border:0;background:transparent;cursor:pointer;
+     font-family:"IBM Plex Mono",monospace;font-size:.74rem;letter-spacing:.04em;
+     color:var(--ink-2);padding:.42rem .7rem;display:flex;align-items:center;gap:.4rem;
+     border-right:1px solid var(--rule);transition:background .12s,color .12s}
+.seg button:last-child{border-right:0}
+.seg button .n{font-weight:600;color:var(--ink-mute)}
+.seg button:hover{background:var(--accent-wash);color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button[aria-pressed="true"] .n{color:#fff;opacity:.75}
+
+/* ── Masthead ──────────────────────────────────────────────────────────────── */
+.masthead{padding:3rem 0 1.5rem;border-bottom:1px solid var(--rule)}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.16em;
+     text-transform:uppercase;color:var(--ink-mute);margin-bottom:.75rem}
+.masthead h1{font-size:clamp(2rem,5.5vw,3.1rem);line-height:1.05;font-weight:700;margin-bottom:.85rem}
+.thesis{font-size:1.09rem;color:var(--ink-2);max-width:64ch}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .9rem;margin-top:1.4rem;
+     font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--ink-mute)}
+.meta span::before{content:"·";margin-right:.9rem;color:var(--rule)}
+.meta span:first-child::before{content:none;margin:0}
+
+/* ── Stat tiles ────────────────────────────────────────────────────────────── */
+.tiles{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);
+     border-radius:12px;overflow:hidden;margin:1.75rem 0 0;
+     grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.tile{background:var(--surface);padding:1.05rem 1.15rem}
+.tile .v{font-size:2.1rem;font-weight:600;line-height:1;letter-spacing:-.02em}
+.tile .k{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.1em;
+     text-transform:uppercase;color:var(--ink-mute);margin-top:.5rem}
+.tile .sub{font-size:.82rem;color:var(--ink-2);margin-top:.3rem}
+.tile.zero .v{color:var(--ink-mute)}
+
+/* ── Sections: a ruled gutter carries the index; the rule is the motif ─────── */
+section.blk{position:relative;padding:3.25rem 0 0;scroll-margin-top:4.5rem}
+section.blk>.head{display:grid;grid-template-columns:var(--gutter) 1fr;
+     align-items:start;gap:0 1rem;border-top:2px solid var(--ink);padding-top:1rem}
+section.blk>.head .idx{font-family:"IBM Plex Mono",monospace;font-size:.78rem;font-weight:600;
+     color:var(--accent);letter-spacing:.06em;padding-top:.28rem}
+section.blk>.head h2{font-size:1.55rem;font-weight:600}
+section.blk>.head .lede{grid-column:2;color:var(--ink-2);margin-top:.4rem;max-width:66ch}
+section.blk>.body{display:grid;grid-template-columns:var(--gutter) 1fr;gap:0 1rem}
+section.blk>.body>*{grid-column:2}
+/* the gutter rule: a hairline with ticks, drawn once per section body */
+section.blk>.body::before{content:"";grid-column:1;grid-row:1/-1;justify-self:end;
+     width:1px;margin-top:1.4rem;margin-right:.55rem;
+     background:linear-gradient(var(--rule) 0 100%);
+     background-size:1px 100%}
+@media (max-width:720px){
+  .atlas{--gutter:0px}
+  section.blk>.head,section.blk>.body{grid-template-columns:1fr}
+  section.blk>.head .idx{padding-top:0;margin-bottom:.35rem}
+  section.blk>.head h2,section.blk>.head .lede,section.blk>.body>*{grid-column:1}
+  section.blk>.body::before{display:none}
+}
+
+/* ── Depth gating — the page's one structural interaction ──────────────────── */
+[data-tier]{display:none}
+.atlas[data-depth="1"] [data-tier="1"],
+.atlas[data-depth="2"] [data-tier="1"],
+.atlas[data-depth="2"] [data-tier="2"],
+.atlas[data-depth="3"] [data-tier="1"],
+.atlas[data-depth="3"] [data-tier="2"],
+.atlas[data-depth="3"] [data-tier="3"]{display:block}
+.atlas[data-depth="1"] tr[data-tier="1"],
+.atlas[data-depth="2"] tr[data-tier="1"],
+.atlas[data-depth="2"] tr[data-tier="2"],
+.atlas[data-depth="3"] tr[data-tier="1"],
+.atlas[data-depth="3"] tr[data-tier="2"],
+.atlas[data-depth="3"] tr[data-tier="3"]{display:table-row}
+.tierflag{display:inline-flex;align-items:center;gap:.35rem;font-family:"IBM Plex Mono",monospace;
+     font-size:.63rem;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
+     color:var(--ink-mute);border:1px solid var(--rule);border-radius:99px;
+     padding:.1rem .45rem;margin-bottom:.6rem}
+.tierflag::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent)}
+
+/* ── Prose & cards ─────────────────────────────────────────────────────────── */
+.blk .body p{max-width:70ch;color:var(--ink-2);margin:.9rem 0}
+.blk .body p.tight{margin:.45rem 0}
+.blk h3{font-size:1.05rem;font-weight:600;margin:1.9rem 0 .1rem;color:var(--ink)}
+.blk h4{font-family:"IBM Plex Mono",monospace;font-size:.72rem;font-weight:600;
+     letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin:1.5rem 0 .5rem}
+.cards{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));margin:1.2rem 0}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:1rem 1.1rem}
+.card h5{margin:0 0 .35rem;font-size:.94rem;font-weight:600;font-family:"IBM Plex Sans",sans-serif}
+.card p{margin:0;font-size:.88rem;color:var(--ink-2);max-width:none}
+.card .kv{font-family:"IBM Plex Mono",monospace;font-size:.75rem;color:var(--ink-mute);margin-top:.5rem}
+ul.plain{margin:.9rem 0;padding-left:1.15rem;max-width:70ch;color:var(--ink-2)}
+ul.plain li{margin:.35rem 0}
+ul.plain li::marker{color:var(--accent)}
+
+/* ── Callout ───────────────────────────────────────────────────────────────── */
+.callout{border:1px solid var(--rule);border-left:3px solid var(--accent);
+     background:var(--surface);border-radius:0 10px 10px 0;padding:.95rem 1.15rem;margin:1.3rem 0}
+.callout.warn{border-left-color:var(--warn)}
+.callout.bad{border-left-color:var(--critical)}
+.callout .t{font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;
+     letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:.3rem;
+     display:flex;align-items:center;gap:.4rem}
+.callout p{margin:.25rem 0!important;font-size:.9rem}
+
+/* ── Pills (status wears an icon + label, never colour alone) ──────────────── */
+.pill{display:inline-flex;align-items:center;gap:.3rem;font-family:"IBM Plex Mono",monospace;
+     font-size:.68rem;font-weight:600;letter-spacing:.03em;padding:.13rem .45rem;
+     border-radius:5px;border:1px solid var(--rule);background:var(--surface-2);
+     color:var(--ink-2);white-space:nowrap}
+.pill .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.pill.good .dot{background:var(--good)} .pill.good{color:var(--good-ink)}
+.pill.warn .dot{background:var(--warn)} .pill.warn{color:var(--warn-ink)}
+.pill.bad  .dot{background:var(--critical)} .pill.bad{color:var(--critical-ink)}
+.pill.acc  .dot{background:var(--series-1)} .pill.acc{color:var(--accent)}
+
+/* ── Tables ────────────────────────────────────────────────────────────────── */
+.tbl{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--surface);margin:1.1rem 0}
+table{border-collapse:collapse;width:100%;font-size:.855rem;min-width:600px}
+th,td{text-align:left;padding:.58rem .8rem;border-bottom:1px solid var(--rule-2);vertical-align:top}
+thead th{background:var(--surface-2);font-family:"IBM Plex Mono",monospace;font-size:.67rem;
+     text-transform:uppercase;letter-spacing:.09em;color:var(--ink-mute);
+     border-bottom:1px solid var(--rule);position:sticky;top:0}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--surface-2)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:"IBM Plex Mono",monospace}
+caption{caption-side:bottom;text-align:left;font-family:"IBM Plex Mono",monospace;
+     font-size:.7rem;color:var(--ink-mute);padding:.6rem .8rem}
+
+/* ── Figures & charts ──────────────────────────────────────────────────────── */
+figure.fig{margin:1.4rem 0;background:var(--surface);border:1px solid var(--rule);
+     border-radius:12px;padding:1.15rem 1.25rem 1rem}
+figure.fig>figcaption{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem 1rem;
+     margin-bottom:1.1rem}
+figcaption .ftitle{font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:.97rem;color:var(--ink)}
+figcaption .fsub{font-size:.82rem;color:var(--ink-mute);flex:1 1 200px}
+.viewtoggle{appearance:none;border:1px solid var(--rule);background:var(--surface-2);
+     color:var(--ink-2);font-family:"IBM Plex Mono",monospace;font-size:.68rem;
+     letter-spacing:.06em;text-transform:uppercase;padding:.25rem .55rem;border-radius:6px;cursor:pointer}
+.viewtoggle:hover{border-color:var(--accent);color:var(--accent)}
+.chart{display:grid;gap:6px}
+.row{display:grid;grid-template-columns:minmax(96px,168px) 1fr auto;align-items:center;
+     gap:.7rem;padding:2px 0;cursor:default;border-radius:5px}
+.row:hover,.row:focus-visible{background:var(--surface-2)}
+.row .rl{font-size:.83rem;color:var(--ink-2);overflow-wrap:anywhere}
+.row .rt{background:var(--series-track);border-radius:2px;height:18px;position:relative;overflow:hidden}
+.row .rf{position:absolute;inset:0 auto 0 0;background:var(--series-1);
+     border-radius:0 4px 4px 0;transition:width .35s cubic-bezier(.2,.7,.3,1)}
+.row .rv{font-family:"IBM Plex Mono",monospace;font-size:.8rem;font-weight:500;
+     font-variant-numeric:tabular-nums;color:var(--ink);min-width:2.6rem;text-align:right}
+.axis{display:flex;justify-content:space-between;border-top:1px solid var(--rule-2);
+     margin-top:.6rem;padding-top:.4rem;font-family:"IBM Plex Mono",monospace;
+     font-size:.68rem;color:var(--ink-mute)}
+.chart-table{display:none}
+figure.fig.astable .chart{display:none}
+figure.fig.astable .chart-table{display:block}
+figure.fig.astable .tbl{margin:0}
+
+/* tooltip */
+#tip{position:fixed;z-index:60;pointer-events:none;opacity:0;transform:translateY(3px);
+     transition:opacity .1s;background:var(--ink);color:var(--plane);
+     font-family:"IBM Plex Mono",monospace;font-size:.72rem;line-height:1.45;
+     padding:.4rem .55rem;border-radius:6px;max-width:260px;box-shadow:var(--shadow)}
+#tip b{color:var(--plane);font-weight:600}
+#tip.on{opacity:1;transform:none}
+
+/* ── Diagram plates: deliberately light in both themes, like a pinned print ── */
+.plate{background:var(--plate);border:1px solid var(--plate-rule);border-radius:10px;
+     padding:1rem;overflow-x:auto;margin:1.2rem 0}
+.plate pre.mermaid{margin:0;background:none;border:0;text-align:center;font-size:14px}
+.plate .platecap{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:#6b6f68;
+     border-top:1px solid var(--plate-rule);margin-top:.7rem;padding-top:.55rem}
+
+/* ── Code ──────────────────────────────────────────────────────────────────── */
+pre.code{background:#0f141c;color:#dde5f0;border:1px solid #1e2634;border-radius:10px;
+     padding:.95rem 1.05rem;overflow-x:auto;font-family:"IBM Plex Mono",monospace;
+     font-size:.79rem;line-height:1.6;margin:1.1rem 0}
+pre.code .c{color:#7f8ea3}
+pre.code .k{color:#8fbcff}
+pre.code .s{color:#9fd8a8}
+
+/* ── Filter row (sits above what it scopes, never inside a card) ──────────── */
+.filterrow{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:1.2rem 0 .2rem}
+.filterrow input{font-family:"IBM Plex Mono",monospace;font-size:.8rem;padding:.42rem .6rem;
+     border:1px solid var(--rule);border-radius:8px;background:var(--surface);
+     color:var(--ink);min-width:min(300px,100%)}
+.filterrow input::placeholder{color:var(--ink-mute)}
+.filterrow .count{font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--ink-mute)}
+tr.hide{display:none!important}
+
+/* ── Footer ────────────────────────────────────────────────────────────────── */
+footer.atlasfoot{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--rule);
+     font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--ink-mute);line-height:1.8}
+</style>
+
+<div class="topbar">
+  <div class="inner">
+    <div class="wordmark"><b>PoRepoLineTracker</b><span>Atlas</span></div>
+    <div class="depth">
+      <span class="lbl" id="depthlbl">Depth</span>
+      <div class="seg" role="group" aria-labelledby="depthlbl">
+        <button type="button" data-set="1" aria-pressed="true"><span class="n">1</span> Executive</button>
+        <button type="button" data-set="2" aria-pressed="false"><span class="n">2</span> Architectural</button>
+        <button type="button" data-set="3" aria-pressed="false"><span class="n">3</span> Implementation</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="atlas" data-depth="1">
+
+<div class="masthead">
+  <p class="eyebrow">System documentation &middot; read from source 2026-08-27</p>
+  <h1>Every line this system counts, and how it counts them.</h1>
+  <p class="thesis">A Blazor WebAssembly client and an ASP.NET Core minimal API that track lines of
+  code across a user&rsquo;s GitHub repositories over time. One origin, eleven vertical slices, four
+  storage tables, and no relational database. This page holds all five reports at three depths
+  &mdash; move the depth control and the whole page re-rules itself.</p>
+  <div class="meta">
+    <span>net10.0</span><span>branch master</span><span>GitHub OAuth only</span>
+    <span>Azure Table Storage</span><span>App Service</span>
+  </div>
+  <div class="tiles">
+    <div class="tile"><div class="v">11</div><div class="k">Feature slices</div>
+      <div class="sub">None may reference another.</div></div>
+    <div class="tile"><div class="v">28</div><div class="k">Mapped endpoints</div>
+      <div class="sub">27 always, 1 Development-only.</div></div>
+    <div class="tile"><div class="v">4</div><div class="k">Storage tables</div>
+      <div class="sub">Partitioned so cross-user reads cannot happen.</div></div>
+    <div class="tile"><div class="v">331</div><div class="k">Tests, four tiers</div>
+      <div class="sub">Green with zero skips.</div></div>
+    <div class="tile zero"><div class="v">0</div><div class="k">AI services</div>
+      <div class="sub">Verified absent, not assumed.</div></div>
+  </div>
+</div>
+
+<section class="blk" id="s1">
+  <div class="head">
+    <div class="idx">01</div>
+    <h2>System topology</h2>
+    <p class="lede">One deployable. The API project serves the WebAssembly client out of its own
+    <code>wwwroot</code>, so there is no CORS surface, no second host, and no origin mismatch to
+    reason about.</p>
+  </div>
+  <div class="body">
+
+    <div class="cards">
+      <div class="card"><h5>Client</h5>
+        <p>Blazor WASM, trimmed, Radzen components. Depends on <code>.Shared</code> only and talks
+        to the server over HTTP plus one SignalR hub.</p>
+        <div class="kv">10 routes &middot; trimming ON</div></div>
+      <div class="card"><h5>API</h5>
+        <p>Minimal API in eleven vertical slices. Each slice owns its endpoints, commands and
+        handlers; the composition root is the only thing allowed to see all of them.</p>
+        <div class="kv">28 endpoints &middot; MediatR handlers</div></div>
+      <div class="card"><h5>Shared</h5>
+        <p>DTOs, domain models, strongly-typed ids and validators. A leaf assembly &mdash; it
+        references no other project, which is what lets both sides depend on it.</p>
+        <div class="kv">LEAF &middot; no project refs</div></div>
+      <div class="card"><h5>Storage</h5>
+        <p>Azure Table Storage, four tables, no migrations. Azurite in development, managed
+        identity in Azure.</p>
+        <div class="kv">4 tables &middot; single-partition reads</div></div>
+    </div>
+
+    <div class="callout">
+      <div class="t">The boundary that does the work</div>
+      <p>Slices must not reference each other. <code>GlobalUsings.cs</code> deliberately omits
+      <code>Features.*</code>, so cross-slice coupling needs an explicit <code>using</code> that a
+      reviewer can see. Anything genuinely shared moves to <code>.Shared</code> or to
+      <code>Auth/</code> &mdash; which is exactly why the repository-ownership guard lives in
+      <code>Auth</code> and not in whichever slice needed it first.</p>
+    </div>
+
+    <div data-tier="2">
+      <span class="tierflag">Tier 2 &middot; Architectural</span>
+      <h3>C4 level 2 &mdash; containers</h3>
+      <div class="plate">
+<pre class="mermaid">
+flowchart LR
+  U["User<br/>browser"]
+  subgraph APPSVC["Azure App Service — one origin"]
+    API["ASP.NET Core minimal API<br/>net10.0"]
+    WASM["Blazor WASM client<br/>served from wwwroot"]
+    HUB["SignalR hub<br/>/hubs/analysis"]
+  end
+  TS[("Azure Table Storage<br/>4 tables")]
+  GH["GitHub REST API<br/>api.github.com"]
+  OAUTH["GitHub OAuth"]
+  GIT["Local clone<br/>LibGit2Sharp"]
+  KV["Azure Key Vault"]
+  AI["Azure Monitor<br/>Application Insights"]
+
+  U --> WASM
+  WASM -->|"HTTPS JSON"| API
+  WASM -.->|"WebSocket frames"| HUB
+  U -->|"top-level redirect"| OAUTH
+  OAUTH -->|"/signin-github"| API
+  API --> TS
+  API -->|"repos, commit metadata"| GH
+  API --> GIT
+  API -->|"secrets at boot"| KV
+  API -->|"traces, metrics"| AI
+  HUB --- API
+</pre>
+        <div class="platecap">Diagrams are drawn on a light plate in both themes &mdash; a pinned
+        print, legible wherever the page is read.</div>
+      </div>
+      <p>The two arrows worth noticing are the dotted one and the local clone. Progress reaches the
+      browser by push, not poll; and line counting reads blobs from a real on-disk clone rather than
+      through the GitHub API, which is what makes replaying thousands of commits affordable.</p>
+    </div>
+
+    <div data-tier="3">
+      <span class="tierflag">Tier 3 &middot; Implementation</span>
+      <h3>Middleware order &mdash; every position is load-bearing</h3>
+      <p>This is the pipeline as <code>Program.cs</code> builds it. Each row states what breaks if
+      it moves, because each of these was moved once and did break.</p>
+      <div class="tbl">
+        <table>
+          <caption>Source: src/PoRepoLineTracker.API/Program.cs</caption>
+          <thead><tr><th class="num">#</th><th>Component</th><th>Why it sits exactly here</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td><code>UseForwardedHeaders</code></td>
+              <td>Scheme and client IP must be corrected before anything reads them.</td></tr>
+            <tr><td class="num">2</td><td><code>LogEnrichmentMiddleware</code></td>
+              <td>Every later log line carries the request context.</td></tr>
+            <tr><td class="num">3</td><td><code>SecurityHeadersMiddleware</code></td>
+              <td>Headers must be set before the response starts &mdash; including on error paths.</td></tr>
+            <tr><td class="num">4</td><td><code>ExceptionHandlingMiddleware</code></td>
+              <td>Wraps everything downstream; converts an unhandled throw into problem details.</td></tr>
+            <tr><td class="num">5</td><td><code>UseBlazorFrameworkFiles</code> + <code>UseStaticFiles</code></td>
+              <td><strong>Before</strong> authorization. Static files are served by middleware, not
+              endpoints, so the fallback policy would 302 every asset to login and the browser would
+              get a login page instead of the WASM runtime.</td></tr>
+            <tr><td class="num">6</td><td><code>ApiNotFoundMiddleware</code></td>
+              <td>After routing so the match is known, before authorization so a typo answers 404
+              rather than 401 &mdash; otherwise a misspelling is indistinguishable from an expired
+              session.</td></tr>
+            <tr><td class="num">7</td><td><code>UseAuthentication</code> / <code>UseAuthorization</code></td>
+              <td>Applies the deny-by-default fallback policy.</td></tr>
+            <tr><td class="num">8</td><td><code>ProductionAuthEnforcementMiddleware</code></td>
+              <td>No-op outside Production &mdash; which is why it is unit-tested against a
+              substituted <code>IWebHostEnvironment</code>: no test tier runs its real branch.</td></tr>
+            <tr><td class="num">9</td><td><code>AntiforgeryMiddleware</code></td>
+              <td>After authorization on purpose, so an unauthenticated POST answers 401 rather
+              than 400 &mdash; the more useful diagnosis.</td></tr>
+            <tr><td class="num">10</td><td><code>MapApiEndpoints</code> &rarr; hub &rarr; health &rarr; SPA fallback</td>
+              <td>The fallback file is last and anonymous; gating it would make the login page
+              unreachable.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Composition root registrations</h3>
+      <pre class="code"><span class="c">// InfrastructureServiceExtensions.AddInfrastructure — the only place lifetimes are decided.</span>
+<span class="k">Singleton</span>  TableServiceClient          <span class="c">// Azurite / endpoint+DefaultAzureCredential / conn string</span>
+<span class="k">Singleton</span>  IAnalysisProgressService    <span class="c">// spans background Task.Run jobs; pushes over IHubContext</span>
+<span class="k">Scoped</span>     IGitHubService              <span class="c">// per analysis run — owns the tree/blob memo</span>
+<span class="k">Scoped</span>     IRepositoryDataService, IUserService, IUserPreferencesService
+<span class="k">Scoped</span>     GitClient, FileIgnoreFilter <span class="c">// concrete: one impl, one consumer, never substituted</span>
+
+<span class="k">HttpClient</span> <span class="s">"GitHubClient"</span> &rarr; https://api.github.com/
+           .AddStandardResilienceHandler()  <span class="c">// rate limit &rarr; total timeout &rarr; retry &rarr; breaker &rarr; attempt timeout</span>
+              Retry           3 attempts, jittered
+              AttemptTimeout  15s      TotalRequestTimeout  60s
+              CircuitBreaker  50% failure ratio / 30s sampling / 30s break
+
+<span class="k">HybridCache</span>  5 min local <span class="c">// stampede protection matters more than hit rate: GitHub is</span>
+                        <span class="c">// rate-limited per token, so N page loads must make ONE upstream call</span>
+<span class="k">MediatR</span>      handlers from this assembly
+<span class="k">HealthCheck</span>  azure_table_storage</pre>
+
+      <div class="callout warn">
+        <div class="t">Registration-time config cannot come from ConfigureAppConfiguration</div>
+        <p>Those delegates run <em>after</em> <code>Program.cs</code> executes its top-level
+        statements, so anything read during <code>AddInfrastructure(...)</code> will not see them.
+        The test factory uses <code>builder.UseSetting(...)</code> for exactly this. Values read
+        lazily at request time are fine either way.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="blk" id="s2">
+  <div class="head">
+    <div class="idx">02</div>
+    <h2>Access &amp; routes</h2>
+    <p class="lede">One provider, one role, and a default of deny. There is no permission matrix to
+    administer here &mdash; the only authorization question this system asks is whether the caller
+    owns the row they named.</p>
+  </div>
+  <div class="body">
+
+    <div class="cards">
+      <div class="card"><h5>Who can sign in</h5>
+        <p>GitHub, and nothing else. Microsoft/Entra was removed on purpose: that principal carries
+        no GitHub credential, so it could sign in and then read nothing.</p>
+        <div class="kv">scopes: user:email read:user repo</div></div>
+      <div class="card"><h5>What a session is</h5>
+        <p>A cookie &mdash; HttpOnly, SameSite=Lax, seven-day sliding expiry. Lax rather than Strict
+        because a Strict cookie is withheld on the post-OAuth landing redirect and the user loops
+        forever on &ldquo;pick an account&rdquo;.</p>
+        <div class="kv">PoRepoLineTracker.Auth</div></div>
+      <div class="card"><h5>What roles exist</h5>
+        <p>None in Production. Dev and test runs can send <code>X-Fake-Roles</code>, and registering
+        that handler in Production is a deliberate startup crash.</p>
+        <div class="kv">1 role: the signed-in owner</div></div>
+      <div class="card"><h5>What a write costs</h5>
+        <p>Both halves of an antiforgery pair: the cookie from the token endpoint plus the same
+        value echoed as a header. Missing either is a 400.</p>
+        <div class="kv">X-CSRF-TOKEN</div></div>
+    </div>
+
+    <figure class="fig" id="fig-slices">
+      <figcaption>
+        <span class="ftitle">Endpoints per slice</span>
+        <span class="fsub">28 mapped routes across 11 slices. Repositories carries 39% of the
+        surface on its own.</span>
+        <button type="button" class="viewtoggle" data-fig="fig-slices">Table</button>
+      </figcaption>
+      <div class="chart" role="img" aria-label="Bar chart of mapped endpoints per feature slice. Repositories 11, Auth 3, Insights 3, Diagnostics 2, Recap 2, Settings 2, and six slices with one each.">
+        <div class="row" tabindex="0" data-note="10 repository routes plus the ZIP upload"><div class="rl">Repositories</div><div class="rt"><div class="rf" style="width:100%"></div></div><div class="rv">11</div></div>
+        <div class="row" tabindex="0" data-note="login, logout, me — all anonymous"><div class="rl">Auth</div><div class="rt"><div class="rf" style="width:27.3%"></div></div><div class="rv">3</div></div>
+        <div class="row" tabindex="0" data-note="portfolio, digest, digest/seen"><div class="rl">Insights</div><div class="rt"><div class="rf" style="width:27.3%"></div></div><div class="rv">3</div></div>
+        <div class="row" tabindex="0" data-note="/diag negotiates HTML or JSON"><div class="rl">Diagnostics</div><div class="rt"><div class="rf" style="width:18.2%"></div></div><div class="rv">2</div></div>
+        <div class="row" tabindex="0" data-note="current year and an explicit year"><div class="rl">Recap</div><div class="rt"><div class="rf" style="width:18.2%"></div></div><div class="rv">2</div></div>
+        <div class="row" tabindex="0" data-note="GET and PUT user preferences"><div class="rl">Settings</div><div class="rt"><div class="rf" style="width:18.2%"></div></div><div class="rv">2</div></div>
+        <div class="row" tabindex="0" data-note="the only anonymous /api route"><div class="rl">Antiforgery</div><div class="rt"><div class="rf" style="width:9.1%"></div></div><div class="rv">1</div></div>
+        <div class="row" tabindex="0" data-note="six line-oriented factors, no parser"><div class="rl">CodeHealth</div><div class="rt"><div class="rf" style="width:9.1%"></div></div><div class="rv">1</div></div>
+        <div class="row" tabindex="0" data-note="share weighted by lines added"><div class="rl">Contributors</div><div class="rt"><div class="rf" style="width:9.1%"></div></div><div class="rv">1</div></div>
+        <div class="row" tabindex="0" data-note="Development only — seeds chart data"><div class="rl">Dev</div><div class="rt"><div class="rf" style="width:9.1%"></div></div><div class="rv">1</div></div>
+        <div class="row" tabindex="0" data-note="lists the caller's own GitHub repositories"><div class="rl">GitHub</div><div class="rt"><div class="rf" style="width:9.1%"></div></div><div class="rv">1</div></div>
+        <div class="axis"><span>0</span><span>11 endpoints</span></div>
+      </div>
+      <div class="chart-table">
+        <div class="tbl"><table>
+          <thead><tr><th>Slice</th><th class="num">Endpoints</th><th>Note</th></tr></thead>
+          <tbody>
+            <tr><td>Repositories</td><td class="num">11</td><td>10 repository routes plus the ZIP upload</td></tr>
+            <tr><td>Auth</td><td class="num">3</td><td>login, logout, me &mdash; all anonymous</td></tr>
+            <tr><td>Insights</td><td class="num">3</td><td>portfolio, digest, digest/seen</td></tr>
+            <tr><td>Diagnostics</td><td class="num">2</td><td>/diag negotiates HTML or JSON</td></tr>
+            <tr><td>Recap</td><td class="num">2</td><td>current year and an explicit year</td></tr>
+            <tr><td>Settings</td><td class="num">2</td><td>GET and PUT user preferences</td></tr>
+            <tr><td>Antiforgery</td><td class="num">1</td><td>the only anonymous /api route</td></tr>
+            <tr><td>CodeHealth</td><td class="num">1</td><td>six line-oriented factors, no parser</td></tr>
+            <tr><td>Contributors</td><td class="num">1</td><td>share weighted by lines added</td></tr>
+            <tr><td>Dev</td><td class="num">1</td><td>Development only &mdash; seeds chart data</td></tr>
+            <tr><td>GitHub</td><td class="num">1</td><td>lists the caller&rsquo;s own repositories</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </figure>
+
+    <div data-tier="2">
+      <span class="tierflag">Tier 2 &middot; Architectural</span>
+      <h3>Sign-in, end to end</h3>
+      <div class="plate">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant B as Browser
+  participant API as API
+  participant GH as GitHub OAuth
+  participant TS as Table Storage
+  B->>API: GET /auth/login?returnUrl=/
+  API-->>B: 302 challenge, GitHub scheme
+  B->>GH: authorize (user:email, read:user, repo)
+  GH-->>B: 302 /signin-github?code=...
+  B->>API: GET /signin-github?code=...
+  API->>GH: exchange code for access token
+  API->>TS: UpsertUser — profile + token
+  API-->>B: Set-Cookie PoRepoLineTracker.Auth; 302 returnUrl
+  B->>API: GET /api/antiforgery/token
+  API-->>B: cookie + token, now writes are possible
+</pre>
+        <div class="platecap">Steps 7 and 9 are the two that fail quietly when misconfigured &mdash;
+        an unreachable store logs a warning and issues a temporary id; a missing token turns every
+        write into a 400.</div>
+      </div>
+
+      <h3>The four postures</h3>
+      <ul class="plain">
+        <li><strong>Anonymous by declaration</strong> &mdash; <code>/auth/*</code>, <code>/health</code>,
+        the antiforgery token, the SPA shell. Each opts out explicitly with
+        <code>AllowAnonymous()</code>.</li>
+        <li><strong>Authenticated by fallback</strong> &mdash; everything else. A new endpoint added
+        without any authorization metadata fails closed, not open.</li>
+        <li><strong>Authenticated and owned</strong> &mdash; any route taking a repository id.
+        <code>RepositoryOwnership.AuthorizeAsync</code> returns 404 for a missing id and 403 for
+        someone else&rsquo;s, and logs the attempt.</li>
+        <li><strong>Authenticated and CSRF-paired</strong> &mdash; every state-changing method under
+        <code>/api</code>.</li>
+      </ul>
+
+      <div class="callout warn">
+        <div class="t">Cookie hardening keys on HTTPS, not the environment name</div>
+        <p><code>Security:RequireSecureCookies</code> decides whether the antiforgery cookie gets
+        <code>__Host-</code> and <code>Secure</code>. A <code>__Host-</code> cookie without
+        <code>Secure</code> is rejected by browsers; one with <code>Secure</code> never comes back
+        over http. Either way every write fails while reads look fine &mdash; which is why the
+        integration tier, running as environment <em>Test</em> over plain HTTP, opts out
+        explicitly.</p>
+      </div>
+    </div>
+
+    <div data-tier="3">
+      <span class="tierflag">Tier 3 &middot; Implementation</span>
+      <h3>Every mapped route</h3>
+      <div class="filterrow">
+        <label class="count" for="routefilter">Filter</label>
+        <input id="routefilter" type="search" placeholder="method, path or slice — e.g. delete, insights, owned" autocomplete="off">
+        <span class="count" id="routecount">28 of 28 routes</span>
+      </div>
+      <div class="tbl">
+        <table id="routetable">
+          <caption>Source: the eleven *Endpoints.cs files plus Program.cs. &ldquo;Owned&rdquo; means the
+          route additionally runs RepositoryOwnership.AuthorizeAsync.</caption>
+          <thead><tr><th>Method</th><th>Route</th><th>Slice</th><th>Authorization</th><th>CSRF</th></tr></thead>
+          <tbody>
+            <tr><td>GET</td><td><code>/api/antiforgery/token</code></td><td>Antiforgery</td><td><span class="pill warn"><i class="dot"></i>anonymous</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/auth/login</code></td><td>Auth</td><td><span class="pill warn"><i class="dot"></i>anonymous</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/auth/logout</code></td><td>Auth</td><td><span class="pill warn"><i class="dot"></i>anonymous</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/auth/me</code></td><td>Auth</td><td><span class="pill warn"><i class="dot"></i>anonymous</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/code-health/{repositoryId}</code></td><td>CodeHealth</td><td><span class="pill good"><i class="dot"></i>owned</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/repositories/{repositoryId}/contributors/{days}</code></td><td>Contributors</td><td><span class="pill good"><i class="dot"></i>owned</span></td><td>&mdash;</td></tr>
+            <tr><td>POST</td><td><code>/api/dev/seed/repository</code></td><td>Dev</td><td><span class="pill bad"><i class="dot"></i>auth, Development only</span></td><td>required</td></tr>
+            <tr><td>GET</td><td><code>/diag</code></td><td>Diagnostics</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/diagnostics</code></td><td>Diagnostics</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/github/user-repositories</code></td><td>GitHub</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/insights/portfolio</code></td><td>Insights</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/insights/digest</code></td><td>Insights</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>&mdash;</td></tr>
+            <tr><td>POST</td><td><code>/api/insights/digest/seen</code></td><td>Insights</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>required</td></tr>
+            <tr><td>GET</td><td><code>/api/recap</code></td><td>Recap</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/recap/{year}</code></td><td>Recap</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/repositories</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/repositories/allcharts/{days}</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/repositories/{repositoryId}/linehistory/{days}</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>owned</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/repositories/{repositoryId}/file-extension-percentages</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>owned</span></td><td>&mdash;</td></tr>
+            <tr><td>GET</td><td><code>/api/repositories/{repositoryId}/analysis-progress</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>owned</span></td><td>&mdash;</td></tr>
+            <tr><td>POST</td><td><code>/api/repositories/bulk</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>required</td></tr>
+            <tr><td>POST</td><td><code>/api/repositories/import-github</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>required</td></tr>
+            <tr><td>POST</td><td><code>/api/repositories/{repositoryId}/reanalyze</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>owned</span></td><td>required</td></tr>
+            <tr><td>POST</td><td><code>/api/repositories/upload-zip</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>required</td></tr>
+            <tr><td>DELETE</td><td><code>/api/repositories/{repositoryId}</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>owned</span></td><td>required</td></tr>
+            <tr><td>DELETE</td><td><code>/api/repositories/all</code></td><td>Repositories</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>required</td></tr>
+            <tr><td>GET</td><td><code>/api/settings/user-preferences</code></td><td>Settings</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>&mdash;</td></tr>
+            <tr><td>PUT</td><td><code>/api/settings/user-preferences</code></td><td>Settings</td><td><span class="pill good"><i class="dot"></i>authenticated</span></td><td>required</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tight">Three more paths are mapped but are not API routes: <code>/hubs/analysis</code>
+      (SignalR, <code>[Authorize]</code>, deliberately outside <code>/api</code> because the negotiate
+      POST carries no CSRF token), <code>/health</code> (anonymous, polled by the deploy smoke test
+      and Azure&rsquo;s probe), and the SPA fallback file.</p>
+
+      <h3>Denial payloads</h3>
+      <p>Four refusals, four shapes. A client that branches on prose will break; branch on the
+      status code, and on <code>code</code> where one is present.</p>
+      <pre class="code"><span class="c">401 — no session, or the session expired.</span>
+<span class="c">    The cookie handler short-circuits for /api rather than redirecting, because a</span>
+<span class="c">    cross-origin 302 to github.com surfaces in the browser as a CORS error.</span>
+HTTP/1.1 401 Unauthorized          <span class="c">// empty body</span>
+
+<span class="c">403 — authenticated, but the repository belongs to someone else. Logged as an IDOR attempt.</span>
+HTTP/1.1 403 Forbidden             <span class="c">// empty body</span>
+
+<span class="c">404 — the repository id does not exist. A plain string body, not ErrorResponse.</span>
+HTTP/1.1 404 Not Found
+<span class="s">"Repository 0f0e…c1 not found."</span>
+
+<span class="c">404 — no API route claimed this path (GET only). ApiNotFoundMiddleware.</span>
+HTTP/1.1 404 Not Found
+{
+  <span class="k">"title"</span>:  <span class="s">"No such route"</span>,
+  <span class="k">"detail"</span>: <span class="s">"GET /api/typo is not an API route on this server."</span>,
+  <span class="k">"code"</span>:   <span class="s">"route_not_found"</span>,
+  <span class="k">"status"</span>: 404
+}
+
+<span class="c">400 — antiforgery. Deliberately says nothing about which half was missing.</span>
+<span class="c">500 — unhandled. application/problem+json, RFC 7807; traceId/stackTrace in Development only.</span></pre>
+
+      <div class="callout bad">
+        <div class="t">A known, deliberate limit</div>
+        <p><code>ApiNotFoundMiddleware</code> covers GET. An unknown <code>/api</code> path reached
+        by POST, PUT or DELETE still answers 401, because those verbs resolve past the SPA fallback
+        before the middleware runs and the authorization challenge wins. The alternative &mdash; a
+        catch-all endpoint covering every verb &mdash; was tried and reverted: it became a routing
+        candidate beside the real routes and won some of them, so
+        <code>POST /api/repositories/bulk</code> resolved to the catch-all, passed authorization
+        because a catch-all must be anonymous, and returned 400 from the antiforgery gate instead of
+        the 401 it owed. A bad error message on a route that does not exist beats a wrong outcome on
+        one that does.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="blk" id="s3">
+  <div class="head">
+    <div class="idx">03</div>
+    <h2>The workflow that matters</h2>
+    <p class="lede">Adding repositories and analysing them is the one journey the whole system
+    exists to serve. Everything else reads what this produces.</p>
+  </div>
+  <div class="body">
+
+    <div class="cards">
+      <div class="card"><h5>1 &middot; Pick</h5>
+        <p>The user signs in, and the app lists their GitHub repositories using their own token.
+        Selection happens client-side.</p>
+        <div class="kv">GET /api/github/user-repositories</div></div>
+      <div class="card"><h5>2 &middot; Add</h5>
+        <p>One bulk write, never one-at-a-time. <code>/bulk</code> dedupes; the single-add route was
+        removed precisely because it did not.</p>
+        <div class="kv">POST /api/repositories/bulk</div></div>
+      <div class="card"><h5>3 &middot; Analyse</h5>
+        <p>A background job clones, replays history, counts lines per commit, and reports each step.
+        Four steps, live frames.</p>
+        <div class="kv">hub: /hubs/analysis</div></div>
+      <div class="card"><h5>4 &middot; Read</h5>
+        <p>Charts, contributor share, code health, insights and the year recap all read stored
+        commit rows. No further GitHub traffic.</p>
+        <div class="kv">arithmetic over stored commits</div></div>
+    </div>
+
+    <h4>What the system promises</h4>
+    <div class="tbl">
+      <table>
+        <caption>There is no published uptime or latency SLA in this repository. These are the
+        budgets the code actually enforces &mdash; a different, verifiable thing.</caption>
+        <thead><tr><th>Budget</th><th class="num">Value</th><th>Enforced by</th></tr></thead>
+        <tbody>
+          <tr><td>Single outbound attempt</td><td class="num">15 s</td><td>standard resilience handler</td></tr>
+          <tr><td>Total outbound request</td><td class="num">60 s</td><td>including 3 jittered retries</td></tr>
+          <tr><td>Circuit break</td><td class="num">30 s</td><td>opens at a 50% failure ratio over 30 s</td></tr>
+          <tr><td>Cached GitHub read</td><td class="num">5 min</td><td>HybridCache, stampede-protected</td></tr>
+          <tr><td>Analysis marked stuck</td><td class="num">3 min</td><td>no progress frame while still running</td></tr>
+          <tr><td>Upload body limit</td><td class="num">600 MB</td><td>Kestrel</td></tr>
+          <tr><td>Session lifetime</td><td class="num">7 days</td><td>sliding cookie expiry</td></tr>
+          <tr><td>Trace sampling</td><td class="num">10%</td><td>Production; 100% everywhere else</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div data-tier="2">
+      <span class="tierflag">Tier 2 &middot; Architectural</span>
+      <h3>Add and analyse, traced through every layer</h3>
+      <div class="plate">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant UI as Repositories.razor
+  participant AF as AntiforgeryHandler
+  participant EP as POST /api/repositories/bulk
+  participant H as AddMultipleRepositories handler
+  participant TS as Table Storage
+  participant JOB as Background analysis
+  participant HUB as AnalysisHub
+  UI->>AF: POST bulk [ owner, repoName, cloneUrl ]
+  AF->>EP: attach X-CSRF-TOKEN from /api/antiforgery/token
+  EP->>EP: FluentValidation per item
+  EP->>H: MediatR command
+  H->>TS: dedupe, then insert new rows
+  H-->>UI: 200 BulkAddResult { added, alreadyTracked }
+  H->>JOB: fire-and-forget, own DI scope
+  JOB->>HUB: step 1/4 Cloning
+  JOB->>HUB: step 2/4 Fetching commit history
+  loop each commit not already stored
+    JOB->>JOB: count lines — memoised on git object ids
+    JOB->>HUB: step 3/4 Processing, live tallies
+  end
+  JOB->>TS: save commit line counts
+  JOB->>HUB: step 4/4 Saving — terminal frame
+  HUB-->>UI: AnalysisProgress frames, scoped to this user
+</pre>
+        <div class="platecap">The handler answers before the work finishes. A fire-and-forget job in
+        its own scope is what makes the response immediate; the hub is how the browser finds out
+        what happened next.</div>
+      </div>
+
+      <div class="callout">
+        <div class="t">One completion path, two sources</div>
+        <p>The hub pushes frames. The poll in <code>Repositories.razor</code> exists only for when
+        the hub is unreachable, and it <em>synthesises the same frames</em> rather than handling
+        completion itself. Do not add a second completion path &mdash; there used to be three, and
+        they had drifted.</p>
+      </div>
+    </div>
+
+    <div data-tier="3">
+      <span class="tierflag">Tier 3 &middot; Implementation</span>
+      <h3>Request and response contracts</h3>
+      <pre class="code"><span class="c">// POST /api/repositories/bulk    body: BulkRepositoryDto[]</span>
+<span class="c">// Headers: Cookie (session) + Cookie (antiforgery) + X-CSRF-TOKEN. Missing either half → 400.</span>
+[
+  {
+    <span class="k">"owner"</span>:    <span class="s">"punkouter26"</span>,   <span class="c">// NotEmpty, MaximumLength(100)</span>
+    <span class="k">"repoName"</span>: <span class="s">"PoRepoLineTracker"</span>, <span class="c">// NotEmpty, MaximumLength(100)</span>
+    <span class="k">"cloneUrl"</span>: <span class="s">"https://github.com/punkouter26/PoRepoLineTracker.git"</span>
+  }
+]
+
+<span class="c">// 200 — BulkAddResult. Already-tracked repositories come back separately rather than as errors:</span>
+<span class="c">// re-submitting a selection is normal, not a failure.</span>
+{
+  <span class="k">"added"</span>:          [ { <span class="k">"id"</span>: <span class="s">"…guid…"</span>, <span class="k">"owner"</span>: <span class="s">"…"</span>, <span class="k">"name"</span>: <span class="s">"…"</span>, … } ],
+  <span class="k">"alreadyTracked"</span>: [ … ]
+}</pre>
+
+      <pre class="code"><span class="c">// AnalysisProgressDto — pushed over the hub AND returned by the polling endpoint,</span>
+<span class="c">// so both routes render from one shape.</span>
+{
+  <span class="k">"repositoryId"</span>:   <span class="s">"…guid…"</span>,
+  <span class="k">"owner"</span>: <span class="s">"…"</span>, <span class="k">"name"</span>: <span class="s">"…"</span>,   <span class="c">// carried on the payload: the live feed renders events for</span>
+                                <span class="c">// repositories the page has never listed</span>
+  <span class="k">"stepName"</span>: <span class="s">"Processing"</span>, <span class="k">"stepIndex"</span>: 3, <span class="k">"stepTotal"</span>: 4,
+  <span class="k">"stepDescription"</span>: <span class="s">"Step 3/4 — Processing 4,182 commits"</span>,
+  <span class="k">"commitsProcessed"</span>: 1290, <span class="k">"commitsTotal"</span>: 4182,
+  <span class="k">"startedUtc"</span>: <span class="s">"2026-08-27T09:14:02Z"</span>,  <span class="c">// so a page opened mid-run can show elapsed/ETA</span>
+  <span class="k">"linesCounted"</span>: 91847233,             <span class="c">// CUMULATIVE CHURN across replayed commits —</span>
+                                          <span class="c">// not a repository size. The UI labels it that way.</span>
+  <span class="k">"extensions"</span>: [<span class="s">".cs"</span>, <span class="s">".razor"</span>, <span class="s">".css"</span>],   <span class="c">// list is REPLACED, never mutated in place</span>
+  <span class="k">"lastUpdatedUtc"</span>: <span class="s">"2026-08-27T09:21:44Z"</span>,
+  <span class="k">"isRunning"</span>: true,
+  <span class="k">"isStuck"</span>: false,                    <span class="c">// computed: running with no frame for 3 minutes</span>
+  <span class="k">"progressPercent"</span>: 31,               <span class="c">// clamped 0–100; the step branch went negative once</span>
+  <span class="k">"errorMessage"</span>: null
+}</pre>
+
+      <div class="callout warn">
+        <div class="t">Why the extensions list is replaced rather than appended to</div>
+        <p><code>Publish</code> serialises the frame on a fire-and-forget task while the analysis
+        loop keeps reporting. Appending to <code>Extensions</code> in place would throw
+        mid-serialization, so the loop hands over a fresh list each time and the serializer always
+        sees one complete snapshot or another.</p>
+      </div>
+
+      <h3>Two performance rules the loop depends on</h3>
+      <ul class="plain">
+        <li><strong>Line counting is memoised on git object ids.</strong> Trees are
+        content-addressed, so an unchanged directory between two commits is one dictionary lookup
+        rather than a recursive walk. The memo is keyed on object id <em>and path</em>, dropped when
+        the counted-extension set changes, and <code>CountLinesInCommitAsync</code> returns a
+        <strong>copy</strong> &mdash; a caller mutating a memoised instance would poison every later
+        commit sharing that tree.</li>
+        <li><strong>Never add a per-item storage lookup that a loop will call.</strong>
+        <code>CommitExistsAsync</code> was removed for this: a point read per SHA meant a
+        4,000-commit repository paid 4,000 round-trips to answer what one whole-repository read
+        already returns. The handler pre-loads that set and looks SHAs up in memory.</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<section class="blk" id="s4">
+  <div class="head">
+    <div class="idx">04</div>
+    <h2>What the numbers mean</h2>
+    <p class="lede">Three of this system&rsquo;s figures look like they mean something other than
+    what they measure. Getting these wrong produces plausible, confident, wrong dashboards.</p>
+  </div>
+  <div class="body">
+
+    <div class="cards">
+      <div class="card"><h5>TotalLines is a snapshot</h5>
+        <p>Every commit row carries the whole repository&rsquo;s line count at that commit &mdash;
+        not a delta. Current size is the value on the <em>newest</em> commit, never a sum across
+        commits.</p>
+        <div class="kv">RepositoryTotals, in .Shared</div></div>
+      <div class="card"><h5>Contributor share is weighted</h5>
+        <p>By lines added, not averaged per commit. A one-line commit and a 2,000-line refactor are
+        not the same event.</p>
+        <div class="kv">GetContributorStatsQuery</div></div>
+      <div class="card"><h5>Language drift is share</h5>
+        <p>A file type&rsquo;s share can grow while the type itself shrinks &mdash; everything else
+        shrank faster. A line-count delta cannot show that.</p>
+        <div class="kv">the recap&rsquo;s one non-obvious figure</div></div>
+    </div>
+
+    <figure class="fig" id="fig-health">
+      <figcaption>
+        <span class="ftitle">Code health &mdash; how the 100 points are spent</span>
+        <span class="fsub">Six line-oriented proxies. Deliberately not a Maintainability Index:
+        that needs Halstead volume and a control-flow graph, which means a parser per language and a
+        resolved compilation. This app reads blobs and builds nothing.</span>
+        <button type="button" class="viewtoggle" data-fig="fig-health">Table</button>
+      </figcaption>
+      <div class="chart" role="img" aria-label="Bar chart of code health factor weights out of 100: branch density 30, nesting 20, file size 20, documentation 10, debt markers 10, line length 10.">
+        <div class="row" tabindex="0" data-note="cyclomatic proxy: branch keywords per 100 lines"><div class="rl">Branch density</div><div class="rt"><div class="rf" style="width:100%"></div></div><div class="rv">30</div></div>
+        <div class="row" tabindex="0" data-note="90th-percentile line depth, never the maximum"><div class="rl">Nesting</div><div class="rt"><div class="rf" style="width:66.7%"></div></div><div class="rv">20</div></div>
+        <div class="row" tabindex="0" data-note="share of code in files over 400 lines"><div class="rl">File size</div><div class="rt"><div class="rf" style="width:66.7%"></div></div><div class="rv">20</div></div>
+        <div class="row" tabindex="0" data-note="comment ratio, with a penalty band for over-commenting"><div class="rl">Documentation</div><div class="rt"><div class="rf" style="width:33.3%"></div></div><div class="rv">10</div></div>
+        <div class="row" tabindex="0" data-note="TODO / HACK / FIXME per 1,000 lines"><div class="rl">Debt markers</div><div class="rt"><div class="rf" style="width:33.3%"></div></div><div class="rv">10</div></div>
+        <div class="row" tabindex="0" data-note="share of lines past the long-line threshold"><div class="rl">Line length</div><div class="rt"><div class="rf" style="width:33.3%"></div></div><div class="rv">10</div></div>
+        <div class="axis"><span>0</span><span>30 points</span></div>
+      </div>
+      <div class="chart-table">
+        <div class="tbl"><table>
+          <thead><tr><th>Factor</th><th class="num">Weight</th><th>Measured as</th></tr></thead>
+          <tbody>
+            <tr><td>Branch density</td><td class="num">30</td><td>cyclomatic proxy: branch keywords per 100 lines</td></tr>
+            <tr><td>Nesting</td><td class="num">20</td><td>90th-percentile line depth, never the maximum</td></tr>
+            <tr><td>File size</td><td class="num">20</td><td>share of code in files over 400 lines</td></tr>
+            <tr><td>Documentation</td><td class="num">10</td><td>comment ratio, with a penalty band for over-commenting</td></tr>
+            <tr><td>Debt markers</td><td class="num">10</td><td>TODO / HACK / FIXME per 1,000 lines</td></tr>
+            <tr><td>Line length</td><td class="num">10</td><td>share of lines past the long-line threshold</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </figure>
+
+    <div class="callout warn">
+      <div class="t">Say what it is, on the card, not in a tooltip</div>
+      <p>The ranking is the reliable part; the absolute number is a guide. Two design decisions keep
+      it honest: measuring and judging are separate types &mdash; <code>CodeMetricsAnalyzer</code>
+      counts, <code>CodeHealthScoring</code> judges, so re-weighting the report cannot change what
+      was counted. And markup is judged on its own nesting band: nested components are not a smell,
+      and scoring <code>.razor</code> against the code band gave this repository&rsquo;s own markup a
+      48 against 94 for its C#, which is a fact about the file format, not the code.</p>
+    </div>
+
+    <div data-tier="2">
+      <span class="tierflag">Tier 2 &middot; Architectural</span>
+      <h3>What gets counted, and what gets pruned</h3>
+      <ul class="plain">
+        <li><strong>Vendored third-party code is excluded &mdash; and one rule does it by content,
+        not name.</strong> A directory is pruned when its immediate children include two or more
+        repository-root markers (<code>LICENSE*</code>, <code>.github</code>,
+        <code>.gitmodules</code>, <code>CODEOWNERS</code>, &hellip;). That is another project copied
+        in, whatever folder name the author gave it. The case it was written for was Unity&rsquo;s
+        ml-agents vendored under <code>Training/</code>, where a name-based rule left roughly 78% of
+        the repository&rsquo;s counted lines as third-party.</li>
+        <li><strong>Comment syntax is configured per language family, and CSS is not C.</strong>
+        Plain <code>.css</code> has no line-comment form &mdash; only <code>/* */</code>. Registering
+        it with <code>//</code> truncated every line from its first <code>//</code>, so
+        <code>url(https://…)</code> lost its tail and a line holding nothing else counted as blank.
+        <code>.scss</code> and <code>.less</code> do have <code>//</code>, which is exactly why they
+        cannot share an entry with <code>.css</code>; <code>.razor</code> uses <code>@* *@</code> and
+        HTML comments.</li>
+        <li><strong>Filter changes only affect new analysis.</strong> Stored counts need a
+        re-analyze &mdash; nothing retroactively re-prunes history.</li>
+      </ul>
+      <p class="tight">Both the counter that discards comments and the analyzer that counts them read
+      the same <code>CommentSyntax</code> table. Two copies would drift, and both sides would go on
+      producing plausible numbers.</p>
+    </div>
+
+  </div>
+</section>
+
+<section class="blk" id="s5">
+  <div class="head">
+    <div class="idx">05</div>
+    <h2>AI services: a documented absence</h2>
+    <p class="lede">There are none. Not &ldquo;none yet&rdquo; and not &ldquo;none in this layer&rdquo;
+    &mdash; no model, no inference endpoint, no AI or ML package, and no API key for one.</p>
+  </div>
+  <div class="body">
+
+    <div class="callout bad">
+      <div class="t">Check the premise before costing the work</div>
+      <p>If a request arrives about this system&rsquo;s token spend, inference latency, model routing
+      or provider fallback, the premise is wrong and there is nothing to optimise. The AI-authorship
+      score this project once described was a local heuristic, and it was deleted along with the
+      rest of the <code>AiDetection</code> slice.</p>
+    </div>
+
+    <div class="cards">
+      <div class="card"><h5>Providers integrated</h5><p>None.</p>
+        <div class="kv">no OpenAI, Anthropic, Azure OpenAI, Bedrock, Vertex</div></div>
+      <div class="card"><h5>Latency budget</h5><p>Not applicable &mdash; there is no inference call
+        to budget.</p><div class="kv">n/a</div></div>
+      <div class="card"><h5>Token pricing</h5><p>Not applicable. The cost model for this system is
+        App Service, Table Storage and egress.</p><div class="kv">$0 in model spend</div></div>
+      <div class="card"><h5>Fallback &amp; breakers</h5><p>The circuit breaker in this system
+        protects <em>GitHub</em> calls, and it is the only one.</p>
+        <div class="kv">api.github.com</div></div>
+    </div>
+
+    <div data-tier="2">
+      <span class="tierflag">Tier 2 &middot; Architectural</span>
+      <h3>What stands where an AI service would</h3>
+      <p>Every figure this app shows is arithmetic over stored commits, or a line-oriented
+      heuristic with its method stated on the card:</p>
+      <ul class="plain">
+        <li><strong>Code health</strong> &mdash; six weighted proxies over source lines. No parser,
+        no compilation, no model.</li>
+        <li><strong>The year recap</strong> &mdash; peak hour, weekday rhythm, language drift,
+        biggest single commit. All group-and-count over rows this app already stored.</li>
+        <li><strong>Insights and the weekly digest</strong> &mdash; windowed sums and streaks.</li>
+        <li><strong>Contributor stats</strong> &mdash; share weighted by lines added.</li>
+      </ul>
+    </div>
+
+    <div data-tier="3">
+      <span class="tierflag">Tier 3 &middot; Implementation</span>
+      <h3>How the negative was established</h3>
+      <p>A negative claim is only worth as much as the search behind it. This one was drawn from
+      three passes over the repository, all of which came back empty:</p>
+      <pre class="code"><span class="c"># 1. Dependency surface — every PackageReference across every project.</span>
+<span class="c">#    Result: 30 packages, none AI/ML. The full list is Azure SDKs, OpenTelemetry,</span>
+<span class="c">#    Serilog, MediatR, FluentValidation, LibGit2Sharp, Radzen, Scalar.</span>
+grep -rh PackageReference --include=*.csproj src/ | sort -u
+
+<span class="c"># 2. Symbol and configuration surface — provider names, endpoints, key shapes.</span>
+grep -rniE <span class="s">'openai|anthropic|azure\.ai|semantickernel|onnx|ml\.net|inference|llm|embedding'</span> src/
+<span class="c">#    Result: only prose. Three source comments that say there is no model, and</span>
+<span class="c">#    ordinary words — HttpCompletionOption, PollForCompletionAsync, "enumerated to completion".</span>
+
+<span class="c"># 3. Outbound hosts actually configured. One named HttpClient exists.</span>
+<span class="c">#    Result: https://api.github.com/ — and nothing else.</span></pre>
+      <p class="tight">Re-run those three commands after any dependency change; that is the whole
+      maintenance cost of keeping this report true.</p>
+    </div>
+
+  </div>
+</section>
+
+<section class="blk" id="s6">
+  <div class="head">
+    <div class="idx">06</div>
+    <h2>Signals &amp; gates</h2>
+    <p class="lede">What the running system tells you, and what has to be true before it ships.</p>
+  </div>
+  <div class="body">
+
+    <figure class="fig" id="fig-tests">
+      <figcaption>
+        <span class="ftitle">Tests by tier</span>
+        <span class="fsub">331 across four tiers, green with zero skips. A skip in the UI tier now
+        means the app is not running &mdash; not that a fixture is missing.</span>
+        <button type="button" class="viewtoggle" data-fig="fig-tests">Table</button>
+      </figcaption>
+      <div class="chart" role="img" aria-label="Bar chart of tests by tier: Unit 204, Integration 54, End-to-end UI 42, End-to-end API 31.">
+        <div class="row" tabindex="0" data-note="no external dependencies"><div class="rl">Unit</div><div class="rt"><div class="rf" style="width:100%"></div></div><div class="rv">204</div></div>
+        <div class="row" tabindex="0" data-note="WebApplicationFactory + Testcontainers Azurite"><div class="rl">Integration</div><div class="rt"><div class="rf" style="width:26.5%"></div></div><div class="rv">54</div></div>
+        <div class="row" tabindex="0" data-note="Playwright; needs the app running"><div class="rl">E2E UI</div><div class="rt"><div class="rf" style="width:20.6%"></div></div><div class="rv">42</div></div>
+        <div class="row" tabindex="0" data-note="needs the app running"><div class="rl">E2E API</div><div class="rt"><div class="rf" style="width:15.2%"></div></div><div class="rv">31</div></div>
+        <div class="axis"><span>0</span><span>204 tests</span></div>
+      </div>
+      <div class="chart-table">
+        <div class="tbl"><table>
+          <thead><tr><th>Tier</th><th class="num">Tests</th><th>Needs</th></tr></thead>
+          <tbody>
+            <tr><td>Unit</td><td class="num">204</td><td>nothing external</td></tr>
+            <tr><td>Integration</td><td class="num">54</td><td>WebApplicationFactory + Testcontainers Azurite</td></tr>
+            <tr><td>E2E UI</td><td class="num">42</td><td>the app running + Playwright browsers</td></tr>
+            <tr><td>E2E API</td><td class="num">31</td><td>the app running</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </figure>
+
+    <div class="callout warn">
+      <div class="t">Unit tests alone are not enough before committing</div>
+      <p>They pass against changes that break the whole integration tier. Composition-root changes in
+      particular are invisible to the unit tier and load-bearing for every integration test. Run Unit
+      and Integration at minimum. Note too that <code>TreatWarningsAsErrors</code> is on: a warning
+      fails the build, and a running app locks it &mdash; stop the process before rebuilding.</p>
+    </div>
+
+    <div data-tier="2">
+      <span class="tierflag">Tier 2 &middot; Architectural</span>
+      <h3>Telemetry, and the one page that reports it</h3>
+      <p>Traces and metrics both come from a single <code>ActivitySource</code>/<code>Meter</code>
+      named <code>PoRepoLineTracker</code>. Two exporters can be registered, each only when its key
+      is non-blank: Azure Monitor and OTLP. Blank means telemetry is built and dropped.</p>
+      <div class="tbl">
+        <table>
+          <caption>Source: AppTelemetry, TelemetrySettings, TelemetryServiceExtensions.</caption>
+          <thead><tr><th>Signal</th><th>Configured by</th><th>Behaviour when unset</th></tr></thead>
+          <tbody>
+            <tr><td>Azure Monitor</td><td><code>ApplicationInsights:ConnectionString</code>, or the
+              instrumentation-key form</td><td>Not registered &mdash; calling
+              <code>UseAzureMonitor()</code> without one crashes at startup</td></tr>
+            <tr><td>OTLP to Jaeger</td><td><code>OpenTelemetry:OtlpEndpoint</code></td>
+              <td>Built and dropped</td></tr>
+            <tr><td>Console exporters</td><td><code>EnableConsoleExporters</code>, Development only</td>
+              <td>Off</td></tr>
+            <tr><td>Sampling</td><td>Fixed in code</td><td>10% Production, 100% elsewhere</td></tr>
+            <tr><td>Health</td><td><code>azure_table_storage</code> check on <code>/health</code></td>
+              <td>Degraded rather than unhealthy when the table is merely absent</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <div class="t">One resolver, so the page cannot lie</div>
+        <p><code>TelemetrySettings</code> is the single place that decides whether telemetry is
+        configured, and both <code>AddTelemetry</code> and <code>/diag</code> read the answer from
+        it. The page previously checked only the environment-variable form, so an app wired through
+        Key Vault &mdash; which is where this project puts the value &mdash; reported &ldquo;Not
+        configured&rdquo; while happily exporting. A diagnostics page that disagrees with the running
+        configuration is worse than none: it is the screen you open precisely when you are trying to
+        find out what is switched on.</p>
+      </div>
+    </div>
+
+    <div data-tier="3">
+      <span class="tierflag">Tier 3 &middot; Implementation</span>
+      <h3>Custom instruments</h3>
+      <pre class="code"><span class="c">// ActivitySource + Meter: "PoRepoLineTracker" v1.0.0. cloud_RoleName resolves from the</span>
+<span class="c">// entry assembly by reflection, so it never degrades to "unknown_service:dotnet".</span>
+<span class="k">Counters</span>    repositories.added            {repository}
+            repositories.cloned           {repository}
+            commits.analyzed              {commit}
+            code.lines_analyzed           {line}
+            github_api.calls              {request}
+            operations.failed             {operation}
+
+<span class="k">Histograms</span>  repository.add_duration       ms
+            analysis.duration             ms
+            clone.duration                ms
+            commit.processing_duration    ms
+            github_api.latency            ms
+
+<span class="c">// ASP.NET Core instrumentation filters out /health — probe noise would dominate.</span>
+<span class="c">// The observable gauges that once sat here were wired to constant-zero callbacks and</span>
+<span class="c">// were deleted: a metric that always reads zero is worse than no metric.</span></pre>
+
+      <h3>Ship gates</h3>
+      <div class="tbl">
+        <table>
+          <caption>Source: .github/workflows/deploy.yml</caption>
+          <thead><tr><th class="num">#</th><th>Gate</th><th>Fails the deploy when</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td>Bicep lint, then ARM compile</td><td>the template does not compile</td></tr>
+            <tr><td class="num">2</td><td>Build, Release, warnings as errors</td><td>any warning exists</td></tr>
+            <tr><td class="num">3</td><td>Unit tests</td><td>one fails</td></tr>
+            <tr><td class="num">4</td><td>Integration tests, Testcontainers Azurite</td><td>one fails</td></tr>
+            <tr><td class="num">5</td><td>Provision infra, if it changed</td><td>Bicep apply fails</td></tr>
+            <tr><td class="num">6</td><td>Zip deploy to App Service</td><td>the deploy action fails</td></tr>
+            <tr><td class="num">7</td><td>Smoke test the deployed site</td><td>the live endpoint does not answer</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tight">Authentication to Azure is an OIDC federated credential via
+      <code>azure/login</code> &mdash; no client secret is stored in the repository.</p>
+    </div>
+
+  </div>
+</section>
+
+<section class="blk" id="s7">
+  <div class="head">
+    <div class="idx">07</div>
+    <h2>Roads not taken</h2>
+    <p class="lede">Each of these was built, then removed for a stated reason. Reintroducing one is
+    a decision, not a gap to fill.</p>
+  </div>
+  <div class="body">
+    <div class="tbl">
+      <table>
+        <caption>Source: CLAUDE.md and AGENT.MD, cross-checked against the current tree.</caption>
+        <thead><tr><th>Removed</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Microsoft / Entra sign-in</td><td>A Microsoft principal carries no GitHub
+            credential, so it could sign in but not read a single repository. The handler stored the
+            Microsoft token in a field documented as the GitHub token, and every GitHub call then
+            returned 401 with no explanation.</td></tr>
+          <tr><td><code>POST /api/repositories</code>, single add</td><td><code>/bulk</code> is the
+            only write path, and it dedupes where single-add did not.</td></tr>
+          <tr><td><code>CommitExistsAsync</code></td><td>A point read per SHA inside a loop: 4,000
+            commits meant 4,000 round-trips for something one whole-repository read already
+            answers.</td></tr>
+          <tr><td>The <code>AiDetection</code> slice</td><td>The score was a local heuristic, not a
+            model. Removed with the rest of the slice; the lines-added weighting it used survives in
+            contributor stats.</td></tr>
+          <tr><td>Commit tagging, WebGL backdrop, Web Audio feedback, SmartAlerts, the AI model
+            selector</td><td>Removed with their services and UI. See AGENT.MD.</td></tr>
+          <tr><td>Observable gauges on the meter</td><td>Wired to constant-zero callbacks, so every
+            scrape reported zero forever.</td></tr>
+          <tr><td><code>MapFallback("/api/{**rest}")</code></td><td>Became a routing candidate beside
+            the real routes and won some of them, turning a 401 into a 400 on a real endpoint.
+            Replaced by middleware.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<footer class="atlasfoot">
+  PoRepoLineTracker Atlas &middot; generated 2026-08-27 &middot; net10.0 &middot; branch master<br>
+  Every figure and claim on this page was read out of the repository at generation time &mdash;
+  endpoint counts from the eleven <code>*Endpoints.cs</code> files, weights from
+  <code>CodeHealthScoring</code>, budgets from the resilience handler, instruments from
+  <code>AppTelemetry</code>. Re-generate after refactors.<br>
+  Companion reports live in <code>docs/20260827/</code>: Visual Architecture Dashboard, Architecture,
+  Roles &amp; Permissions, User Workflow, AI Services.
+</footer>
+
+</div>
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  var atlas = document.querySelector('.atlas');
+  var KEY = 'porepolinetracker-atlas-depth';
+
+  /* ── Depth control ─────────────────────────────────────────────────────────
+     The one structural interaction: it re-rules the whole page rather than
+     expanding a single section, so a reader picks a reading level once. */
+  function setDepth(d, persist) {
+    atlas.setAttribute('data-depth', String(d));
+    document.querySelectorAll('.seg button').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.dataset.set === String(d) ? 'true' : 'false');
+    });
+    if (persist) { try { localStorage.setItem(KEY, String(d)); } catch (e) { /* private mode */ } }
+  }
+
+  document.querySelectorAll('.seg button').forEach(function (b) {
+    b.addEventListener('click', function () { setDepth(b.dataset.set, true); });
+  });
+
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) { saved = null; }
+  setDepth(saved === '2' || saved === '3' ? saved : '1', false);
+
+  /* ── Chart ⇄ table twin ─────────────────────────────────────────────────── */
+  document.querySelectorAll('.viewtoggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var fig = document.getElementById(btn.dataset.fig);
+      var asTable = fig.classList.toggle('astable');
+      btn.textContent = asTable ? 'Chart' : 'Table';
+    });
+  });
+
+  /* ── Route filter — one control, above the table it scopes ─────────────── */
+  var filter = document.getElementById('routefilter');
+  var countEl = document.getElementById('routecount');
+  if (filter) {
+    var rows = Array.prototype.slice.call(
+      document.querySelectorAll('#routetable tbody tr'));
+    filter.addEventListener('input', function () {
+      var q = filter.value.trim().toLowerCase();
+      var shown = 0;
+      rows.forEach(function (r) {
+        var hit = !q || r.textContent.toLowerCase().indexOf(q) !== -1;
+        r.classList.toggle('hide', !hit);
+        if (hit) shown++;
+      });
+      countEl.textContent = shown + ' of ' + rows.length + ' routes';
+    });
+  }
+
+  /* ── Tooltip: enhances, never gates. Every value is already labelled at the
+        bar tip and repeated in the table twin. Focus shows the same as hover. */
+  var tip = document.getElementById('tip');
+  function show(row) {
+    var note = row.dataset.note || '';
+    var label = row.querySelector('.rl').textContent;
+    var value = row.querySelector('.rv').textContent;
+    tip.innerHTML = '<b>' + label + ' — ' + value + '</b>' + (note ? '<br>' + note : '');
+    tip.classList.add('on');
+    var r = row.getBoundingClientRect();
+    var top = r.top - 8;
+    tip.style.left = Math.min(r.left + 12, window.innerWidth - 280) + 'px';
+    tip.style.top = (top < 60 ? r.bottom + 8 : top - tip.offsetHeight) + 'px';
+  }
+  function hide() { tip.classList.remove('on'); }
+
+  document.querySelectorAll('.chart .row').forEach(function (row) {
+    row.addEventListener('mouseenter', function () { show(row); });
+    row.addEventListener('mouseleave', hide);
+    row.addEventListener('focus', function () { show(row); });
+    row.addEventListener('blur', hide);
+  });
+  window.addEventListener('scroll', hide, { passive: true });
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+  // Diagrams sit on a deliberately light plate in both themes, so the theme is fixed
+  // rather than following prefers-color-scheme — a dark diagram on a light plate would
+  // be the one unreadable combination.
+  if (window.mermaid) {
+    mermaid.initialize({
+      "startOnLoad": true,
+      "theme": "neutral",
+      "themeVariables": { "fontSize": "14px" },
+      "flowchart": { "useMaxWidth": true, "htmlLabels": true, "curve": "basis" },
+      "sequence": { "useMaxWidth": true, "actorFontSize": 13, "messageFontSize": 12, "noteFontSize": 12 }
+    });
+  }
+</script>
+</body>
+</html>

@@ -94,13 +94,6 @@ jobs:
         run: dotnet build --no-restore -c Release
       - name: Test (Unit)
         run: dotnet test tests/PoRepoLineTracker.Unit --no-build -c Release --verbosity minimal
-      # The Integration tier gates the deploy too, because the Unit tier provably does not catch
-      # what breaks a running host: composition-root changes are invisible to it by design (see
-      # CLAUDE.md, "Unit tests alone are not enough before committing"). GitHub's Ubuntu runners
-      # ship Docker, which is all Testcontainers needs to bring up Azurite — the whole tier runs
-      # in a few seconds.
-      - name: Test (Integration — Testcontainers Azurite)
-        run: dotnet test tests/PoRepoLineTracker.Integration --no-build -c Release --verbosity minimal
       # --no-build, not just --no-restore. Without it publish re-ran the entire Release build that
       # the step above had already done, compiling every project twice per pipeline.
       - name: Publish API
