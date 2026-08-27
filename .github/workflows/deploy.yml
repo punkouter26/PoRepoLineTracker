@@ -214,7 +214,9 @@ jobs:
           api=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/api/repositories")
           [ "$api" = "401" ] || { echo "::error::/api/repositories returned $api, expected 401"; exit 1; }
 
-          # An unknown API route must say 404, not 401 and not the HTML shell.
+          # An unknown API route must say 404 — not 401, and above all not 200 carrying the HTML
+          # shell, which is what a JSON caller used to receive for a typo. GET only: see the known
+          # limit documented on ApiNotFoundMiddleware.
           missing=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/api/no-such-route-smoke-test")
           [ "$missing" = "404" ] || { echo "::error::unknown API route returned $missing, expected 404"; exit 1; }
 

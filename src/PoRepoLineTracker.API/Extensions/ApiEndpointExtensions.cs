@@ -49,6 +49,18 @@ public static class ApiEndpointExtensions
             app.MapSeedEndpoints();
         }
 
+        // NOTE: there is deliberately no catch-all ENDPOINT for unmatched /api paths.
+        //
+        // The obvious `MapFallback("/api/{**rest}", …)` was tried and reverted: a catch-all
+        // registered as an endpoint becomes a routing candidate alongside the real routes, and it
+        // won often enough to matter — `POST /api/repositories/bulk` began resolving to the
+        // catch-all, so an anonymous write passed authorization (the catch-all has to be
+        // anonymous) and came back 400 from the antiforgery gate instead of the 401 it owes the
+        // caller. Route precedence is not something to bet an authorization outcome on.
+        //
+        // ApiNotFoundMiddleware does the same job from outside routing, where it cannot shadow
+        // anything — see Program.cs.
+
         return app;
     }
 }

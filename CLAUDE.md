@@ -41,10 +41,10 @@ docker compose up -d                                   # Azurite (Table Storage)
 dotnet run --project src/PoRepoLineTracker.API --launch-profile https   # https://localhost:5003
 
 dotnet build
-dotnet test tests/PoRepoLineTracker.Unit          # 185 — no external deps
+dotnet test tests/PoRepoLineTracker.Unit          # 204 — no external deps
 dotnet test tests/PoRepoLineTracker.Integration   # 54  — WebApplicationFactory + Testcontainers Azurite
 dotnet test tests/PoRepoLineTracker.E2EAPI        # 31  — needs the app running
-dotnet test tests/PoRepoLineTracker.E2EUI         # 40  — needs the app running + Playwright (~3m30s)
+dotnet test tests/PoRepoLineTracker.E2EUI         # 42  — needs the app running + Playwright (~3m30s)
 ```
 
 **Traces**: `docker compose` also runs Jaeger. `OpenTelemetry:OtlpEndpoint` in
@@ -151,6 +151,24 @@ anchor clicks, so `href="#main-content"` scrolled the page and left focus in the
 that looks like it works and does nothing for the keyboard user it exists for. `MainLayout` holds
 an `ElementReference` to `<main>` (focusable only because of its `tabindex="-1"`) and calls
 `FocusAsync` on click with `preventDefault`.
+
+**Production behaves differently from every tier that tests it.** `ProductionAuthEnforcementMiddleware`
+is a no-op outside Production, and Integration runs as `"Test"` while both E2E tiers run as
+Development — so *nothing that drives a real host executes its Production branch*. That is how it
+came to challenge the OAuth provider directly: locally `/` returned 200, the deployed site returned
+a 302 to github.com, and no test could see the difference. It now redirects to the app's own
+`/login` (same origin, so the installed PWA's `start_url: "/"` stays in scope), and it is
+**unit-tested against a substituted `IWebHostEnvironment`** — the only place that branch runs.
+Anything else added to that middleware needs the same treatment.
+
+**Never add a catch-all endpoint under `/api`.** `ApiNotFoundMiddleware` answers 404 for an
+unmatched `/api` GET, which previously fell through to the SPA fallback and returned 200 carrying
+an HTML document to a JSON caller. It is *middleware, not a route*, because the obvious
+`MapFallback("/api/{**rest}", …)` was tried and reverted: a catch-all becomes a routing candidate
+beside the real routes and won for some of them, so `POST /api/repositories/bulk` resolved to the
+catch-all, passed authorization (a catch-all must be anonymous) and came back 400 from the
+antiforgery gate instead of 401. Route precedence is not worth betting an authorization outcome on.
+The middleware covers GET only — see the known limit documented on it.
 
 **Scoped CSS needs a plain element at the component root.** A `.razor.css` rule compiles to
 `.foo[b-xxx]`, and nothing a Radzen component renders carries that attribute. Root at a plain

@@ -135,6 +135,13 @@ namespace PoRepoLineTracker.API
             app.UseBlazorFrameworkFiles();
             app.UseStaticFiles();
 
+            // Before authentication/authorization on purpose: an /api path that matched no route
+            // is a 404 regardless of who is asking, and the authorization FallbackPolicy would
+            // otherwise answer 401 first — making a typo indistinguishable from an expired session.
+            // Routing has already run by here, so the matched endpoint (or the absence of one) is
+            // known; static files were served earlier still and never reach this.
+            app.UseMiddleware<ApiNotFoundMiddleware>();
+
             app.UseAuthentication();
             app.UseAuthorization();
 
@@ -163,7 +170,10 @@ namespace PoRepoLineTracker.API
             // deploy smoke test and Azure's probe with no credential, and the fallback file is
             // the Blazor shell itself — gating it would make the login page unreachable.
             app.MapHealthChecks("/health").AllowAnonymous();
-            app.MapFallbackToFile("index.html").AllowAnonymous();
+            // Marked so ApiNotFoundMiddleware can tell "the SPA shell caught it" from "a real API
+            // route answered" — this endpoint matches /api/typo too, and used to serve HTML to
+            // callers expecting JSON.
+            app.MapFallbackToFile("index.html").AllowAnonymous().WithMetadata(new SpaFallbackAttribute());
 
             return app;
         }

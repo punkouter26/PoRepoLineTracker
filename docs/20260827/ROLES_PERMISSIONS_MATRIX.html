@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roles &amp; Permissions Matrix &mdash; PoRepoLineTracker</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --panel:#ffffff; --ink:#12151a; --ink-2:#3d4550; --ink-3:#657084;
+    --line:#d9dee6; --line-2:#eaedf2;
+    --accent:#1c4fd6; --accent-soft:#eaf0ff;
+    --ok:#0f7a4d; --ok-soft:#e5f5ec;
+    --warn:#8a5a00; --warn-soft:#fdf1d8;
+    --bad:#a8242b; --bad-soft:#fbe9ea;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+       font-size:16px;line-height:1.6;padding:0 0 5rem}
+  .wrap{max-width:1240px;margin:0 auto;padding:0 1.25rem}
+  header.doc{background:var(--ink);color:#fff;padding:2.5rem 0 2rem;margin-bottom:2rem}
+  header.doc .eyebrow{font-family:var(--mono);font-size:.75rem;letter-spacing:.14em;
+       text-transform:uppercase;color:#9aa7bd;margin:0 0 .5rem}
+  header.doc h1{margin:0 0 .5rem;font-size:clamp(1.6rem,4vw,2.4rem);line-height:1.2;letter-spacing:-.02em}
+  header.doc p.sub{margin:0;color:#c3ccdb;max-width:64ch}
+  header.doc .meta{margin-top:1.25rem;display:flex;flex-wrap:wrap;gap:.4rem 1.25rem;
+       font-family:var(--mono);font-size:.75rem;color:#8e9bb2}
+  h2{font-size:1.5rem;letter-spacing:-.01em;margin:2.75rem 0 .5rem;padding-top:1.25rem;
+     border-top:2px solid var(--line)}
+  h3{font-size:1.12rem;margin:1.9rem 0 .5rem;letter-spacing:-.005em}
+  h4{font-size:.95rem;margin:1.4rem 0 .4rem;color:var(--ink-2);text-transform:uppercase;
+     letter-spacing:.08em;font-family:var(--mono);font-weight:600}
+  p{margin:.65rem 0;max-width:78ch}
+  ul,ol{max-width:78ch;padding-left:1.25rem}
+  li{margin:.3rem 0}
+  a{color:var(--accent)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--line-2);
+       padding:.1em .35em;border-radius:3px;word-break:break-word}
+  pre{background:#12151a;color:#e6ebf2;padding:1rem 1.1rem;border-radius:8px;
+      overflow-x:auto;font-family:var(--mono);font-size:.82rem;line-height:1.55;
+      border:1px solid #262c35}
+  pre code{background:none;padding:0;color:inherit;font-size:inherit}
+  .tier{display:inline-flex;align-items:center;gap:.45rem;font-family:var(--mono);
+        font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;
+        padding:.22rem .55rem;border-radius:99px;vertical-align:middle;margin-right:.6rem}
+  .t1{background:var(--accent-soft);color:var(--accent)}
+  .t2{background:#efeaff;color:#5b32c4}
+  .t3{background:#e6f4ee;color:var(--ok)}
+  section.tierblock{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+        padding:1.4rem 1.5rem;margin:1rem 0 0}
+  .lead{font-size:1.06rem;color:var(--ink-2)}
+  .grid{display:grid;gap:1rem;margin:1.1rem 0}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem}
+  .card h5{margin:0 0 .35rem;font-size:.95rem}
+  .card p{margin:0;font-size:.9rem;color:var(--ink-2);max-width:none}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.95rem 1.05rem}
+  .stat .n{font-size:1.75rem;font-weight:700;letter-spacing:-.02em;line-height:1.1;font-family:var(--mono)}
+  .stat .l{font-size:.74rem;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3);
+           margin-top:.3rem;font-family:var(--mono)}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel);
+             margin:1.1rem 0}
+  table{border-collapse:collapse;width:100%;font-size:.86rem;min-width:720px}
+  caption{text-align:left;font-size:.8rem;color:var(--ink-3);padding:.7rem 1rem 0;font-family:var(--mono)}
+  th,td{text-align:left;padding:.55rem .8rem;border-bottom:1px solid var(--line-2);vertical-align:top}
+  thead th{background:#f0f2f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;
+           color:var(--ink-2);border-bottom:2px solid var(--line)}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#fafbfd}
+  td code,th code{white-space:nowrap}
+  th.rowhead,td.rowhead{background:#fafbfd;font-weight:600;white-space:normal;min-width:200px}
+  td.cell{text-align:center;font-family:var(--mono);font-size:.78rem;white-space:nowrap}
+  .pill{display:inline-block;font-family:var(--mono);font-size:.7rem;font-weight:700;
+        padding:.15rem .45rem;border-radius:4px;letter-spacing:.03em;white-space:nowrap}
+  .p-ok{background:var(--ok-soft);color:var(--ok)}
+  .p-warn{background:var(--warn-soft);color:var(--warn)}
+  .p-bad{background:var(--bad-soft);color:var(--bad)}
+  .p-neutral{background:var(--line-2);color:var(--ink-2)}
+  .p-accent{background:var(--accent-soft);color:var(--accent)}
+  .note{border-left:4px solid var(--accent);background:var(--accent-soft);
+        padding:.85rem 1.1rem;border-radius:0 8px 8px 0;margin:1.2rem 0}
+  .note.warn{border-color:var(--warn);background:var(--warn-soft)}
+  .note.ok{border-color:var(--ok);background:var(--ok-soft)}
+  .note.bad{border-color:var(--bad);background:var(--bad-soft)}
+  .note p{margin:.3rem 0}
+  .note strong:first-child{display:block;font-size:.78rem;text-transform:uppercase;
+        letter-spacing:.08em;font-family:var(--mono);margin-bottom:.2rem}
+  figure{margin:1.4rem 0;background:var(--panel);border:1px solid var(--line);
+         border-radius:12px;padding:1.1rem;overflow:hidden}
+  figure figcaption{font-size:.8rem;color:var(--ink-3);font-family:var(--mono);
+         margin-top:.75rem;padding-top:.65rem;border-top:1px solid var(--line-2)}
+  .mermaid{overflow-x:auto;font-size:15px!important;text-align:center}
+  .mermaid svg{max-width:100%;height:auto}
+  footer.doc{margin-top:3.5rem;padding-top:1.25rem;border-top:1px solid var(--line);
+       font-size:.8rem;color:var(--ink-3);font-family:var(--mono)}
+  .srcline{font-family:var(--mono);font-size:.76rem;color:var(--ink-3);margin:.35rem 0 0}
+  .controls{display:flex;flex-wrap:wrap;gap:.75rem 1.25rem;align-items:flex-end;margin:1.2rem 0 .2rem;
+       background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1rem 1.15rem}
+  .ctl{display:flex;flex-direction:column;gap:.25rem}
+  .ctl label{font-family:var(--mono);font-size:.7rem;text-transform:uppercase;
+       letter-spacing:.09em;color:var(--ink-3)}
+  select,input[type=search]{font-family:var(--sans);font-size:.88rem;padding:.42rem .6rem;
+       border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);
+       min-width:210px}
+  input[type=search]{min-width:250px}
+  .resultcount{font-family:var(--mono);font-size:.78rem;color:var(--ink-3);margin-left:auto;
+       padding-bottom:.4rem}
+  .legend{display:flex;flex-wrap:wrap;gap:.5rem 1.1rem;font-size:.82rem;color:var(--ink-2);
+       margin:.7rem 0 0;align-items:center}
+  tr[hidden]{display:none}
+  .empty{padding:1.5rem;text-align:center;color:var(--ink-3);font-family:var(--mono);font-size:.85rem}
+  @media (max-width:640px){ body{font-size:15px} th,td{padding:.45rem .55rem}
+    select,input[type=search]{min-width:0;width:100%} .ctl{width:100%} }
+  @media print{
+    body{background:#fff}
+    header.doc{background:#fff;color:#000;border-bottom:2px solid #000}
+    header.doc h1,header.doc p.sub,header.doc .eyebrow,header.doc .meta{color:#000}
+    .controls{display:none} tr[hidden]{display:table-row!important}
+  }
+</style>
+</head>
+<body>
+<header class="doc">
+  <div class="wrap">
+    <p class="eyebrow">Report 3 of 5 &middot; Access control</p>
+    <h1>Roles &amp; Permissions Matrix</h1>
+    <p class="sub">Principal &times; Environment against every endpoint's code-derived authorization,
+       read from <code>RequireAuthorization()</code> / <code>AllowAnonymous()</code> metadata, the
+       global <code>FallbackPolicy</code>, the ownership guard, and the two middleware gates that sit
+       outside routing.</p>
+    <div class="meta">
+      <span>5 principals</span>
+      <span>3 environments</span>
+      <span>26 endpoints</span>
+      <span>deny-by-default</span>
+      <span>generated: 2026-08-27</span>
+    </div>
+  </div>
+</header>
+<div class="wrap">
+
+<h2 id="tier1">Tier 1 &mdash; Executive</h2>
+<section class="tierblock">
+  <p><span class="tier t1">Tier 1</span><span class="lead">Thirty seconds:</span></p>
+  <p class="lead">Authorization is <strong>deny-by-default</strong>. A global
+     <code>FallbackPolicy</code> requires an authenticated user on every endpoint that carries no
+     authorization metadata of its own, so a new endpoint added without a
+     <code>RequireAuthorization()</code> call fails closed rather than open. Only five endpoints opt
+     out, each for a stated reason. There are <strong>no roles and no policies</strong>: the only
+     authorization question beyond &ldquo;are you signed in&rdquo; is &ldquo;do you own this
+     repository&rdquo;, and one shared guard answers it for every route that takes a repository id.</p>
+
+  <div class="grid g4">
+    <div class="stat"><div class="n">26</div><div class="l">Endpoints</div></div>
+    <div class="stat"><div class="n">21</div><div class="l">Authenticated</div></div>
+    <div class="stat"><div class="n">5</div><div class="l">Anonymous by design</div></div>
+    <div class="stat"><div class="n">0</div><div class="l">Named policies / roles</div></div>
+  </div>
+
+  <div class="note ok">
+    <strong>The two facts that carry the model</strong>
+    <p><strong>1.</strong> <code>FallbackPolicy = RequireAuthenticatedUser()</code> means forgetting a
+       guard produces a 401, not a leak.<br>
+       <strong>2.</strong> <code>Auth/RepositoryOwnership.AuthorizeAsync</code> is the single
+       implementation of the ownership check. It lives in <code>Auth/</code> rather than in a slice
+       precisely so the second slice that needed it could not copy it &mdash; a copied authorization
+       check fails quietly, and the symptom is a route serving another user's data rather than a
+       broken build.</p>
+  </div>
+</section>
+
+<h2 id="tier2">Tier 2 &mdash; Architectural</h2>
+<section class="tierblock">
+  <p><span class="tier t2">Tier 2</span>Four gates decide every request, in this order. Three of them
+     are middleware and one is per-endpoint code, and the ordering between them is deliberate.</p>
+</section>
+
+<figure>
+<div class="mermaid">
+flowchart TB
+  REQ(["Inbound request"]) --> STATIC{"Static file?"}
+  STATIC -->|"yes"| SERVE["Served by UseStaticFiles<br/>never reaches any gate"]
+  STATIC -->|"no"| NF{"Gate 0 - ApiNotFoundMiddleware<br/>/api path that matched no route,<br/>or only the SPA shell"}
+  NF -->|"unrouted"| D404B["404 JSON ErrorResponse<br/>before any auth question"]
+  NF -->|"routed, or not /api"| AUTHN["Gate 1 - UseAuthentication<br/>Production: Cookie only<br/>non-Production: FakeOrCookie policy scheme"]
+
+  AUTHN --> AUTHZ{"Gate 2 - UseAuthorization<br/>endpoint metadata,<br/>else FallbackPolicy"}
+  AUTHZ -->|"AllowAnonymous"| PROD
+  AUTHZ -->|"authenticated"| PROD
+  AUTHZ -->|"anonymous + no opt-out"| D401["/api -> 401<br/>page -> redirect to /auth/login"]
+
+  PROD{"Gate 3 - ProductionAuthEnforcement<br/>Production only, page navigations only"}
+  PROD -->|"/api, /hubs, or public path"| CSRF
+  PROD -->|"authenticated"| CSRF
+  PROD -->|"anonymous page"| DLOGIN["302 -> /login?returnUrl=..."]
+
+  CSRF{"Gate 4 - AntiforgeryMiddleware<br/>unsafe method under /api"}
+  CSRF -->|"safe method or non-/api"| EP
+  CSRF -->|"cookie + X-CSRF-TOKEN match"| EP
+  CSRF -->|"either half missing"| D400["400 ErrorResponse"]
+
+  EP["Endpoint handler"] --> OWN{"Gate 5 - RepositoryOwnership<br/>routes taking a repository id"}
+  OWN -->|"owner"| OK200["200 with data"]
+  OWN -->|"not found"| D404["404"]
+  OWN -->|"someone else's"| D403["403 + IDOR warning logged"]
+
+  classDef deny fill:#fbe9ea,stroke:#a8242b,color:#a8242b
+  classDef allow fill:#e5f5ec,stroke:#0f7a4d,color:#0f7a4d
+  class D401,D400,D403,D404,D404B,DLOGIN deny
+  class OK200,SERVE allow
+</div>
+<figcaption>Gate order. Gate 0 runs before authentication on purpose &mdash; an unmatched
+  <code>/api</code> path is a 404 regardless of who is asking, and answering 401 first would make a
+  typo indistinguishable from an expired session. Antiforgery, by contrast, sits <em>after</em>
+  authorization: an unauthenticated POST then answers 401 rather than 400, which is both the more
+  useful diagnosis and what the API tier asserts. It also has to sit after routing so
+  <code>GetEndpoint()</code> can read the <code>SkipAntiforgery</code> metadata for the matched
+  endpoint.</figcaption>
+</figure>
+
+<h3>Principals</h3>
+<div class="grid g3">
+  <div class="card">
+    <h5><span class="pill p-neutral">P1</span> Anonymous</h5>
+    <p>No credential. Reaches the login page, the health probe, the antiforgery token endpoint, the
+       OAuth callback and the Blazor shell. Everything else answers 401 (API) or redirects (page).</p>
+  </div>
+  <div class="card">
+    <h5><span class="pill p-ok">P2</span> GitHub user &mdash; owner</h5>
+    <p>Cookie <code>PoRepoLineTracker.Auth</code>, issued after GitHub OAuth. Carries a
+       <code>UserId</code> claim added in <code>OnCreatingTicket</code>. Owns the repository named in
+       the route. Full access to their own data.</p>
+  </div>
+  <div class="card">
+    <h5><span class="pill p-bad">P3</span> GitHub user &mdash; non-owner</h5>
+    <p>Identical credential to P2, different <code>UserId</code>. Authenticated everywhere, but every
+       repository-scoped route answers 403 and logs an IDOR warning naming both user ids.</p>
+  </div>
+  <div class="card">
+    <h5><span class="pill p-warn">P4</span> Header principal</h5>
+    <p><code>X-Fake-User</code> (GUID verbatim; any other string hashed to a stable GUID) plus optional
+       <code>X-Fake-Roles</code>. Handled by <code>FakeAuthHandler</code>. Registered only outside
+       Production &mdash; <code>ThrowIfProduction</code> makes a Production registration a startup
+       crash rather than a silent bypass. There is no dev-login route.</p>
+  </div>
+  <div class="card">
+    <h5><span class="pill p-accent">P5</span> Infrastructure probe</h5>
+    <p>Azure's health probe and the post-deploy smoke test. Credential-less by necessity. Reaches
+       <code>/health</code> only; <code>/diag</code> requires authentication despite being a
+       diagnostics surface.</p>
+  </div>
+  <div class="card">
+    <h5>Roles</h5>
+    <p><code>X-Fake-Roles</code> can attach role claims for a test, but <strong>no endpoint reads
+       one</strong>. There is no <code>RequireRole</code>, no named policy, and no admin tier
+       anywhere in the API. Authorization is authentication plus ownership.</p>
+  </div>
+</div>
+
+<h3>Environment differences</h3>
+<div class="tablewrap">
+<table>
+  <caption>What changes with <code>ASPNETCORE_ENVIRONMENT</code></caption>
+  <thead><tr><th class="rowhead">Behaviour</th><th>Development</th><th>Test</th><th>Production</th></tr></thead>
+  <tbody>
+    <tr><td class="rowhead">Default auth scheme</td>
+        <td><code>FakeOrCookie</code> policy scheme</td>
+        <td><code>FakeOrCookie</code> policy scheme</td>
+        <td>Cookie only</td></tr>
+    <tr><td class="rowhead"><code>FakeAuthHandler</code> registered</td>
+        <td><span class="pill p-warn">yes</span></td>
+        <td><span class="pill p-warn">yes</span></td>
+        <td><span class="pill p-ok">no &mdash; startup crash if attempted</span></td></tr>
+    <tr><td class="rowhead">Default challenge scheme</td>
+        <td>GitHub if <code>GitHub:Dev:ClientId</code> (or <code>GitHub:ClientId</code>) set, else Cookie</td>
+        <td>Cookie (no client id configured)</td>
+        <td>GitHub if <code>GitHub:ClientId</code> set, else Cookie</td></tr>
+    <tr><td class="rowhead"><code>ProductionAuthEnforcementMiddleware</code></td>
+        <td>no-op</td><td>no-op</td>
+        <td><span class="pill p-ok">active</span> &mdash; anonymous page navigations 302 to <code>/login</code></td></tr>
+    <tr><td class="rowhead">Seed endpoints <code>/api/dev/seed/*</code></td>
+        <td><span class="pill p-warn">mapped</span></td>
+        <td><span class="pill p-ok">not mapped &rarr; 404</span></td>
+        <td><span class="pill p-ok">not mapped &rarr; 404</span></td></tr>
+    <tr><td class="rowhead">OpenAPI + Scalar reference</td>
+        <td><span class="pill p-warn">mapped, AllowAnonymous</span></td>
+        <td><span class="pill p-ok">not mapped</span></td>
+        <td><span class="pill p-ok">not mapped</span></td></tr>
+    <tr><td class="rowhead">Session cookie <code>SecurePolicy</code></td>
+        <td><code>SameAsRequest</code></td><td><code>Always</code></td><td><code>Always</code></td></tr>
+    <tr><td class="rowhead">Antiforgery cookie</td>
+        <td><code>PoRepoLineTracker.Antiforgery</code>, <code>SameAsRequest</code></td>
+        <td>same, via explicit <code>RequireSecureCookies=false</code></td>
+        <td><code>__Host-PoRepoLineTracker.Antiforgery</code>, <code>Secure</code></td></tr>
+    <tr><td class="rowhead"><code>UseHttpsRedirection</code></td>
+        <td>not registered</td><td>registered</td><td>registered</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note warn">
+  <strong>Cookie hardening keys on HTTPS, not on the environment name</strong>
+  <p><code>Security:RequireSecureCookies</code> (default: true outside Development) decides whether the
+     antiforgery cookie gets <code>__Host-</code> + <code>Secure</code>. A <code>__Host-</code> cookie
+     without <code>Secure</code> is rejected by browsers, and one <em>with</em> <code>Secure</code>
+     never comes back over http &mdash; either way every state-changing request fails while reads look
+     fine. The integration tier runs as environment <code>"Test"</code> over plain HTTP and opts out
+     explicitly, with <code>builder.UseSetting(ConfigKeys.Security.RequireSecureCookies, "false")</code>
+     rather than in-memory configuration, because that value is read at <em>registration</em> time.</p>
+</div>
+
+<h2 id="grid">Access control grid</h2>
+<p>Filter by principal and environment to see what each endpoint answers. Every cell is derived from
+   endpoint metadata plus the gates above &mdash; nothing here is an assumption about intent.</p>
+
+<div class="controls">
+  <div class="ctl">
+    <label for="f-principal">Principal</label>
+    <select id="f-principal">
+      <option value="anon">P1 &mdash; Anonymous</option>
+      <option value="owner" selected>P2 &mdash; GitHub user (owner)</option>
+      <option value="other">P3 &mdash; GitHub user (non-owner)</option>
+      <option value="fake">P4 &mdash; Header principal (X-Fake-User)</option>
+      <option value="probe">P5 &mdash; Infrastructure probe</option>
+    </select>
+  </div>
+  <div class="ctl">
+    <label for="f-env">Environment</label>
+    <select id="f-env">
+      <option value="dev">Development</option>
+      <option value="test">Test</option>
+      <option value="prod" selected>Production</option>
+    </select>
+  </div>
+  <div class="ctl">
+    <label for="f-q">Filter endpoints</label>
+    <input type="search" id="f-q" placeholder="e.g. recap, DELETE, insights" autocomplete="off">
+  </div>
+  <div class="ctl">
+    <label for="f-only">Show</label>
+    <select id="f-only">
+      <option value="all" selected>All endpoints</option>
+      <option value="allow">Allowed only</option>
+      <option value="deny">Denied only</option>
+    </select>
+  </div>
+  <div class="resultcount" id="count"></div>
+</div>
+
+<div class="legend">
+  <span><span class="pill p-ok">200</span> reaches the handler</span>
+  <span><span class="pill p-warn">302</span> redirected to sign in</span>
+  <span><span class="pill p-bad">401 / 403 / 404</span> denied</span>
+  <span><span class="pill p-neutral">n/a</span> route not mapped in this environment</span>
+</div>
+
+<div class="tablewrap">
+<table id="grid">
+  <caption>Endpoint &times; outcome for the selected principal and environment</caption>
+  <thead><tr>
+    <th style="min-width:230px">Endpoint</th>
+    <th>Slice</th>
+    <th>Declared authorization</th>
+    <th style="min-width:120px">Outcome</th>
+    <th>Why</th>
+  </tr></thead>
+  <tbody id="gridbody"></tbody>
+</table>
+</div>
+<div class="empty" id="empty" hidden>No endpoints match this filter.</div>
+
+<h2 id="tier3">Tier 3 &mdash; Implementation</h2>
+<section class="tierblock">
+  <p><span class="tier t3">Tier 3</span>The code each cell above was derived from.</p>
+</section>
+
+<h3>The fallback policy</h3>
+<pre><code>// Extensions/AuthServiceExtensions.cs
+// Server-side FallbackPolicy: every endpoint that carries no authorization metadata of its own
+// is authenticated by default. Endpoints that must stay public opt out explicitly with
+// .AllowAnonymous(). Deny-by-default means a new endpoint added without a
+// RequireAuthorization() call fails closed, not open.
+services.AddAuthorization(options =&gt;
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});</code></pre>
+
+<h3>The API-vs-page split on denial</h3>
+<p>An unauthenticated <code>/api</code> call must not be answered with a cross-origin redirect to
+   GitHub &mdash; the browser reports that as a CORS error, which tells the developer nothing. Both
+   handlers short-circuit the prefix instead:</p>
+<pre><code>// Cookie scheme
+options.Events.OnRedirectToLogin = context =&gt;
+{
+    if (context.Request.Path.StartsWithSegments("/api"))
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    }
+    context.Response.Redirect(context.RedirectUri);
+    return Task.CompletedTask;
+};
+
+// GitHub scheme - same rule, so an XHR never gets a 302 to github.com
+options.Events.OnRedirectToAuthorizationEndpoint = context =&gt; { /* identical */ };</code></pre>
+
+<h3>The ownership guard</h3>
+<pre><code>// Auth/RepositoryOwnership.cs
+public static async Task&lt;(GitHubRepository? Repository, IResult? Error)&gt; AuthorizeAsync(
+    IRepositoryDataService repoDataService, RepositoryId repositoryId, UserId userId, string action)
+{
+    var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
+    if (existing == null)
+        return (null, Results.NotFound($"Repository {repositoryId} not found."));
+
+    if (existing.UserId != userId)
+    {
+        Log.Warning("IDOR attempt: user {UserId} tried to {Action} repo {RepositoryId} owned by {OwnerId}",
+                    userId, action, repositoryId, existing.UserId);
+        return (null, Results.Forbid());
+    }
+
+    return (existing, null);
+}</code></pre>
+<p>The 404-vs-403 distinction is deliberate: a caller who owns nothing learns only that the id is not
+   theirs, and the attempt is logged with both user ids and the verb phrase the call site supplied
+   (&ldquo;read linehistory for&rdquo;, &ldquo;reanalyze&rdquo;, &ldquo;read analysis-progress
+   for&rdquo;).</p>
+
+<div class="tablewrap">
+<table>
+  <caption>Routes that run the ownership guard &mdash; the complete set</caption>
+  <thead><tr><th>Route</th><th>Action string logged on refusal</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /api/repositories/{id}/linehistory/{days}</code></td><td>read linehistory for</td></tr>
+    <tr><td><code>GET /api/repositories/{id}/file-extension-percentages</code></td><td>read file-extension-percentages for</td></tr>
+    <tr><td><code>GET /api/repositories/{id}/analysis-progress</code></td><td>read analysis-progress for</td></tr>
+    <tr><td><code>GET /api/repositories/{id}/contributors/{days}</code></td><td>read contributors for</td></tr>
+    <tr><td><code>GET /api/code-health/{id}</code></td><td>read code-health for</td></tr>
+    <tr><td><code>POST /api/repositories/{id}/reanalyze</code></td><td>reanalyze</td></tr>
+    <tr><td><code>DELETE /api/repositories/{id}</code></td><td>delete</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="srcline">Routes that are not repository-scoped &mdash; <code>/api/insights/*</code>,
+   <code>/api/recap/*</code>, <code>/api/settings/*</code>, <code>GET /api/repositories</code>,
+   <code>/allcharts/{days}</code> &mdash; scope by the caller's own <code>UserId</code> claim inside the
+   query instead, so there is no id to authorize.</p>
+
+<h3>The header-driven scheme, and its guardrail</h3>
+<pre><code>// Extensions/AuthServiceExtensions.cs
+var useFakeAuth = !environment.IsProduction();
+if (useFakeAuth)
+{
+    FakeAuthHandler.ThrowIfProduction(environment);   // startup crash, not a silent bypass
+    services.AddAuthentication()
+        .AddScheme&lt;AuthenticationSchemeOptions, FakeAuthHandler&gt;(FakeAuthHandler.SchemeName, _ =&gt; { })
+        .AddPolicyScheme(SmartAuthScheme, SmartAuthScheme, options =&gt;
+        {
+            options.ForwardDefaultSelector = context =&gt;
+                context.Request.Headers.ContainsKey(FakeAuthHandler.UserHeader)
+                    ? FakeAuthHandler.SchemeName
+                    : CookieAuthenticationDefaults.AuthenticationScheme;
+        });
+}</code></pre>
+<p>Selecting the scheme here rather than naming schemes on the authorization policies leaves
+   <code>FallbackPolicy</code> scheme-agnostic, so it keeps working under any
+   <code>DefaultScheme</code>. A request with no <code>X-Fake-User</code> header returns
+   <code>NoResult</code> rather than a failure, so the cookie and OAuth schemes still get their turn
+   and anonymous endpoints behave normally.</p>
+
+<h3>The SignalR hub</h3>
+<pre><code>[Authorize]
+public sealed class AnalysisHub : Hub
+{
+    public static string GroupFor(UserId userId) =&gt; $"user:{userId}";
+
+    public override async Task OnConnectedAsync()
+    {
+        if (Context.User is not null &amp;&amp; Context.User.TryGetUserId(out var userId))
+            await Groups.AddToGroupAsync(Context.ConnectionId, GroupFor(userId));
+        else
+        {
+            // [Authorize] guarantees an identity, but not that it carries the claim this app keys
+            // on. Aborting is the safe reading: leaving the connection open would produce a client
+            // that looks connected and silently receives nothing.
+            Context.Abort();
+            return;
+        }
+        await base.OnConnectedAsync();
+    }
+}</code></pre>
+<p>The hub is mounted at <code>/hubs/analysis</code>, deliberately outside <code>/api</code>: the
+   antiforgery middleware validates every unsafe method under that prefix, and the SignalR negotiate
+   handshake is a POST carrying no CSRF token. It is not relying on the prefix for protection &mdash;
+   it is <code>[Authorize]</code> and scopes every connection to a per-user group. Progress frames go
+   to <code>Clients.Group("user:{id}")</code>, and a job with no recorded owner is <em>not broadcast
+   at all</em> rather than broadcast to everyone, since guessing would leak one user's repository
+   names to another.</p>
+
+<h3>Anonymous endpoints &mdash; the complete list, with reasons</h3>
+<div class="tablewrap">
+<table>
+  <caption>Every <code>AllowAnonymous</code> in the application</caption>
+  <thead><tr><th>Endpoint</th><th>Reason it must be public</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /api/antiforgery/token</code></td>
+        <td>The token must be obtainable before the first state-changing call, and it is not a
+            credential &mdash; it proves the request came from this origin, not that the caller is
+            anyone. Gating it would also make the login POST unreachable.</td></tr>
+    <tr><td><code>GET /auth/login</code>, <code>/logout</code>, <code>/me</code></td>
+        <td><code>/login</code> is the challenge itself; <code>/me</code> is how the WASM client asks
+            whether it is signed in, and must be able to answer &ldquo;no&rdquo;.</td></tr>
+    <tr><td><code>GET /health</code></td>
+        <td>Polled by the deploy smoke test and Azure's probe with no credential.</td></tr>
+    <tr><td><code>MapFallbackToFile("index.html")</code></td>
+        <td>The fallback file is the Blazor shell itself &mdash; gating it would make the login page
+            unreachable.</td></tr>
+    <tr><td><code>MapOpenApi</code> + Scalar reference</td>
+        <td>Development only. The <code>FallbackPolicy</code> would otherwise put the local API
+            reference behind a login, which defeats its purpose.</td></tr>
+  </tbody>
+</table>
+</div>
+<p><code>/diag</code> is <em>not</em> on this list. It returns a masked configuration snapshot and
+   requires authentication, and it content-negotiates on <code>Accept</code>: a browser gets the page
+   shell, an API caller sending <code>Accept: application/json</code> gets the masked JSON.</p>
+
+<h3>Unrouted <code>/api</code> paths answer before authentication</h3>
+<p>One gate deliberately runs <em>ahead</em> of authentication: <code>ApiNotFoundMiddleware</code>,
+   registered after routing but before <code>UseAuthentication</code>/<code>UseAuthorization</code>.
+   An <code>/api</code> path that matched no route &mdash; or matched only the SPA shell fallback
+   &mdash; is a 404 regardless of who is asking, and letting the <code>FallbackPolicy</code> answer
+   401 first would make a typo indistinguishable from an expired session.</p>
+<pre><code>private static bool IsUnroutedApiRequest(HttpContext context)
+{
+    if (!context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+        return false;
+
+    var endpoint = context.GetEndpoint();
+    return endpoint is null || endpoint.Metadata.GetMetadata&lt;SpaFallbackAttribute&gt;() is not null;
+}</code></pre>
+<p>This does not weaken any guard. It cannot shadow a real route, because it is not an endpoint
+   &mdash; and that is precisely why it is middleware. A <code>MapFallback("/api/{**rest}")</code>
+   endpoint was tried first and reverted: it became a routing candidate beside the real routes and
+   won for some of them, so <code>POST /api/repositories/bulk</code> matched the catch-all rather than
+   the bulk endpoint. Because such a catch-all must be anonymous, an unauthenticated write then
+   sailed through authorization and was refused by the antiforgery gate with 400 instead of the 401
+   it should have received.</p>
+<div class="note warn">
+  <strong>Documented scope limit</strong>
+  <p>This covers GET, not every verb. An unknown <code>/api</code> path reached by GET answers 404;
+     the same path reached by POST/PUT/DELETE still answers 401, because those verbs resolve to
+     something other than the SPA fallback before this runs and the authorization challenge wins.
+     Deliberate scope, not an oversight: a write to a route that does not exist being refused as
+     unauthorized is a poor error message, while a write to a route that <em>does</em> exist being
+     refused for the wrong reason is a bug.</p>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) {
+    mermaid.initialize({
+      "startOnLoad": true,
+      "theme": "neutral",
+      "themeVariables": { "fontSize": "15px" },
+      "flowchart": { "useMaxWidth": true, "htmlLabels": true, "curve": "basis" }
+    });
+  } else {
+    document.querySelectorAll('.mermaid').forEach(function (el) {
+      var pre = document.createElement('pre');
+      pre.textContent = el.textContent;
+      el.replaceWith(pre);
+    });
+  }
+</script>
+
+<script>
+(function () {
+  // kind: what decides the outcome for this endpoint.
+  //   'anon'  - AllowAnonymous, everybody reaches it
+  //   'auth'  - authenticated only, no id in the route
+  //   'owned' - authenticated AND must own the repository named in the route
+  //   'dev'   - mapped only in Development, then 'auth'/'owned' rules apply
+  //   'page'  - a Blazor page navigation, subject to the Production gate
+  var ROWS = [
+    { ep: "GET /health",                                   slice: "Health",      decl: "AllowAnonymous",        kind: "anon" },
+    { ep: "GET /api/antiforgery/token",                    slice: "Antiforgery", decl: "AllowAnonymous",        kind: "anon" },
+    { ep: "GET /auth/login",                               slice: "Auth",        decl: "AllowAnonymous (group)",kind: "anon" },
+    { ep: "GET /auth/logout",                              slice: "Auth",        decl: "AllowAnonymous (group)",kind: "anon" },
+    { ep: "GET /auth/me",                                  slice: "Auth",        decl: "AllowAnonymous (group)",kind: "anon" },
+    { ep: "GET / (Blazor shell)",                          slice: "Fallback",    decl: "AllowAnonymous",        kind: "page" },
+    { ep: "GET /openapi + /scalar",                        slice: "OpenAPI",     decl: "AllowAnonymous, Development only", kind: "devanon" },
+
+    { ep: "GET /api/repositories",                         slice: "Repositories",decl: "RequireAuthorization",  kind: "auth" },
+    { ep: "GET /api/repositories/allcharts/{days}",        slice: "Repositories",decl: "RequireAuthorization",  kind: "auth" },
+    { ep: "POST /api/repositories/bulk",                   slice: "Repositories",decl: "RequireAuthorization",  kind: "auth", write: true },
+    { ep: "POST /api/repositories/import-github",          slice: "Repositories",decl: "RequireAuthorization",  kind: "auth", write: true },
+    { ep: "DELETE /api/repositories/all",                  slice: "Repositories",decl: "RequireAuthorization",  kind: "auth", write: true },
+    { ep: "POST /api/repositories/upload-zip",             slice: "Uploads",     decl: "RequireAuthorization",  kind: "auth", write: true },
+
+    { ep: "GET /api/repositories/{id}/linehistory/{days}", slice: "Repositories",decl: "RequireAuthorization + ownership", kind: "owned" },
+    { ep: "GET /api/repositories/{id}/file-extension-percentages", slice: "Repositories", decl: "RequireAuthorization + ownership", kind: "owned" },
+    { ep: "GET /api/repositories/{id}/analysis-progress",  slice: "Repositories",decl: "RequireAuthorization + ownership", kind: "owned" },
+    { ep: "GET /api/repositories/{id}/contributors/{days}",slice: "Contributors",decl: "RequireAuthorization + ownership", kind: "owned" },
+    { ep: "GET /api/code-health/{id}",                     slice: "CodeHealth",  decl: "RequireAuthorization + ownership", kind: "owned" },
+    { ep: "POST /api/repositories/{id}/reanalyze",         slice: "Repositories",decl: "RequireAuthorization + ownership", kind: "owned", write: true },
+    { ep: "DELETE /api/repositories/{id}",                 slice: "Repositories",decl: "RequireAuthorization + ownership", kind: "owned", write: true },
+
+    { ep: "GET /api/settings/user-preferences",            slice: "Settings",    decl: "RequireAuthorization",  kind: "auth" },
+    { ep: "PUT /api/settings/user-preferences",            slice: "Settings",    decl: "RequireAuthorization",  kind: "auth", write: true },
+    { ep: "GET /api/github/user-repositories",             slice: "GitHub",      decl: "RequireAuthorization",  kind: "auth" },
+    { ep: "GET /api/insights/portfolio",                   slice: "Insights",    decl: "RequireAuthorization",  kind: "auth" },
+    { ep: "GET /api/insights/digest",                      slice: "Insights",    decl: "RequireAuthorization",  kind: "auth" },
+    { ep: "POST /api/insights/digest/seen",                slice: "Insights",    decl: "RequireAuthorization",  kind: "auth", write: true },
+    { ep: "GET /api/recap  |  /api/recap/{year}",          slice: "Recap",       decl: "RequireAuthorization",  kind: "auth" },
+    { ep: "GET /diag",                                     slice: "Diagnostics", decl: "RequireAuthorization",  kind: "auth" },
+    { ep: "GET /api/diagnostics",                          slice: "Diagnostics", decl: "RequireAuthorization",  kind: "auth" },
+    { ep: "POST /api/dev/seed/repository",                 slice: "Dev",         decl: "RequireAuthorization, Development only", kind: "dev", write: true },
+
+    { ep: "WS /hubs/analysis (negotiate)",                 slice: "Hub",         decl: "[Authorize] + per-user group", kind: "auth" },
+    { ep: "GET /api/{anything-unrouted}",                  slice: "(middleware)",decl: "ApiNotFoundMiddleware, pre-auth", kind: "unrouted" }
+  ];
+
+  // Returns { code, tone, why }
+  function evaluate(row, principal, env) {
+    var authenticated = principal === "owner" || principal === "other" ||
+                        (principal === "fake" && env !== "prod");
+    var fakeInProd = principal === "fake" && env === "prod";
+
+    if (row.kind === "unrouted") {
+      return { code: "404", tone: "p-bad",
+               why: "ApiNotFoundMiddleware runs after routing but before UseAuthentication, so the same 404 JSON ErrorResponse is returned to every principal in every environment - a typo is never mistaken for an expired session. Covers GET; the same path by POST/PUT/DELETE still answers 401 (documented scope limit)." };
+    }
+
+    // Routes that only exist in Development
+    if ((row.kind === "dev" || row.kind === "devanon") && env !== "dev") {
+      return { code: "n/a", tone: "p-neutral",
+               why: "Not mapped outside Development, so the route does not exist. Falls through to the Blazor shell." };
+    }
+
+    if (row.kind === "anon" || row.kind === "devanon") {
+      if (principal === "probe" && row.ep.indexOf("/health") === -1) {
+        return { code: "200", tone: "p-ok",
+                 why: "AllowAnonymous. Reachable, though the probe only calls /health." };
+      }
+      return { code: "200", tone: "p-ok", why: "Explicit AllowAnonymous; no credential required." };
+    }
+
+    if (row.kind === "page") {
+      if (env === "prod" && !authenticated) {
+        return { code: "302", tone: "p-warn",
+                 why: "ProductionAuthEnforcementMiddleware redirects anonymous page navigations to /login?returnUrl=..., not to GitHub, so the branded login page is actually seen and the PWA start_url stays in scope." };
+      }
+      return { code: "200", tone: "p-ok",
+               why: env === "prod" ? "Authenticated, so the production gate passes it through."
+                                   : "The production gate is a no-op outside Production." };
+    }
+
+    if (fakeInProd) {
+      return { code: "401", tone: "p-bad",
+               why: "FakeAuthHandler is not registered in Production; X-Fake-User is an ordinary header with no meaning. ThrowIfProduction makes registering it a startup crash." };
+    }
+
+    if (principal === "probe") {
+      return { code: "401", tone: "p-bad",
+               why: "No credential. The FallbackPolicy or the endpoint's own RequireAuthorization refuses; /api answers 401 rather than redirecting." };
+    }
+
+    if (!authenticated) {
+      return { code: "401", tone: "p-bad",
+               why: "Anonymous. OnRedirectToLogin short-circuits the /api prefix to 401 instead of a cross-origin redirect that the browser would report as a CORS error." };
+    }
+
+    if (row.kind === "owned" && principal === "other") {
+      return { code: "403", tone: "p-bad",
+               why: "Authenticated but not the owner. RepositoryOwnership.AuthorizeAsync returns Forbid and logs an IDOR warning naming both user ids. A repository that does not exist returns 404 instead, so a stranger learns only that the id is not theirs." };
+    }
+
+    if (row.write) {
+      return { code: "200*", tone: "p-ok",
+               why: "Authenticated" + (row.kind === "owned" ? " and the owner" : "") +
+                    ". Unsafe method under /api, so it also needs the antiforgery pair: the cookie from GET /api/antiforgery/token plus the same token echoed as X-CSRF-TOKEN. Missing either half gives 400." };
+    }
+
+    return { code: "200", tone: "p-ok",
+             why: "Authenticated" + (row.kind === "owned" ? " and the owner of this repository" : "") +
+                  "; the query scopes results to the caller's own UserId claim." };
+  }
+
+  var body = document.getElementById("gridbody");
+  var empty = document.getElementById("empty");
+  var count = document.getElementById("count");
+  var selP = document.getElementById("f-principal");
+  var selE = document.getElementById("f-env");
+  var selO = document.getElementById("f-only");
+  var q = document.getElementById("f-q");
+
+  function render() {
+    var principal = selP.value, env = selE.value, only = selO.value;
+    var term = q.value.trim().toLowerCase();
+    body.innerHTML = "";
+    var shown = 0;
+
+    ROWS.forEach(function (row) {
+      var r = evaluate(row, principal, env);
+      var allowed = r.code.indexOf("200") === 0;
+      if (only === "allow" && !allowed) return;
+      if (only === "deny" && allowed) return;
+      if (term && (row.ep + " " + row.slice + " " + row.decl).toLowerCase().indexOf(term) === -1) return;
+
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td><code>' + row.ep + '</code></td>' +
+        '<td>' + row.slice + '</td>' +
+        '<td>' + row.decl + '</td>' +
+        '<td class="cell"><span class="pill ' + r.tone + '">' + r.code + '</span></td>' +
+        '<td>' + r.why + '</td>';
+      body.appendChild(tr);
+      shown++;
+    });
+
+    empty.hidden = shown > 0;
+    count.textContent = shown + " of " + ROWS.length + " endpoints" +
+      (document.querySelector("#gridbody .pill") ? "" : "");
+  }
+
+  [selP, selE, selO].forEach(function (el) { el.addEventListener("change", render); });
+  q.addEventListener("input", render);
+  render();
+})();
+</script>
+
+<footer class="doc">
+  <div class="wrap">
+    Generated 2026-08-27 &middot; PoRepoLineTracker &middot; net10.0 &middot; branch master<br>
+    <code>200*</code> means the handler is reached but the antiforgery pair is also required.
+    Every claim was read out of the repository at generation time.
+  </div>
+</footer>
+</body>
+</html>
