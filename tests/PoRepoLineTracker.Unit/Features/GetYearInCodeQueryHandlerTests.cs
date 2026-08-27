@@ -219,6 +219,55 @@ public class GetYearInCodeQueryHandlerTests
         recap.NightOwlPercent.Should().BeApproximately(66.7, 0.1, "two of three commits landed after 10pm");
     }
 
+    /// <summary>
+    /// The weekdays of a window are not equally numerous — 2023 opened on a Sunday, so it holds 53
+    /// Sundays against 52 of everything else. Ranking raw totals would hand whichever weekday came
+    /// round more often a standing advantage that says nothing about how the user works.
+    /// </summary>
+    [Fact]
+    public async Task WeekdayRanking_UsesTheAveragePerOccurrence_NotTheRawTotal()
+    {
+        // 2023-01-01 is a Sunday. Three Sundays against three Mondays is a tie on totals, but
+        // there are 53 Sundays in 2023 and 52 Mondays — so Monday is the busier weekday.
+        GivenRepositories(GivenRepository("me", "app",
+            Commit(On(1, 1), 10, linesAdded: 1),   // Sunday
+            Commit(On(1, 8), 20, linesAdded: 1),   // Sunday
+            Commit(On(1, 15), 30, linesAdded: 1),  // Sunday
+            Commit(On(1, 2), 40, linesAdded: 1),   // Monday
+            Commit(On(1, 9), 50, linesAdded: 1),   // Monday
+            Commit(On(1, 16), 60, linesAdded: 1))); // Monday
+
+        var recap = await WhenRecapped();
+
+        recap.WeekdayOccurrences[(int)DayOfWeek.Sunday].Should().Be(53);
+        recap.WeekdayOccurrences[(int)DayOfWeek.Monday].Should().Be(52);
+
+        recap.CommitsByWeekday[(int)DayOfWeek.Sunday]
+            .Should().Be(recap.CommitsByWeekday[(int)DayOfWeek.Monday], "the raw totals are tied");
+
+        recap.PeakWeekday.Should().Be(DayOfWeek.Monday, "the same commits spread over fewer Mondays is a higher average");
+
+        // The displayed averages round to the same 0.06 here — which is exactly why the RANKING
+        // has to run on the unrounded values.
+        recap.AverageCommitsByWeekday[(int)DayOfWeek.Sunday]
+            .Should().Be(recap.AverageCommitsByWeekday[(int)DayOfWeek.Monday]);
+    }
+
+    [Fact]
+    public async Task WeekdayOccurrences_AreBoundedByTodayInAPartialYear()
+    {
+        var now = DateTime.UtcNow;
+        GivenRepositories(GivenRepository("me", "app",
+            Commit(new DateTime(now.Year, 1, 2), totalLines: 10, linesAdded: 10)));
+
+        var recap = await WhenRecapped(year: null);
+
+        // A year in progress must not be credited with weekdays that have not happened yet —
+        // otherwise every average is quietly divided by a full year's worth of them.
+        recap.WeekdayOccurrences.Sum().Should().Be(now.DayOfYear,
+            "the window runs from 1 January to today, inclusive");
+    }
+
     [Fact]
     public async Task LongestStreak_IsBoundedByTheYearItself()
     {

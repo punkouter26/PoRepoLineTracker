@@ -63,26 +63,26 @@ namespace PoRepoLineTracker.API.Services
         /// every extension gets the SAME blank/comment-line exclusion and generated-file skip.
         /// This table replaced 17 individual DI registrations that carried the same data.
         /// </summary>
-        public static IReadOnlyList<ILineCounter> DefaultSet() =>
-        [
-            new SourceLineCounter("*"),
-            new SourceLineCounter(".cs", "//", ("/*", "*/")),
-            new SourceLineCounter(".razor", "//", ("<!--", "-->")),
-            new SourceLineCounter(".cshtml", "//", ("<!--", "-->")),
-            new SourceLineCounter(".xaml", null, ("<!--", "-->")),
-            new SourceLineCounter(".csproj", null, ("<!--", "-->")),
-            new SourceLineCounter(".js", "//", ("/*", "*/")),
-            new SourceLineCounter(".jsx", "//", ("/*", "*/")),
-            new SourceLineCounter(".ts", "//", ("/*", "*/")),
-            new SourceLineCounter(".tsx", "//", ("/*", "*/")),
-            new SourceLineCounter(".mjs", "//", ("/*", "*/")),
-            new SourceLineCounter(".cjs", "//", ("/*", "*/")),
-            new SourceLineCounter(".html", null, ("<!--", "-->")),
-            new SourceLineCounter(".css", "//", ("/*", "*/")),
-            new SourceLineCounter(".scss", "//", ("/*", "*/")),
-            new SourceLineCounter(".less", "//", ("/*", "*/")),
-            new SourceLineCounter(".py", "#")
-        ];
+        public static IReadOnlyList<ILineCounter> DefaultSet()
+        {
+            // Built from CommentSyntax, which is the single table of which language marks comments
+            // how — shared with CodeMetricsAnalyzer so the two cannot disagree about where code
+            // stops and commentary starts. This list used to be seventeen constructor calls of
+            // which twelve were the byte-identical C-style tuple, and two named a syntax the
+            // language does not have.
+            //
+            // The "*" fallback counts blank lines out and nothing else: with no syntax configured
+            // it cannot strip comments, which is the correct behaviour for an unknown language.
+            var counters = new List<ILineCounter> { new SourceLineCounter("*") };
+
+            foreach (var extension in CommentSyntax.KnownExtensions)
+            {
+                var syntax = CommentSyntax.For(extension);
+                counters.Add(new SourceLineCounter(extension, syntax.LinePrefix, syntax.Block));
+            }
+
+            return counters;
+        }
 
         public async Task<int> CountLinesAsync(Stream stream)
         {

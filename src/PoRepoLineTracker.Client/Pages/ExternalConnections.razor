@@ -6,6 +6,8 @@
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 
+<PageTitle>Diagnostics · PoRepoLineTracker</PageTitle>
+
 <div class="app-stack">
     @* <PageHero> — this was the last page still hand-rolling its header, around a `.page-header`
        class that no stylesheet in the project defines. It therefore had none of the hero's padding,
@@ -16,7 +18,7 @@
             <RadzenStack Gap="0.15rem">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
                     <RadzenIcon Icon="cloud" class="xc-title-icon" />
-                    <RadzenText TextStyle="TextStyle.H4" class="xc-title">External Connections</RadzenText>
+                    <h1 class="page-hero__title xc-title">External Connections</h1>
                 </RadzenStack>
                 <RadzenText TextStyle="TextStyle.Body2" class="xc-subtitle">
                     APIs, databases, and external services that this application connects to

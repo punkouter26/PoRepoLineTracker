@@ -93,5 +93,74 @@ public class SourceLineCounterTests
         result.Should().Be(25);
     }
 
+    // ─── DefaultSet wiring ───────────────────────────────────────────────────
+    //
+    // The registrations themselves are worth asserting, not just the stripping logic: the set was
+    // seventeen near-identical constructor calls, and two of them named a comment syntax the
+    // language does not have.
+
+    private static ILineCounter CounterFor(string extension) =>
+        SourceLineCounter.DefaultSet().Single(c => c.FileExtension == extension);
+
+    /// <summary>
+    /// CSS has no line-comment syntax — only <c>/* */</c>. It was registered with "//", which
+    /// truncated every line from the first "//" onwards, so a URL was cut at its scheme and a line
+    /// holding nothing but one counted as blank.
+    /// </summary>
+    [Fact]
+    public async Task DefaultSet_Css_DoesNotTreatDoubleSlashAsAComment()
+    {
+        var result = await CounterFor(".css").CountLinesAsync(
+            Stream("@import url(https://fonts.example.com/x.css);\nbody { color: red; }\n"));
+
+        result.Should().Be(2, "the @import line is code, not a comment");
+    }
+
+    [Fact]
+    public async Task DefaultSet_Css_StillStripsBlockComments()
+    {
+        var result = await CounterFor(".css").CountLinesAsync(
+            Stream("/* a note */\nbody { color: red; }\n"));
+
+        result.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Sass and Less DO have "//", unlike plain CSS — which is exactly why they cannot share a
+    /// registration with it.
+    /// </summary>
+    [Fact]
+    public async Task DefaultSet_Scss_DoesTreatDoubleSlashAsAComment()
+    {
+        var result = await CounterFor(".scss").CountLinesAsync(
+            Stream("// a note\n$brand: red;\n"));
+
+        result.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Razor comments are <c>@* *@</c>; "//" is not one. Registered with "//", any markup line
+    /// containing a URL or an xmlns was cut short.
+    /// </summary>
+    [Fact]
+    public async Task DefaultSet_Razor_DoesNotTreatDoubleSlashAsAComment()
+    {
+        var result = await CounterFor(".razor").CountLinesAsync(
+            Stream("<a href=\"https://example.com\">x</a>\n<p>hello</p>\n"));
+
+        result.Should().Be(2);
+    }
+
+    [Fact]
+    public void DefaultSet_RegistersEveryDefaultExtension_PlusTheFallback()
+    {
+        var registered = SourceLineCounter.DefaultSet().Select(c => c.FileExtension).ToList();
+
+        registered.Should().Contain("*", "an unknown extension still needs blank-line exclusion");
+        registered.Should().OnlyHaveUniqueItems("a duplicate registration would make the counter map ambiguous");
+        registered.Should().Contain(UserPreferences.DefaultFileExtensions,
+            "every extension counted by default must have a counter, or it silently falls back to '*'");
+    }
+
     private static MemoryStream Stream(string content) => new(Encoding.UTF8.GetBytes(content));
 }

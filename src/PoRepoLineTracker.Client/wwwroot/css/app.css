@@ -340,6 +340,18 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 h1 { font-size: clamp(1.5rem, 1.2rem + 1.4vw, 1.875rem); font-weight: 700; }
+
+/* The page title inside <PageHero>. Global rather than scoped to PageHero, because the <h1> is
+   written in each PAGE's markup (a component cannot change the tag of a fragment handed to it),
+   so a rule living in PageHero.razor.css could never reach it.
+
+   It is a real <h1> and not a <RadzenText TextStyle="H3">. Every page used to open at H3 under the
+   header's H5 brand wordmark, so no page declared a top-level heading at all and the document
+   outline ran H5 → H3 → H6 on every route — the brand outranking the page it sat above. */
+.page-hero__title {
+    margin: 0;
+    line-height: 1.15;
+}
 h2 { font-size: clamp(1.25rem, 1.05rem + 1vw, 1.5rem); }
 h3 { font-size: clamp(1.125rem, 1rem + 0.6vw, 1.25rem); }
 h4 { font-size: var(--text-lg); }
@@ -1439,3 +1451,32 @@ a:focus-visible, .btn-link:focus-visible {
 }
 
 code { color: var(--code-color); }
+
+/* ── Skip link ──────────────────────────────────────────────────────────────────────────────
+   Off-canvas until focused, rather than `display: none` — a hidden element is not focusable, so
+   a display-hidden skip link is one that can never be reached and never works. Moving it back
+   into view on :focus-visible is what makes it a real affordance for a keyboard and invisible to
+   everyone else. */
+.app-skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 2000;
+    padding: 0.6rem 1rem;
+    background: var(--primary-color);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 0 0 8px 0;
+    text-decoration: none;
+}
+
+.app-skip-link:focus,
+.app-skip-link:focus-visible {
+    left: 0;
+}
+
+/* The skip target. It is focused programmatically by the anchor, and a focus ring around the
+   whole page region is noise — the scroll and the moved focus are the feedback. */
+#main-content:focus {
+    outline: none;
+}

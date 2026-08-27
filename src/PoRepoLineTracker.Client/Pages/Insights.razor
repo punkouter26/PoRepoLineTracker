@@ -19,11 +19,13 @@
       rules that needed it (`.ins-kpi`, `.ins-empty-icon`) silently matched nothing.
    2. Rhythm. The stack hardcoded a 1rem gap at every viewport, next to a `--space-*` scale that
       exists precisely so vertical rhythm tracks the width. `.app-stack` uses the token. *@
+<PageTitle>Global Insights · PoRepoLineTracker</PageTitle>
+
 <div class="app-stack">
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.125rem">
-                <RadzenText TextStyle="TextStyle.H3" class="ins-title">Global Insights</RadzenText>
+                <h1 class="page-hero__title ins-title">Global Insights</h1>
                 <RadzenText TextStyle="TextStyle.Body1" class="ins-lede">
                     @if (_isSyncing)
                     {

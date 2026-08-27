@@ -67,6 +67,7 @@ public sealed class StaticAssetsApiTests
         ("feed__stage-dot", "AnalysisActivityFeed.razor.css"),
         ("digest__stat-value", "DigestBanner.razor.css"),
         ("rc-kicker", "Recap.razor.css"),
+        ("health__factor-measure", "CodeHealthCard.razor.css"),
     ];
 
     [SkippableFact]

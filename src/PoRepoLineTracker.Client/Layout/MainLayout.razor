@@ -14,6 +14,17 @@
    JS interop call. Rendered outside RadzenLayout because it draws nothing. *@
 <RadzenMediaQuery Query="@($"(max-width: {MobileBreakpointPx}px)")" Change="@OnMobileChanged" />
 
+@* Visible only on focus. Every route puts the full sidebar between the page start and the
+   content, so without this a keyboard user tabs through the whole nav again on each navigation.
+   First element in the DOM so it is the first thing Tab reaches.
+
+   Focus is moved in code rather than left to the browser's fragment handling. Blazor's router
+   intercepts anchor clicks, so the default "navigate to #id and focus it" never runs — the link
+   scrolled the page and left focus behind in the nav, which looks like it works and does nothing
+   for the keyboard user it exists for. The href is kept so the control still reads as a link and
+   still announces its target. *@
+<a class="app-skip-link" href="#main-content" @onclick="SkipToMainAsync" @onclick:preventDefault>Skip to main content</a>
+
 <RadzenLayout>
     <RadzenHeader>
         @* Header contract — Left (Branding) | Center (Toggle + Theme) | Right (Session).
@@ -32,7 +43,11 @@
                         <RadzenIcon Icon="code" class="brand-icon-main" />
                         <RadzenIcon Icon="trending_up" class="brand-icon-trend" />
                     </span>
-                    <RadzenText TextStyle="TextStyle.H5" class="brand-wordmark">PoRepoLineTracker</RadzenText>
+                    @* A <span>, not <RadzenText TextStyle="H5">. The brand is not a heading: as an
+                       <h5> it was the first heading on every page, so the document outline opened
+                       H5 → H3 and the wordmark outranked the page title beneath it. Styling is
+                       unchanged — brand-wordmark already carries it. *@
+                    <span class="brand-wordmark">PoRepoLineTracker</span>
                 </RadzenStack>
             </div>
 
@@ -85,29 +100,40 @@
     }
 
     <RadzenBody>
-        <div class="app-content">
+        @* tabindex="-1" so the skip link can move focus here; without it the anchor scrolls the
+           page but leaves focus stranded back in the nav, which is the failure mode that makes
+           skip links look like they work while doing nothing for a keyboard. *@
+        <main id="main-content" class="app-content" tabindex="-1" @ref="_mainContent">
             @if (!string.IsNullOrEmpty(_breadcrumbCurrent))
             {
                 <nav class="app-breadcrumb" aria-label="breadcrumb">
-                    <a href="/">Home</a>
-                    @if (!string.IsNullOrEmpty(_breadcrumbParent))
+                    @* The root IS the repositories page, so on "/" the trail is a single current
+                       item. It previously rendered nothing at all there — the one route without a
+                       breadcrumb — which moved the page header up by its height relative to every
+                       other route. Linking "Home" to the page you are already on would be the
+                       other way to keep the row, and a worse one. *@
+                    @if (!_breadcrumbIsRoot)
                     {
+                        <a href="/">Home</a>
+                        @if (!string.IsNullOrEmpty(_breadcrumbParent))
+                        {
+                            <span class="bc-sep">›</span>
+                            @if (!string.IsNullOrEmpty(_breadcrumbParentPath))
+                            {
+                                <a href="@_breadcrumbParentPath">@_breadcrumbParent</a>
+                            }
+                            else
+                            {
+                                <span>@_breadcrumbParent</span>
+                            }
+                        }
                         <span class="bc-sep">›</span>
-                        @if (!string.IsNullOrEmpty(_breadcrumbParentPath))
-                        {
-                            <a href="@_breadcrumbParentPath">@_breadcrumbParent</a>
-                        }
-                        else
-                        {
-                            <span>@_breadcrumbParent</span>
-                        }
                     }
-                    <span class="bc-sep">›</span>
                     <span class="bc-current" aria-current="page">@_breadcrumbCurrent</span>
                 </nav>
             }
             @Body
-        </div>
+        </main>
     </RadzenBody>
 </RadzenLayout>
 
@@ -125,6 +151,14 @@
     private string? _breadcrumbCurrent;
     private string? _breadcrumbParent;
     private string? _breadcrumbParentPath;
+
+    /// <summary>True on "/" and "/repositories", where the trail is a single item with no Home link ahead of it.</summary>
+    private bool _breadcrumbIsRoot;
+
+    /// <summary>The skip link's target. Focusable only because &lt;main&gt; carries tabindex="-1".</summary>
+    private ElementReference _mainContent;
+
+    private async Task SkipToMainAsync() => await _mainContent.FocusAsync();
 
     protected override void OnInitialized()
     {
@@ -193,9 +227,10 @@
     private void UpdateBreadcrumb(string uri)
     {
         var path = new Uri(uri).AbsolutePath.TrimEnd('/');
+        _breadcrumbIsRoot = path is "" or "/" or "/repositories";
         (_breadcrumbCurrent, _breadcrumbParent, _breadcrumbParentPath) = path switch
         {
-            "" or "/" => (null, null, null),
+            "" or "/" or "/repositories" => ("Repositories", null, null),
             "/insights" => ("Global Insights", null, null),
             "/recap" => ("Year in Code", null, null),
             // /recap/2024 is the same page under an explicit year, so it reads as a child of the

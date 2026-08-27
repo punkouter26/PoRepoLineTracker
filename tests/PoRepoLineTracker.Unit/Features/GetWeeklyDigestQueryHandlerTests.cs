@@ -212,9 +212,14 @@ public class GetWeeklyDigestQueryHandlerTests
     [Fact]
     public async Task ActiveDays_CountsDistinctDays_NotCommits()
     {
+        // Two commits at the SAME instant, not merely a close one. Offsets of 2 and 3 hours land
+        // on the same calendar day for most of the day and straddle midnight for the rest, so a
+        // test written that way passes or fails depending on the hour it is run at — which is a
+        // flake, not a check. Identical timestamps are the same day at every hour; the third
+        // commit is three days out, so it cannot collide either.
         GivenRepositories(GivenRepository("me", "app",
             Commit(hoursAgo: 2, 100, linesAdded: 1),
-            Commit(hoursAgo: 3, 90, linesAdded: 1),
+            Commit(hoursAgo: 2, 90, linesAdded: 1),
             Commit(hoursAgo: 24 * 3, 80, linesAdded: 1)));
 
         var digest = await WhenDigested();

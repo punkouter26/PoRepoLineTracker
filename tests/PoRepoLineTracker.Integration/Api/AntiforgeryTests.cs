@@ -51,7 +51,7 @@ public class AntiforgeryTests(CustomWebApplicationFactory factory)
         // fix it from the response, without the validation detail that would help an attacker.
         var body = await deleteResponse.Content.ReadFromJsonAsync<ErrorResponse>();
         body.Should().NotBeNull();
-        body!.error.Should().Be("antiforgery_validation_failed");
+        body!.Code.Should().Be("antiforgery_validation_failed");
         body.Detail.Should().Contain("X-CSRF-TOKEN");
     }
 

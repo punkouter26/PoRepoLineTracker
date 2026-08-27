@@ -21,11 +21,14 @@
    otherwise available on Insights anyway. Under prefers-reduced-motion the reveal collapses to a
    plain render, which loses the pacing and nothing else. *@
 
+@* Carries the year, so browser history and open tabs distinguish one recap from another. *@
+<PageTitle>@_year in Code · PoRepoLineTracker</PageTitle>
+
 <div class="app-stack">
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.125rem">
-                <RadzenText TextStyle="TextStyle.H3" class="rc-title">@_year in Code</RadzenText>
+                <h1 class="page-hero__title rc-title">@_year in Code</h1>
                 <RadzenText TextStyle="TextStyle.Body1" class="rc-lede">
                     @if (_isLoading)
                     {

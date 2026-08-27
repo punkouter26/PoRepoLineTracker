@@ -14,22 +14,12 @@ internal static class RepositoryEndpoints
     /// the repository does not exist, 403 — logged as an IDOR attempt — if it belongs to someone
     /// else).
     /// </summary>
-    private static async Task<(GitHubRepository? Repository, IResult? Error)> AuthorizeOwnerAsync(
+    // The ownership guard moved to Auth/RepositoryOwnership once a second slice needed it —
+    // slices may not reference each other, so leaving it here would have meant a copied
+    // authorization check. This alias keeps the call sites below reading as they did.
+    private static Task<(GitHubRepository? Repository, IResult? Error)> AuthorizeOwnerAsync(
         IRepositoryDataService repoDataService, RepositoryId repositoryId, UserId userId, string action)
-    {
-        var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-        if (existing == null)
-            return (null, Results.NotFound($"Repository {repositoryId} not found."));
-
-        if (existing.UserId != userId)
-        {
-            Log.Warning("IDOR attempt: user {UserId} tried to {Action} repo {RepositoryId} owned by {OwnerId}",
-                userId, action, repositoryId, existing.UserId);
-            return (null, Results.Forbid());
-        }
-
-        return (existing, null);
-    }
+        => RepositoryOwnership.AuthorizeAsync(repoDataService, repositoryId, userId, action);
 
     internal static void MapRepositoryEndpoints(this IEndpointRouteBuilder endpoints)
     {

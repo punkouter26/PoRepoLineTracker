@@ -223,15 +223,22 @@ public sealed class GetYearInCodeQueryHandler(
         recap.PeakHour = IndexOfMax(recap.CommitsByHour);
 
         recap.WeekdayOccurrences = CountWeekdays(yearStart, closingInstant);
-        recap.AverageCommitsByWeekday = recap.CommitsByWeekday
+
+        // Ranked on the FULL-PRECISION averages and rounded only for display. Rounding first
+        // silently merged genuinely different weekdays: three commits over 53 Sundays is 0.0566
+        // and three over 52 Mondays is 0.0577, which both round to 0.06 — the ranking then fell
+        // through to the tie-break and named the wrong day, while the chart showed two bars of
+        // visibly different heights beside it.
+        var exactAverages = recap.CommitsByWeekday
             .Select((commits, weekday) => recap.WeekdayOccurrences[weekday] > 0
-                ? Math.Round((double)commits / recap.WeekdayOccurrences[weekday], 2)
+                ? (double)commits / recap.WeekdayOccurrences[weekday]
                 : 0)
             .ToList();
 
-        var peakWeekday = IndexOfMax(recap.AverageCommitsByWeekday);
+        var peakWeekday = IndexOfMax(exactAverages);
         recap.PeakWeekday = (DayOfWeek)peakWeekday;
-        recap.PeakWeekdayAverage = recap.AverageCommitsByWeekday[peakWeekday];
+        recap.PeakWeekdayAverage = Math.Round(exactAverages[peakWeekday], 2);
+        recap.AverageCommitsByWeekday = exactAverages.Select(a => Math.Round(a, 2)).ToList();
 
         var nightCommits = recap.CommitsByHour
             .Where((_, hour) => hour >= NightStartHour || hour < NightEndHour)

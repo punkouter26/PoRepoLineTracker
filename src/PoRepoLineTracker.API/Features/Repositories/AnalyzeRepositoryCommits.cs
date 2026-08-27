@@ -144,37 +144,38 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             _logger.LogInformation("[Step 1/4] {Status} for repository {RepositoryId}",
                 isLocalUpload ? "Validating local repo" : "Clone/pull", request.RepositoryId);
 
-            string localPath;
-            string fullRepoPath;
+            // The ONE path variable from here on. An uploaded repository stores an absolute
+            // LocalPath and a cloned one stores a relative path, and ResolveRepositoryPath is what
+            // reconciles the two — so every read below takes the same argument regardless of where
+            // the repository came from. This used to be a pair of variables (`localPath` and
+            // `fullRepoPath`), one of which was assigned a meaningless value on each branch, with
+            // every subsequent call re-testing isLocalUpload to decide which to pass.
+            string repositoryPath;
 
             if (isLocalUpload)
             {
-                // For locally uploaded repos, the LocalPath contains the full path to the .git folder's parent
-                fullRepoPath = repository.LocalPath;
+                repositoryPath = _gitHubService.ResolveRepositoryPath(repository.LocalPath);
 
-                // Validate the local repository
-                bool isValid = await _gitHubService.IsLocalRepositoryValidAsync(fullRepoPath);
-                if (!isValid)
+                if (!await _gitHubService.IsRepositoryValidAsync(repositoryPath))
                 {
-                    _logger.LogError("Local repository at {FullPath} is not valid or does not exist", fullRepoPath);
+                    _logger.LogError("Local repository at {RepoPath} is not valid or does not exist", repositoryPath);
                     _progressService.ReportError(request.RepositoryId, "Local repository is not valid or does not exist.");
                     return Unit.Value;
                 }
 
-                _logger.LogInformation("Local repository validated at {FullPath}", fullRepoPath);
-                localPath = fullRepoPath; // Use full path for local repos
+                _logger.LogInformation("Local repository validated at {RepoPath}", repositoryPath);
             }
             else
             {
-                // Standard GitHub repository path handling
                 // Always derive a stable local path from the repo ID so we can re-clone safely
                 // after an Azure App Service container restart (ephemeral filesystem).
-                localPath = string.IsNullOrEmpty(repository.LocalPath)
+                var localPath = string.IsNullOrEmpty(repository.LocalPath)
                     ? $"repo_{request.RepositoryId}"
                     : repository.LocalPath;
 
-                bool repoExistsLocally = await _gitHubService.IsRepositoryValidAsync(localPath);
-                if (repoExistsLocally)
+                repositoryPath = _gitHubService.ResolveRepositoryPath(localPath);
+
+                if (await _gitHubService.IsRepositoryValidAsync(repositoryPath))
                 {
                     _logger.LogInformation("Pulling repository {Owner}/{Name} from {LocalPath}", repository.Owner, repository.Name, localPath);
                     try
@@ -196,13 +197,10 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                     await _gitHubService.CloneRepositoryAsync(repository.CloneUrl, localPath, accessToken);
                 }
 
-                // Update repository with local path
+                // Clone and pull still take the RELATIVE path: they own the base-directory
+                // convention, and that relative form is what is persisted on the row.
                 repository.LocalPath = localPath;
                 await _repositoryDataService.UpdateRepositoryAsync(repository);
-
-                // Unused on this branch (the FromFullPathAsync calls below are all gated on
-                // isLocalUpload), but fullRepoPath must be definitely assigned either way.
-                fullRepoPath = _gitHubService.LocalReposBasePath;
             }
 
             // Get user-specific file extensions to count (falls back to defaults if not configured)
@@ -219,29 +217,31 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             var sinceDate = DateTime.UtcNow.AddYears(-50); // Get all commits from the repository's entire history
             _logger.LogInformation("Fetching all commit stats for repository {RepositoryId} (since {SinceDate})", request.RepositoryId, sinceDate);
 
-            IEnumerable<CommitStatsDto> commitStats;
-            if (isLocalUpload)
-            {
-                commitStats = await _gitHubService.GetCommitStatsFromFullPathAsync(fullRepoPath, sinceDate);
-            }
-            else
-            {
-                commitStats = await _gitHubService.GetCommitStatsAsync(localPath, sinceDate);
-            }
-
-            var commitStatsList = commitStats.ToList();
+            var commitStatsList = (await _gitHubService.GetCommitStatsAsync(repositoryPath, sinceDate)).ToList();
             _logger.LogInformation("Found {CommitCount} commits to analyze for repository {RepositoryId}", commitStatsList.Count, request.RepositoryId);
             _progressService.ReportCommitsFound(request.RepositoryId, commitStatsList.Count);
 
-            // #3 fix: pre-load ALL existing commits in one query so the loop never re-fetches per-SHA
-            Dictionary<string, CommitLineCount>? existingCommitsBySha = null;
-            if (request.ForceReanalysis)
-            {
-                _logger.LogDebug("Pre-loading existing commits for ForceReanalysis on repository {RepositoryId}", request.RepositoryId);
-                var allExisting = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(request.RepositoryId);
-                existingCommitsBySha = allExisting.ToDictionary(c => c.CommitSha);
-                _logger.LogDebug("Pre-loaded {Count} existing commits for repository {RepositoryId}", existingCommitsBySha.Count, request.RepositoryId);
-            }
+            // Pre-load ALL existing commits in ONE query, unconditionally.
+            //
+            // This used to be gated on ForceReanalysis, which meant the ordinary incremental path
+            // — by far the common one — still asked storage "does this SHA exist?" once per
+            // commit inside the loop below. On a repository with a few thousand commits that is a
+            // few thousand Azure Table round-trips (each one also emitting two Information-level
+            // log lines) to answer a question one query already had the answer to, and it was the
+            // dominant cost of re-analysing an up-to-date repository: almost every commit is
+            // already stored, so almost every iteration paid for a round-trip and then did
+            // nothing.
+            //
+            // The whole set is what a single query returns anyway, so the gate saved nothing even
+            // when it applied.
+            _logger.LogDebug("Pre-loading existing commits for repository {RepositoryId}", request.RepositoryId);
+            var existingCommitsBySha = (await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(request.RepositoryId))
+                // Duplicate SHAs are not supposed to exist — the SHA is the row key — but a
+                // ToDictionary that throws here would abort the whole analysis over a storage
+                // anomaly this loop is perfectly able to tolerate.
+                .GroupBy(c => c.CommitSha, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            _logger.LogDebug("Pre-loaded {Count} existing commits for repository {RepositoryId}", existingCommitsBySha.Count, request.RepositoryId);
 
             // ── Step 3: Process each commit ───────────────────────────────────────────
             _progressService.ReportStep(request.RepositoryId, 3, "Processing",
@@ -259,18 +259,14 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             foreach (var commitStat in commitStatsList)
             {
                 bool shouldProcessCommit = false;
-                CommitLineCount? existingCommit = null;
 
-                // Check if this commit has already been processed
-                if (await _repositoryDataService.CommitExistsAsync(request.RepositoryId, commitStat.Sha))
+                // Answered from the pre-loaded set — no per-commit round-trip. See the pre-load above.
+                if (existingCommitsBySha.TryGetValue(commitStat.Sha, out var existingCommit))
                 {
                     if (request.ForceReanalysis)
                     {
-                        // #3 fix: look up from pre-loaded dictionary — no extra Azure Table query per commit
-                        existingCommitsBySha!.TryGetValue(commitStat.Sha, out existingCommit);
-
                         // Re-process if both LinesAdded and LinesRemoved are zero (indicates old analysis)
-                        if (existingCommit != null && existingCommit.LinesAdded == 0 && existingCommit.LinesRemoved == 0)
+                        if (existingCommit.LinesAdded == 0 && existingCommit.LinesRemoved == 0)
                         {
                             shouldProcessCommit = true;
                             _logger.ForceReanalyzingCommit(commitStat.Sha);
@@ -299,15 +295,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
                 try
                 {
                     // Count lines in this commit by file type
-                    Dictionary<string, int> lineCounts;
-                    if (isLocalUpload)
-                    {
-                        lineCounts = await _gitHubService.CountLinesInCommitFromFullPathAsync(fullRepoPath, commitStat.Sha, fileExtensionsToCount);
-                    }
-                    else
-                    {
-                        lineCounts = await _gitHubService.CountLinesInCommitAsync(localPath, commitStat.Sha, fileExtensionsToCount);
-                    }
+                    var lineCounts = await _gitHubService.CountLinesInCommitAsync(repositoryPath, commitStat.Sha, fileExtensionsToCount);
                     var totalLines = lineCounts.Values.Sum();
 
                     // Create and store commit line count record with diff stats

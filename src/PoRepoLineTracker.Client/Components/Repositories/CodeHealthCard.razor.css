@@ -1,0 +1,276 @@
+/* Scoped styles for CodeHealthCard.
+
+   Rooted at a plain <div class="health">, which is what carries the scope id. Anything Radzen
+   renders (the card, the icon, the text elements) is reached through ::deep — a plain selector for
+   one of those would compile to `.health__card[b-…]` and match nothing. */
+
+.health {
+    min-width: 0;
+}
+
+::deep .health__card.health__card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.health__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.health__title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+::deep .health__icon.health__icon {
+    color: var(--primary-on-surface) !important;
+}
+
+::deep .health__title.health__title {
+    margin: 0 !important;
+    font-weight: 600 !important;
+}
+
+::deep .health__sub.health__sub {
+    margin: 0 !important;
+    color: var(--text-muted) !important;
+}
+
+::deep .health__message.health__message {
+    margin: 0 !important;
+    color: var(--text-secondary) !important;
+}
+
+/* ── Headline grade ─────────────────────────────────────────────────────────────────────────
+   The letter carries the verdict and the number carries the detail. Both are present because a
+   letter alone hides a 10-point range and a number alone has no anchor. */
+.health__summary {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.health__grade {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 88px;
+    padding: 0.5rem 0.85rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-tertiary);
+}
+
+.health__grade-letter {
+    font-size: 2.25rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+}
+
+.health__grade-score {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Grade colours are on the letter, and the number beside it repeats the information — so the
+   colour is reinforcement, never the only signal. */
+.health__grade--a .health__grade-letter { color: var(--status-pos); }
+.health__grade--b .health__grade-letter { color: var(--status-pos); }
+.health__grade--c .health__grade-letter { color: var(--status-warn); }
+.health__grade--d .health__grade-letter { color: var(--status-warn); }
+.health__grade--f .health__grade-letter { color: var(--status-neg); }
+
+.health__totals {
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.health__total {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.health__total-value {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.health__total-label {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+/* ── Factor breakdown ───────────────────────────────────────────────────────────────────────
+   auto-fit rather than a fixed column count: six factors read as two rows of three on a desktop
+   card and one column on a phone, with no breakpoint involved. */
+.health__factors {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0.6rem 1.25rem;
+}
+
+.health__factor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.health__factor-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+}
+
+.health__factor-name {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.health__factor-weight {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.health__factor-score {
+    font-size: var(--text-sm);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.health__factor-score--good { color: var(--status-pos); }
+.health__factor-score--warn { color: var(--status-warn); }
+.health__factor-score--poor { color: var(--status-neg); }
+
+.health__bar-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--bg-tertiary);
+    overflow: hidden;
+}
+
+.health__bar {
+    height: 100%;
+    width: var(--bar, 0%);
+    border-radius: 999px;
+    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.health__bar--good { background: var(--status-pos); }
+.health__bar--warn { background: var(--status-warn); }
+.health__bar--poor { background: var(--status-neg); }
+
+@media (prefers-reduced-motion: reduce) {
+    .health__bar { transition: none; }
+}
+
+.health__factor-measure {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+
+/* ── Hotspots ───────────────────────────────────────────────────────────────────────────────
+   The one part of the card with a next action attached, so it gets its own block rather than
+   sharing the factor grid. */
+.health__section-label {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.health__hotspots,
+.health__languages {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.health__hotspot {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.health__hotspot:last-child { border-bottom: none; }
+
+/* The path takes the slack and truncates from the left of the flex line, so the score and the
+   concern stay readable on a narrow card. */
+.health__hotspot-path {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: var(--text-xs);
+    color: var(--code-color);
+    flex: 1 1 12rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.health__hotspot-concern {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.health__hotspot-meta {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.health__language-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.health__language {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.15rem 0.5rem;
+    min-height: 24px;
+    border-radius: 999px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-tertiary);
+    font-size: var(--text-xs);
+}
+
+.health__language code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--code-color);
+}
+
+::deep .health__caveat.health__caveat {
+    margin: 0 !important;
+    color: var(--text-muted) !important;
+}

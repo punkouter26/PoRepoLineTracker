@@ -11,6 +11,8 @@
 @using Radzen
 @using Radzen.Blazor
 
+<PageTitle>Settings · PoRepoLineTracker</PageTitle>
+
 <div class="app-stack">
     @* This IS the Settings page. It used to be wrapped by a 25-line Settings.razor whose only
        job was to hold the routes, render this hero, and embed this component with its own
@@ -18,7 +20,7 @@
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.15rem">
-                <RadzenText TextStyle="TextStyle.H3" class="ext-title">Settings</RadzenText>
+                <h1 class="page-hero__title ext-title">Settings</h1>
                 <RadzenText TextStyle="TextStyle.Body1" class="ext-subtitle">
                     Configure PoRepoLineTracker to match your workflow
                 </RadzenText>

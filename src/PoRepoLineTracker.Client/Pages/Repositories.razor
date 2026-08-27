@@ -19,6 +19,8 @@
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 
+<PageTitle>Repositories · PoRepoLineTracker</PageTitle>
+
 <div class="app-stack">
     @* Renders nothing — see MilestoneConfetti.razor. Held by @ref so LoadLatestLineCounts can
        trigger a burst once the portfolio total crosses a round-number milestone. *@
@@ -27,7 +29,7 @@
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.125rem">
-                <RadzenText TextStyle="TextStyle.H3" class="rp-title">Repositories</RadzenText>
+                <h1 class="page-hero__title rp-title">Repositories</h1>
                 <RadzenText TextStyle="TextStyle.Body1" class="rp-muted-tight">
                     @if (pageState.IsLoadingRepositories)
                     {

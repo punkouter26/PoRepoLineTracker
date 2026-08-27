@@ -2,14 +2,14 @@
 @using Radzen
 @using Radzen.Blazor
 
-@* Every routable page in the app appears here.
+@* The app's navigable destinations.
 
-   /diag (ExternalConnections) used to be reachable only by typing the URL — a full page, behind
-   [Authorize], carrying the external-dependency health tables, with no affordance anywhere in the
-   UI that led to it. It is listed under Config rather than beside the two data pages because it
-   answers "is the plumbing working", not "how is my code doing".
+   /diag (ExternalConnections) is deliberately NOT listed. The page still exists and is still
+   routable and [Authorize]d — it carries the external-dependency health tables — but it answers
+   "is the plumbing working", which is an operator's question, not something a user navigates to
+   while looking at their code. It is reached by typing the URL.
 
-   /settings/extensions-counted is deliberately NOT listed: it is a second @page directive on
+   /settings/extensions-counted is also not listed: it is a second @page directive on
    ExtensionsCounted.razor, not a separate destination, so a nav entry for it would be the same
    screen under a second name. *@
 <RadzenPanelMenu>
@@ -18,5 +18,4 @@
     <RadzenPanelMenuItem Text="Year in Code" Icon="auto_awesome" Path="/recap" />
     <div class="nav-section-label">Config</div>
     <RadzenPanelMenuItem Text="Settings" Icon="tune" Path="/settings" />
-    <RadzenPanelMenuItem Text="Diagnostics" Icon="monitor_heart" Path="/diag" />
 </RadzenPanelMenu>

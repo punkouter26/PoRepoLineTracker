@@ -4,6 +4,8 @@
 @using Radzen
 @using Radzen.Blazor
 
+<PageTitle>Sign in · PoRepoLineTracker</PageTitle>
+
 <div class="login-canvas">
     @* Animated mesh-gradient blobs, pure CSS. This used to be the fallback behind a WebGL canvas;
        the shader layer is gone, so it is simply the backdrop. It costs no JS module, no GL
@@ -27,7 +29,7 @@
             </div>
 
             <RadzenStack Gap="0.35rem" AlignItems="AlignItems.Center">
-                <RadzenText TextStyle="TextStyle.H4" class="login-wordmark">PoRepoLineTracker</RadzenText>
+                <h1 class="page-hero__title login-wordmark">PoRepoLineTracker</h1>
                 <RadzenText TextStyle="TextStyle.Body1" class="login-tagline">
                     Track lines of code across all your GitHub repositories
                 </RadzenText>

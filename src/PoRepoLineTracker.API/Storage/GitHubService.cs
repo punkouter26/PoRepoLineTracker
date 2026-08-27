@@ -17,6 +17,26 @@ public class GitHubService : IGitHubService
     private readonly GitClient _gitClient;
     private readonly FileIgnoreFilter _fileIgnoreFilter;
 
+    /// <summary>
+    /// Per-analysis memos, keyed by git object id. Safe to hold on the instance because this
+    /// service is scoped and an analysis run owns its scope — see CountTreeAsync for what they buy
+    /// and InvalidateCachesIfExtensionsChanged for when they are dropped.
+    ///
+    /// <para>Plain dictionaries, not concurrent ones: the analysis loop processes commits one at a
+    /// time on a single background task, and a per-repository semaphore in the analyze handler
+    /// keeps a second run off the same repository. Nothing here is touched from two threads.</para>
+    /// </summary>
+    private readonly Dictionary<string, Dictionary<string, int>> _treeLineCounts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _blobLineCounts = new(StringComparer.Ordinal);
+    private string _memoExtensionSignature = string.Empty;
+
+    /// <summary>
+    /// Cap on either memo before it is cleared. Sized so an ordinary repository's whole history
+    /// fits comfortably, while a bulk import of very large repositories still cannot grow the
+    /// process without bound.
+    /// </summary>
+    private const int MaxMemoEntries = 200_000;
+
     public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, GitClient gitClient, FileIgnoreFilter fileIgnoreFilter)
     {
         _httpClient = httpClient;
@@ -97,33 +117,16 @@ public class GitHubService : IGitHubService
         });
     }
 
-    public Task<bool> IsRepositoryValidAsync(string localPath)
-    {
-        var fullLocalPath = Path.Combine(_localReposPath, localPath);
-        return Task.FromResult(Repository.IsValid(fullLocalPath));
-    }
-
-    public Task<bool> IsLocalRepositoryValidAsync(string fullPath)
-    {
-        // For locally uploaded repos, the full path is already provided (not relative to _localReposPath)
-        return Task.FromResult(Repository.IsValid(fullPath));
-    }
-
     /// <summary>
-    /// Gets commit stats from a local repository at its full path, optionally since a specific date.
-    /// Used for locally uploaded repositories.
+    /// An absolute path is returned unchanged; a relative one is resolved against the base
+    /// directory. Uploaded repositories store an absolute <c>LocalPath</c> and cloned ones store a
+    /// relative one, and this is the single place that difference is handled — see the interface.
     /// </summary>
-    public async Task<IEnumerable<CommitStatsDto>> GetCommitStatsFromFullPathAsync(string fullPath, DateTime? sinceDate = null)
-    {
-        return await Task.Run(() => GetCommitStatsCore(fullPath, sinceDate));
-    }
+    public string ResolveRepositoryPath(string localPath) =>
+        Path.IsPathRooted(localPath) ? localPath : Path.Combine(_localReposPath, localPath);
 
-    /// <summary>
-    /// Counts lines in a commit for a local repository at its full path.
-    /// Used for locally uploaded repositories.
-    /// </summary>
-    public Task<Dictionary<string, int>> CountLinesInCommitFromFullPathAsync(string fullPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
-        => CountLinesInCommitCore(fullPath, commitSha, fileExtensionsToCount);
+    public Task<bool> IsRepositoryValidAsync(string repositoryPath) =>
+        Task.FromResult(Repository.IsValid(repositoryPath));
 
     public Task DeleteLocalRepositoryAsync(string localPath)
     {
@@ -156,51 +159,166 @@ public class GitHubService : IGitHubService
         });
     }
 
-    public Task<Dictionary<string, int>> CountLinesInCommitAsync(string localPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
-        => CountLinesInCommitCore(Path.Combine(_localReposPath, localPath), commitSha, fileExtensionsToCount);
-
     /// <summary>
-    /// Shared core for the relative-path and full-path count entry points — they used to be two
-    /// near-verbatim ~40-line copies whose only real difference was how the path was resolved.
-    /// Reads directly from the git object store; no working-tree checkout is needed.
+    /// Counts a commit's lines by extension. Reads directly from the git object store; no
+    /// working-tree checkout is needed.
     /// </summary>
-    private async Task<Dictionary<string, int>> CountLinesInCommitCore(string fullRepoPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
+    public async Task<Dictionary<string, int>> CountLinesInCommitAsync(string fullRepoPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
     {
-        _logger.LogInformation("Counting lines for commit {CommitSha} in repository at {RepoPath}. File extensions to count: {FileExtensions}", commitSha, fullRepoPath, string.Join(", ", fileExtensionsToCount));
-
         if (!Repository.IsValid(fullRepoPath))
         {
             _logger.LogError("Local repository not found or invalid at {RepoPath}. Cannot count lines.", fullRepoPath);
             return new Dictionary<string, int>();
         }
 
-        var lineCounts = new Dictionary<string, int>();
+        // Hoisted into a set ONCE per commit. `fileExtensionsToCount` arrives as an
+        // IEnumerable<string> and was tested with .Contains() against every blob in the tree —
+        // a linear scan per file per commit, over a list the caller re-enumerates each time.
+        //
+        // OrdinalIgnoreCase is a fix, not a tidy-up: the lookup key is produced by
+        // Path.GetExtension(name.ToLowerInvariant()) while the configured extensions come from
+        // user preferences verbatim, so a preference saved as ".CS" silently matched nothing under
+        // the default comparer.
+        var extensionsToCount = new HashSet<string>(fileExtensionsToCount, StringComparer.OrdinalIgnoreCase);
+        InvalidateCachesIfExtensionsChanged(extensionsToCount);
 
-        using (var repo = _gitClient.OpenRepository(fullRepoPath))
+        using var repo = _gitClient.OpenRepository(fullRepoPath);
+
+        var commit = repo.Lookup<Commit>(commitSha);
+        if (commit == null)
         {
-            var commit = repo.Lookup<Commit>(commitSha);
-            if (commit == null)
-            {
-                _logger.LogWarning("Commit {CommitSha} not found in repository at {RepoPath}", commitSha, fullRepoPath);
-                return lineCounts;
-            }
-
-            if (commit.Tree != null)
-            {
-                await ProcessTreeEntry(commit.Tree, fileExtensionsToCount, lineCounts, "");
-            }
-            else
-            {
-                _logger.LogWarning("Commit {CommitSha} has a null tree. Skipping line counting.", commitSha);
-            }
-
-            _logger.LogInformation("Finished counting lines for commit {CommitSha}. Total lines by type: {LineCounts}", commitSha, lineCounts);
+            _logger.LogWarning("Commit {CommitSha} not found in repository at {RepoPath}", commitSha, fullRepoPath);
+            return new Dictionary<string, int>();
         }
-        return lineCounts;
+
+        if (commit.Tree == null)
+        {
+            _logger.LogWarning("Commit {CommitSha} has a null tree. Skipping line counting.", commitSha);
+            return new Dictionary<string, int>();
+        }
+
+        // A copy, because the walk returns cached dictionaries that must not be handed out for the
+        // caller to mutate — the root tree of an unchanged commit returns the very instance held
+        // in the cache.
+        var counts = new Dictionary<string, int>(await CountTreeAsync(commit.Tree, string.Empty, extensionsToCount));
+
+        _logger.LogDebug("Counted commit {CommitSha}: {LineCounts}", commitSha, counts);
+        return counts;
     }
 
-    private async Task ProcessTreeEntry(Tree tree, IEnumerable<string> fileExtensionsToCount, Dictionary<string, int> lineCounts, string currentPath = "")
+    /// <summary>
+    /// Cap on a single file's size before it is skipped by <see cref="EnumerateSourceFiles"/>.
+    /// A source file this large is a generated bundle, a vendored blob or a data table — none of
+    /// which says anything about how the code is written, and all of which would dominate any
+    /// average they were included in.
+    /// </summary>
+    private const long MaxAnalysableFileBytes = 2 * 1024 * 1024;
+
+    public IEnumerable<SourceFile> EnumerateSourceFiles(string repositoryPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
     {
+        if (!Repository.IsValid(repositoryPath))
+        {
+            _logger.LogError("Local repository not found or invalid at {RepoPath}. Cannot read source files.", repositoryPath);
+            yield break;
+        }
+
+        var extensions = new HashSet<string>(fileExtensionsToCount, StringComparer.OrdinalIgnoreCase);
+
+        using var repo = _gitClient.OpenRepository(repositoryPath);
+
+        var commit = repo.Lookup<Commit>(commitSha);
+        if (commit?.Tree is null)
+        {
+            _logger.LogWarning("Commit {CommitSha} not found (or has no tree) at {RepoPath}", commitSha, repositoryPath);
+            yield break;
+        }
+
+        foreach (var file in WalkSourceFiles(commit.Tree, string.Empty, extensions))
+        {
+            yield return file;
+        }
+    }
+
+    /// <summary>
+    /// Depth-first walk yielding counted, non-ignored blobs. Applies exactly the ignore rules the
+    /// line counter applies — a directory pruned from the totals must not turn up in the health
+    /// report, or the two would describe different codebases under the same repository name.
+    /// </summary>
+    private IEnumerable<SourceFile> WalkSourceFiles(Tree tree, string currentPath, HashSet<string> extensions)
+    {
+        foreach (var entry in tree)
+        {
+            var entryPath = string.IsNullOrEmpty(currentPath) ? entry.Name : $"{currentPath}/{entry.Name}";
+
+            if (entry.TargetType == TreeEntryTargetType.Tree)
+            {
+                var subTree = entry.Target as Tree;
+
+                if (subTree is null
+                        ? _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath)
+                        : _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath, subTree.Select(e => e.Name)))
+                {
+                    continue;
+                }
+
+                if (subTree is null) continue;
+
+                foreach (var file in WalkSourceFiles(subTree, entryPath, extensions))
+                {
+                    yield return file;
+                }
+            }
+            else if (entry.TargetType == TreeEntryTargetType.Blob)
+            {
+                if (_fileIgnoreFilter.ShouldIgnoreFile(entry.Name, entryPath)) continue;
+
+                var extension = Path.GetExtension(entry.Name.ToLowerInvariant());
+                if (!extensions.Contains(extension)) continue;
+
+                if (entry.Target is not Blob blob) continue;
+                if (blob.Size > MaxAnalysableFileBytes)
+                {
+                    _logger.LogDebug("Skipping {Path} for analysis: {Size} bytes exceeds the cap", entryPath, blob.Size);
+                    continue;
+                }
+
+                // Binary content reaches here only if it carries a counted source extension, which
+                // in practice it does not. GetContentText decodes as UTF-8 with replacement rather
+                // than throwing, so a stray byte costs one garbled character, not the report.
+                yield return new SourceFile(entryPath, extension, blob.GetContentText());
+            }
+        }
+    }
+
+    /// <summary>
+    /// Line counts for one tree, memoised on the tree's own object id.
+    ///
+    /// <para><b>Why this is memoised rather than merely tidy.</b> Analysis replays a repository's
+    /// entire history, and the previous implementation walked and decompressed EVERY blob of EVERY
+    /// commit — so a 4,000-commit repository counted the same unchanged files four thousand times,
+    /// and analysis time grew with commits × repository size rather than with the amount of code
+    /// that actually changed.</para>
+    ///
+    /// <para>Git trees are content-addressed: two trees with the same object id have byte-identical
+    /// contents, transitively. So an unchanged directory between two commits is one dictionary
+    /// lookup instead of a full recursive walk, and a commit that touched nothing (or whose root
+    /// tree is unchanged) costs a single lookup. Only the path from the root down to genuinely
+    /// changed blobs is ever re-walked.</para>
+    ///
+    /// <para>The key includes the PATH as well as the object id. The ignore filter's decisions
+    /// depend on where a directory sits, not just what it holds, so the identical subtree appearing
+    /// at two paths is legitimately two different answers.</para>
+    /// </summary>
+    private async Task<Dictionary<string, int>> CountTreeAsync(Tree tree, string currentPath, HashSet<string> fileExtensionsToCount)
+    {
+        var cacheKey = $"{tree.Sha} {currentPath}";
+        if (_treeLineCounts.TryGetValue(cacheKey, out var memoised))
+        {
+            return memoised;
+        }
+
+        var counts = new Dictionary<string, int>();
+
         foreach (var entry in tree)
         {
             var entryPath = string.IsNullOrEmpty(currentPath) ? entry.Name : $"{currentPath}/{entry.Name}";
@@ -220,67 +338,55 @@ public class GitHubService : IGitHubService
                     continue;
                 }
 
-                // Recursively process subdirectories
-                _logger.LogDebug("Traversing directory: {DirectoryName}", entryPath);
-                if (subTree is not null)
+                if (subTree is null) continue;
+
+                foreach (var (extension, lines) in await CountTreeAsync(subTree, entryPath, fileExtensionsToCount))
                 {
-                    await ProcessTreeEntry(subTree, fileExtensionsToCount, lineCounts, entryPath);
+                    counts[extension] = counts.GetValueOrDefault(extension) + lines;
                 }
             }
             else if (entry.TargetType == TreeEntryTargetType.Blob)
             {
-                // Check if this file should be ignored using the new filter
                 if (_fileIgnoreFilter.ShouldIgnoreFile(entry.Name, entryPath))
                 {
                     continue;
                 }
 
-                var fileName = entry.Name;
-                var fileExtension = Path.GetExtension(fileName.ToLowerInvariant());
+                var fileExtension = Path.GetExtension(entry.Name.ToLowerInvariant());
+                if (!fileExtensionsToCount.Contains(fileExtension)) continue;
 
-                // Now check if it's in our allowed extensions
-                if (fileExtensionsToCount.Contains(fileExtension))
+                if (entry.Target is not Blob blob)
                 {
-                    var blob = entry.Target as Blob;
-                    if (blob != null)
-                    {
-                        _logger.LogDebug("Processing file: {FileName}, Size: {FileSize} bytes", entry.Name, blob.Size);
-
-                        int lines = await CountBlobLinesAsync(blob, fileExtension);
-                        _logger.LogDebug("Counted {Lines} lines for file {FileName}.", lines, entry.Name);
-
-                        if (lineCounts.ContainsKey(fileExtension))
-                        {
-                            lineCounts[fileExtension] += lines;
-                        }
-                        else
-                        {
-                            lineCounts[fileExtension] = lines;
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Tree entry {EntryName} is not a blob, or blob is null.", entry.Name);
-                    }
+                    _logger.LogWarning("Tree entry {EntryName} is not a blob, or blob is null.", entry.Name);
+                    continue;
                 }
-                else
-                {
-                    _logger.LogDebug("Skipping file {FileName} with extension {FileExtension} as it's not in the list of extensions to count.", entry.Name, fileExtension);
-                }
-            }
-            else
-            {
-                _logger.LogDebug("Skipping tree entry {EntryName} as it is not a blob or tree (Type: {TargetType}).", entry.Name, entry.TargetType);
+
+                counts[fileExtension] = counts.GetValueOrDefault(fileExtension) + await CountBlobLinesAsync(blob, fileExtension);
             }
         }
+
+        Memoise(_treeLineCounts, cacheKey, counts);
+        return counts;
     }
 
     /// <summary>
     /// Counts a single blob's lines with the strategy registered for its extension, falling back
     /// to the "*" strategy for anything without a dedicated one.
+    ///
+    /// <para>Memoised on the blob's object id AND its extension. The id alone is not enough:
+    /// identical content stored as <c>.ts</c> and as <c>.css</c> is counted under different
+    /// comment rules and legitimately yields different numbers. The subtree memo above already
+    /// removes most of these calls; this one catches a file that merely MOVED, whose containing
+    /// trees all changed while the blob did not.</para>
     /// </summary>
     private async Task<int> CountBlobLinesAsync(Blob blob, string fileExtension)
     {
+        var cacheKey = $"{blob.Sha} {fileExtension}";
+        if (_blobLineCounts.TryGetValue(cacheKey, out var memoised))
+        {
+            return memoised;
+        }
+
         if (!_lineCounterMap.TryGetValue(fileExtension, out var lineCounter))
         {
             _lineCounterMap.TryGetValue("*", out lineCounter);
@@ -293,18 +399,60 @@ public class GitHubService : IGitHubService
         }
 
         using var contentStream = blob.GetContentStream();
-        return await lineCounter.CountLinesAsync(contentStream);
-    }
+        var lines = await lineCounter.CountLinesAsync(contentStream);
 
-    public async Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(string localPath, DateTime? sinceDate = null)
-    {
-        return await Task.Run(() => GetCommitStatsCore(Path.Combine(_localReposPath, localPath), sinceDate));
+        Memoise(_blobLineCounts, cacheKey, lines);
+        return lines;
     }
 
     /// <summary>
-    /// Shared core for the relative-path and full-path commit-stats entry points — they used to
-    /// be two near-verbatim ~60-line copies whose only real difference was path resolution.
+    /// Adds to a memo, clearing it wholesale once it grows past <see cref="MaxMemoEntries"/>.
+    ///
+    /// <para>Cleared rather than evicted one entry at a time. History is replayed oldest-first and
+    /// adjacent commits share nearly all their content, so a fresh memo re-fills from the commits
+    /// being walked right now within a few iterations — where an LRU would cost bookkeeping on
+    /// every hit to protect entries that are about to age out anyway. The cap exists so a bulk
+    /// import of large repositories cannot grow this without limit; it is not expected to be hit
+    /// on a normal analysis.</para>
     /// </summary>
+    private void Memoise<T>(Dictionary<string, T> memo, string key, T value)
+    {
+        if (memo.Count >= MaxMemoEntries)
+        {
+            _logger.LogDebug("Line-count memo reached {Cap} entries — clearing", MaxMemoEntries);
+            memo.Clear();
+        }
+
+        memo[key] = value;
+    }
+
+    /// <summary>
+    /// Drops both memos when the set of counted extensions changes.
+    ///
+    /// <para>The memos hold counts computed under one extension set, and this service is scoped —
+    /// one instance serves every repository in a bulk import. Two users' preferences never meet
+    /// here (a scope belongs to one caller), but a re-analysis triggered after a settings change
+    /// legitimately asks for different numbers over the same trees, and returning the previous
+    /// answer would make the new setting appear to have done nothing.</para>
+    /// </summary>
+    private void InvalidateCachesIfExtensionsChanged(HashSet<string> extensionsToCount)
+    {
+        var signature = string.Join(',', extensionsToCount.OrderBy(e => e, StringComparer.OrdinalIgnoreCase));
+        if (signature == _memoExtensionSignature) return;
+
+        _treeLineCounts.Clear();
+        _blobLineCounts.Clear();
+        _memoExtensionSignature = signature;
+    }
+
+    public async Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(string repositoryPath, DateTime? sinceDate = null)
+    {
+        // Off the request thread: the walk below is synchronous LibGit2Sharp work over the whole
+        // history, and it is called from a background analysis job that must not block on it.
+        return await Task.Run(() => GetCommitStatsCore(repositoryPath, sinceDate));
+    }
+
+    /// <summary>Synchronous history walk, kept separate so the public method owns the threading.</summary>
     private IEnumerable<CommitStatsDto> GetCommitStatsCore(string fullRepoPath, DateTime? sinceDate)
     {
         _logger.LogInformation("Getting commit stats for repository at {RepoPath} since {SinceDate}", fullRepoPath, sinceDate);

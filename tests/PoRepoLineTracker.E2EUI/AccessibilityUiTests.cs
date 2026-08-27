@@ -85,4 +85,66 @@ public sealed class AccessibilityUiTests
 
         focused.Should().NotBe("BODY", "focus must land on an interactive element");
     }
+
+    /// <summary>
+    /// Document structure, on every signed-in route.
+    ///
+    /// <para>A runtime sweep found all four of these missing on all six routes at once: no page
+    /// declared an &lt;h1&gt; (the header's brand wordmark was an &lt;h5&gt;, so every outline ran
+    /// H5 → H3 → H6 with the brand outranking the page), no page had a &lt;main&gt; landmark, and
+    /// every route shared the single title "PoRepoLineTracker" — so tabs, history and bookmarks
+    /// were indistinguishable. None of it is visible on screen, which is precisely why it stayed
+    /// broken and why it is asserted here rather than left to review.</para>
+    /// </summary>
+    [SkippableTheory]
+    [InlineData("/", "Repositories")]
+    [InlineData("/insights", "Global Insights")]
+    [InlineData("/recap", "in Code")]
+    [InlineData("/settings", "Settings")]
+    [InlineData("/diag", "Diagnostics")]
+    public async Task EveryRoute_HasOneH1_AMainLandmark_AndItsOwnTitle(string route, string expectedInTitle)
+    {
+        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, route);
+        await using var _ = page.Context;
+        await page.WaitForSelectorAsync("h1", new PageWaitForSelectorOptions { Timeout = 25000 });
+
+        var h1Count = await page.Locator("h1").CountAsync();
+        h1Count.Should().Be(1, $"{route} must declare exactly one top-level heading");
+
+        var mainCount = await page.Locator("main, [role=main]").CountAsync();
+        mainCount.Should().Be(1, $"{route} needs a main landmark for the skip link to target");
+
+        var title = await page.TitleAsync();
+        title.Should().Contain(expectedInTitle, $"{route} must be distinguishable in a tab strip");
+
+        // The heading that opens the document must be the h1 — no lower-ranked heading above it.
+        var firstHeading = await page.EvaluateAsync<string>(
+            "() => document.querySelector('h1,h2,h3,h4,h5,h6')?.tagName ?? ''");
+        firstHeading.Should().Be("H1", "the first heading in the document must not outrank the page title");
+    }
+
+    [SkippableFact]
+    public async Task SkipLink_IsFirstInTabOrder_AndMovesFocusToMain()
+    {
+        var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/insights");
+        await using var _ = page.Context;
+        await page.WaitForSelectorAsync("h1", new PageWaitForSelectorOptions { Timeout = 25000 });
+
+        // Focus starts at the document, so one Tab must reach the skip link — anything else means
+        // a keyboard user tabs the whole sidebar before reaching content, on every navigation.
+        await page.Keyboard.PressAsync("Tab");
+        var focusedHref = await page.EvaluateAsync<string>(
+            "() => document.activeElement?.getAttribute('href') ?? ''");
+        focusedHref.Should().Be("#main-content");
+
+        // Off-canvas until focused, and on-screen once it is — a skip link nobody can see is one
+        // nobody can use.
+        var visibleLeft = await page.EvaluateAsync<double>(
+            "() => document.querySelector('.app-skip-link').getBoundingClientRect().left");
+        visibleLeft.Should().BeGreaterThanOrEqualTo(0, "the focused skip link must be on screen");
+
+        await page.Keyboard.PressAsync("Enter");
+        var focusedId = await page.EvaluateAsync<string>("() => document.activeElement?.id ?? ''");
+        focusedId.Should().Be("main-content", "following the link must MOVE focus, not merely scroll");
+    }
 }

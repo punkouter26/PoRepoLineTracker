@@ -72,6 +72,12 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(WeeklyDigestDto))]
 [JsonSerializable(typeof(DigestRepoDto))]
 
+// ─── Code health report ─────────────────────────────────────────────────────────────────────
+[JsonSerializable(typeof(CodeHealthDto))]
+[JsonSerializable(typeof(CodeHealthFactorDto))]
+[JsonSerializable(typeof(CodeHealthFileDto))]
+[JsonSerializable(typeof(CodeHealthLanguageDto))]
+
 // ─── Contributor DTOs ────────────────────────────────────────────────────────────────────────
 [JsonSerializable(typeof(ContributorStatsDto))]
 [JsonSerializable(typeof(List<ContributorStatsDto>))]

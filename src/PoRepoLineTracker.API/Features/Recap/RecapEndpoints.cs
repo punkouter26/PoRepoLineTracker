@@ -42,6 +42,7 @@ internal static class RecapEndpoints
             {
                 Title = "Invalid year",
                 Detail = $"Year must be between {EarliestYear} and {DateTime.UtcNow.Year + 1}.",
+                Code = "year_out_of_range",
                 Status = (int)HttpStatusCode.BadRequest
             });
 

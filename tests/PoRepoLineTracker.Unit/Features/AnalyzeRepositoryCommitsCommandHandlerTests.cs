@@ -26,6 +26,26 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
             _configuration, _logger);
     }
 
+    /// <summary>
+    /// What storage already holds for the repository.
+    ///
+    /// <para>The handler loads this ONCE and answers "have I seen this SHA" from it, rather than
+    /// asking storage per commit — so an already-analysed commit is expressed here, by being in
+    /// the set, and not by stubbing a per-SHA existence check. Stubbing that check was what these
+    /// tests used to do, and it hid the fact that the check cost a round-trip per commit.</para>
+    /// </summary>
+    private void GivenStoredCommits(RepositoryId repositoryId, params CommitLineCount[] commits) =>
+        _dataService.GetCommitLineCountsByRepositoryIdAsync(repositoryId).Returns(commits.ToList());
+
+    private static CommitLineCount StoredCommit(string sha, int linesAdded = 0, int linesRemoved = 0) => new()
+    {
+        Id = Guid.NewGuid(),
+        CommitSha = sha,
+        CommitDate = DateTime.UtcNow,
+        LinesAdded = linesAdded,
+        LinesRemoved = linesRemoved
+    };
+
     [Fact]
     public async Task Handle_RepoNotFound_ReturnsUnitWithoutProcessing()
     {
@@ -152,7 +172,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(commitStats);
-        _dataService.CommitExistsAsync(repoId, "abc123").Returns(false);
+        GivenStoredCommits(repoId);
         _gitHubService.CountLinesInCommitAsync(Arg.Any<string>(), "abc123", Arg.Any<IEnumerable<string>>())
             .Returns(lineCounts);
 
@@ -187,7 +207,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(commitStats);
-        _dataService.CommitExistsAsync(repoId, "existing-sha").Returns(true); // Already processed
+        GivenStoredCommits(repoId, StoredCommit("existing-sha", linesAdded: 10, linesRemoved: 5));
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 
@@ -218,7 +238,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(commitStats);
-        _dataService.CommitExistsAsync(repoId, Arg.Any<string>()).Returns(false);
+        GivenStoredCommits(repoId);
 
         // First commit fails, second succeeds
         _gitHubService.CountLinesInCommitAsync(Arg.Any<string>(), "fail-sha", Arg.Any<IEnumerable<string>>())

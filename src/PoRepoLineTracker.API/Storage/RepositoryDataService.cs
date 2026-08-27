@@ -135,27 +135,11 @@ public class RepositoryDataService : IRepositoryDataService
         return commitLineCounts;
     }
 
-    public async Task<bool> CommitExistsAsync(RepositoryId repositoryId, string commitSha)
-    {
-        await EnsureTablesExistAsync();
-        _logger.LogInformation("Checking if commit {CommitSha} exists for repository {RepositoryId}.", commitSha, repositoryId);
-        try
-        {
-            var entity = await _commitLineCountTableClient.GetEntityAsync<CommitLineCountEntity>(repositoryId.ToString(), commitSha);
-            _logger.LogInformation("Commit {CommitSha} exists for repository {RepositoryId}.", commitSha, repositoryId);
-            return true;
-        }
-        catch (RequestFailedException ex) when (ex.Status == 404)
-        {
-            _logger.LogInformation("Commit {CommitSha} does not exist for repository {RepositoryId}.", commitSha, repositoryId);
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking commit existence for {CommitSha} in {RepositoryId}. Error: {ErrorMessage}", commitSha, repositoryId, ex.Message);
-            throw;
-        }
-    }
+    // CommitExistsAsync removed. It was a per-SHA point read used from inside the analysis loop,
+    // so a repository with N commits cost N round-trips (and 2N Information-level log lines) to
+    // answer a question that GetCommitLineCountsByRepositoryIdAsync already answers for the whole
+    // repository in one query. The analysis handler pre-loads that set and looks SHAs up in it;
+    // nothing else ever called this.
 
     public async Task CheckConnectionAsync()
     {

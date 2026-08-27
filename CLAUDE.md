@@ -41,10 +41,10 @@ docker compose up -d                                   # Azurite (Table Storage)
 dotnet run --project src/PoRepoLineTracker.API --launch-profile https   # https://localhost:5003
 
 dotnet build
-dotnet test tests/PoRepoLineTracker.Unit          # 141 — no external deps
+dotnet test tests/PoRepoLineTracker.Unit          # 156 — no external deps
 dotnet test tests/PoRepoLineTracker.Integration   # 54  — WebApplicationFactory + Testcontainers Azurite
 dotnet test tests/PoRepoLineTracker.E2EAPI        # 30  — needs the app running
-dotnet test tests/PoRepoLineTracker.E2EUI         # 34  — needs the app running + Playwright (~3m30s)
+dotnet test tests/PoRepoLineTracker.E2EUI         # 40  — needs the app running + Playwright (~3m30s)
 ```
 
 **Traces**: `docker compose` also runs Jaeger. `OpenTelemetry:OtlpEndpoint` in
@@ -120,6 +120,38 @@ component mounting after the event still gets the right answer. `worker-src` and
 named explicitly in the CSP rather than left to fall back through `script-src`, so tightening
 `script-src` later cannot silently take the worker with it.
 
+**Line counting is memoised on git object ids — never hand a caller the memo's own dictionary.**
+`GitHubService` caches per-tree and per-blob counts for the lifetime of its (scoped) instance,
+which is one analysis run. Git trees are content-addressed, so an unchanged directory between two
+commits is one dictionary lookup rather than a recursive walk — replaying history used to
+decompress every blob of every commit, making analysis scale with commits × repository size. The
+tree memo is keyed on object id **and path** (the ignore filter's answers depend on where a
+directory sits), it is dropped when the counted-extension set changes, and
+`CountLinesInCommitAsync` returns a **copy** — a caller mutating a memoised instance would poison
+every later commit sharing that tree. `GitHubServiceCountingTests` drives a real on-disk
+repository and pins all of it, including that an unchanged file is read exactly once across a
+multi-commit replay.
+
+**Never add a per-item storage lookup that a loop will call.** `CommitExistsAsync` was removed for
+this: it was a point read per SHA, called once per commit, so a 4,000-commit repository paid 4,000
+round-trips (and 8,000 Information log lines) to answer what one
+`GetCommitLineCountsByRepositoryIdAsync` already returns for the whole repository. The analysis
+handler pre-loads that set unconditionally and looks SHAs up in memory.
+
+**Every page owns an `<h1>`, a `<PageTitle>`, and lives inside the layout's `<main>`.** All three
+were missing on every route at once: the header's brand wordmark was an `<h5>`, so document
+outlines ran H5 → H3 → H6 with the brand outranking the page, and every route shared the title
+"PoRepoLineTracker". The page title is a real `<h1 class="page-hero__title">` written in the page's
+own markup — `PageHero` cannot change the tag of a fragment handed to it, which is why that class
+is styled globally in `app.css` rather than in `PageHero.razor.css`. `AccessibilityUiTests` asserts
+one h1, one main landmark, and a distinct title per route.
+
+**The skip link moves focus in code, not by fragment navigation.** Blazor's router intercepts
+anchor clicks, so `href="#main-content"` scrolled the page and left focus in the nav — a skip link
+that looks like it works and does nothing for the keyboard user it exists for. `MainLayout` holds
+an `ElementReference` to `<main>` (focusable only because of its `tabindex="-1"`) and calls
+`FocusAsync` on click with `preventDefault`.
+
 **Scoped CSS needs a plain element at the component root.** A `.razor.css` rule compiles to
 `.foo[b-xxx]`, and nothing a Radzen component renders carries that attribute. Root at a plain
 `<div>` (see `ChartCard`, `AnalysisStatusCell`) and use `::deep` for anything Radzen renders.
@@ -161,6 +193,13 @@ ml-agents vendored under `Training/`, where the old reverse-domain rule caught o
 `com.unity.ml-agents/` subfolder and left ~78% of the repository's counted lines as third-party.
 Requires the entry-aware `ShouldIgnoreDirectory(path, entryNames)` overload — the path-only one
 cannot see children. **Filter changes only affect new analysis; stored counts need a re-analyze.**
+
+**Comment syntax is configured per language family, and CSS is not C.** `SourceLineCounter.DefaultSet()`
+groups extensions by the syntax they actually use. Plain `.css` has **no** line-comment form — only
+`/* */` — and was registered with `//`, which truncated every line from its first `//` onward, so
+`url(https://…)` lost its tail and a line holding nothing else counted as blank. `.scss`/`.less` do
+have `//`, which is exactly why they cannot share an entry with `.css`; `.razor`/`.cshtml` use
+`@* *@` and `<!-- -->`, never `//`.
 
 **Contributor share is weighted by lines added**, not averaged per commit — a one-line commit and
 a 2,000-line refactor are not the same event. (This rule used to describe an "AI share"; the

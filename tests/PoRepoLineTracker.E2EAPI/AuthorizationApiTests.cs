@@ -27,6 +27,7 @@ public sealed class AuthorizationApiTests
     [InlineData("/api/insights/digest")]
     [InlineData("/api/recap")]
     [InlineData("/api/recap/2024")]
+    [InlineData("/api/code-health/00000000-0000-0000-0000-000000000001")]
     public async Task ProtectedGet_Anonymous_IsRefused(string route)
     {
         var response = await E2EApiClient.GetAsync(route);
