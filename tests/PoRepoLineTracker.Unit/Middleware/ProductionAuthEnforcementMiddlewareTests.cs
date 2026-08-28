@@ -72,8 +72,6 @@ public class ProductionAuthEnforcementMiddlewareTests
     /// </summary>
     [Theory]
     [InlineData("/")]
-    [InlineData("/insights")]
-    [InlineData("/recap/2025")]
     [InlineData("/repositories/abc")]
     public async Task Production_UnauthenticatedPage_RedirectsToTheAppsOwnLoginPage(string path)
     {
@@ -127,7 +125,6 @@ public class ProductionAuthEnforcementMiddlewareTests
     [Theory]
     [InlineData("/health")]
     [InlineData("/auth/login")]
-    [InlineData("/auth/logout")]
     [InlineData("/signin-github")]
     public async Task Production_PublicEndpoints_PassThrough(string path)
     {

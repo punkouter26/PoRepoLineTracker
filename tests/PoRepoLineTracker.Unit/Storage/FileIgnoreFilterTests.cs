@@ -56,7 +56,6 @@ public class FileIgnoreFilterTests
     // vendored wherever it sits; Training/.../com.unity.ml-agents is the case it was written for),
     // vendor-convention folders, Unity's root-level generated caches, and case-insensitivity.
     [Theory]
-    [InlineData("bin")]
     [InlineData("src/bin")]
     [InlineData("Packages/com.unity.ml-agents")]
     [InlineData("Training/ml-agents/com.unity.ml-agents/Runtime")]

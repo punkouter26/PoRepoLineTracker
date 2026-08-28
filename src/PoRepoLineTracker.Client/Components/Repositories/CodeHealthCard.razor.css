@@ -274,3 +274,15 @@
     margin: 0 !important;
     color: var(--text-muted) !important;
 }
+
+/* The parsed C# metrics, set apart from the estimated factors above them. The rule is on a plain
+   <div> in this component's own markup, so it carries the scope id — a Radzen-rendered element
+   would not. */
+.health__metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rz-base-300, rgba(128, 128, 128, 0.25));
+}

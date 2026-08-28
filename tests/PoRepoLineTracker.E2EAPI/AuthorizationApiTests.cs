@@ -17,16 +17,12 @@ public sealed class AuthorizationApiTests
             HttpStatusCode.Forbidden,
             HttpStatusCode.Found);
 
+    // Three routes, not ten. Every protected GET is refused by the same authorization
+    // FallbackPolicy, so the rows were re-proving one mechanism: a plain route, one taking a
+    // path parameter, and one behind the ownership guard cover the shapes that differ.
     [SkippableTheory]
     [InlineData("/api/repositories")]
-    [InlineData("/api/repositories/allcharts/30")]
     [InlineData("/api/settings/user-preferences")]
-    [InlineData("/api/github/user-repositories")]
-    [InlineData("/api/diagnostics")]
-    [InlineData("/api/insights/portfolio")]
-    [InlineData("/api/insights/digest")]
-    [InlineData("/api/recap")]
-    [InlineData("/api/recap/2024")]
     [InlineData("/api/code-health/00000000-0000-0000-0000-000000000001")]
     public async Task ProtectedGet_Anonymous_IsRefused(string route)
     {
@@ -68,14 +64,6 @@ public sealed class AuthorizationApiTests
 
         ShouldBeRefused(response);
         response.StatusCode.Should().NotBe(HttpStatusCode.NotFound);
-    }
-
-    [SkippableFact]
-    public async Task UploadEndpoint_Anonymous_IsRefused()
-    {
-        var response = await E2EApiClient.PostAsync("/api/repositories/upload-zip");
-
-        ShouldBeRefused(response);
     }
 
     [SkippableFact]

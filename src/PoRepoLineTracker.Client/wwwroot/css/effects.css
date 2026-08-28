@@ -26,7 +26,11 @@
 
    EVERY utility below is applied by at least one component. The file previously
    carried `.u-grad-sweep`, `.u-grad-ring`, `.u-press`, `.u-stagger`,
-   `.u-glass-strong` and `.u-grad-mesh`, none of which any markup used — along
+   `.u-glass-strong`, `.u-grad-mesh` and `.u-sheen`, none of which any markup now
+   uses. `.u-sheen` wiped a white diagonal gradient across a card on hover; it was
+   removed as visual noise, and its `position: relative` / `overflow: hidden` went
+   with it because both existed only to anchor and clip that gradient — every
+   element that carried it also carries `.u-glass`, which sets the positioning. Along
    with the `@property` registrations that existed solely to make those gradients
    animatable, and the canvas/view-transition rules belonging to the WebGL layer
    that is now gone. If you add a utility here, apply it in the same change.
@@ -184,31 +188,6 @@
     contain-intrinsic-size: auto 320px;
 }
 
-/* Diagonal light sweep on hover/focus — the glass-catches-light detail, distinct from `.u-lift`'s
-   shadow-based depth. A pseudo-element clipped to the element's own box rather than a background
-   paint, so it costs nothing until the element is actually interacted with. Transform only, so
-   app.css's global reduced-motion rule (which zeroes every transition-duration) is what disables
-   it — no separate media query needed here. */
-.u-sheen {
-    position: relative;
-    overflow: hidden;
-}
-
-.u-sheen::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.35) 50%, transparent 60%);
-    transform: translateX(-120%);
-    pointer-events: none;
-}
-
-.u-sheen:hover::after,
-.u-sheen:focus-within::after {
-    transform: translateX(120%);
-    transition: transform 0.65s var(--ease-out-quint);
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    3. SKELETON SHIMMER
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -267,8 +246,6 @@
 
     .u-lift:hover,
     .u-lift:focus-within { transform: none; }
-
-    .u-sheen::after { display: none; }
 }
 
 /* Honour the OS "reduce transparency" accessibility setting: blur is exactly

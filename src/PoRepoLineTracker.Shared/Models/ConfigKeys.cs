@@ -26,6 +26,9 @@ public static class ConfigKeys
         public const string UserTableName = "AzureTableStorage:UserTableName";
         public const string UserPreferencesTableName = "AzureTableStorage:UserPreferencesTableName";
 
+        /// <summary>Per-commit code-health memo. See CodeHealthSnapshotEntity for why it is keyed on the SHA.</summary>
+        public const string CodeHealthSnapshotTableName = "AzureTableStorage:CodeHealthSnapshotTableName";
+
         /// <summary>Aspire/.NET-style connection string, used as a fallback for the above.</summary>
         public const string TablesConnectionString = "ConnectionStrings:tables";
     }

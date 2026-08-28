@@ -179,6 +179,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IRepositoryDataService, RepositoryDataService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IUserPreferencesService, UserPreferencesService>();
+        // The per-commit code-health memo. Scoped like the other table services: it holds a
+        // TableClient, which is cheap to resolve and safe to share within a request.
+        services.AddScoped<ICodeHealthSnapshotStore, CodeHealthSnapshotStore>();
 
         // MediatR — register every handler in this assembly (all slices live here now)
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(

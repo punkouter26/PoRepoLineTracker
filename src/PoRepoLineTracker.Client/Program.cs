@@ -34,6 +34,9 @@ builder.Services.AddScoped<UserPreferencesClient>();
 // One hub connection shared by the repository grid and the activity feed. Scoped is the whole
 // app's lifetime in a WASM host, which is what makes "shared" true.
 builder.Services.AddScoped<AnalysisFeedClient>();
+// Registered after DialogService/NotificationService below purely for readability — DI resolves
+// by type, not by registration order.
+builder.Services.AddScoped<RepositoryCommandClient>();
 
 // Add authentication services
 builder.Services.AddScoped<ApiAuthenticationStateProvider>(sp =>

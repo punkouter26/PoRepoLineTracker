@@ -2,8 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-`AGENT.MD` holds the long-form architecture rationale. Read it for *why*. This file is what you
-need to not waste a cycle.
+This file is what you need to not waste a cycle. There is no separate architecture document:
+`AGENT.MD` was deleted in 462ee8f, and the rationale that survived it lives here and in the
+comments on the types themselves — those comments name the bug they prevent, and are authoritative.
 
 `NET_RULES.md` holds the current numbered house rules (1.1–3.4). In-code comments used to cite
 an older, incompatible numbering ("Rule 4.2", "Rule 13", …); those dangling citations have been
@@ -219,13 +220,37 @@ groups extensions by the syntax they actually use. Plain `.css` has **no** line-
 have `//`, which is exactly why they cannot share an entry with `.css`; `.razor`/`.cshtml` use
 `@* *@` and `<!-- -->`, never `//`.
 
-**Code health is proxies, not a parser — say so wherever it is shown.** `/api/code-health/{id}`
-scores a repository's source at its newest commit on six line-oriented factors (branch density,
-nesting, file size, comment ratio, debt markers, line length). It is deliberately NOT Visual
-Studio's Maintainability Index: that needs Halstead volume and a control-flow graph, which means a
-parser per language and a resolved compilation, and this app reads blobs across a dozen languages
-and builds nothing. The ranking is the reliable part; the absolute number is a guide. `CodeHealthCard`
-states this on the card rather than in a tooltip.
+**Code health has two analysers, split by language — never run both over one file.** `.cs` is
+PARSED by `RoslynMetricsAnalyzer` and produces Visual Studio's real Code Metrics; every other
+language is ESTIMATED by `CodeMetricsAnalyzer` on six line-oriented factors (branch density,
+nesting, file size, comment ratio, debt markers, line length). Sending C# to both would put two
+maintainability numbers on one repository, and a figure that reads differently in two places is
+indistinguishable from a data bug. `GetCodeHealthQuery` does the routing; `GetCodeHealthQueryHandlerTests`
+pins which analyser sees what. For the estimated half the ranking is the reliable part and the
+absolute number is a guide — `CodeHealthCard` says so on the card, not in a tooltip.
+
+**Maintainability Index does NOT need a build — this file used to claim it did.** The old reasoning
+here was that VS's index "needs Halstead volume and a control-flow graph, which means a parser per
+language and a resolved compilation". Halstead volume is purely **lexical** — operator and operand
+counts off the token stream — and cyclomatic complexity comes straight off the syntax tree, so both
+are computed for C# with no SDK, no MSBuild and no restore. That is what lets this run on the F1
+App Service, which is a runtime-only container that cannot build anything.
+
+**The two metrics that genuinely need a compilation are not reported.** Depth of Inheritance and
+Class Coupling need resolved type references, because a base or referenced type can live in another
+assembly. Reaching them means `MSBuildWorkspace`, which needs the SDK present and a restore of the
+repository being measured — and building an arbitrary repository EXECUTES its code through MSBuild
+targets and NuGet scripts, which a shared web host must not do on a stranger's behalf. It also drags
+in `Microsoft.Build` packages currently carrying high-severity advisories, and this solution builds
+with `TreatWarningsAsErrors`. If those two are ever wanted, the honest route is an opt-in local
+agent, not a web request.
+
+**The Maintainability Index is per MEMBER, then averaged — not computed over repository totals.**
+The published formula was calibrated on one unit of code. Fed whole-repository figures, the
+`0.23 * complexity` term alone reaches several hundred and every repository of any size clamps to
+0 — a unit error that looks exactly like a verdict. This was written wrong first and caught by the
+spike; `MaintainabilityIndex_IsAveragedPerMember_NotComputedOverWholeFileTotals` is the regression
+test. Measured correctly, this repository scores 87.
 
 Three things about it that are load-bearing:
 
@@ -237,6 +262,25 @@ Three things about it that are load-bearing:
 - **Markup is judged on its own nesting band.** Nested components are not a smell, and scoring
   `.razor` against the code band gave this repository's own markup a 48 against 94 for its C# —
   a fact about the file format, not the code.
+
+**Anything derived from a commit is memoised per SHA, never recomputed.** A commit is immutable, so
+every figure computed from its tree — maintainability, complexity, line counts, the combined score —
+is a constant. `CodeHealthSnapshotEntity` stores them keyed on **(repositoryId, commitSha)**, with
+the whole report serialized alongside the scalars, so a repeat view is answered from storage without
+opening the repository at all. Three consequences worth knowing: the same row serves the current
+report AND every point on the monthly trend, so nothing is measured twice under two names; it works
+on a host whose clone has been recycled away, which the on-demand path cannot; and `ScoringVersion`
+exists so a formula change invalidates old rows rather than letting one chart mix two arithmetics.
+**Load the memo in ONE partition query before the loop** — a point read per SHA is the mistake that
+got `CommitExistsAsync` deleted.
+
+**The health trend measures the last commit on or before each 1st.** Not the nearest commit either
+side: the point is "what did the code look like that morning". A month with no commit before it is
+absent, never zero — zero on a 0-100 health axis reads as "terrible" rather than "not yet". Quiet
+months resolve to the same commit as the previous one, which is correct and shows as a flat run.
+A repository whose whole history sits inside one month has commits but crosses no boundary, and that
+returns an **empty series, not a 404** — reporting "no analysed commits yet" for a repository being
+actively committed to is simply false.
 
 **Comment syntax lives in one table.** `CommentSyntax` maps extension → line/block markers, and both
 `SourceLineCounter` (which discards comments) and `CodeMetricsAnalyzer` (which counts them, and must
@@ -321,4 +365,6 @@ Do not reintroduce these without asking — each was removed for a stated reason
   repository detail page.
 - **`POST /api/repositories`** (single add) — `/bulk` is the only write path, and it dedupes where
   the single-add path did not.
-- **SmartAlerts**, **Failed Operations**, the **AI model selector** — see AGENT.MD.
+- **SmartAlerts**, **Failed Operations**, the **AI model selector**. (The reasoning lived in
+  AGENT.MD, which no longer exists — treat the removal itself as the decision, and ask before
+  reviving any of the three.)

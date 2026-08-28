@@ -1,0 +1,36 @@
+/* Rooted on the plain <div> written in this component's own markup — nothing Radzen renders
+   carries this file's scope id. */
+
+.trend__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.trend__title-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+}
+
+.trend__icon {
+    opacity: 0.75;
+}
+
+.trend__title {
+    margin: 0;
+}
+
+.trend__sub {
+    opacity: 0.75;
+}
+
+.trend__message,
+.trend__note,
+.trend__caveat {
+    display: block;
+    margin-top: 0.75rem;
+    opacity: 0.8;
+}

@@ -46,6 +46,21 @@ internal static class E2EApiClient
             return request;
         });
 
+    /// <summary>
+    /// Signed-in GET, via the same <c>X-Fake-User</c> header the UI tier uses. Named users rather
+    /// than a single shared one because the routes that take a repository id from the URL are
+    /// guarded by ownership, and proving that guard needs a second identity asking for the first
+    /// one's repository.
+    /// </summary>
+    internal static Task<HttpResponseMessage> GetJsonAsync(string path, string fakeUser)
+        => SendAsync(() =>
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, path);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.TryAddWithoutValidation("X-Fake-User", fakeUser);
+            return request;
+        });
+
     private static async Task<HttpResponseMessage> SendAsync(Func<HttpRequestMessage> requestFactory)
     {
         using var client = CreateClient();

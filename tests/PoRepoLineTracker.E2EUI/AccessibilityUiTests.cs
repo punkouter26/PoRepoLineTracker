@@ -97,6 +97,10 @@ public sealed class AccessibilityUiTests
     /// broken and why it is asserted here rather than left to review.</para>
     /// </summary>
     [SkippableTheory]
+    // /login included deliberately. It was the one route with no landmark at all — this theory
+    // previously enumerated only the authenticated routes, so the page every unauthenticated visit
+    // redirects to went unchecked.
+    [InlineData("/login", "Sign in")]
     [InlineData("/", "Repositories")]
     [InlineData("/insights", "Global Insights")]
     [InlineData("/recap", "in Code")]

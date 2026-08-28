@@ -19,7 +19,6 @@ public sealed class StaticAssetsApiTests
     // framework file — each arrives through a different middleware branch.
     [SkippableTheory]
     [InlineData("/")]
-    [InlineData("/css/app.css")]
     [InlineData("/_framework/blazor.webassembly.js")]
     public async Task StaticAsset_Anonymous_IsServed(string asset)
     {
@@ -55,7 +54,6 @@ public sealed class StaticAssetsApiTests
         // `.mobile-only` / `.desktop-only` classes written to switch it in were unused too.
         // Radzen's own responsive DataGrid covers the case it was built for.
         ("xc-env-card", "ExternalConnections.razor.css"),
-        ("ul-dropzone", "UploadRepository.razor.css"),
         ("arc-legend__swatch", "AllReposComparisonChart.razor.css"),
         ("chart-card__title", "ChartCard.razor.css"),
         ("page-hero__actions", "PageHero.razor.css"),

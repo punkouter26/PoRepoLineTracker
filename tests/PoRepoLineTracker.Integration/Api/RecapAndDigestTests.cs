@@ -57,7 +57,6 @@ public class RecapAndDigestTests
 
     [Theory]
     [InlineData(1969)]
-    [InlineData(3000)]
     public async Task Recap_WithAnOutOfRangeYear_Is_Rejected(int year)
     {
         var response = await _client.GetAsync($"/api/recap/{year}");

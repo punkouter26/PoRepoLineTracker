@@ -77,6 +77,13 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(CodeHealthFactorDto))]
 [JsonSerializable(typeof(CodeHealthFileDto))]
 [JsonSerializable(typeof(CodeHealthLanguageDto))]
+[JsonSerializable(typeof(CodeMetricsReportDto))]
+[JsonSerializable(typeof(CodeMetricsMemberDto))]
+[JsonSerializable(typeof(CodeHealthSummaryDto))]
+[JsonSerializable(typeof(List<CodeHealthSummaryDto>))]
+[JsonSerializable(typeof(CodeHealthTrendDto))]
+[JsonSerializable(typeof(CodeHealthTrendPointDto))]
+[JsonSerializable(typeof(List<CodeHealthTrendDto>))]
 
 // ─── Contributor DTOs ────────────────────────────────────────────────────────────────────────
 [JsonSerializable(typeof(ContributorStatsDto))]
@@ -90,8 +97,6 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(ErrorResponse))]
 [JsonSerializable(typeof(DiagnosticsResponse))]
 [JsonSerializable(typeof(MaskedConfigurationResponse))]
-[JsonSerializable(typeof(UploadResult))]
-[JsonSerializable(typeof(UploadError))]
 [JsonSerializable(typeof(AntiforgeryTokenResponse))]
 
 // ─── Primitive collections persisted as JSON columns in Azure Table Storage ─────────────────

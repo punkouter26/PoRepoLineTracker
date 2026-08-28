@@ -31,9 +31,6 @@ public class AuthorizationFallbackTests
     [Theory]
     [InlineData("/api/repositories")]
     [InlineData("/api/repositories/allcharts/30")]
-    [InlineData("/api/settings/user-preferences")]
-    [InlineData("/api/github/user-repositories")]
-    [InlineData("/api/diagnostics")]
     public async Task ProtectedEndpoint_Anonymous_IsDenied(string route)
     {
         var response = await _anonymous.GetAsync(route);

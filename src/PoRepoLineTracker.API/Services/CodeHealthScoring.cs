@@ -314,4 +314,48 @@ public static class CodeHealthScoring
         >= 60 => "D",
         _ => "F"
     };
+
+    /// <summary>
+    /// The repository's single health figure, 0-100, folding the parsed C# and the estimated rest
+    /// into one number.
+    ///
+    /// <para><b>Why one number was needed.</b> The two analysers were being shown side by side and
+    /// they disagreed in public: one repository read "maintainability 62" next to grade A, another
+    /// "67" next to grade F. Both were correct about different halves of their repository, and
+    /// together they were useless - a reader cannot rank anything on two scales at once.</para>
+    ///
+    /// <para><b>Weighted by lines, not averaged.</b> A repository that is 95% C# and 5% shell must
+    /// be described by its C#. Averaging the two composites equally would let a few hundred lines
+    /// of YAML swing the verdict on fifty thousand lines of code - the same reason contributor
+    /// share is weighted by lines added rather than averaged per commit.</para>
+    ///
+    /// <para><b>The calibration caveat.</b> The two inputs are not calibrated against each other:
+    /// the Maintainability Index treats anything above 20 as healthy (Visual Studio colours it
+    /// green there), while the heuristic composite is built so that 90 is an A. Blending them
+    /// yields a number whose ORDERING is trustworthy - the thing this page exists for - while its
+    /// absolute letter runs harsher for C#-heavy repositories than Visual Studio would call them.
+    /// That is stated on the page rather than hidden.</para>
+    /// </summary>
+    /// <param name="maintainabilityIndex">Parsed C# index, or null when the repository holds no C#.</param>
+    /// <param name="csharpLines">C# source lines, the weight behind <paramref name="maintainabilityIndex"/>.</param>
+    /// <param name="heuristicScore">Composite over the other languages.</param>
+    /// <param name="otherLines">Code lines behind <paramref name="heuristicScore"/>.</param>
+    public static (int Score, string Grade) Combine(
+        int? maintainabilityIndex, int csharpLines, int heuristicScore, int otherLines)
+    {
+        // Guarded: a repository can have C# whose lines did not register, and a zero weight on the
+        // only present side would divide by nothing and report 0 for healthy code.
+        var csharpWeight = maintainabilityIndex is not null ? Math.Max(csharpLines, 1) : 0;
+        var otherWeight = otherLines > 0 ? otherLines : 0;
+        var totalWeight = csharpWeight + otherWeight;
+
+        if (totalWeight == 0) return (0, string.Empty);
+
+        var weighted =
+            (maintainabilityIndex ?? 0) * (double)csharpWeight
+            + heuristicScore * (double)otherWeight;
+
+        var score = (int)Math.Clamp(Math.Round(weighted / totalWeight), 0, 100);
+        return (score, GradeFor(score));
+    }
 }

@@ -28,6 +28,7 @@ public sealed class GetCodeHealthQueryHandler(
     IRepositoryDataService repositoryDataService,
     IGitHubService gitHubService,
     IUserPreferencesService userPreferencesService,
+    ICodeHealthSnapshotStore snapshotStore,
     ILogger<GetCodeHealthQueryHandler> logger)
     : IRequestHandler<GetCodeHealthQuery, CodeHealthDto?>
 {
@@ -47,6 +48,18 @@ public sealed class GetCodeHealthQueryHandler(
         // window, never a sum.
         var newest = commits.MaxBy(c => c.CommitDate)!;
 
+        // The memo first. Every figure in the report is a pure function of the commit's tree, so a
+        // SHA already scored can be answered from storage without opening the repository at all —
+        // which is also the only way this works on a host whose clone has been recycled away.
+        var memo = await snapshotStore.GetByRepositoryAsync(request.RepositoryId);
+        if (memo.TryGetValue(newest.CommitSha, out var cached)
+            && CodeHealthSnapshotSerializer.TryRead(cached.ReportJson, out var cachedReport))
+        {
+            logger.LogInformation("Code health for {RepositoryId} served from the memo at {Sha}",
+                request.RepositoryId, cached.CommitSha);
+            return cachedReport;
+        }
+
         var extensions = repository.UserId != UserId.Empty
             ? await userPreferencesService.GetFileExtensionsAsync(repository.UserId)
             : UserPreferences.DefaultFileExtensions;
@@ -56,16 +69,10 @@ public sealed class GetCodeHealthQueryHandler(
         // One Task.Run around the whole walk, not one per file. The enumeration is synchronous
         // LibGit2Sharp work plus regex matching — CPU-bound from end to end — and it holds the git
         // repository open for its duration, so it has to run as a single unit.
-        var report = await Task.Run(() =>
-        {
-            var analyzer = new CodeMetricsAnalyzer();
-            var metrics = gitHubService
-                .EnumerateSourceFiles(repositoryPath, newest.CommitSha, extensions)
-                .Select(file => analyzer.Analyze(file.Path, file.Extension, file.Content))
-                .ToList();
-
-            return CodeHealthScoring.Build(metrics);
-        }, cancellationToken);
+        var report = await Task.Run(
+            () => CodeHealthReportFactory.Build(
+                gitHubService.EnumerateSourceFiles(repositoryPath, newest.CommitSha, extensions)),
+            cancellationToken);
 
         report.RepositoryId = repository.Id;
         report.Owner = repository.Owner;
@@ -73,9 +80,13 @@ public sealed class GetCodeHealthQueryHandler(
         report.CommitSha = newest.CommitSha.Length > 7 ? newest.CommitSha[..7] : newest.CommitSha;
         report.CommitDate = newest.CommitDate;
 
+        await snapshotStore.SaveAsync(CodeHealthSnapshotSerializer.ToEntity(request.RepositoryId, newest.CommitSha, report));
+
         logger.LogInformation(
-            "Code health for {Owner}/{Name}: {Score} ({Grade}) over {Files} files",
-            repository.Owner, repository.Name, report.Score, report.Grade, report.FilesAnalyzed);
+            "Code health for {Owner}/{Name}: {Score} ({Grade}) over {Files} files, "
+            + "C# maintainability {Mi} over {Members} members",
+            repository.Owner, repository.Name, report.Score, report.Grade, report.FilesAnalyzed,
+            report.Metrics?.MaintainabilityIndex, report.Metrics?.MembersMeasured ?? 0);
 
         return report;
     }

@@ -130,6 +130,58 @@
                 </div>
             }
 
+            @* The parsed C# figures, kept visually apart from the estimated ones above. These are
+               the Code Metrics window's numbers, so they are stated as measurements rather than
+               hedged the way the composite score has to be. *@
+            @if (report.Metrics is { MembersMeasured: > 0 } metrics)
+            {
+                <div class="health__metrics">
+                    <span class="health__section-label">C# code metrics — measured, not estimated</span>
+
+                    <div class="health__totals">
+                        <div class="health__total">
+                            <span class="health__total-value">@(metrics.MaintainabilityIndex?.ToString() ?? "—")</span>
+                            <span class="health__total-label">maintainability index</span>
+                        </div>
+                        <div class="health__total">
+                            <span class="health__total-value">@metrics.CyclomaticComplexity.ToString("N0")</span>
+                            <span class="health__total-label">cyclomatic complexity</span>
+                        </div>
+                        <div class="health__total">
+                            <span class="health__total-value">@metrics.LinesOfSourceCode.ToString("N0")</span>
+                            <span class="health__total-label">lines of source</span>
+                        </div>
+                        <div class="health__total">
+                            <span class="health__total-value">@metrics.LinesOfExecutableCode.ToString("N0")</span>
+                            <span class="health__total-label">lines executable</span>
+                        </div>
+                    </div>
+
+                    @if (metrics.LeastMaintainable.Count > 0)
+                    {
+                        <span class="health__section-label">Least maintainable members</span>
+                        @foreach (var member in metrics.LeastMaintainable)
+                        {
+                            <div class="health__hotspot">
+                                <code class="health__hotspot-path" title="@($"{member.File} :: {member.Member}")">@member.Member</code>
+                                <span class="health__hotspot-concern">@member.File</span>
+                                <span class="health__hotspot-meta">@member.LinesOfCode.ToString("N0") lines · cc @member.CyclomaticComplexity</span>
+                                <span class="@($"health__factor-score health__factor-score--{Band(member.MaintainabilityIndex)}")">@member.MaintainabilityIndex</span>
+                            </div>
+                        }
+                    }
+
+                    @* Named rather than silently absent: a reader who knows the Code Metrics window
+                       will look for these two columns, and "missing" should not read as "zero". *@
+                    <RadzenText TextStyle="TextStyle.Caption" class="health__caveat">
+                        Parsed from @metrics.FilesAnalyzed.ToString("N0") C# files@(metrics.FilesSkipped > 0 ? $" ({metrics.FilesSkipped:N0} did not parse)" : "")
+                        over @metrics.MembersMeasured.ToString("N0") members — the same quantities Visual Studio reports.
+                        Depth of Inheritance and Class Coupling are not shown: both need a resolved compilation, which
+                        means building the repository.
+                    </RadzenText>
+                </div>
+            }
+
             @* Stated on the card, not buried in a tooltip. The score is a set of line-oriented
                proxies, not Visual Studio's parser-derived Maintainability Index, and presenting it
                without saying so would invite it to be trusted as more precise than it is. *@

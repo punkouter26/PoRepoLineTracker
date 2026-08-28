@@ -236,6 +236,11 @@
            answer "what shape is it in", which takes seconds and is a question you arrive at after
            the charts, not before them. *@
         <CodeHealthCard RepositoryId="@RepositoryId" />
+
+        @* Directly under the card, because it answers the follow-up question that card provokes:
+           "is that number getting better or worse". Its own on-demand button — the first run
+           measures up to twenty-four commits. *@
+        <CodeHealthTrendCard RepositoryId="@RepositoryId" />
         </div>
     }
 </div>

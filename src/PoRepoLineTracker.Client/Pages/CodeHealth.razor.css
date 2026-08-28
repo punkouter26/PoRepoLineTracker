@@ -1,0 +1,97 @@
+/* Rooted on plain elements written in this file's own markup — a Radzen-rendered element carries
+   no scope id, so a rule targeting one would compile and match nothing. */
+
+.ch__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* The table scrolls inside this, never the page body. */
+.ch__table-wrap {
+    overflow-x: auto;
+}
+
+.ch__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.ch__table th,
+.ch__table td {
+    padding: 0.6rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--rz-base-300, rgba(128, 128, 128, 0.2));
+}
+
+.ch__table thead th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+}
+
+.ch__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.ch__repo {
+    font-weight: 500;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+/* The explanation for an unmeasured row. Small, but present — the row exists precisely to say
+   why there is no score. */
+.ch__reason {
+    font-size: 0.78rem;
+    opacity: 0.7;
+    font-weight: 400;
+}
+
+.ch__row--unmeasured {
+    opacity: 0.75;
+}
+
+.ch__none {
+    opacity: 0.5;
+}
+
+.ch__score {
+    display: inline-block;
+    min-width: 2.4rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 0.35rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.ch__score--good { background: rgba(34, 160, 90, 0.18); color: rgb(46, 175, 105); }
+.ch__score--ok   { background: rgba(180, 160, 40, 0.18); color: rgb(200, 175, 55); }
+.ch__score--warn { background: rgba(210, 130, 40, 0.18); color: rgb(225, 145, 55); }
+.ch__score--bad  { background: rgba(200, 60, 60, 0.18);  color: rgb(220, 80, 80); }
+
+.ch__message,
+.ch__caveat {
+    display: block;
+    margin-top: 1rem;
+    opacity: 0.8;
+}
+
+/* The letter, and the two contributing figures behind the headline score. Dimmed so the eye lands
+   on the ranked column first — the whole point of combining them was to stop three numbers
+   competing for the same verdict. */
+.ch__grade {
+    font-weight: 700;
+}
+
+.ch__sub {
+    opacity: 0.72;
+    font-size: 0.85rem;
+}

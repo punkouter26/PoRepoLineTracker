@@ -8,6 +8,7 @@
 @inject Radzen.DialogService DialogService
 @inject Radzen.NotificationService NotificationService
 @inject AnalysisFeedClient Feed
+@inject RepositoryCommandClient Commands
 @inject ILogger<AnalysisWatcher> WatcherLogger
 @inject IJSRuntime JS
 @using PoRepoLineTracker.Client.Services
@@ -22,10 +23,6 @@
 <PageTitle>Repositories · PoRepoLineTracker</PageTitle>
 
 <div class="app-stack">
-    @* Renders nothing — see MilestoneConfetti.razor. Held by @ref so LoadLatestLineCounts can
-       trigger a burst once the portfolio total crosses a round-number milestone. *@
-    <MilestoneConfetti @ref="_confetti" />
-
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.125rem">
@@ -43,11 +40,6 @@
             </RadzenStack>
         </Heading>
         <Actions>
-            <RadzenButton Text="Upload Local"
-                          Icon="upload_file"
-                          ButtonStyle="ButtonStyle.Secondary"
-                          Variant="Variant.Outlined"
-                          Click="@ShowUploadDialog" />
             <RadzenButton Text="@(_showAddPanel ? "Cancel" : "Add Repository")"
                           Icon="@(_showAddPanel ? "close" : "add_circle")"
                           ButtonStyle="@(_showAddPanel ? ButtonStyle.Light : ButtonStyle.Primary)"
@@ -305,20 +297,6 @@
     private Dictionary<RepositoryId, int> _repoLatestLineCounts = new();
     private Dictionary<RepositoryId, AnalysisProgressDto> _analysisProgress = new();
     private readonly CancellationTokenSource _disposeCts = new();
-    private MilestoneConfetti? _confetti;
-
-    /// <summary>
-    /// Round-number checkpoints the portfolio "Total Lines" figure celebrates crossing. Fixed
-    /// rather than derived (e.g. "nearest power of 10") so the celebration only fires at numbers a
-    /// person would actually recognise as a milestone.
-    /// </summary>
-    private static readonly int[] MilestoneSteps =
-    [
-        1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000,
-        1_000_000, 2_500_000, 5_000_000, 10_000_000, 25_000_000, 50_000_000
-    ];
-
-    private const string MilestoneStorageKey = "porepolinetracker.totalLinesMilestone";
     /// <summary>
     /// True after <see cref="DisposeAsync"/> has run. Radzen charts and grids capture
     /// <c>DotNetObjectReference</c>s the JS module can still call into for a frame or two after
@@ -465,44 +443,11 @@
                     .Select(g => new DailyLineCountDto { Date = g.Key, TotalLines = g.Sum(d => d.TotalLines) })
                     .TakeLast(60)
                     .ToList();
-
-                await CheckMilestoneAsync(_repoLatestLineCounts.Values.Sum());
             }
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not load latest line counts — Total Lines column will show dashes");
-        }
-    }
-
-    /// <summary>
-    /// Celebrates the first time the portfolio total crosses a step in <see cref="MilestoneSteps"/>.
-    ///
-    /// <para>The highest step ever reached is kept in <c>localStorage</c> — not component state —
-    /// so the celebration fires once per browser rather than once per page load: this method runs
-    /// on every <see cref="LoadLatestLineCounts"/>, including the reloads after every analysis.</para>
-    /// </summary>
-    private async Task CheckMilestoneAsync(int totalLines)
-    {
-        if (_disposed || _confetti is null) return;
-
-        var reached = MilestoneSteps.LastOrDefault(step => step <= totalLines);
-        if (reached == 0) return;
-
-        try
-        {
-            var raw = await JS.InvokeAsync<string?>("localStorage.getItem", MilestoneStorageKey);
-            var stored = int.TryParse(raw, out var parsed) ? parsed : 0;
-            if (reached <= stored) return;
-
-            await JS.InvokeVoidAsync("localStorage.setItem", MilestoneStorageKey, reached.ToString());
-            await _confetti.CelebrateAsync();
-        }
-        catch (JSException ex)
-        {
-            // A blocked localStorage (private browsing, some corporate policies) just means no
-            // celebration this session — not worth surfacing as an app error.
-            Logger.LogWarning(ex, "Could not check the total-lines milestone");
         }
     }
 
@@ -530,19 +475,6 @@
     private void ToggleAddPanel()
     {
         _showAddPanel = !_showAddPanel;
-    }
-
-    private async Task ShowUploadDialog()
-    {
-        await DialogService.OpenAsync<UploadRepository>("Upload Local Repository",
-            new Dictionary<string, object> { },
-            new DialogOptions
-            {
-                Width = "500px",
-                Height = "auto",
-                Resizable = true,
-                Draggable = true
-            });
     }
 
     private async Task HandleAddCompleted()
@@ -594,28 +526,14 @@
 
     private async Task ConfirmDeleteRepository(GitHubRepository repo)
     {
-        var confirmed = await DialogService.Confirm(
-            $"Are you sure you want to delete '{repo.Owner}/{repo.Name}'? This will remove all associated data.",
-            "Delete Repository",
-            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
-
-        if (confirmed == true)
-        {
-            await DeleteRepository(repo.Id);
-        }
+        if (!await Commands.ConfirmDeleteAsync(repo)) return;
+        await DeleteRepository(repo.Id);
     }
 
     private async Task ConfirmReanalyze(GitHubRepository repo)
     {
-        var confirmed = await DialogService.Confirm(
-            $"Re-analyze '{repo.Owner}/{repo.Name}' from scratch?\n\nThis will delete all existing commit data and re-analyze the entire repository using your current file extension settings. This may take some time for repositories with many commits.",
-            "Re-analyze Repository",
-            new ConfirmOptions { OkButtonText = "Re-analyze", CancelButtonText = "Cancel" });
-
-        if (confirmed == true)
-        {
-            await ReanalyzeRepository(repo);
-        }
+        if (!await Commands.ConfirmReanalyzeAsync(repo)) return;
+        await ReanalyzeRepository(repo);
     }
 
     private async Task ReanalyzeRepository(GitHubRepository repo)
@@ -710,67 +628,21 @@
 
     private async Task DeleteRepository(RepositoryId repositoryId)
     {
-        try
-        {
-            Logger.LogInformation("Deleting repository {RepositoryId}", repositoryId);
-            var response = await Http.DeleteAsync($"/api/repositories/{repositoryId}");
+        var repo = pageState.Repositories.FirstOrDefault(r => r.Id == repositoryId);
+        var label = repo is null ? repositoryId.ToString() : $"{repo.Owner}/{repo.Name}";
 
-            if (response.IsSuccessStatusCode)
-            {
-                var repoToRemove = pageState.Repositories.FirstOrDefault(r => r.Id == repositoryId);
-                if (repoToRemove != null)
-                {
-                    pageState.Repositories.Remove(repoToRemove);
-                    NotificationService.Notify(new NotificationMessage
-                    {
-                        Severity = NotificationSeverity.Success,
-                        Summary = "Deleted",
-                        Detail = $"Repository '{repoToRemove.Owner}/{repoToRemove.Name}' deleted successfully!",
-                        Duration = 4000
-                    });
-                }
+        if (!await Commands.DeleteAsync(repositoryId, label)) return;
 
-                if (grid is not null)
-                    await grid.Reload();
-                Logger.LogInformation("Repository {RepositoryId} deleted successfully", repositoryId);
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                NotificationService.Notify(new NotificationMessage
-                {
-                    Severity = NotificationSeverity.Error,
-                    Summary = "Error",
-                    Detail = $"Failed to delete repository: {response.StatusCode}",
-                    Duration = 6000
-                });
-                Logger.LogError("Failed to delete repository {RepositoryId}. Status: {StatusCode}", repositoryId, response.StatusCode);
-            }
-        }
-        catch (Exception ex)
-        {
-            NotificationService.Notify(new NotificationMessage
-            {
-                Severity = NotificationSeverity.Error,
-                Summary = "Error",
-                Detail = $"Error deleting repository: {ex.Message}",
-                Duration = 6000
-            });
-            Logger.LogError(ex, "Error deleting repository {RepositoryId}: {Message}", repositoryId, ex.Message);
-        }
+        // Page state, deliberately left here rather than on the service: what to redraw is a fact
+        // about the screen, not about the command.
+        if (repo is not null) pageState.Repositories.Remove(repo);
+        if (grid is not null) await grid.Reload();
     }
 
     private async Task ConfirmRemoveAll()
     {
-        var confirmed = await DialogService.Confirm(
-            "Are you sure you want to remove ALL repositories? This action cannot be undone.",
-            "Remove All Repositories",
-            new ConfirmOptions { OkButtonText = "Remove All", CancelButtonText = "Cancel" });
-
-        if (confirmed == true)
-        {
-            await RemoveAllRepositories();
-        }
+        if (!await Commands.ConfirmRemoveAllAsync()) return;
+        await RemoveAllRepositories();
     }
 
     private async Task RemoveAllRepositories()
@@ -778,46 +650,7 @@
         try
         {
             isRemovingAll = true;
-            Logger.LogInformation("Starting removal of all repositories via API endpoint.");
-            
-            var response = await Http.DeleteAsync("/api/repositories/all");
-            
-            if (response.IsSuccessStatusCode)
-            {
-                pageState.Repositories.Clear();
-
-                NotificationService.Notify(new NotificationMessage
-                {
-                    Severity = NotificationSeverity.Success,
-                    Summary = "Success",
-                    Detail = "All repositories and data have been successfully removed!",
-                    Duration = 4000
-                });
-                Logger.LogInformation("All repositories removed successfully.");
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                NotificationService.Notify(new NotificationMessage
-                {
-                    Severity = NotificationSeverity.Error,
-                    Summary = "Error",
-                    Detail = $"Error removing repositories: {response.StatusCode}",
-                    Duration = 6000
-                });
-                Logger.LogError("Failed to remove all repositories. Status: {StatusCode}", response.StatusCode);
-            }
-        }
-        catch (Exception ex)
-        {
-            NotificationService.Notify(new NotificationMessage
-            {
-                Severity = NotificationSeverity.Error,
-                Summary = "Error",
-                Detail = $"Error removing all repositories: {ex.Message}",
-                Duration = 6000
-            });
-            Logger.LogError(ex, "Error removing all repositories: {Message}", ex.Message);
+            if (await Commands.RemoveAllAsync()) pageState.Repositories.Clear();
         }
         finally
         {

@@ -2,8 +2,6 @@
 
 PoRepoLineTracker is a self-hosted GitHub repository analytics app built with Blazor WebAssembly and an ASP.NET Core API. It authenticates with GitHub, tracks user-owned repositories, clones and analyzes commit history, persists derived metrics in Azure Table Storage, and surfaces line-count trends, extension breakdowns, and contributor statistics.
 
-![Login page](docs/screenshots/login.png)
-
 ## Architecture overview
 
 - Edge delivery: a Blazor WebAssembly client is served from the same App Service as the API.
@@ -11,21 +9,13 @@ PoRepoLineTracker is a self-hosted GitHub repository analytics app built with Bl
 - Data tier: Azure Table Storage holds users, repositories, commit aggregates, and user preferences.
 - External dependencies: GitHub provides OAuth identity, repository metadata, and clone/pull access; Azure Key Vault provides secrets; Application Insights collects telemetry (Jaeger via OTLP locally).
 
-## Documentation suite
+## Documentation
 
 | Document | Purpose |
 | --- | --- |
-| [docs/Architecture_MASTER.mmd](docs/Architecture_MASTER.mmd) | Full context/container view across edge, compute, and persistence tiers |
-| [docs/Architecture_MASTER_SIMPLE.mmd](docs/Architecture_MASTER_SIMPLE.mmd) | Executive-summary version of the architecture |
-| [docs/DataLifecycle_MASTER.mmd](docs/DataLifecycle_MASTER.mmd) | End-to-end ingestion, processing, persistence, and UI refresh flow |
-| [docs/DataLifecycle_MASTER_SIMPLE.mmd](docs/DataLifecycle_MASTER_SIMPLE.mmd) | High-level data lifecycle snapshot |
-| [docs/DataModel.mmd](docs/DataModel.mmd) | Storage-oriented ERD with derived lifecycle/state fields |
-| [docs/DataModel_SIMPLE.mmd](docs/DataModel_SIMPLE.mmd) | Reduced ERD for stakeholder review |
-| [docs/SystemFlow_MASTER.mmd](docs/SystemFlow_MASTER.mmd) | Combined user journey, auth path, CRUD path, and analysis pipeline |
-| [docs/SystemFlow_MASTER_SIMPLE.mmd](docs/SystemFlow_MASTER_SIMPLE.mmd) | High-level system flow |
+| [CLAUDE.md](CLAUDE.md) | Working notes: build/run/test, the traps worth knowing, domain rules |
+| [NET_RULES.md](NET_RULES.md) | Numbered house rules (1.1–3.4) |
 | [tests/README.md](tests/README.md) | Test scopes and local execution commands |
-
-`AGENT.MD` (architecture rationale) and `CLAUDE.md` (working notes for coding agents) live at the repo root.
 
 ## Runtime summary
 
@@ -64,7 +54,3 @@ worked examples including the antiforgery pair required by writes.
 ## Azure deployment
 
 Deployment runs from GitHub Actions ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)) on push to `master`: it lints and builds, deploys the app package to a Linux App Service, and can apply the Bicep in [infra/main.bicep](infra/main.bicep) / [infra/resources.bicep](infra/resources.bicep) via the manual `deploy_infra` input. The deployed topology is the combined API + WASM host backed by Azure Table Storage, Key Vault, and Application Insights.
-
-## Screenshots
-
-Application screenshots are intentionally reserved under [docs/screenshots](docs/screenshots) so product context stays colocated with the documentation suite without mixing runtime assets into source folders.

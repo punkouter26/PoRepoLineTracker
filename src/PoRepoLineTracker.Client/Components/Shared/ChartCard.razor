@@ -23,10 +23,10 @@
    It is simply wrong for anything that measures itself in JS.
 
    u-lift sits on the surface rather than the wrapper so the shadow is cast by the painted card.
-   u-glass and u-sheen ride along on the same element for the same reason — the blur, the shadow
-   and the hover sweep all need to read as one surface, not a plain div wrapping a styled card. *@
+   u-glass rides along on the same element for the same reason — the blur and the shadow need to
+   read as one surface, not a plain div wrapping a styled card. *@
 <div class="chart-card">
-    <RadzenCard class="chart-card__surface u-glass u-lift u-sheen">
+    <RadzenCard class="chart-card__surface u-glass u-lift">
         <RadzenStack Orientation="Orientation.Horizontal"
                      AlignItems="AlignItems.Center"
                      JustifyContent="JustifyContent.SpaceBetween"

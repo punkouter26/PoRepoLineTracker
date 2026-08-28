@@ -32,6 +32,12 @@
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.5" />
     <!-- Git & Source Control -->
     <PackageVersion Include="LibGit2Sharp" Version="0.31.0" />
+    <!-- Static analysis. The SYNTAX half of Roslyn only: the C# parser needs no SDK, no MSBuild
+         and no restored compilation, which is what lets code metrics run on the F1 App Service.
+         Do not add Workspaces.MSBuild to reach Depth of Inheritance / Class Coupling without
+         reading the note on RoslynMetricsAnalyzer first - it drags in Microsoft.Build packages
+         carrying high-severity advisories, and this solution builds with TreatWarningsAsErrors. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <!-- UI Components -->
     <PackageVersion Include="Radzen.Blazor" Version="8.4.2" />
     <!-- Logging (Serilog) -->

@@ -36,7 +36,6 @@ public static class ApiEndpointExtensions
         app.MapSettingsEndpoints();
         app.MapGitHubEndpoints();
         app.MapDiagnosticsEndpoints();
-        app.MapUploadEndpoints();
         app.MapContributorEndpoints();
         app.MapInsightsEndpoints();
         app.MapRecapEndpoints();

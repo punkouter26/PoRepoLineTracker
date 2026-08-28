@@ -212,3 +212,92 @@ public class CodeHealthScoringTests
         report.Grade.Should().Be(expected);
     }
 }
+
+/// <summary>
+/// The single combined figure. It exists because the two analysers were being shown side by side
+/// and visibly disagreed — one repository read "maintainability 62" next to grade A while another
+/// read "67" next to grade F, and nothing can be ranked on two scales at once.
+/// </summary>
+public class CodeHealthScoringCombineTests
+{
+    [Fact]
+    public void PureCSharpRepository_ScoresItsMaintainabilityIndex()
+    {
+        var (score, grade) = CodeHealthScoring.Combine(
+            maintainabilityIndex: 82, csharpLines: 9_000, heuristicScore: 0, otherLines: 0);
+
+        score.Should().Be(82);
+        grade.Should().Be("B");
+    }
+
+    [Fact]
+    public void RepositoryWithNoCSharp_ScoresTheHeuristicComposite()
+    {
+        var (score, grade) = CodeHealthScoring.Combine(
+            maintainabilityIndex: null, csharpLines: 0, heuristicScore: 74, otherLines: 5_000);
+
+        score.Should().Be(74);
+        grade.Should().Be("C");
+    }
+
+    /// <summary>
+    /// The reason it is weighted rather than averaged. A few hundred lines of config must not
+    /// swing the verdict on fifty thousand lines of code — the same rule contributor share follows.
+    /// </summary>
+    [Fact]
+    public void TheLargerLanguage_DominatesTheCombinedScore()
+    {
+        var (score, _) = CodeHealthScoring.Combine(
+            maintainabilityIndex: 90, csharpLines: 50_000,
+            heuristicScore: 10, otherLines: 500);
+
+        score.Should().BeGreaterThan(85, "500 lines of YAML cannot outvote 50,000 lines of C#");
+
+        // A plain average would land near 50 and call a healthy repository a failure.
+        score.Should().NotBeInRange(40, 60);
+    }
+
+    [Fact]
+    public void EqualSizedHalves_LandBetweenTheirTwoScores()
+    {
+        var (score, _) = CodeHealthScoring.Combine(
+            maintainabilityIndex: 80, csharpLines: 1_000,
+            heuristicScore: 60, otherLines: 1_000);
+
+        score.Should().Be(70);
+    }
+
+    [Fact]
+    public void NothingMeasured_ScoresZeroWithNoGrade()
+    {
+        var (score, grade) = CodeHealthScoring.Combine(
+            maintainabilityIndex: null, csharpLines: 0, heuristicScore: 0, otherLines: 0);
+
+        score.Should().Be(0);
+        grade.Should().BeEmpty("an ungraded repository must not be handed an F it did not earn");
+    }
+
+    /// <summary>
+    /// A repository can hold C# whose line count did not register. The C# side must still count,
+    /// or its index would be silently discarded and the repository judged on its config files.
+    /// </summary>
+    [Fact]
+    public void CSharpWithZeroRecordedLines_StillContributes()
+    {
+        var (score, _) = CodeHealthScoring.Combine(
+            maintainabilityIndex: 40, csharpLines: 0, heuristicScore: 100, otherLines: 0);
+
+        score.Should().Be(40);
+    }
+
+    [Fact]
+    public void CombinedScore_IsAlwaysWithinRange()
+    {
+        foreach (var mi in new[] { 0, 50, 100 })
+        foreach (var heuristic in new[] { 0, 50, 100 })
+        {
+            var (score, _) = CodeHealthScoring.Combine(mi, 1_000, heuristic, 1_000);
+            score.Should().BeInRange(0, 100);
+        }
+    }
+}

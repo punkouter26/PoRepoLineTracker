@@ -1,0 +1,335 @@
+@page "/code-health"
+@attribute [Authorize]
+@inject HttpClient Http
+@inject ILogger<CodeHealth> Logger
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using PoRepoLineTracker.Domain.Models
+@using PoRepoLineTracker.Client.Models
+@using PoRepoLineTracker.Shared.Serialization
+@using Radzen
+@using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
+
+@* Every repository scored against every other. The per-repository card answers "how is this one";
+   this answers "how do they compare", which is the question the score is actually reliable for —
+   the absolute number is a guide, the ranking holds up. Ordered healthiest first.
+
+   Loaded on demand rather than on navigation, for the same reason the card is: scoring means
+   walking each repository's tree and parsing its C#, and that is a wait the user should choose. *@
+<PageTitle>Code Health · PoRepoLineTracker</PageTitle>
+
+<div class="app-stack">
+    <PageHero>
+        <Heading>
+            <RadzenStack Gap="0.125rem">
+                <h1 class="page-hero__title">Code Health</h1>
+                <RadzenText TextStyle="TextStyle.Body1">
+                    @if (_isLoading)
+                    {
+                        <span>Parsing every repository — this walks each tree, so give it a moment…</span>
+                    }
+                    else if (_rows is not null)
+                    {
+                        <span>@_measuredCount of @_rows.Count repositories measured · healthiest first</span>
+                    }
+                    else
+                    {
+                        <span>Rank every repository you track by how maintainable its code is</span>
+                    }
+                </RadzenText>
+            </RadzenStack>
+        </Heading>
+    </PageHero>
+
+    @* The grid is a snapshot — which repositories are healthy today. This says which are DRIFTING,
+       which no column can show: a repository sitting at 66 and falling matters more than one at 62
+       and flat. Its own button, because on a cold cache it measures every repository at every month
+       boundary; after that it is served from the per-commit memo. *@
+    <div class="ch">
+        <RadzenCard class="ch__card">
+            <div class="ch__head">
+                <RadzenText TextStyle="TextStyle.H6">Health over time</RadzenText>
+                <RadzenButton Text="@(_trends is null ? "Chart it" : "Refresh")"
+                              Icon="@(_isCharting ? "hourglass_top" : "timeline")"
+                              ButtonStyle="ButtonStyle.Secondary"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Small"
+                              Disabled="@_isCharting"
+                              Click="@LoadTrendsAsync" />
+            </div>
+
+            @if (_isCharting)
+            {
+                <RadzenText TextStyle="TextStyle.Caption" class="ch__message">
+                    Measuring each repository at each month boundary. The first run does the work; later ones
+                    read the stored results.
+                </RadzenText>
+                <RadzenSkeleton Height="260px" />
+            }
+            else if (!string.IsNullOrEmpty(_trendMessage))
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">@_trendMessage</RadzenText>
+            }
+            else if (_trends is { Count: > 0 } trends)
+            {
+                <RadzenChart>
+                    @foreach (var trend in trends)
+                    {
+                        var title = $"{trend.Owner}/{trend.Name}";
+                        // Colour keyed to the repository's NAME, not its position, so adding a
+                        // repository does not recolour every series after it. StableIndex rather
+                        // than GetHashCode for the reason documented on it: .NET randomises string
+                        // hashing per process, so the latter reshuffles colours on every reload.
+                        var stroke = SeriesPalette.Color(SeriesPalette.StableIndex(title));
+
+                        <RadzenLineSeries Data="@trend.Points"
+                                          CategoryProperty="Month"
+                                          ValueProperty="Score"
+                                          Title="@title"
+                                          Stroke="@stroke"
+                                          StrokeWidth="2">
+                            <TooltipTemplate Context="point">
+                                @if (point is CodeHealthTrendPointDto p)
+                                {
+                                    <div class="arc-tip">
+                                        <div class="arc-tip__title">@title</div>
+                                        <div class="arc-tip__meta">@p.Month.ToString("MMMM yyyy")</div>
+                                        <div class="arc-tip__value">
+                                            <span class="arc-tip__label">Health:</span> @p.Score @(string.IsNullOrEmpty(p.Grade) ? "" : $"({p.Grade})")
+                                        </div>
+                                    </div>
+                                }
+                            </TooltipTemplate>
+                            <ChildContent>
+                                <RadzenMarkers MarkerType="MarkerType.None" />
+                            </ChildContent>
+                        </RadzenLineSeries>
+                    }
+
+                    <RadzenCategoryAxis FormatString="{0:MMM yy}" LabelAutoRotation="-45">
+                        <RadzenAxisTitle Text="Month" />
+                        <RadzenGridLines Visible="true" />
+                    </RadzenCategoryAxis>
+
+                    @* Fixed 0–100 rather than fitted. An auto-scaled axis turns a two-point wobble
+                       into a cliff, which is exactly how this chart gets misread. *@
+                    <RadzenValueAxis Min="0" Max="100">
+                        <RadzenAxisTitle Text="Health score" />
+                        <RadzenGridLines Visible="true" />
+                    </RadzenValueAxis>
+
+                    <RadzenLegend Position="LegendPosition.Bottom" />
+                    <RadzenChartTooltipOptions Shared="false" />
+                </RadzenChart>
+
+                <RadzenText TextStyle="TextStyle.Caption" class="ch__caveat">
+                    Each point is the last commit on or before that month's 1st. A flat run means nothing was
+                    committed in those months, so the code — and the score — did not change. Repositories with
+                    no measurable month are absent from the chart; the grid below says why.
+                </RadzenText>
+            }
+            else if (_trends is { Count: 0 })
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">
+                    No repository has history spanning a month boundary yet, so there is nothing to plot.
+                </RadzenText>
+            }
+            else
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">
+                    Plot every repository's health month by month, for the trailing two years.
+                </RadzenText>
+            }
+        </RadzenCard>
+    </div>
+
+    <div class="ch">
+        <RadzenCard class="ch__card">
+            <div class="ch__head">
+                <RadzenText TextStyle="TextStyle.H6">Repositories</RadzenText>
+                <RadzenButton Text="@(_rows is null ? "Analyze all" : "Re-run")"
+                              Icon="@(_isLoading ? "hourglass_top" : "insights")"
+                              ButtonStyle="ButtonStyle.Secondary"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Small"
+                              Disabled="@_isLoading"
+                              Click="@LoadAsync" />
+            </div>
+
+            @if (_isLoading)
+            {
+                <RadzenStack Gap="0.75rem">
+                    <RadzenSkeleton Height="40px" />
+                    <RadzenSkeleton Height="40px" />
+                    <RadzenSkeleton Height="40px" />
+                </RadzenStack>
+            }
+            else if (!string.IsNullOrEmpty(_message))
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">@_message</RadzenText>
+            }
+            else if (_rows is { Count: > 0 })
+            {
+                @* Scrolls inside its own container: the row is wide, and the page body must never
+                   scroll sideways. *@
+                <div class="ch__table-wrap">
+                    <table class="ch__table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Repository</th>
+                                <th scope="col" class="ch__num">Health</th>
+                                <th scope="col" class="ch__num">Grade</th>
+                                <th scope="col" class="ch__num">C# maintainability</th>
+                                <th scope="col" class="ch__num">Complexity</th>
+                                <th scope="col" class="ch__num">Source lines</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _rows)
+                            {
+                                <tr class="@(row.Measured ? null : "ch__row--unmeasured")">
+                                    <th scope="row" class="ch__repo">
+                                        <a href="@($"/repositories/{row.RepositoryId}")">@row.Owner/@row.Name</a>
+                                        @if (!row.Measured)
+                                        {
+                                            @* The reason, not a blank cell. A repository silently
+                                               missing a score is indistinguishable from one that
+                                               is fine. *@
+                                            <span class="ch__reason">@row.UnmeasuredReason</span>
+                                        }
+                                    </th>
+
+                                    @if (row.Measured)
+                                    {
+                                        @* The one figure the table is ranked on. *@
+                                        <td class="ch__num">
+                                            <span class="@($"ch__score ch__score--{Band(row.Score)}")">@row.Score</span>
+                                        </td>
+                                        <td class="ch__num">
+                                            @if (!string.IsNullOrEmpty(row.Grade))
+                                            {
+                                                <span class="ch__grade">@row.Grade</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="ch__none">—</span>
+                                            }
+                                        </td>
+                                        @* The two halves behind it, for anyone asking why. *@
+                                        <td class="ch__num">
+                                            @if (row.MaintainabilityIndex is { } mi)
+                                            {
+                                                <span class="ch__sub">@mi</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="ch__none" title="No C# in this repository">—</span>
+                                            }
+                                        </td>
+                                        <td class="ch__num ch__sub">@row.CyclomaticComplexity.ToString("N0")</td>
+                                        <td class="ch__num ch__sub">@row.LinesOfSourceCode.ToString("N0")</td>
+                                    }
+                                    else
+                                    {
+                                        <td class="ch__num ch__none" colspan="5">not measured</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <RadzenText TextStyle="TextStyle.Caption" class="ch__caveat">
+                    Health folds the parsed C# maintainability index and the line-oriented estimate for every
+                    other language into one figure, weighted by how many lines each describes. The two inputs
+                    are not calibrated against each other — Visual Studio treats any index above 20 as healthy,
+                    while the estimate is built so 90 is an A — so the <em>ranking</em> is the trustworthy part
+                    and a C#-heavy repository grades harsher here than the IDE would call it. Depth of
+                    Inheritance and Class Coupling need a resolved compilation and are not shown.
+                </RadzenText>
+            }
+            else if (_rows is { Count: 0 })
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">
+                    No repositories yet. Add some from the Repositories page and analyze them first.
+                </RadzenText>
+            }
+            else
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">
+                    Nothing has been measured yet. Analyzing walks each repository's tree and parses its C#,
+                    so it takes a few seconds per repository.
+                </RadzenText>
+            }
+        </RadzenCard>
+    </div>
+</div>
+
+@code {
+    private List<CodeHealthSummaryDto>? _rows;
+    private bool _isLoading;
+    private string? _message;
+
+    private List<CodeHealthTrendDto>? _trends;
+    private bool _isCharting;
+    private string? _trendMessage;
+
+    private async Task LoadTrendsAsync()
+    {
+        _isCharting = true;
+        _trendMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            _trends = await Http.GetFromJsonAsync(
+                "api/code-health/trends",
+                AppJsonSerializerContext.Default.ListCodeHealthTrendDto);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load the portfolio health trends");
+            _trendMessage = "Could not load the trend chart. Try again in a moment.";
+            _trends = null;
+        }
+        finally
+        {
+            _isCharting = false;
+        }
+    }
+
+    private int _measuredCount => _rows?.Count(r => r.Measured) ?? 0;
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        try
+        {
+            _rows = await Http.GetFromJsonAsync(
+                "api/code-health",
+                AppJsonSerializerContext.Default.ListCodeHealthSummaryDto);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load portfolio code health");
+            _message = "Could not load code health. Try again in a moment.";
+            _rows = null;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    /// <summary>Shared banding with the code-health card, so one number is not two colours.</summary>
+    private static string Band(int score) => score switch
+    {
+        >= 80 => "good",
+        >= 60 => "ok",
+        >= 40 => "warn",
+        _ => "bad"
+    };
+}
