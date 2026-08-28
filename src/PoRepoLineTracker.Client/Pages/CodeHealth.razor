@@ -14,8 +14,11 @@
    this answers "how do they compare", which is the question the score is actually reliable for —
    the absolute number is a guide, the ranking holds up. Ordered healthiest first.
 
-   Loaded on demand rather than on navigation, for the same reason the card is: scoring means
-   walking each repository's tree and parsing its C#, and that is a wait the user should choose. *@
+   The repository grid is loaded on demand rather than on navigation: scoring means walking each
+   repository's tree and parsing its C#, and that is a wait the user should choose. The trend chart,
+   in contrast, is memoised per SHA in storage and is cheap to fetch — auto-loading it on mount
+   replaces an empty chart card with a populated one on every visit past the first, at no extra
+   user-visible cost. *@
 <PageTitle>Code Health · PoRepoLineTracker</PageTitle>
 
 <div class="app-stack">
@@ -273,6 +276,13 @@
     private List<CodeHealthTrendDto>? _trends;
     private bool _isCharting;
     private string? _trendMessage;
+
+    /// <summary>
+    /// Trends are served from the per-commit memo after the first run, so they are cheap enough
+    /// to fetch on every navigation. The grid, in contrast, walks trees and parses C# when the
+    /// memo is cold, which is a wait the user must opt into.
+    /// </summary>
+    protected override Task OnInitializedAsync() => LoadTrendsAsync();
 
     private async Task LoadTrendsAsync()
     {

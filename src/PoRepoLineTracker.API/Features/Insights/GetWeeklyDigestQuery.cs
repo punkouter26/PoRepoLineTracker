@@ -66,10 +66,9 @@ public sealed class GetWeeklyDigestQueryHandler(
         var repositories = (await repositoryDataService.GetAllRepositoriesAsync(request.UserId)).ToList();
         if (repositories.Count == 0) return digest;
 
-        // Same parallel fan-out as the portfolio query, for the same reason: one Azure Table
-        // round-trip per repository, serialised, is what makes this slow.
-        var commitsPerRepo = await Task.WhenAll(repositories.Select(async repo =>
-            (repo, commits: (await repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(repo.Id)).ToList())));
+        // Same parallel fan-out as the portfolio query, lifted to the data service so a fourth
+        // handler cannot accidentally re-serialise it. Commits arrive ordered by date ascending.
+        var commitsPerRepo = await repositoryDataService.GetAllRepositoriesWithCommitsAsync(request.UserId);
 
         // The window immediately before this one, of equal length, so "up from last time" compares
         // like with like however long the user was away.

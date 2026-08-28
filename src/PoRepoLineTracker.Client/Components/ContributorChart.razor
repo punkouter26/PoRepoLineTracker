@@ -119,12 +119,21 @@
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="ContributorStatsDto" Property="PercentageOfTotalLines" Title="% of Total" Width="15%">
                             <Template Context="data">
+                                @* Rounded once and reused for the bar value AND the aria-label.
+                                   A naked `data.PercentageOfTotalLines` exposed both the raw
+                                   double (e.g. 99.9337...) in the accessible name and the
+                                   F1-formatted string in the visible value, so screen readers
+                                   heard two figures per row — see audit item #4. *@
+                                @{
+                                    var rounded = (float)Math.Round(Math.Min(data.PercentageOfTotalLines, 100), 1);
+                                    var label = $"{data.AuthorName}: {rounded:F1}% of total lines";
+                                }
                                 <div class="cc-cell-row">
                                     <progress class="cc-bar @GetAuthorColorClass(data.AuthorName)"
                                               max="100"
-                                              value="@Math.Min(data.PercentageOfTotalLines, 100)"
-                                              aria-label="@($"{data.AuthorName}: {data.PercentageOfTotalLines:F1}% of total lines")"></progress>
-                                    <span class="cc-bar__value">@data.PercentageOfTotalLines.ToString("F1")%</span>
+                                              value="@rounded"
+                                              aria-label="@label"></progress>
+                                    <span class="cc-bar__value">@rounded.ToString("F1")%</span>
                                 </div>
                             </Template>
                         </RadzenDataGridColumn>

@@ -112,6 +112,25 @@ public class RepositoryDataService : IRepositoryDataService
         return repositories;
     }
 
+    public async Task<IReadOnlyList<(GitHubRepository Repository, IReadOnlyList<CommitLineCount> Commits)>> GetAllRepositoriesWithCommitsAsync(UserId userId)
+    {
+        var repositories = (await GetAllRepositoriesAsync(userId)).ToList();
+
+        // One round-trip per repository, parallelised. A 50-repo portfolio pays 50 serial
+        // round-trips otherwise, which is what makes these pages slow. Commits are ordered by
+        // date ascending here so every caller can index them with [^1] for the newest and
+        // sliding-window search by index rather than re-sorting.
+        var pairs = await Task.WhenAll(repositories.Select(async repo => (
+            repo,
+            commits: (IReadOnlyList<CommitLineCount>)(await GetCommitLineCountsByRepositoryIdAsync(repo.Id))
+                .OrderBy(c => c.CommitDate)
+                .ToList())));
+
+        return pairs
+            .Select(p => (Repository: p.repo, Commits: p.commits))
+            .ToList();
+    }
+
     public async Task AddCommitLineCountAsync(CommitLineCount commitLineCount)
     {
         await EnsureTablesExistAsync();

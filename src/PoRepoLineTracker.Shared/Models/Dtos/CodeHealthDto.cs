@@ -5,19 +5,11 @@ namespace PoRepoLineTracker.Shared.Models.Dtos;
 /// <summary>
 /// A repository's maintainability report, measured at its most recent analysed commit.
 ///
-/// <para><b>What the score is.</b> A weighted composite of six line-oriented factors, each scored
-/// 0–100 and each a well-understood proxy for maintainability: branch density, nesting depth, file
-/// size, comment ratio, debt markers and line length. It is NOT Visual Studio's Maintainability
-/// Index, and must not be labelled as one — it is an estimate over a dozen languages, none of
-/// which are parsed.</para>
-///
-/// <para><b>For C#, the real thing sits beside it in <see cref="Metrics"/>.</b> The reasoning
-/// this comment used to give — that the Maintainability Index needs "Halstead volume and a real
-/// control-flow graph", so a resolved compilation — was half wrong, and the half that was wrong
-/// is the useful half: Halstead volume is purely LEXICAL, counted from the token stream, and
-/// cyclomatic complexity comes straight off the syntax tree. Neither needs symbols, so both are
-/// computed for C# with no build. Depth of Inheritance and Class Coupling are the two that really
-/// do need a compilation, and those are the two not reported.</para>
+/// <para><b>The score is NOT Visual Studio's Maintainability Index.</b> It is a weighted
+/// composite of six line-oriented factors over a dozen languages, none of which are parsed.
+/// C# alone gets the parsed figures, in <see cref="Metrics"/>; showing the two side by side
+/// previously produced visibly contradictory verdicts, which is why both are folded into
+/// <see cref="OverallScore"/>.</para>
 ///
 /// <para><b>How to read it.</b> The ranking is worth more than the absolute number. The score
 /// answers "is this repository drifting", the sub-scores answer "in which direction", and
@@ -31,7 +23,6 @@ public sealed class CodeHealthDto
     public string Owner { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>The commit the report describes — the repository's most recent.</summary>
     public string CommitSha { get; set; } = string.Empty;
     public DateTime CommitDate { get; set; }
 
@@ -41,74 +32,57 @@ public sealed class CodeHealthDto
     /// <summary>Weighted composite of <see cref="Factors"/>, 0–100.</summary>
     public int Score { get; set; }
 
-    /// <summary>A–F, from <see cref="Score"/>. Bands are on the scoring type in Shared.</summary>
+    /// <summary>A–F from <see cref="Score"/>. Bands live on the scoring type in Shared.</summary>
     public string Grade { get; set; } = string.Empty;
-
-    // ── What was measured ───────────────────────────────────────────────────────────────────
 
     public int FilesAnalyzed { get; set; }
     public int CodeLines { get; set; }
     public int CommentLines { get; set; }
     public int BlankLines { get; set; }
 
-    /// <summary>Sum of every file's cyclomatic approximation. See <see cref="CodeHealthFactorDto"/>.</summary>
+    /// <summary>Sum of every file's cyclomatic approximation.</summary>
     public int TotalComplexity { get; set; }
 
     /// <summary>Debt markers (TODO, FIXME, HACK, XXX, BUG) found anywhere in the source.</summary>
     public int DebtMarkers { get; set; }
 
-    // ── The breakdown ───────────────────────────────────────────────────────────────────────
-
-    /// <summary>One entry per scored factor, in the order the report presents them.</summary>
     public List<CodeHealthFactorDto> Factors { get; set; } = [];
 
-    /// <summary>
-    /// The files most worth looking at, worst first. This is the part of the report with a
-    /// concrete next action attached to it.
-    /// </summary>
+    /// <summary>Files most worth looking at, worst first. The part with an action attached.</summary>
     public List<CodeHealthFileDto> Hotspots { get; set; } = [];
 
     /// <summary>Score per file extension, so a report can say "the TypeScript is fine, the C# is not".</summary>
     public List<CodeHealthLanguageDto> ByLanguage { get; set; } = [];
 
     /// <summary>
-    /// The repository's single health figure, 0-100: the parsed C# and the estimated rest folded
-    /// together, weighted by lines. This is the number to rank on — <see cref="Score"/> describes
-    /// only the non-C# half and <see cref="CodeMetricsReportDto.MaintainabilityIndex"/> only the
-    /// C# half, and showing those two side by side produced visibly contradictory verdicts.
+    /// Combined health figure, 0–100: parsed C# folded with the estimated rest, weighted by lines.
+    /// This is the number to rank on — <see cref="Score"/> describes only the non-C# half and
+    /// <see cref="CodeMetricsReportDto.MaintainabilityIndex"/> only the C# half, and showing those
+    /// two side by side produced visibly contradictory verdicts.
     /// </summary>
     public int OverallScore { get; set; }
 
-    /// <summary>A-F from <see cref="OverallScore"/>.</summary>
+    /// <summary>A–F from <see cref="OverallScore"/>.</summary>
     public string OverallGrade { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Visual Studio's Code Metrics for the C# in this repository, or null when there is no C#.
-    /// Unlike everything above it, these are parsed rather than estimated — see
-    /// <see cref="CodeMetricsReportDto"/>.
-    /// </summary>
+    /// <summary>Visual Studio's Code Metrics for the C# in this repository, or null when there is no C#.</summary>
     public CodeMetricsReportDto? Metrics { get; set; }
 }
 
 /// <summary>
-/// The Code Metrics window's figures for the repository's C#, measured rather than approximated.
-///
-/// <para><b>How this differs from everything else in the report.</b> The factors above are
-/// line-oriented proxies applied to a dozen languages without parsing any of them. These come from
-/// a real C# parse, and are the same quantities Visual Studio reports — so unlike the composite
-/// score, the absolute numbers here are comparable with what the IDE shows.</para>
+/// The Code Metrics window's figures for the repository's C#, parsed rather than estimated.
 ///
 /// <para><b>Two of the six columns are missing, deliberately.</b> Depth of Inheritance and Class
-/// Coupling need a resolved compilation — a base type or a referenced type may live in another
-/// assembly, and no syntax tree can follow that. Producing them means restoring and building the
-/// repository, which the deployed App Service cannot do and which would execute the measured
-/// repository's own code. The four reported here need only the source text.</para>
+/// Coupling need a resolved compilation — a base or referenced type can live in another assembly,
+/// and no syntax tree can follow that. Producing them means restoring and building the repository,
+/// which the deployed App Service cannot do and which would execute the measured repository's own
+/// code. The four reported here need only the source text.</para>
 /// </summary>
 public sealed class CodeMetricsReportDto
 {
     /// <summary>
-    /// 0–100, higher is better; the mean of the repository's members. Null when no C# member was
-    /// measured — an average of nothing is not 100.
+    /// 0–100, the mean of the repository's members. Null when no C# member was measured — an
+    /// average of nothing is not 100.
     /// </summary>
     public int? MaintainabilityIndex { get; set; }
 
@@ -129,11 +103,9 @@ public sealed class CodeMetricsReportDto
     /// <summary>Methods, accessors and local functions the index was averaged over.</summary>
     public int MembersMeasured { get; set; }
 
-    /// <summary>Least maintainable members, worst first — the part with an action attached.</summary>
     public List<CodeMetricsMemberDto> LeastMaintainable { get; set; } = [];
 }
 
-/// <summary>One member's metrics, for the least-maintainable list.</summary>
 public sealed class CodeMetricsMemberDto
 {
     public string File { get; set; } = string.Empty;
@@ -157,7 +129,7 @@ public sealed class CodeHealthFactorDto
     /// <summary>Share of the composite this factor carries, in points out of 100.</summary>
     public int Weight { get; set; }
 
-    /// <summary>The raw measurement behind the score, already formatted (e.g. "18.4 per 100 lines").</summary>
+    /// <summary>Raw measurement behind the score, already formatted (e.g. "18.4 per 100 lines").</summary>
     public string Measurement { get; set; } = string.Empty;
 
     /// <summary>One sentence on what the factor means and why it is weighted as it is.</summary>
@@ -190,15 +162,12 @@ public sealed class CodeHealthLanguageDto
 }
 
 /// <summary>
-/// One repository's line on the portfolio code-health page: enough to rank it against the others
-/// and nothing more.
+/// One repository's line on the portfolio code-health page: enough to rank it against the others.
 ///
-/// <para><b>Why unmeasured repositories still get a row.</b> The report is computed from the
-/// working clone, so a repository that has never been analysed on this host — or whose clone the
-/// App Service has since recycled — cannot be scored at all. Dropping those rows would make a page
-/// titled "Code Health" quietly disagree with the repository list, and a repository missing from it
-/// would be indistinguishable from one that is fine. <see cref="UnmeasuredReason"/> says which it
-/// is.</para>
+/// <para><b>Why unmeasured repositories still get a row.</b> Dropping a repository that has never
+/// been analysed on this host — or whose clone the App Service has recycled — would make a page
+/// titled "Code Health" quietly disagree with the repository list. <see cref="UnmeasuredReason"/>
+/// says which case it is.</para>
 /// </summary>
 public sealed class CodeHealthSummaryDto
 {

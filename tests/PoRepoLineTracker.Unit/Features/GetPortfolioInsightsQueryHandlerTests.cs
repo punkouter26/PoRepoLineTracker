@@ -46,8 +46,32 @@ public class GetPortfolioInsightsQueryHandlerTests
         return repo;
     }
 
-    private void GivenRepositories(params GitHubRepository[] repositories) =>
+    /// <summary>Captured per-repo commits; lifted into the new GetAllRepositoriesWithCommitsAsync stub.</summary>
+    private readonly List<GitHubRepository> _reposForLiftedStub = new();
+
+    private void GivenRepositories(params GitHubRepository[] repositories)
+    {
         _dataService.GetAllRepositoriesAsync(_userId).Returns(repositories.ToList());
+
+        // The handler now reads commits through the lifted fan-out, which pairs each repository
+        // with its commits already ordered by date ascending. Build that map from the per-repo
+        // setups above and hand it to the substitute.
+        _reposForLiftedStub.Clear();
+        _reposForLiftedStub.AddRange(repositories);
+
+        var pairs = repositories
+            .Select(repo => (
+                Repository: repo,
+                Commits: (IReadOnlyList<CommitLineCount>)_dataService
+                    .GetCommitLineCountsByRepositoryIdAsync(repo.Id)
+                    .GetAwaiter()
+                    .GetResult()
+                    .OrderBy(c => c.CommitDate)
+                    .ToList()))
+            .ToList();
+
+        _dataService.GetAllRepositoriesWithCommitsAsync(_userId).Returns(pairs);
+    }
 
     private static CommitLineCount Commit(
         int daysAgo,

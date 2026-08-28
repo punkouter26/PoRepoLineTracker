@@ -52,7 +52,13 @@
     @if (_showAddPanel)
     {
         <RadzenCard class="rp-inline-card">
-            <AddRepository IsInline="true" OnInlineCompleted="@HandleAddCompleted" />
+            @* PrimeIfStaleAsync loads the GitHub list on first inline open (or when the
+               session-scoped cache is older than five minutes) — see audit #10. Without it
+               the inline toggle remounted the component on every open and the LoadGitHubRepositories
+               call inside OnInitializedAsync hit GitHub each time. *@
+            <AddRepository @ref="_addRepository"
+                           IsInline="true"
+                           OnInlineCompleted="@HandleAddCompleted" />
         </RadzenCard>
     }
 
@@ -289,6 +295,7 @@
     private RepositoryPageState pageState = new();
     private RadzenDataGrid<RepositoryGridRow>? grid;
     private AllReposComparisonChart? _comparisonChart;
+    private AddRepository? _addRepository;
     private bool _chartPrimed;
     private RepositoryId? reanalyzingRepositoryId;
     private bool _showAddPanel = false;
@@ -457,16 +464,17 @@
     }
 
     /// <summary>
-    /// Adds tabindex + role="button" + aria-label + Enter/Space keyboard activation
-    /// to each row so screen readers and keyboard users can navigate the repo
-    /// list without falling back to the chevron column. (#5 + #9)
+    /// Adds tabindex + Enter/Space keyboard activation to each row so keyboard users can
+    /// navigate the repository list. Intentionally NOT setting <c>role="button"</c> on a
+    /// <c>&lt;tr&gt;</c> — that produces a button with child buttons in the accessibility tree,
+    /// which is exactly the violation the audit caught (item #2). The row already navigates on
+    /// click and the action icons inside it call <c>@onclick:stopPropagation</c>, so the only
+    /// audit-level fix here is to drop the role and let the row be a normal data row.
     /// </summary>
     private void OnRowRender(RowRenderEventArgs<RepositoryGridRow> args)
     {
         args.Attributes["style"] = "cursor: pointer;";
         args.Attributes["tabindex"] = "0";
-        args.Attributes["role"] = "button";
-        args.Attributes["aria-label"] = $"Open repository {args.Data.Owner}/{args.Data.Name}";
         args.Attributes["onkeydown"] = "if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}";
     }
 
@@ -475,6 +483,14 @@
     private void ToggleAddPanel()
     {
         _showAddPanel = !_showAddPanel;
+
+        // On opening the panel, kick off the GitHub list load if the session-scoped cache in
+        // AddRepository is missing or stale. OnParametersSetAsync runs after the child mounts, so
+        // the @ref is non-null here.
+        if (_showAddPanel)
+        {
+            _ = _addRepository?.PrimeIfStaleAsync();
+        }
     }
 
     private async Task HandleAddCompleted()

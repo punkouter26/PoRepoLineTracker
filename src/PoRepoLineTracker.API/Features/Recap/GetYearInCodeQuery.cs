@@ -73,10 +73,9 @@ public sealed class GetYearInCodeQueryHandler(
             return recap;
         }
 
-        // Same parallel fan-out as the portfolio query: one Azure Table round-trip per repository,
-        // serialised, is what makes an aggregate over every commit slow.
-        var commitsPerRepo = await Task.WhenAll(repositories.Select(async repo =>
-            (repo, commits: (await repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(repo.Id)).ToList())));
+        // Same parallel fan-out as the portfolio query, lifted to the data service so this loop
+        // does not own the scheduling. Commits arrive ordered by date ascending.
+        var commitsPerRepo = await repositoryDataService.GetAllRepositoriesWithCommitsAsync(request.UserId);
 
         // The snapshot boundaries. "As of the start of the year" is the instant BEFORE the year
         // opened — a commit at 00:00:00 on 1 January belongs to the year, not to its baseline.
@@ -94,7 +93,13 @@ public sealed class GetYearInCodeQueryHandler(
         var startLanguages = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var endLanguages = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var topRepos = new List<RecapRepoDto>();
-        var biggestCommits = new List<RecapCommitDto>();
+
+        // Bounded top-K for the "largest commits" card. The previous list grew to every commit
+        // in the year (~2,000 entries today) before Take(3) discarded all but three, which is
+        // a 2000×3 = 6000-entry comparison the page never needed. The heap keeps at most
+        // BiggestCommitCount entries — and PriorityQueue in .NET 10 is a min-heap, so the
+        // smallest of the current top is at the head and gets popped first.
+        var biggestCommits = new PriorityQueue<RecapCommitDto, int>(BiggestCommitCount);
 
         long linesAdded = 0, linesRemoved = 0;
         var commitsInYear = 0;
@@ -129,7 +134,7 @@ public sealed class GetYearInCodeQueryHandler(
                 recap.CommitsByMonth[commit.CommitDate.Month - 1]++;
                 recap.CommitsByWeekday[(int)commit.CommitDate.DayOfWeek]++;
 
-                biggestCommits.Add(new RecapCommitDto
+                var candidate = new RecapCommitDto
                 {
                     // Short form only. Commit messages are not stored, so the SHA is the whole of
                     // a commit's printable identity and the full 40 characters would not fit a card.
@@ -139,7 +144,19 @@ public sealed class GetYearInCodeQueryHandler(
                     Date = commit.CommitDate,
                     LinesAdded = commit.LinesAdded,
                     LinesRemoved = commit.LinesRemoved
-                });
+                };
+
+                if (biggestCommits.Count < BiggestCommitCount)
+                {
+                    // Still building the heap — push unconditionally.
+                    biggestCommits.Enqueue(candidate, commit.LinesAdded);
+                }
+                else if (commit.LinesAdded > biggestCommits.Peek().LinesAdded)
+                {
+                    // Min-heap head is the smallest of the current top. A bigger commit evicts it.
+                    biggestCommits.Dequeue();
+                    biggestCommits.Enqueue(candidate, commit.LinesAdded);
+                }
             }
 
             // Growth is a difference between two whole-repository snapshots, never the churn sum
@@ -209,15 +226,16 @@ public sealed class GetYearInCodeQueryHandler(
             .Take(TopRepoCount)
             .ToList();
 
-        // Tie-broken on the date for the same reason BiggestDay is, and in the same direction:
-        // over a steady year every commit can be the same size, and without the second key the
-        // three "largest" commits were whichever three the repository walk happened to reach
-        // first. That produced a page naming late April as its biggest commits directly under a
-        // biggest DAY in August — two figures over the same tie, disagreeing.
-        recap.BiggestCommits = biggestCommits
+        // Drained from the min-heap into a final order. The heap already kept only the top
+        // BiggestCommitCount candidates, so this is at most a few comparisons. The same date
+        // tie-break as BiggestDay: a steady year ties every commit on lines and the most
+        // recent of equals is the more interesting one to be told about — without it, two
+        // figures over the same tie would disagree (August for the day, late April for the
+        // commits).
+        recap.BiggestCommits = biggestCommits.UnorderedItems
+            .Select(pair => pair.Element)
             .OrderByDescending(c => c.LinesAdded)
             .ThenByDescending(c => c.Date)
-            .Take(BiggestCommitCount)
             .ToList();
 
         recap.PeakHour = IndexOfMax(recap.CommitsByHour);

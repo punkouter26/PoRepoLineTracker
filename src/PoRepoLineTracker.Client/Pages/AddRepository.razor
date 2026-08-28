@@ -80,10 +80,34 @@
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// Loaded repositories, cached for the session so the inline toggle in
+    /// <c>Repositories.razor</c> does not re-hit GitHub every time the panel is opened and
+    /// dismissed. The first inline open still pays the round-trip; every subsequent open reads
+    /// this cache. The cache is intentionally process-scoped (static) rather than per-component,
+    /// because each inline toggle remounts this component and a per-instance field would reset.
+    /// </summary>
+    private static List<GitHubUserRepositoryDto>? _cachedRepositories;
+    private static DateTime? _cachedAtUtc;
+
+    /// <summary>How long the cached list is considered fresh. GitHub repos do not change every minute.</summary>
+    private static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(5);
+
     protected override async Task OnInitializedAsync()
     {
         pageState.ShowRepositorySelector = true;
-        await LoadGitHubRepositories();
+
+        // Standalone pages still load immediately; the inline mode waits for the user's first
+        // open or reuses the session cache. The previously unconditional LoadGitHubRepositories
+        // hit GitHub every time the inline panel was opened and closed — see audit item #10.
+        if (!IsInline)
+        {
+            await LoadGitHubRepositories();
+        }
+        else if (IsCacheFresh())
+        {
+            pageState.GitHubUserRepositories = _cachedRepositories!;
+        }
     }
 
     private async Task LoadGitHubRepositories()
@@ -91,16 +115,18 @@
         pageState.IsLoadingGitHubRepos = true;
         pageState.ErrorMessage = string.Empty;
         StateHasChanged();
-        
+
         try
         {
             var response = await Http.GetAsync("/api/github/user-repositories");
-            
+
             if (response.IsSuccessStatusCode)
             {
                 var gitHubRepos = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.ListGitHubUserRepositoryDto);
-                // Sort repositories alphabetically by name
-                pageState.GitHubUserRepositories = gitHubRepos?.OrderBy(r => r.Name).ToList() ?? new List<GitHubUserRepositoryDto>();
+                var sorted = gitHubRepos?.OrderBy(r => r.Name).ToList() ?? new List<GitHubUserRepositoryDto>();
+                pageState.GitHubUserRepositories = sorted;
+                _cachedRepositories = sorted;
+                _cachedAtUtc = DateTime.UtcNow;
                 Logger.LogInformation("Loaded {Count} GitHub user repositories.", pageState.GitHubUserRepositories.Count);
             }
             else
@@ -123,6 +149,23 @@
             StateHasChanged();
         }
     }
+
+    /// <summary>
+    /// Inline panel entry point — called by the parent once the panel mounts, so a
+    /// fresh cache miss is paid on first open rather than on every mount. A subsequent
+    /// open inside <see cref="CacheLifetime"/> reuses the cache; older than that it
+    /// reloads, since the user may have created or renamed repos since.
+    /// </summary>
+    public async Task PrimeIfStaleAsync()
+    {
+        if (!IsInline || IsCacheFresh()) return;
+        await LoadGitHubRepositories();
+    }
+
+    private static bool IsCacheFresh() =>
+        _cachedRepositories is not null
+        && _cachedAtUtc is { } at
+        && DateTime.UtcNow - at < CacheLifetime;
 
     private IEnumerable<GitHubUserRepositoryDto> _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
 

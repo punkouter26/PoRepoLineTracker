@@ -45,12 +45,9 @@ public sealed class GetPortfolioInsightsQueryHandler(
             return insights;
         }
 
-        // Fetched in parallel for the same reason GetAllRepositoriesLineCountHistory does it:
-        // one Azure Table round-trip per repository, serialised, is what makes this page slow.
-        var commitsPerRepo = await Task.WhenAll(repositories.Select(async repo =>
-            (repo, commits: (await repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(repo.Id))
-                .OrderBy(c => c.CommitDate)
-                .ToList())));
+        // Fetched in parallel by the data service: one Azure Table round-trip per repository,
+        // serialised, is what makes this page slow. Commits arrive ordered by date ascending.
+        var commitsPerRepo = await repositoryDataService.GetAllRepositoriesWithCommitsAsync(request.UserId);
 
         var today = DateTime.UtcNow.Date;
         var recentCutoff = today.AddDays(-RecentWindowDays);
@@ -144,7 +141,7 @@ public sealed class GetPortfolioInsightsQueryHandler(
     /// each other, not against a shared calendar boundary that would rarely land on "today".
     /// <paramref name="commits"/> need not be filtered or ordered; every commit is checked once.
     /// </summary>
-    private static List<int> WeeklyCadence(List<CommitLineCount> commits, DateTime today)
+    private static List<int> WeeklyCadence(IReadOnlyList<CommitLineCount> commits, DateTime today)
     {
         var weeks = new int[SparklineWeeks];
         foreach (var commit in commits)

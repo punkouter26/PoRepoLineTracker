@@ -48,8 +48,24 @@ public class GetYearInCodeQueryHandlerTests
         return repo;
     }
 
-    private void GivenRepositories(params GitHubRepository[] repositories) =>
+    private void GivenRepositories(params GitHubRepository[] repositories)
+    {
         _dataService.GetAllRepositoriesAsync(_userId).Returns(repositories.ToList());
+
+        // Same lifted fan-out the production handler now uses — see GetPortfolioInsights tests.
+        var pairs = repositories
+            .Select(repo => (
+                Repository: repo,
+                Commits: (IReadOnlyList<CommitLineCount>)_dataService
+                    .GetCommitLineCountsByRepositoryIdAsync(repo.Id)
+                    .GetAwaiter()
+                    .GetResult()
+                    .OrderBy(c => c.CommitDate)
+                    .ToList()))
+            .ToList();
+
+        _dataService.GetAllRepositoriesWithCommitsAsync(_userId).Returns(pairs);
+    }
 
     private static CommitLineCount Commit(
         DateTime date,
