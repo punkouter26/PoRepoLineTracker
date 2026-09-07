@@ -1,3 +1,4 @@
+using PoRepoLineTracker.API.Platform;
 using Serilog;
 using Scalar.AspNetCore;
 using Azure.Identity;
@@ -170,6 +171,9 @@ namespace PoRepoLineTracker.API
             // deploy smoke test and Azure's probe with no credential, and the fallback file is
             // the Blazor shell itself — gating it would make the login page unreachable.
             app.MapHealthChecks("/health").AllowAnonymous();
+            // Uniform cross-app liveness probe (see PoPlatform). Same shape in every Po app, which
+            // is what lets the portfolio dashboard poll them all and render one uptime grid.
+            app.MapPoLiveness();
             // Marked so ApiNotFoundMiddleware can tell "the SPA shell caught it" from "a real API
             // route answered" — this endpoint matches /api/typo too, and used to serve HTML to
             // callers expecting JSON.

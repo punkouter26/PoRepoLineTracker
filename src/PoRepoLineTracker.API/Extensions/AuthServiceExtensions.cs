@@ -1,3 +1,4 @@
+using PoRepoLineTracker.API.Platform;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -65,7 +66,8 @@ public static class AuthServiceExtensions
         })
         .AddCookie(options =>
         {
-            options.Cookie.Name = "PoRepoLineTracker.Auth";
+            // The prefix is only legal on a Secure cookie, so it tracks the SecurePolicy below.
+            options.Cookie.Name = PoPlatform.SessionCookieName(secure: !environment.IsDevelopment());
             options.Cookie.HttpOnly = true;
             // SameSite=Lax (not Strict): after returning from an external OAuth provider the
             // browser withholds a freshly-set Strict cookie on the post-login landing redirect,
