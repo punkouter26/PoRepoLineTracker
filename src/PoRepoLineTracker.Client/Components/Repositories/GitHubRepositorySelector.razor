@@ -30,7 +30,13 @@
 
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="ghsel-row-mb05">
                 <RadzenIcon Icon="search" class="ghsel-search-icon" />
-                <RadzenTextBox @bind-Value="_filterText" Placeholder="Filter repositories..." class="ghsel-filter" />
+                <RadzenTextBox @bind-Value="_filterText" Placeholder="Filter or type owner/repo..." class="ghsel-filter" />
+                @if (CanAddCustomRepo)
+                {
+                    <RadzenButton Text="Add" Icon="add" ButtonStyle="ButtonStyle.Success" Variant="Variant.Outlined" Size="ButtonSize.Small"
+                                  Click="@AddCustomRepository" title="Add custom repository to list"
+                                  aria-label="Add custom repository" />
+                }
                 @if (!string.IsNullOrEmpty(_filterText))
                 {
                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
@@ -55,7 +61,7 @@
             <RadzenButton Text="Add Selected Repositories"
                           Icon="add_circle"
                           ButtonStyle="ButtonStyle.Primary"
-                          Click="@(() => OnAddSelected.InvokeAsync())"
+                          Click="@OnAddSelectedClicked"
                           IsBusy="@IsSubmitting"
                           BusyText="Adding..."
                           Disabled="@(!SelectedRepositories.Any() || IsSubmitting)" />
@@ -75,11 +81,34 @@
             }
             <RadzenText TextStyle="TextStyle.Body2">
                 <strong>Please ensure:</strong><br />
-                * Your GitHub Personal Access Token is properly configured in Settings<br />
-                * The token has the required permissions (repo scope)<br />
-                * You have at least one repository in your GitHub account
+                * You have at least one repository created or forked in your GitHub account<br />
+                * Your GitHub account has authorized repository access<br />
+                * If using a server Personal Access Token (PAT), it has the required permissions (repo scope)
             </RadzenText>
+            @if (OnRetry.HasDelegate)
+            {
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mt-3">
+                    <RadzenButton Text="Retry"
+                                  Icon="refresh"
+                                  ButtonStyle="ButtonStyle.Secondary"
+                                  Variant="Variant.Outlined"
+                                  Size="ButtonSize.Small"
+                                  Click="@(() => OnRetry.InvokeAsync())" />
+                </RadzenStack>
+            }
         </RadzenAlert>
+
+        <RadzenCard class="rz-mt-3">
+            <RadzenStack Gap="0.5rem">
+                <RadzenText TextStyle="TextStyle.Subtitle2">Track a Public Repository</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">Enter any public GitHub repository (e.g. <code>punkouter26/PoRepoLineTracker</code> or <code>dotnet/aspnetcore</code>):</RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenTextBox @bind-Value="_manualRepoText" Placeholder="owner/repo" class="ghsel-filter" />
+                    <RadzenButton Text="Add Repository" Icon="add_circle" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
+                                  Click="@AddManualRepository" Disabled="@(!CanAddManualRepo)" />
+                </RadzenStack>
+            </RadzenStack>
+        </RadzenCard>
     }
 </RadzenCard>
 
@@ -94,6 +123,7 @@
     [Parameter] public EventCallback OnSelectAll { get; set; }
     [Parameter] public EventCallback OnClearAll { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
 
     private string _filterText = string.Empty;
 
@@ -102,8 +132,98 @@
             ? Repositories
             : Repositories.Where(repository => repository.FullName.Contains(_filterText, StringComparison.OrdinalIgnoreCase));
 
-    private async Task OnSelectionChanged(IEnumerable<GitHubUserRepositoryDto> repositories)
+    private Task OnSelectionChanged(IEnumerable<GitHubUserRepositoryDto> repositories)
     {
-        await SelectedRepositoriesChanged.InvokeAsync(repositories);
+        return SelectedRepositoriesChanged.InvokeAsync(repositories);
+    }
+
+    private Task OnAddSelectedClicked()
+    {
+        return OnAddSelected.InvokeAsync();
+    }
+
+    private string _manualRepoText = string.Empty;
+
+    private bool CanAddManualRepo
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_manualRepoText)) return false;
+            var parts = _manualRepoText.Trim().Split('/', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length == 2;
+        }
+    }
+
+    private async Task AddManualRepository()
+    {
+        if (!CanAddManualRepo) return;
+        var trimmed = _manualRepoText.Trim();
+        var parts = trimmed.Split('/', 2);
+        var custom = new GitHubUserRepositoryDto
+        {
+            Owner = parts[0],
+            Name = parts[1],
+            FullName = $"{parts[0]}/{parts[1]}",
+            CloneUrl = $"https://github.com/{parts[0]}/{parts[1]}.git",
+            Description = "Custom public repository",
+            IsPrivate = false,
+            Language = "Various"
+        };
+
+        var currentList = Repositories.ToList();
+        if (!currentList.Any(r => r.FullName.Equals(custom.FullName, StringComparison.OrdinalIgnoreCase)))
+        {
+            currentList.Insert(0, custom);
+            Repositories = currentList;
+        }
+
+        var currentSelected = SelectedRepositories.ToList();
+        if (!currentSelected.Any(r => r.FullName.Equals(custom.FullName, StringComparison.OrdinalIgnoreCase)))
+        {
+            currentSelected.Add(custom);
+            await SelectedRepositoriesChanged.InvokeAsync(currentSelected);
+        }
+
+        _manualRepoText = string.Empty;
+    }
+
+    private bool CanAddCustomRepo
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_filterText)) return false;
+            var parts = _filterText.Trim().Split('/', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length == 2 && !Repositories.Any(r => r.FullName.Equals(_filterText.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private async Task AddCustomRepository()
+    {
+        if (!CanAddCustomRepo) return;
+        var trimmed = _filterText.Trim();
+        var parts = trimmed.Split('/', 2);
+        var custom = new GitHubUserRepositoryDto
+        {
+            Owner = parts[0],
+            Name = parts[1],
+            FullName = $"{parts[0]}/{parts[1]}",
+            CloneUrl = $"https://github.com/{parts[0]}/{parts[1]}.git",
+            Description = "Custom public repository",
+            IsPrivate = false,
+            Language = "Various"
+        };
+
+        var currentList = Repositories.ToList();
+        currentList.Insert(0, custom);
+        Repositories = currentList;
+
+        var currentSelected = SelectedRepositories.ToList();
+        if (!currentSelected.Any(r => r.FullName.Equals(custom.FullName, StringComparison.OrdinalIgnoreCase)))
+        {
+            currentSelected.Add(custom);
+            await SelectedRepositoriesChanged.InvokeAsync(currentSelected);
+        }
+
+        _filterText = string.Empty;
     }
 }

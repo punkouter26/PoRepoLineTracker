@@ -173,9 +173,8 @@
             }
             else if (_rows is { Count: > 0 })
             {
-                @* Scrolls inside its own container: the row is wide, and the page body must never
-                   scroll sideways. *@
-                <div class="ch__table-wrap">
+                @* Desktop / Tablet: scrolls inside its own container with sticky headers *@
+                <div class="ch__table-wrap ch__desktop-view">
                     <table class="ch__table">
                         <thead>
                             <tr>
@@ -240,6 +239,56 @@
                             }
                         </tbody>
                     </table>
+                </div>
+
+                @* Mobile: Accordion cards, eliminating horizontal table scroll (Option 7) *@
+                <div class="ch__mobile-view">
+                    <RadzenAccordion Multiple="true">
+                        <Items>
+                            @foreach (var row in _rows)
+                            {
+                                <RadzenAccordionItem Text="@($"{row.Owner}/{row.Name} — {(row.Measured ? $"{row.Score} ({row.Grade})" : "Unmeasured")}")" Selected="false">
+                                    <ChildContent>
+                                        <div class="ch__acc-content">
+                                            @if (row.Measured)
+                                            {
+                                                <div class="ch__acc-stat">
+                                                    <span class="ch__acc-label">Health Score</span>
+                                                    <span class="@($"ch__score ch__score--{Band(row.Score)}")">@row.Score</span>
+                                                </div>
+                                                <div class="ch__acc-stat">
+                                                    <span class="ch__acc-label">Grade</span>
+                                                    <span class="ch__grade">@(row.Grade ?? "—")</span>
+                                                </div>
+                                                <div class="ch__acc-stat">
+                                                    <span class="ch__acc-label">C# Maintainability</span>
+                                                    <span class="ch__acc-val">@(row.MaintainabilityIndex?.ToString() ?? "—")</span>
+                                                </div>
+                                                <div class="ch__acc-stat">
+                                                    <span class="ch__acc-label">Cyclomatic Complexity</span>
+                                                    <span class="ch__acc-val">@row.CyclomaticComplexity.ToString("N0")</span>
+                                                </div>
+                                                <div class="ch__acc-stat">
+                                                    <span class="ch__acc-label">Source Lines</span>
+                                                    <span class="ch__acc-val">@row.LinesOfSourceCode.ToString("N0")</span>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="ch__acc-stat">
+                                                    <span class="ch__acc-label">Status</span>
+                                                    <span class="ch__reason">@row.UnmeasuredReason</span>
+                                                </div>
+                                            }
+                                            <div class="ch__acc-actions">
+                                                <a href="@($"/repositories/{row.RepositoryId}")" class="ch__acc-link">Open Repository →</a>
+                                            </div>
+                                        </div>
+                                    </ChildContent>
+                                </RadzenAccordionItem>
+                            }
+                        </Items>
+                    </RadzenAccordion>
                 </div>
 
                 <RadzenText TextStyle="TextStyle.Caption" class="ch__caveat">

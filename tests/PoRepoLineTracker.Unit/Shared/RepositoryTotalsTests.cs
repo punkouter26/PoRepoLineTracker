@@ -25,76 +25,34 @@ public class RepositoryTotalsTests
     // ─── LatestTotalLines ────────────────────────────────────────────────────
 
     [Fact]
-    public void LatestTotalLines_TakesTheNewestSnapshot_NotTheSum()
+    public void LatestTotalLines_TakesNewestSnapshotRegardlessOfOrderOrAge()
     {
         var commits = new[] { At(0, 100), At(1, 250), At(2, 400) };
-
         RepositoryTotals.LatestTotalLines(commits).Should().Be(400);
+
+        var unordered = new[] { At(1, 5_000), At(2, 1_200), At(0, 3_000) };
+        RepositoryTotals.LatestTotalLines(unordered).Should().Be(1_200);
+
+        var oldCommit = new[] { At(-900, 7_500) };
+        RepositoryTotals.LatestTotalLines(oldCommit).Should().Be(7_500);
     }
 
-    /// <summary>
-    /// Callers pass whatever the storage layer handed back, and Azure Table queries carry no
-    /// ordering guarantee. Depending on sequence order here would make the figure depend on how
-    /// the rows happened to come out of the table. The newest commit is also the smallest, so
-    /// this doubles as the shrinking-repository case: newest wins even when the repo shrank.
-    /// </summary>
     [Fact]
-    public void LatestTotalLines_TakesTheNewestValueWhereverItSitsInTheSequence()
-    {
-        var commits = new[] { At(1, 5_000), At(2, 1_200), At(0, 3_000) };
-
-        RepositoryTotals.LatestTotalLines(commits).Should().Be(1_200);
-    }
-
-    /// <summary>The behaviour the windowed derivation got wrong — age is not relevance.</summary>
-    [Fact]
-    public void LatestTotalLines_IgnoresHowOldTheNewestCommitIs()
-    {
-        var commits = new[] { At(-900, 7_500) };
-
-        RepositoryTotals.LatestTotalLines(commits).Should().Be(7_500);
-    }
-
-    // ─── TotalLinesAsOf ──────────────────────────────────────────────────────
-
-    [Fact]
-    public void TotalLinesAsOf_TakesTheNewestSnapshotAtOrBeforeTheInstant()
+    public void TotalLinesAsOf_TakesNewestSnapshotAtOrBeforeInstantAndHandlesEmpty()
     {
         var commits = new[] { At(0, 100), At(5, 500), At(10, 900) };
-
         RepositoryTotals.TotalLinesAsOf(commits, Day0.AddDays(7)).Should().Be(500);
-        RepositoryTotals.TotalLinesAsOf(commits, Day0.AddDays(5)).Should().Be(500,
-            "a commit exactly on the boundary is included");
-    }
+        RepositoryTotals.TotalLinesAsOf(commits, Day0.AddDays(5)).Should().Be(500);
 
-    /// <summary>
-    /// Zero, not the earliest snapshot. A repository that did not exist at the baseline instant
-    /// should have its whole current size read as growth over the window.
-    /// </summary>
-    [Fact]
-    public void TotalLinesAsOf_IsZeroWhenEveryCommitIsNewerThanTheInstant()
-    {
-        var commits = new[] { At(10, 900), At(20, 1_500) };
+        var futureCommits = new[] { At(10, 900), At(20, 1_500) };
+        RepositoryTotals.TotalLinesAsOf(futureCommits, Day0).Should().Be(0);
 
-        RepositoryTotals.TotalLinesAsOf(commits, Day0).Should().Be(0);
-    }
-
-    [Fact]
-    public void BothFigures_AreZeroWithNothingToReadFrom()
-    {
         RepositoryTotals.LatestTotalLines(null).Should().Be(0);
         RepositoryTotals.LatestTotalLines([]).Should().Be(0);
         RepositoryTotals.TotalLinesAsOf(null, Day0).Should().Be(0);
         RepositoryTotals.TotalLinesAsOf([], Day0).Should().Be(0);
     }
 
-    // ─── The two together ────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Net change over a window is latest minus baseline. Stated as a test because the tempting
-    /// wrong answer — summing LinesAdded less LinesRemoved across the window — drifts from the
-    /// snapshots whenever a commit is rewritten, squashed or force-pushed.
-    /// </summary>
     [Fact]
     public void NetChange_IsTheDifferenceBetweenTwoSnapshots()
     {

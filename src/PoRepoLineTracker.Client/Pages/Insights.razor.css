@@ -137,6 +137,17 @@
     font-size: var(--text-xs);
 }
 
+::deep .ins-zoom-bar.ins-zoom-bar {
+    border-radius: 6px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-subtle);
+}
+
+::deep .ins-zoom-bar .rz-selectbar-item {
+    font-size: 0.72rem !important;
+    padding: 0.15rem 0.45rem !important;
+}
+
 .ins-heat__legend .ins-muted {
     margin-inline: 0.25rem;
 }

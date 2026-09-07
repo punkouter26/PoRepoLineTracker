@@ -52,10 +52,7 @@
     @if (_showAddPanel)
     {
         <RadzenCard class="rp-inline-card">
-            @* PrimeIfStaleAsync loads the GitHub list on first inline open (or when the
-               session-scoped cache is older than five minutes) — see audit #10. Without it
-               the inline toggle remounted the component on every open and the LoadGitHubRepositories
-               call inside OnInitializedAsync hit GitHub each time. *@
+            @* AddRepository uses a 5-minute session cache so repeated toggles do not re-query GitHub. *@
             <AddRepository @ref="_addRepository"
                            IsInline="true"
                            OnInlineCompleted="@HandleAddCompleted" />
@@ -156,24 +153,16 @@
     }
     else
     {
-        @* ─── Multi-repo comparison chart ─────────────────────────────────────── *@
-        <AllReposComparisonChart @ref="_comparisonChart" />
-
-        @* ─── Stats cards ─────────────────────────────────────────────────────── *@
+        @* ─── Multi-repo comparison chart & KPI tiles ───────────────────────── *@
         <PortfolioStatTiles RepositoryCount="@pageState.Repositories.Count"
                             TotalLines="@_repoLatestLineCounts.Values.Sum()"
                             AnalyzedCount="@AnalyzedCount"
                             Trend="@TotalLinesTrend" />
 
-        <RadzenCard>
-            @* Responsive="true" makes Radzen stack each row into a labelled card below its
-               breakpoint. Without it the fixed column widths summed to ~736px, so on a phone the
-               grid scrolled sideways and the Actions column sat permanently off-screen.
+        <AllReposComparisonChart @ref="_comparisonChart" />
 
-               RowRender is bound to OnRowRender rather than the inline lambda it used to carry:
-               the lambda set only `cursor: pointer`, leaving rows unreachable by keyboard even
-               though OnRowRender — which adds tabindex, role and Enter/Space handling — was
-               already written and simply never wired up. *@
+        @* ─── Repository Data Grid ─────────────────────────────────────────── *@
+        <RadzenCard>
             <div class="u-scroll-x">
             <RadzenDataGrid @ref="grid"
                             Data="@RepositoryRows"
@@ -189,9 +178,9 @@
                             Responsive="true"
                             RowRender="@OnRowRender"
                             RowClick="@OnRowClick"
-                            Density="Density.Default"
+                            Density="Density.Compact"
                             class="rp-grid">
-                <Columns>
+                    <Columns>
                     <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Repository" MinWidth="160px" Width="180px">
                         <Template Context="row">
                             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
@@ -288,8 +277,6 @@
         </RadzenCard>
     }
 </div>
-
-
 
 @code {
     private RepositoryPageState pageState = new();
@@ -483,14 +470,6 @@
     private void ToggleAddPanel()
     {
         _showAddPanel = !_showAddPanel;
-
-        // On opening the panel, kick off the GitHub list load if the session-scoped cache in
-        // AddRepository is missing or stale. OnParametersSetAsync runs after the child mounts, so
-        // the @ref is non-null here.
-        if (_showAddPanel)
-        {
-            _ = _addRepository?.PrimeIfStaleAsync();
-        }
     }
 
     private async Task HandleAddCompleted()

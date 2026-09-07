@@ -119,3 +119,10 @@
 ::deep .rd-github-link__icon {
     font-size: 1.1rem;
 }
+
+.rd-health-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-stack, 1.25rem);
+}
+

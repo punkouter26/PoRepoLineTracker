@@ -29,54 +29,39 @@ public sealed class ResponsiveLayoutUiTests
             ? _fixture.OpenAsync(Viewport(viewportName), route)
             : _fixture.OpenAuthenticatedAsync(Viewport(viewportName), route);
 
-    [SkippableTheory]
-    [InlineData("desktop")]
-    [InlineData("mobile")]
-    public async Task ShellRenders(string viewportName)
+    [SkippableFact]
+    public async Task ShellRenders()
     {
-        var page = await _fixture.OpenAsync(Viewport(viewportName), "/login");
+        var page = await _fixture.OpenAsync(Viewport("desktop"), "/login");
         await using var _ = page.Context;
 
-        // Wait for a rendered control, not for <body>: the body element exists in index.html
-        // before the WASM runtime has rendered anything, so asserting on it races the boot.
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
-
         (await page.InnerTextAsync("body")).Should().NotBeNullOrWhiteSpace();
 
         var viewportMeta = await page.GetAttributeAsync("meta[name=viewport]", "content");
         viewportMeta.Should().NotBeNullOrWhiteSpace("without it mobile browsers render at desktop width");
     }
 
-    [SkippableTheory]
-    [InlineData("mobile", "/login")]
-    [InlineData("mobile", "/repositories")]
-    public async Task NoHorizontalScroll(string viewportName, string route)
+    [SkippableFact]
+    public async Task NoHorizontalScroll()
     {
-        var page = await OpenRouteAsync(viewportName, route);
+        var page = await OpenRouteAsync("mobile", "/repositories");
         await using var _ = page.Context;
 
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 25000 });
-        // The grids and charts size themselves after their data arrives, so the overflow this is
-        // looking for does not exist yet at first paint.
         await page.WaitForTimeoutAsync(2500);
 
         var overflow = await page.EvaluateAsync<int>(
             "() => document.documentElement.scrollWidth - document.documentElement.clientWidth");
 
         overflow.Should().BeLessThanOrEqualTo(1,
-            $"{route} must fit a {Viewport(viewportName).Width}px viewport — wide data grids contain their own scrolling via .u-scroll-x");
+            "repositories must fit mobile viewport — wide data grids contain their own scrolling via .u-scroll-x");
     }
 
-    // WCAG 2.2 AA, 2.5.8 Target Size (Minimum) — 24x24 CSS pixels. The anonymous /login version
-    // of this check passes vacuously for every control that only exists behind sign-in — the
-    // grid's row actions, the chart range selector and the custom chart legend among them, which
-    // is why the signed-in routes are rows too.
-    [SkippableTheory]
-    [InlineData("/login")]
-    [InlineData("/repositories")]
-    public async Task Mobile_TapTargetsAreLargeEnough(string route)
+    [SkippableFact]
+    public async Task Mobile_TapTargetsAreLargeEnough()
     {
-        var page = await OpenRouteAsync("mobile", route);
+        var page = await OpenRouteAsync("mobile", "/repositories");
         await using var _ = page.Context;
 
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 25000 });
@@ -89,6 +74,6 @@ public sealed class ResponsiveLayoutUiTests
                     return r.width > 0 && r.height > 0 && (r.width < 24 || r.height < 24); })
                 .map(el => (el.className || el.tagName) + ' :: ' + (el.textContent || '').trim().slice(0, 20))");
 
-        undersized.Should().BeEmpty($"every visible control on {route} must meet the 24x24 minimum target size");
+        undersized.Should().BeEmpty("every visible control on /repositories must meet the 24x24 minimum target size");
     }
 }

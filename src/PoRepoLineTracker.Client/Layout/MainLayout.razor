@@ -1,4 +1,4 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @implements IDisposable
 @using PoRepoLineTracker.Client.Layout
 @using PoRepoLineTracker.Client.Components
@@ -9,6 +9,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @inject HttpClient Http
+
 
 @* Radzen's own matchMedia wrapper — see OnMobileChanged for why this replaced a one-shot
    JS interop call. Rendered outside RadzenLayout because it draws nothing. *@
@@ -137,6 +138,32 @@
     </RadzenBody>
 </RadzenLayout>
 
+@if (_isMobile)
+{
+    <nav class="app-bottom-nav" aria-label="Mobile Navigation">
+        <a href="/" class="app-bottom-nav__item @(IsActive("/") ? "app-bottom-nav__item--active" : "")">
+            <RadzenIcon Icon="storage" />
+            <span>Repos</span>
+        </a>
+        <a href="/insights" class="app-bottom-nav__item @(IsActive("/insights") ? "app-bottom-nav__item--active" : "")">
+            <RadzenIcon Icon="insights" />
+            <span>Insights</span>
+        </a>
+        <a href="/code-health" class="app-bottom-nav__item @(IsActive("/code-health") ? "app-bottom-nav__item--active" : "")">
+            <RadzenIcon Icon="health_and_safety" />
+            <span>Health</span>
+        </a>
+        <a href="/recap" class="app-bottom-nav__item @(IsActive("/recap") ? "app-bottom-nav__item--active" : "")">
+            <RadzenIcon Icon="auto_awesome" />
+            <span>Recap</span>
+        </a>
+        <a href="/settings" class="app-bottom-nav__item @(IsActive("/settings") ? "app-bottom-nav__item--active" : "")">
+            <RadzenIcon Icon="tune" />
+            <span>Settings</span>
+        </a>
+    </nav>
+}
+
 <RadzenDialog />
 <RadzenNotification />
 <RadzenTooltip />
@@ -151,6 +178,13 @@
     private string? _breadcrumbCurrent;
     private string? _breadcrumbParent;
     private string? _breadcrumbParentPath;
+
+    private bool IsActive(string path)
+    {
+        var current = Navigation.ToBaseRelativePath(Navigation.Uri);
+        if (path == "/") return string.IsNullOrEmpty(current) || current.StartsWith("repositories", StringComparison.OrdinalIgnoreCase);
+        return current.StartsWith(path.TrimStart('/'), StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>True on "/" and "/repositories", where the trail is a single item with no Home link ahead of it.</summary>
     private bool _breadcrumbIsRoot;
@@ -256,7 +290,6 @@
     {
         _isDarkMode = !_isDarkMode;
         await JSRuntime.InvokeVoidAsync("setTheme", _isDarkMode ? "dark" : "light");
-
         StateHasChanged();
     }
 

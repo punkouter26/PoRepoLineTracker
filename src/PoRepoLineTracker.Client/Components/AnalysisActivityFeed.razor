@@ -1,4 +1,4 @@
-@implements IDisposable
+@implements IAsyncDisposable
 @inject AnalysisFeedClient Feed
 @using PoRepoLineTracker.Client.Services
 @using PoRepoLineTracker.Shared.Models
@@ -182,6 +182,11 @@
             && progress.ErrorMessage is null
             && _flashed.Add(progress.RepositoryId);
 
+        if (progress.IsRunning)
+        {
+            _flashed.Remove(progress.RepositoryId);
+        }
+
         _entries[progress.RepositoryId] = new FeedEntry(
             label,
             string.IsNullOrEmpty(progress.StepName) ? "Working" : progress.StepName,
@@ -319,10 +324,9 @@
         TimeSpan? Remaining,
         bool JustFinished);
 
-    /// <summary>
-    /// Unsubscribes without disposing the connection — <see cref="AnalysisFeedClient"/> is shared
-    /// with the repository grid and owned by the container, so tearing it down here would kill the
-    /// grid's live updates too.
-    /// </summary>
-    public void Dispose() => Feed.ProgressReceived -= OnProgressAsync;
+    public ValueTask DisposeAsync()
+    {
+        Feed.ProgressReceived -= OnProgressAsync;
+        return ValueTask.CompletedTask;
+    }
 }

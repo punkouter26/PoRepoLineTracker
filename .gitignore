@@ -507,6 +507,9 @@ AzuriteConfig
 __blobstorage__/
 __queuestorage__/
 log*.txt
+*.log
+dataprotection-keys/
+LocalRepos/
 tmp_*.html
 e2e-raw.txt
 **/*.staticwebassets.endpoints.json

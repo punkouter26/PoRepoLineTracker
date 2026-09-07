@@ -181,3 +181,17 @@
     color: var(--text-muted) !important;
     font-style: italic !important;
 }
+
+/* ─── Sticky table header & compact grid ──────────────────────────────────── */
+
+::deep .rp-grid.rp-grid thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 5 !important;
+    background: var(--bg-primary) !important;
+}
+
+::deep .rp-grid.rz-density-compact td {
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.85rem !important;
+}

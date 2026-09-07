@@ -20,10 +20,13 @@ public static class AuthServiceExtensions
         IConfiguration configuration,
         IWebHostEnvironment environment)
     {
+        var keysDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "PoRepoLineTracker",
+            "dataprotection-keys");
         services.AddDataProtection()
             .SetApplicationName("PoRepoLineTracker")
-            .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(
-                environment.ContentRootPath, "..", "dataprotection-keys")));
+            .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory));
 
         // GitHub is the only OAuth provider (see the note further down for why Microsoft was
         // removed). If it is not configured — local dev without secrets — fall back to the cookie
@@ -38,8 +41,13 @@ public static class AuthServiceExtensions
         var ghClientId = environment.IsDevelopment()
             ? configuration[ConfigKeys.GitHub.DevClientId] ?? configuration[ConfigKeys.GitHub.ClientId]
             : configuration[ConfigKeys.GitHub.ClientId];
+        var ghClientSecret = environment.IsDevelopment()
+            ? configuration[ConfigKeys.GitHub.DevClientSecret] ?? configuration[ConfigKeys.GitHub.ClientSecret]
+            : configuration[ConfigKeys.GitHub.ClientSecret];
 
-        var defaultChallengeScheme = !string.IsNullOrEmpty(ghClientId)
+        var isGitHubConfigured = !string.IsNullOrEmpty(ghClientId) && !string.IsNullOrEmpty(ghClientSecret);
+
+        var defaultChallengeScheme = isGitHubConfigured
             ? GitHubAuthenticationDefaults.AuthenticationScheme
             : CookieAuthenticationDefaults.AuthenticationScheme;
 
@@ -84,6 +92,16 @@ public static class AuthServiceExtensions
                 context.Response.Redirect(context.RedirectUri);
                 return Task.CompletedTask;
             };
+            options.Events.OnRedirectToAccessDenied = context =>
+            {
+                if (context.Request.Path.StartsWithSegments("/api"))
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return Task.CompletedTask;
+                }
+                context.Response.Redirect(context.RedirectUri);
+                return Task.CompletedTask;
+            };
         });
 
         // Dev/Test header-driven auth. ThrowIfProduction turns a misconfigured deploy
@@ -102,17 +120,14 @@ public static class AuthServiceExtensions
                 });
         }
 
-        // GitHub OAuth — only registered when ClientId is configured.
+        // GitHub OAuth — only registered when BOTH ClientId and ClientSecret are configured.
         // SOLID — OCP: conditional registration without modifying other providers.
-        if (!string.IsNullOrEmpty(ghClientId))
+        if (isGitHubConfigured)
         {
             services.AddAuthentication().AddGitHub(options =>
             {
-                options.ClientId = ghClientId;
-                options.ClientSecret = (environment.IsDevelopment()
-                        ? configuration[ConfigKeys.GitHub.DevClientSecret] ?? configuration[ConfigKeys.GitHub.ClientSecret]
-                        : configuration[ConfigKeys.GitHub.ClientSecret])
-                    ?? throw new InvalidOperationException("GitHub:ClientSecret is not configured");
+                options.ClientId = ghClientId!;
+                options.ClientSecret = ghClientSecret!;
                 options.CallbackPath = configuration[ConfigKeys.GitHub.CallbackPath] ?? "/signin-github";
 
                 // Use SameAsRequest so cookies work over plain HTTP on localhost

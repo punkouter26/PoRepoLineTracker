@@ -134,7 +134,7 @@
             </RadzenCard>
         }
 
-        @* ─── Line Count Chart ────────────────────────────────────────────────── *@
+        @* ─── Line Count Chart ─────────────────────────────────────────────────── *@
         <ChartCard Title="Line Count History"
                    Description="@ChartDescription"
                    IsLoading="@_isLoadingChart"
@@ -153,17 +153,10 @@
                                       Stroke="var(--rz-primary)"
                                       Fill="color-mix(in srgb, var(--primary-color) 14%, transparent)"
                                       StrokeWidth="3">
-                        @* Markers only once the series is sparse enough to place them without
-                           turning the line into a solid band of circles. *@
                         <RadzenMarkers MarkerType="@(DisplayedLineHistory.Count <= 60 ? MarkerType.Circle : MarkerType.None)" />
-                        @* Growth trajectory is the question this page exists to answer, so draw
-                           it rather than making the reader infer it from the curve. The stroke is
-                           the shared warm accent (--series-2), not a loose hex — see
-                           SeriesPalette. *@
                         <RadzenSeriesTrendLine Stroke="var(--series-2)" StrokeWidth="2" LineType="LineType.Dashed" />
                     </RadzenAreaSeries>
 
-                    @* Whole-day Step: see ChartFormat.DateAxisStep. *@
                     <RadzenCategoryAxis FormatString="{0:MMM d}"
                                         Step="@ChartFormat.DateAxisStep(DisplayedLineHistory.Select(d => d.Date))"
                                         LabelAutoRotation="-45">
@@ -179,68 +172,43 @@
             </ChildContent>
         </ChartCard>
 
-        @* ─── Composition + authorship ────────────────────────────────────────────
-           These two share a row instead of each taking the full width of the well.
-
-           The donut is the reason. A part-of-whole chart has no horizontal axis to spend width
-           on, so at a 2100px card it drew a fixed-diameter ring adrift in a field of empty
-           surface, and pushed the contributor panel below the fold on every desktop. The page
-           was a single `.app-stack` column throughout — which is right for the line history
-           above (a date axis genuinely uses every pixel it is given) and wrong for these.
-
-           `--panels` rather than the default 420px track: the contributor card carries a
-           time-series chart of its own, and pairing on a narrower track would compress its date
-           axis to the three or four labels ChartFormat.DateAxisStep thins it down to. At 560px
-           the row only forms when there is real room for both, and stacks below that. *@
+        @* ─── Composition + Authorship + Health ────────────────────────────────── *@
         <div class="app-dashboard app-dashboard--panels">
-        <ChartCard Title="By Extension"
-                   Description="Share of tracked lines per file type"
-                   IsEmpty="@(_extensions is null || !_extensions.Any())"
-                   EmptyIcon="donut_large"
-                   EmptyText="No extension data yet.">
-            @* A donut states the part-of-whole relationship directly; the stacked
-               progress bars underneath keep the exact percentages legible. *@
-            <RadzenChart>
-                <RadzenDonutSeries Data="@ExtensionSlices"
-                                   CategoryProperty="Label"
-                                   ValueProperty="Percentage"
-                                   Title="Share of lines">
-                    <RadzenSeriesDataLabels Visible="false" />
-                </RadzenDonutSeries>
-                <RadzenLegend Position="LegendPosition.Bottom" />
-            </RadzenChart>
+            <ChartCard Title="By Extension"
+                       Description="Share of tracked lines per file type"
+                       IsEmpty="@(_extensions is null || !_extensions.Any())"
+                       EmptyIcon="donut_large"
+                       EmptyText="No extension data yet.">
+                <RadzenChart>
+                    <RadzenDonutSeries Data="@ExtensionSlices"
+                                       CategoryProperty="Label"
+                                       ValueProperty="Percentage"
+                                       Title="Share of lines">
+                        <RadzenSeriesDataLabels Visible="false" />
+                    </RadzenDonutSeries>
+                    <RadzenLegend Position="LegendPosition.Bottom" />
+                </RadzenChart>
 
-            <div class="rd-ext-list">
-                @foreach (var ext in _extensions!)
-                {
-                    <div class="rd-ext-row">
-                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="0.5rem">
-                            <code class="rd-ext-code">@ext.FileExtension</code>
-                            <RadzenText TextStyle="TextStyle.Caption" class="rd-ext-pct">@ext.Percentage.ToString("F1")%</RadzenText>
-                        </RadzenStack>
-                        <progress class="rd-ext-bar"
-                                  max="100"
-                                  value="@Math.Min(ext.Percentage, 100)"
-                                  aria-label="@($"{ext.FileExtension}: {ext.Percentage:F1}% of lines")"></progress>
-                    </div>
-                }
-            </div>
-        </ChartCard>
+                <div class="rd-ext-list">
+                    @foreach (var ext in _extensions!)
+                    {
+                        <div class="rd-ext-row">
+                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                <code class="rd-ext-code">@ext.FileExtension</code>
+                                <RadzenText TextStyle="TextStyle.Caption" class="rd-ext-pct">@ext.Percentage.ToString("F1")%</RadzenText>
+                            </RadzenStack>
+                            <progress class="rd-ext-bar"
+                                      max="100"
+                                      value="@Math.Min(ext.Percentage, 100)"
+                                      aria-label="@($"{ext.FileExtension}: {ext.Percentage:F1}% of lines")"></progress>
+                        </div>
+                    }
+                </div>
+            </ChartCard>
 
-        @* ─── Authorship ─────────────────────────────────────────────────────── *@
-        <ContributorChart RepositoryId="@RepositoryId" Days="@_chartDays" />
-
-        @* ─── Code health ────────────────────────────────────────────────────────
-           Last on the page and loaded only when asked. Everything above answers "how much code is
-           there and who wrote it" from stored figures; this one re-reads the whole source tree to
-           answer "what shape is it in", which takes seconds and is a question you arrive at after
-           the charts, not before them. *@
-        <CodeHealthCard RepositoryId="@RepositoryId" />
-
-        @* Directly under the card, because it answers the follow-up question that card provokes:
-           "is that number getting better or worse". Its own on-demand button — the first run
-           measures up to twenty-four commits. *@
-        <CodeHealthTrendCard RepositoryId="@RepositoryId" />
+            <ContributorChart RepositoryId="@RepositoryId" Days="@_chartDays" />
+            <CodeHealthCard RepositoryId="@RepositoryId" />
+            <CodeHealthTrendCard RepositoryId="@RepositoryId" />
         </div>
     }
 </div>
@@ -527,9 +495,6 @@
             }
         }
     }
-
-    // ToRelativeTime and FormatLines moved to ChartFormat — they were duplicated verbatim
-    // across this page, Repositories.razor and AllReposComparisonChart.
 
     public async ValueTask DisposeAsync()
     {

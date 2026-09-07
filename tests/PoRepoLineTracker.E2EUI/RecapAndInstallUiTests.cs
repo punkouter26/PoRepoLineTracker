@@ -121,36 +121,14 @@ public sealed class RecapAndInstallUiTests
         manifest.Should().Contain("\"standalone\"", "an installed window must not be a browser tab");
         manifest.Should().Contain("192x192", "browsers require an icon of at least 192px to install");
 
-        // Registration is asynchronous and deliberately deferred to window load, so this waits
-        // rather than sampling.
         var registered = await page.WaitForFunctionAsync(
             "async () => !!(await navigator.serviceWorker.getRegistration())",
             null,
             new PageWaitForFunctionOptions { Timeout = 20000 });
 
         registered.Should().NotBeNull();
-    }
-
-    /// <summary>
-    /// The published worker answers navigations from the cached shell, which would break the OAuth
-    /// round-trip and every XHR if the exclusions were wrong. The dev worker does nothing at all —
-    /// asserting that it holds no cache is what proves the dev/published swap is actually wired,
-    /// rather than the published file having been served in development all along.
-    /// </summary>
-    [SkippableFact]
-    public async Task ServiceWorker_InDevelopment_CachesNothing()
-    {
-        var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
-        await using var _ = page.Context;
-        await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
-
-        await page.WaitForFunctionAsync(
-            "async () => !!(await navigator.serviceWorker.getRegistration())",
-            null,
-            new PageWaitForFunctionOptions { Timeout = 20000 });
 
         var cacheKeys = await page.EvaluateAsync<string[]>("async () => await caches.keys()");
-
         cacheKeys.Should().NotContain(key => key.StartsWith("porepolinetracker-cache-"),
             "the development worker is a no-op — a populated cache here means the published one is being served");
     }

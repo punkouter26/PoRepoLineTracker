@@ -51,3 +51,4 @@ builder.Services.AddScoped<TooltipService>();
 builder.Services.AddScoped<ContextMenuService>();
 
 await builder.Build().RunAsync();
+

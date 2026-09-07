@@ -72,10 +72,10 @@
     text-align: center;
 }
 
-.ch__score--good { background: rgba(34, 160, 90, 0.18); color: rgb(46, 175, 105); }
-.ch__score--ok   { background: rgba(180, 160, 40, 0.18); color: rgb(200, 175, 55); }
-.ch__score--warn { background: rgba(210, 130, 40, 0.18); color: rgb(225, 145, 55); }
-.ch__score--bad  { background: rgba(200, 60, 60, 0.18);  color: rgb(220, 80, 80); }
+.ch__score--good { background: color-mix(in srgb, var(--status-pos) 16%, transparent); color: var(--status-pos); }
+.ch__score--ok   { background: color-mix(in srgb, var(--status-warn) 16%, transparent); color: var(--status-warn); }
+.ch__score--warn { background: color-mix(in srgb, var(--status-warn) 22%, transparent); color: var(--status-warn); }
+.ch__score--bad  { background: color-mix(in srgb, var(--status-neg) 16%, transparent); color: var(--status-neg); }
 
 .ch__message,
 .ch__caveat {
@@ -95,3 +95,85 @@
     opacity: 0.72;
     font-size: 0.85rem;
 }
+
+/* ─── Responsive Desktop vs Mobile Views (Option 7) ───────────────────────── */
+.ch__mobile-view {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .ch__desktop-view {
+        display: none !important;
+    }
+
+    .ch__mobile-view {
+        display: block !important;
+    }
+}
+
+.ch__acc-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.ch__acc-repo {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.ch__acc-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.ch__acc-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.5rem 0;
+}
+
+.ch__acc-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0.35rem;
+}
+
+.ch__acc-label {
+    color: var(--text-muted);
+}
+
+.ch__acc-val {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.ch__acc-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+}
+
+.ch__acc-link {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    text-decoration: none;
+    padding: 0.35rem 0.65rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+}
+
+.ch__acc-link:hover {
+    background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+}
+

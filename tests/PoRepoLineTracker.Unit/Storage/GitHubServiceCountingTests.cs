@@ -60,114 +60,62 @@ public sealed class GitHubServiceCountingTests : IDisposable
         _sut.CountLinesInCommitAsync(_repoPath, sha, CountedExtensions);
 
     [Fact]
-    public async Task CountsOnlyTheConfiguredExtensions()
+    public async Task CountsConfiguredExtensions_IgnoringCaseAndHandlingUnknownCommits()
     {
         var sha = Commit(
             ("src/a.cs", "var x = 1;\nvar y = 2;\n"),
             ("src/notes.txt", "not counted\nnot counted\n"));
 
         var counts = await CountAsync(sha);
-
         counts.Should().ContainKey(".cs").WhoseValue.Should().Be(2);
         counts.Should().NotContainKey(".txt");
+
+        var caseInsensitiveCounts = await _sut.CountLinesInCommitAsync(_repoPath, sha, [".CS"]);
+        caseInsensitiveCounts.Should().ContainKey(".cs").WhoseValue.Should().Be(2);
+
+        var unknownCounts = await CountAsync(new string('a', 40));
+        unknownCounts.Should().BeEmpty();
     }
 
-    /// <summary>
-    /// The point of the memo. Two commits sharing an untouched directory must report the same
-    /// numbers for it — a memo keyed or invalidated wrongly shows up exactly here.
-    /// </summary>
     [Fact]
-    public async Task UnchangedDirectory_ReportsTheSameCountsAcrossCommits()
+    public async Task UnchangedDirectoryAndEmptyCommit_ServedFromMemo()
     {
         var first = Commit(
             ("stable/a.cs", "var a = 1;\nvar b = 2;\nvar c = 3;\n"),
             ("moving/b.cs", "var d = 4;\n"));
 
-        // Only `moving/` changes; `stable/` keeps its tree id and must be served from the memo.
         var second = Commit(("moving/b.cs", "var d = 4;\nvar e = 5;\n"));
 
         var firstCounts = await CountAsync(first);
         var secondCounts = await CountAsync(second);
 
         firstCounts[".cs"].Should().Be(4);
-        secondCounts[".cs"].Should().Be(5, "only the changed file adds a line");
+        secondCounts[".cs"].Should().Be(5);
+
+        var emptyCommit = Commit();
+        var emptyCounts = await CountAsync(emptyCommit);
+        emptyCounts.Should().BeEquivalentTo(secondCounts);
     }
 
-    /// <summary>
-    /// A commit whose root tree is unchanged is answered entirely from the memo. It must still
-    /// return the real numbers rather than an empty result.
-    /// </summary>
     [Fact]
-    public async Task EmptyCommit_WithAnIdenticalTree_ReportsTheSameCounts()
+    public async Task MemoIsolationAndInvalidation_GuardsInstanceAndReevaluatesOnChange()
     {
-        var first = Commit(("src/a.cs", "var x = 1;\nvar y = 2;\n"));
-        var second = Commit(); // no file changes — same root tree
-
-        var firstCounts = await CountAsync(first);
-        var secondCounts = await CountAsync(second);
-
-        secondCounts.Should().BeEquivalentTo(firstCounts);
-        secondCounts[".cs"].Should().Be(2);
-    }
-
-    /// <summary>
-    /// The memo hands back its own dictionaries internally. If one of those reaches a caller, the
-    /// caller mutating its result would corrupt every later commit that shares the tree — so the
-    /// public method must return a copy.
-    /// </summary>
-    [Fact]
-    public async Task ReturnedDictionary_IsNotTheMemoisedInstance()
-    {
-        var sha = Commit(("src/a.cs", "var x = 1;\n"));
+        var sha = Commit(("src/a.cs", "var x = 1;\n"), ("src/a.css", "body { color: red; }\n"));
 
         var first = await CountAsync(sha);
         first[".cs"] = 9_999;
 
         var second = await CountAsync(sha);
-
-        second[".cs"].Should().Be(1, "a caller mutating its own result must not poison the memo");
-    }
-
-    /// <summary>
-    /// Counted extensions come from user preferences verbatim while the lookup key is
-    /// lower-cased, so the comparison has to ignore case — a preference saved as ".CS" used to
-    /// match nothing and silently count zero.
-    /// </summary>
-    [Fact]
-    public async Task ExtensionMatching_IgnoresCase()
-    {
-        var sha = Commit(("src/a.cs", "var x = 1;\n"));
-
-        var counts = await _sut.CountLinesInCommitAsync(_repoPath, sha, [".CS"]);
-
-        counts.Should().ContainKey(".cs").WhoseValue.Should().Be(1);
-    }
-
-    /// <summary>
-    /// Changing which extensions are counted must invalidate the memo. Returning the previous
-    /// answer would make a settings change followed by a re-analysis appear to do nothing.
-    /// </summary>
-    [Fact]
-    public async Task ChangingTheCountedExtensions_ChangesTheResult()
-    {
-        var sha = Commit(("src/a.cs", "var x = 1;\n"), ("src/a.css", "body { color: red; }\n"));
+        second[".cs"].Should().Be(1);
 
         var both = await _sut.CountLinesInCommitAsync(_repoPath, sha, [".cs", ".css"]);
         var onlyCs = await _sut.CountLinesInCommitAsync(_repoPath, sha, [".cs"]);
 
         both.Should().ContainKey(".css");
-        onlyCs.Should().NotContainKey(".css", "the memo must not answer for a different extension set");
+        onlyCs.Should().NotContainKey(".css");
         onlyCs[".cs"].Should().Be(1);
     }
 
-    /// <summary>
-    /// The measurable point of the memo, asserted as behaviour rather than as a timing.
-    ///
-    /// <para>Replaying history used to decompress and count every blob of every commit, so
-    /// analysis cost scaled with commits × repository size instead of with the amount of code that
-    /// actually changed. Here three commits touch one file in <c>moving/</c> while <c>stable/</c>
-    /// never changes — so the stable blobs must be read exactly ONCE across the whole replay.</para>
-    /// </summary>
     [Fact]
     public async Task ReplayingHistory_ReadsAnUnchangedFileOnlyOnce()
     {
@@ -188,21 +136,16 @@ public sealed class GitHubServiceCountingTests : IDisposable
             Commit(("moving/c.cs", "var c = 3;\n"))
         };
 
-        foreach (var sha in shas)
+        foreach (var s in shas)
         {
-            await sut.CountLinesInCommitAsync(_repoPath, sha, [".cs"]);
+            await sut.CountLinesInCommitAsync(_repoPath, s, [".cs"]);
         }
 
-        counter.ReadsOf("var a = 1;\n").Should().Be(1,
-            "stable/a.cs never changed, so its content must be counted once across all three commits");
+        counter.ReadsOf("var a = 1;\n").Should().Be(1);
         counter.ReadsOf("var b = 1;\n").Should().Be(1);
-
-        // The file that actually changed is genuinely different content each time, so it is read
-        // once per version — which is the work the analysis is actually for.
-        counter.TotalReads.Should().Be(5, "2 stable files read once each, plus 3 distinct versions of moving/c.cs");
+        counter.TotalReads.Should().Be(5);
     }
 
-    /// <summary>Records every blob it is asked to count, so a test can assert on re-reads.</summary>
     private sealed class CountingLineCounter(string extension) : ILineCounter
     {
         private readonly List<string> _read = [];
@@ -220,16 +163,6 @@ public sealed class GitHubServiceCountingTests : IDisposable
             _read.Add(content);
             return content.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
         }
-    }
-
-    [Fact]
-    public async Task UnknownCommit_ReturnsEmptyRatherThanThrowing()
-    {
-        Commit(("src/a.cs", "var x = 1;\n"));
-
-        var counts = await CountAsync(new string('a', 40));
-
-        counts.Should().BeEmpty();
     }
 
     public void Dispose()

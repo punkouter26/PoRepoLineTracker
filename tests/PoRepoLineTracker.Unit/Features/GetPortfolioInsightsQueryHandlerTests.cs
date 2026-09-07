@@ -95,29 +95,16 @@ public class GetPortfolioInsightsQueryHandlerTests
     // ─── Totals ──────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task NoRepositories_ReturnsAnEmptyShapeRatherThanNulls()
+    public async Task Totals_HandlesEmptyRepositoriesAndSumsNewestSnapshots()
     {
         GivenRepositories();
+        var empty = await WhenQueried();
+        empty.RepositoryCount.Should().Be(0);
+        empty.TotalLines.Should().Be(0);
+        empty.Movers.Should().BeEmpty();
+        empty.LanguageMix.Should().BeEmpty();
+        empty.Activity.Should().BeEmpty();
 
-        var insights = await WhenQueried();
-
-        insights.RepositoryCount.Should().Be(0);
-        insights.TotalLines.Should().Be(0);
-        insights.Movers.Should().BeEmpty();
-        insights.LanguageMix.Should().BeEmpty();
-        insights.Activity.Should().BeEmpty();
-    }
-
-    /// <summary>
-    /// The single most dangerous mistake in this handler: TotalLines on a commit is a snapshot of
-    /// the whole repository, so summing it across commits counts the same lines once per commit.
-    /// Three commits of a 1,000-line repo is 1,000 lines, not 3,000. Across repositories the
-    /// snapshots DO sum, a repository last committed to outside every chart window still has its
-    /// code, and only repositories with an analysis date count as analysed.
-    /// </summary>
-    [Fact]
-    public async Task TotalLines_SumsTheNewestSnapshotPerRepository_HoweverOldItIs()
-    {
         GivenRepositories(
             GivenRepository("acme", "api",
                 Commit(daysAgo: 10, totalLines: 400),
@@ -127,8 +114,7 @@ public class GetPortfolioInsightsQueryHandlerTests
             GivenRepository("acme", "never-analyzed"));
 
         var insights = await WhenQueried();
-
-        insights.TotalLines.Should().Be(6_000, "the newest snapshot per repository, summed across repositories");
+        insights.TotalLines.Should().Be(6_000);
         insights.RepositoryCount.Should().Be(3);
         insights.AnalyzedCount.Should().Be(2);
     }
@@ -136,7 +122,7 @@ public class GetPortfolioInsightsQueryHandlerTests
     // ─── Net change ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task NetLines_IsMeasuredAgainstTheSnapshotAtTheWindowEdge()
+    public async Task NetLines_MeasuresAgainstSnapshotsAndHandlesNewRepositories()
     {
         GivenRepositories(GivenRepository("acme", "api",
             Commit(daysAgo: 60, totalLines: 1_000),   // before both windows
@@ -144,33 +130,19 @@ public class GetPortfolioInsightsQueryHandlerTests
             Commit(daysAgo: 2, totalLines: 1_500)));
 
         var insights = await WhenQueried();
+        insights.NetLines30Days.Should().Be(500);
+        insights.NetLines7Days.Should().Be(100);
 
-        insights.NetLines30Days.Should().Be(500, "the 30-day baseline is the 1,000-line snapshot");
-        insights.NetLines7Days.Should().Be(100, "the 7-day baseline is the 1,400-line snapshot");
-    }
-
-    /// <summary>
-    /// A repository that did not exist 30 days ago has no snapshot that old, so its baseline is 0
-    /// and its whole size reads as growth — which is the truthful answer to "how much did this add
-    /// in 30 days". (The negative direction — baseline above the current snapshot — is asserted by
-    /// the movers test below via the shrinking repository.)
-    /// </summary>
-    [Fact]
-    public async Task NetLines_TreatsAWhollyNewRepositoryAsAllGrowth()
-    {
         GivenRepositories(GivenRepository("acme", "brand-new", Commit(daysAgo: 3, totalLines: 900)));
-
-        var insights = await WhenQueried();
-
-        insights.NetLines30Days.Should().Be(900);
+        var brandNew = await WhenQueried();
+        brandNew.NetLines30Days.Should().Be(900);
     }
 
     // ─── Movers ──────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Movers_AreRankedByNetChange_GainersFirst_OmittingCommitlessRepositories()
+    public async Task Movers_RankedByNetChangeGainersFirst()
     {
-        // Both carry a pre-window commit so the 30-day baseline is a real snapshot rather than 0.
         GivenRepositories(
             GivenRepository("acme", "shrinking",
                 Commit(daysAgo: 40, totalLines: 1_000),
@@ -181,8 +153,7 @@ public class GetPortfolioInsightsQueryHandlerTests
             GivenRepository("acme", "empty"));
 
         var insights = await WhenQueried();
-
-        insights.Movers.Should().HaveCount(2, "a repository with no commits at all has nothing to rank");
+        insights.Movers.Should().HaveCount(2);
         insights.Movers[0].Name.Should().Be("growing");
         insights.Movers[0].NetChange30Days.Should().Be(800);
         insights.Movers[^1].Name.Should().Be("shrinking");
@@ -191,9 +162,8 @@ public class GetPortfolioInsightsQueryHandlerTests
 
     // ─── Language mix ────────────────────────────────────────────────────────
 
-    /// <summary>Only the current snapshot's breakdown counts — the mix is "what is there now".</summary>
     [Fact]
-    public async Task LanguageMix_RanksTheNewestSnapshotOnly_AndSumsToOneHundredPercent()
+    public async Task LanguageMix_RanksNewestSnapshotsAndFoldsBeyondTopEight()
     {
         GivenRepositories(GivenRepository("acme", "api",
             Commit(daysAgo: 10, totalLines: 500, byFileType: new Dictionary<string, int> { [".js"] = 500 }),
@@ -204,95 +174,61 @@ public class GetPortfolioInsightsQueryHandlerTests
             })));
 
         var insights = await WhenQueried();
-
         insights.LanguageMix.Select(l => l.Extension).Should().ContainInOrder(".cs", ".razor");
-        insights.LanguageMix.Should().NotContain(l => l.Extension == ".js",
-            "the superseded snapshot's breakdown is not what is there now");
+        insights.LanguageMix.Should().NotContain(l => l.Extension == ".js");
         insights.LanguageMix.Sum(l => l.Percentage).Should().BeApproximately(100, 0.1);
         insights.LanguageMix[0].Lines.Should().Be(750);
-    }
 
-    [Fact]
-    public async Task LanguageMix_FoldsEverythingPastTheTopEightIntoOther()
-    {
         var byFileType = Enumerable.Range(1, 12)
-            .ToDictionary(i => $".ext{i:00}", i => 100 - i); // strictly descending, so ranking is unambiguous
-
-        GivenRepositories(GivenRepository("acme", "api",
+            .ToDictionary(i => $".ext{i:00}", i => 100 - i);
+        GivenRepositories(GivenRepository("acme", "api12",
             Commit(daysAgo: 1, totalLines: byFileType.Values.Sum(), byFileType: byFileType)));
 
-        var insights = await WhenQueried();
-
-        insights.LanguageMix.Should().HaveCount(9, "eight named extensions plus Other");
-        insights.LanguageMix[^1].Extension.Should().Be("Other");
-        insights.LanguageMix.Sum(l => l.Percentage).Should().BeApproximately(100, 0.2);
+        var topEight = await WhenQueried();
+        topEight.LanguageMix.Should().HaveCount(9);
+        topEight.LanguageMix[^1].Extension.Should().Be("Other");
+        topEight.LanguageMix.Sum(l => l.Percentage).Should().BeApproximately(100, 0.2);
     }
 
     // ─── Streaks and the heatmap ─────────────────────────────────────────────
 
     [Fact]
-    public async Task CurrentStreak_IsZeroOnceTwoDaysHaveBeenMissed()
+    public async Task StreaksAndActivity_CalculatesRunsAndIncludesZeroCommitDays()
     {
-        GivenRepositories(GivenRepository("acme", "api",
+        GivenRepositories(GivenRepository("acme", "missed",
             Commit(daysAgo: 5, totalLines: 100),
             Commit(daysAgo: 4, totalLines: 200)));
 
-        var insights = await WhenQueried();
+        var zeroStreak = await WhenQueried();
+        zeroStreak.CurrentStreakDays.Should().Be(0);
 
-        insights.CurrentStreakDays.Should().Be(0);
-    }
-
-    /// <summary>
-    /// A day with no commits *yet* must not read as having broken the streak — it is not over.
-    /// This is the case an off-by-one in CurrentStreak silently gets wrong every morning: the
-    /// recent run here ends yesterday and must still count as the current streak.
-    /// </summary>
-    [Fact]
-    public async Task LongestStreak_FindsTheLongestRunAnywhereInTheYear()
-    {
         GivenRepositories(GivenRepository("acme", "api",
-            // A four-day run months back...
             Commit(daysAgo: 203, totalLines: 10),
             Commit(daysAgo: 202, totalLines: 20),
             Commit(daysAgo: 201, totalLines: 30),
             Commit(daysAgo: 200, totalLines: 40),
-            // ...and a shorter, more recent one.
             Commit(daysAgo: 2, totalLines: 50),
             Commit(daysAgo: 1, totalLines: 60)));
 
-        var insights = await WhenQueried();
+        var streaks = await WhenQueried();
+        streaks.LongestStreakDays.Should().Be(4);
+        streaks.CurrentStreakDays.Should().Be(2);
 
-        insights.LongestStreakDays.Should().Be(4);
-        insights.CurrentStreakDays.Should().Be(2, "a today with no commits yet has not broken the streak");
-    }
-
-    /// <summary>
-    /// The heatmap draws a fixed grid, so a sparse list would silently shift every cell after the
-    /// first gap — a quiet week would redraw the whole year wrong. The same arrangement pins the
-    /// window rules: commits outside 30 days do not count towards the 30-day figures, commits
-    /// outside the year do not appear in the grid at all, and active days are distinct days, not
-    /// commits.
-    /// </summary>
-    [Fact]
-    public async Task Activity_IncludesZeroCommitDays_AndAppliesTheWindowBoundaries()
-    {
-        GivenRepositories(GivenRepository("acme", "api",
-            Commit(daysAgo: 400, totalLines: 50, linesAdded: 50),   // outside the year window
-            Commit(daysAgo: 45, totalLines: 100, linesAdded: 50),   // inside the year, outside 30d
+        GivenRepositories(GivenRepository("acme", "api2",
+            Commit(daysAgo: 400, totalLines: 50, linesAdded: 50),
+            Commit(daysAgo: 45, totalLines: 100, linesAdded: 50),
             Commit(daysAgo: 3, totalLines: 150, linesAdded: 25),
             Commit(daysAgo: 3, totalLines: 175, linesAdded: 15),
             Commit(daysAgo: 1, totalLines: 235, linesAdded: 60)));
 
-        var insights = await WhenQueried();
-
-        insights.Activity.Should().HaveCount(365);
-        insights.Activity.Select(a => a.Date).Should().BeInAscendingOrder();
-        insights.Activity.Should().OnlyHaveUniqueItems(a => a.Date);
-        insights.Activity.Count(a => a.Commits > 0).Should().Be(3, "the day-400 commit is outside the grid");
-        insights.Activity.Single(a => a.Date == Today.AddDays(-1)).LinesAdded.Should().Be(60);
-
-        insights.Commits30Days.Should().Be(3);
-        insights.ActiveDays30.Should().Be(2, "distinct days, not commits");
-        insights.LinesAdded30Days.Should().Be(100);
+        var activity = await WhenQueried();
+        activity.Activity.Should().HaveCount(365);
+        activity.Activity.Select(a => a.Date).Should().BeInAscendingOrder();
+        activity.Activity.Should().OnlyHaveUniqueItems(a => a.Date);
+        activity.Activity.Count(a => a.Commits > 0).Should().Be(3);
+        activity.Activity.Single(a => a.Date == Today.AddDays(-1)).LinesAdded.Should().Be(60);
+        activity.Commits30Days.Should().Be(3);
+        activity.ActiveDays30.Should().Be(2);
+        activity.LinesAdded30Days.Should().Be(100);
     }
 }

@@ -11,7 +11,6 @@ var resourceGroupName = 'PoRepoLineTracker'
 var sharedResourceGroupName = 'PoShared'
 var storageAccountName = 'stporepolinetracker'  // Existing storage account in PoRepoLineTracker RG
 var appInsightsName = 'poappideinsights8f9c9a4e'  // Shared App Insights in PoShared RG
-var logAnalyticsName = 'PoShared-LogAnalytics'  // Shared Log Analytics in PoShared RG
 var webAppName = 'app-porepolinetracker'  // App Service in PoRepoLineTracker RG
 // Dedicated F1 (Free) plan, created and owned by this template in the PoRepoLineTracker RG.
 // Previously this referenced the shared B1 in PoShared; the app now runs on its own free plan
@@ -39,7 +38,6 @@ module resources 'resources.bicep' = {
     webAppLocation: 'westus2'
     storageAccountName: storageAccountName
     appInsightsName: appInsightsName
-    logAnalyticsName: logAnalyticsName
     webAppName: webAppName
     appServicePlanName: appServicePlanName
     keyVaultName: keyVaultName

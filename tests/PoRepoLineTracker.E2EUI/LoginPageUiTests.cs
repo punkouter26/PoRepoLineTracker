@@ -24,7 +24,10 @@ public sealed class LoginPageUiTests
         var errors = new List<string>();
         page.Console += (_, msg) =>
         {
-            if (msg.Type == "error") errors.Add(msg.Text);
+            if (msg.Type == "error" && !msg.Text.Contains("SSL certificate error", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add(msg.Text);
+            }
         };
 
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 20000 });

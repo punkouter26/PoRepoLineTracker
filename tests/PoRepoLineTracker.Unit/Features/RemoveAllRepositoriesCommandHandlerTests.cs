@@ -76,10 +76,6 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
         Directory.Exists(repos).Should().BeFalse();
     }
 
-    /// <summary>
-    /// The storage half is the operation. If it fails the caller must hear about it — answering
-    /// 204 would tell the user their data is gone when it is not.
-    /// </summary>
     [Fact]
     public async Task WhenStorageFails_TheFailurePropagates()
     {
@@ -93,12 +89,8 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
 
     // ─── Local file system ───────────────────────────────────────────────────
 
-    /// <summary>
-    /// The blast-radius guard. Everything outside the configured path must survive — this is the
-    /// property whose absence once wiped a test run's own scratch files.
-    /// </summary>
     [Fact]
-    public async Task DeletesNothingOutsideTheConfiguredPath()
+    public async Task LocalFileSystem_DeletesOnlyConfiguredPathAndSurvivesLockedFiles()
     {
         var repos = GivenRepositoryTree();
         var sibling = Path.Combine(_sandbox, "not-repos");
@@ -106,61 +98,33 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
         var bystander = Path.Combine(sibling, "important.txt");
         File.WriteAllText(bystander, "do not delete");
 
-        await WhenRemovingAll(HandlerFor(repos));
-
-        Directory.Exists(repos).Should().BeFalse();
-        File.Exists(bystander).Should().BeTrue();
-        Directory.Exists(_sandbox).Should().BeTrue("only the configured subtree is in scope");
-    }
-
-    [Fact]
-    public async Task WhenTheDirectoryDoesNotExist_ItIsANoOp_NotAnError()
-    {
-        var missing = Path.Combine(_sandbox, "never-created");
-        var handler = HandlerFor(missing);
-
-        var act = async () => await WhenRemovingAll(handler);
-
-        await act.Should().NotThrowAsync();
-        await _dataService.Received(1).RemoveAllRepositoriesAsync(_userId);
-    }
-
-    /// <summary>
-    /// An unconfigured path must skip cleanup rather than fall back to a default. There is no safe
-    /// default for "directory to delete recursively".
-    /// </summary>
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public async Task WhenThePathIsNotConfigured_CleanupIsSkippedAndStorageStillRuns(string? configured)
-    {
-        var handler = HandlerFor(configured);
-
-        var act = async () => await WhenRemovingAll(handler);
-
-        await act.Should().NotThrowAsync();
-        await _dataService.Received(1).RemoveAllRepositoriesAsync(_userId);
-    }
-
-    /// <summary>
-    /// Local cleanup is secondary to the data cleanup. A file the OS will not release — a routine
-    /// occurrence with Git pack files on Windows — must not turn a successful purge into a 500.
-    /// </summary>
-    [Fact]
-    public async Task WhenALocalFileIsLocked_TheRequestStillSucceeds()
-    {
-        var repos = GivenRepositoryTree();
         var locked = Path.Combine(repos, "acme", "api", ".git", "objects", "pack-01.idx");
-
         using (var hold = new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             var act = async () => await WhenRemovingAll(HandlerFor(repos));
-
             await act.Should().NotThrowAsync();
         }
 
-        // The point is the absence of a throw: the storage purge is what the caller asked for and
-        // it completed. Whether the locked file survived is up to the OS.
+        File.Exists(bystander).Should().BeTrue();
+        Directory.Exists(_sandbox).Should().BeTrue();
         await _dataService.Received(1).RemoveAllRepositoriesAsync(_userId);
+    }
+
+    [Fact]
+    public async Task LocalFileSystem_MissingOrUnconfiguredPath_SkipsCleanupWithoutError()
+    {
+        var missingHandler = HandlerFor(Path.Combine(_sandbox, "never-created"));
+        var actMissing = async () => await WhenRemovingAll(missingHandler);
+        await actMissing.Should().NotThrowAsync();
+
+        var nullHandler = HandlerFor(null);
+        var actNull = async () => await WhenRemovingAll(nullHandler);
+        await actNull.Should().NotThrowAsync();
+
+        var emptyHandler = HandlerFor("");
+        var actEmpty = async () => await WhenRemovingAll(emptyHandler);
+        await actEmpty.Should().NotThrowAsync();
+
+        await _dataService.Received(3).RemoveAllRepositoriesAsync(_userId);
     }
 }

@@ -1,4 +1,4 @@
-﻿@attribute [Authorize]
+@attribute [Authorize]
 @inject HttpClient Http
 @inject ILogger<AddRepository> Logger
 @inject NavigationManager Navigation
@@ -46,7 +46,8 @@
                                   OnAddSelected="AddSelectedRepositories"
                                   OnSelectAll="SelectAllRepositories"
                                   OnClearAll="ClearAllSelections"
-                                  OnCancel="HideRepositorySelection" />
+                                  OnCancel="HideRepositorySelection"
+                                  OnRetry="ReloadAsync" />
     }
 
     @* Single repository mode removed as requested *@
@@ -97,16 +98,13 @@
     {
         pageState.ShowRepositorySelector = true;
 
-        // Standalone pages still load immediately; the inline mode waits for the user's first
-        // open or reuses the session cache. The previously unconditional LoadGitHubRepositories
-        // hit GitHub every time the inline panel was opened and closed — see audit item #10.
-        if (!IsInline)
-        {
-            await LoadGitHubRepositories();
-        }
-        else if (IsCacheFresh())
+        if (IsCacheFresh())
         {
             pageState.GitHubUserRepositories = _cachedRepositories!;
+        }
+        else
+        {
+            await LoadGitHubRepositories();
         }
     }
 
@@ -131,9 +129,26 @@
             }
             else
             {
-                var errorMessage = await response.Content.ReadAsStringAsync();
-                Logger.LogWarning("Failed to load GitHub repositories: {StatusCode} - {ErrorMessage}", response.StatusCode, errorMessage);
-                pageState.ErrorMessage = $"Unable to load repositories: {errorMessage}";
+                var errorBody = await response.Content.ReadAsStringAsync();
+                Logger.LogWarning("Failed to load GitHub repositories: {StatusCode} - {ErrorMessage}", response.StatusCode, errorBody);
+                var displayError = errorBody;
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(errorBody);
+                    if (doc.RootElement.TryGetProperty("detail", out var detailElem) && !string.IsNullOrWhiteSpace(detailElem.GetString()))
+                    {
+                        displayError = detailElem.GetString()!;
+                    }
+                    else if (doc.RootElement.TryGetProperty("title", out var titleElem) && !string.IsNullOrWhiteSpace(titleElem.GetString()))
+                    {
+                        displayError = titleElem.GetString()!;
+                    }
+                }
+                catch
+                {
+                    // If not JSON, use errorBody as-is
+                }
+                pageState.ErrorMessage = $"Unable to load repositories: {displayError}";
                 pageState.GitHubUserRepositories = new List<GitHubUserRepositoryDto>();
             }
         }
@@ -151,14 +166,21 @@
     }
 
     /// <summary>
-    /// Inline panel entry point — called by the parent once the panel mounts, so a
-    /// fresh cache miss is paid on first open rather than on every mount. A subsequent
-    /// open inside <see cref="CacheLifetime"/> reuses the cache; older than that it
-    /// reloads, since the user may have created or renamed repos since.
+    /// Force a fresh reload of repositories from GitHub, invalidating the session cache.
+    /// </summary>
+    public async Task ReloadAsync()
+    {
+        _cachedRepositories = null;
+        _cachedAtUtc = null;
+        await LoadGitHubRepositories();
+    }
+
+    /// <summary>
+    /// Inline panel entry point — reloads only if the session cache has expired.
     /// </summary>
     public async Task PrimeIfStaleAsync()
     {
-        if (!IsInline || IsCacheFresh()) return;
+        if (IsCacheFresh()) return;
         await LoadGitHubRepositories();
     }
 

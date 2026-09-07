@@ -76,36 +76,39 @@ public class GetWeeklyDigestQueryHandlerTests
 
     // ─── Window selection ────────────────────────────────────────────────────
 
+    // ─── Window selection ────────────────────────────────────────────────────
+
     [Fact]
-    public async Task NoLastVisit_FallsBackToATrailingWeek()
+    public async Task WindowSelection_HandlesRecentOldAndFutureVisits_FallingBackToTrailingWeek()
     {
-        GivenRepositories(GivenRepository("me", "app", Commit(hoursAgo: 24, 100, linesAdded: 50)));
+        // 1. No last visit
+        GivenRepositories(GivenRepository("me", "app1", Commit(hoursAgo: 24, 100, linesAdded: 50)));
+        var digest1 = await WhenDigested(lastSeen: null);
+        digest1.IsSinceLastVisit.Should().BeFalse();
+        digest1.LastVisitUtc.Should().BeNull();
+        (digest1.UntilUtc - digest1.SinceUtc).TotalDays.Should().BeApproximately(7, 0.01);
 
-        var digest = await WhenDigested(lastSeen: null);
+        // 2. Very recent visit
+        GivenRepositories(GivenRepository("me", "app2", Commit(hoursAgo: 48, 100, linesAdded: 50)));
+        var digest2 = await WhenDigested(lastSeen: Now.AddMinutes(-20));
+        digest2.IsSinceLastVisit.Should().BeFalse();
+        digest2.LastVisitUtc.Should().NotBeNull();
+        digest2.Commits.Should().Be(1);
 
-        digest.IsSinceLastVisit.Should().BeFalse();
-        digest.LastVisitUtc.Should().BeNull();
-        (digest.UntilUtc - digest.SinceUtc).TotalDays.Should().BeApproximately(7, 0.01);
+        // 3. Very old visit
+        GivenRepositories(GivenRepository("me", "app3", Commit(hoursAgo: 12, 100, linesAdded: 5)));
+        var digest3 = await WhenDigested(lastSeen: Now.AddDays(-400));
+        digest3.IsSinceLastVisit.Should().BeFalse();
+        (digest3.UntilUtc - digest3.SinceUtc).TotalDays.Should().BeApproximately(7, 0.01);
+
+        // 4. Future visit
+        var digest4 = await WhenDigested(lastSeen: Now.AddHours(6));
+        digest4.IsSinceLastVisit.Should().BeFalse();
+        digest4.SinceUtc.Should().BeBefore(digest4.UntilUtc);
     }
 
-    /// <summary>
-    /// The case that makes the feature look broken if it is got wrong: someone who reloaded twenty
-    /// minutes ago has no news, and "0 commits since you were last here" is worse than no banner.
-    /// </summary>
     [Fact]
-    public async Task AVeryRecentVisit_IsIgnoredInFavourOfTheWeek()
-    {
-        GivenRepositories(GivenRepository("me", "app", Commit(hoursAgo: 48, 100, linesAdded: 50)));
-
-        var digest = await WhenDigested(lastSeen: Now.AddMinutes(-20));
-
-        digest.IsSinceLastVisit.Should().BeFalse();
-        digest.LastVisitUtc.Should().NotBeNull("the timestamp is still reported even when it is not used as the window");
-        digest.Commits.Should().Be(1, "the week window still contains the two-day-old commit");
-    }
-
-    [Fact]
-    public async Task AVisitFromYesterday_IsUsedAsTheWindow()
+    public async Task WindowSelection_UsesValidYesterdayVisit()
     {
         GivenRepositories(GivenRepository("me", "app",
             Commit(hoursAgo: 10, 200, linesAdded: 100),
@@ -116,91 +119,52 @@ public class GetWeeklyDigestQueryHandlerTests
 
         digest.IsSinceLastVisit.Should().BeTrue();
         digest.SinceUtc.Should().Be(lastSeen);
-        digest.Commits.Should().Be(1, "only the commit inside the 30-hour window counts");
-    }
-
-    [Fact]
-    public async Task AVeryOldVisit_IsIgnored_SoTheBannerDoesNotReportAYearAsNews()
-    {
-        GivenRepositories(GivenRepository("me", "app", Commit(hoursAgo: 12, 100, linesAdded: 5)));
-
-        var digest = await WhenDigested(lastSeen: Now.AddDays(-400));
-
-        digest.IsSinceLastVisit.Should().BeFalse();
-        (digest.UntilUtc - digest.SinceUtc).TotalDays.Should().BeApproximately(7, 0.01);
-    }
-
-    [Fact]
-    public async Task AVisitInTheFuture_IsIgnoredRatherThanProducingANegativeWindow()
-    {
-        GivenRepositories(GivenRepository("me", "app", Commit(hoursAgo: 12, 100, linesAdded: 5)));
-
-        var digest = await WhenDigested(lastSeen: Now.AddHours(6));
-
-        digest.IsSinceLastVisit.Should().BeFalse();
-        digest.SinceUtc.Should().BeBefore(digest.UntilUtc);
+        digest.Commits.Should().Be(1);
     }
 
     // ─── Figures ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task NoRepositories_ReportsNoActivityRatherThanAWallOfZeroes()
+    public async Task Figures_HandlesEmptyOrQuietRepositories()
     {
         GivenRepositories();
+        var empty = await WhenDigested();
+        empty.HasActivity.Should().BeFalse();
+        empty.TopRepos.Should().BeEmpty();
 
-        var digest = await WhenDigested();
-
-        digest.HasActivity.Should().BeFalse();
-        digest.TopRepos.Should().BeEmpty();
+        GivenRepositories(GivenRepository("me", "quiet", Commit(hoursAgo: 24 * 30, 100, linesAdded: 100)));
+        var quiet = await WhenDigested();
+        quiet.Commits.Should().Be(0);
+        quiet.NetGrowth.Should().Be(0);
+        quiet.HasActivity.Should().BeFalse();
     }
 
     [Fact]
-    public async Task AQuietWindow_ReportsNoActivity()
-    {
-        // The only commit predates the window, and the snapshot has not moved inside it.
-        GivenRepositories(GivenRepository("me", "app", Commit(hoursAgo: 24 * 30, 100, linesAdded: 100)));
-
-        var digest = await WhenDigested();
-
-        digest.Commits.Should().Be(0);
-        digest.NetGrowth.Should().Be(0);
-        digest.HasActivity.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task NetGrowth_IsTheSnapshotDifferenceAcrossTheWindow()
+    public async Task Figures_CalculatesNetGrowthAndPreviousWindow()
     {
         GivenRepositories(GivenRepository("me", "app",
             Commit(hoursAgo: 24 * 20, totalLines: 1_000, linesAdded: 1_000),
             Commit(hoursAgo: 24, totalLines: 1_250, linesAdded: 400, linesRemoved: 150)));
 
-        var digest = await WhenDigested();
+        var growthDigest = await WhenDigested();
+        growthDigest.LinesAdded.Should().Be(400);
+        growthDigest.LinesRemoved.Should().Be(150);
+        growthDigest.NetGrowth.Should().Be(250);
 
-        digest.LinesAdded.Should().Be(400);
-        digest.LinesRemoved.Should().Be(150);
-        digest.NetGrowth.Should().Be(250, "1,250 now against the 1,000 snapshot carried into the window");
-    }
-
-    [Fact]
-    public async Task PreviousWindow_IsTheEquallyLongWindowImmediatelyBefore()
-    {
-        GivenRepositories(GivenRepository("me", "app",
+        GivenRepositories(GivenRepository("me", "app2",
             Commit(hoursAgo: 24, 400, linesAdded: 100),
             Commit(hoursAgo: 48, 300, linesAdded: 100),
-            // Inside the preceding 7 days, so it lands in the comparison rather than the window.
             Commit(hoursAgo: 24 * 9, 200, linesAdded: 70),
-            // Older than both windows.
             Commit(hoursAgo: 24 * 30, 100, linesAdded: 100)));
 
-        var digest = await WhenDigested();
-
-        digest.Commits.Should().Be(2);
-        digest.PreviousCommits.Should().Be(1);
-        digest.PreviousLinesAdded.Should().Be(70);
+        var prevDigest = await WhenDigested();
+        prevDigest.Commits.Should().Be(2);
+        prevDigest.PreviousCommits.Should().Be(1);
+        prevDigest.PreviousLinesAdded.Should().Be(70);
     }
 
     [Fact]
-    public async Task TopRepos_AreRankedByCommits_AndOnlyIncludeOnesTouchedInTheWindow()
+    public async Task Figures_RanksTopReposAndCountsActiveDays()
     {
         GivenRepositories(
             GivenRepository("me", "busy",
@@ -212,35 +176,19 @@ public class GetWeeklyDigestQueryHandlerTests
             GivenRepository("me", "dormant",
                 Commit(hoursAgo: 24 * 60, 500, linesAdded: 500)));
 
-        var digest = await WhenDigested();
+        var topDigest = await WhenDigested();
+        topDigest.ReposTouched.Should().Be(2);
+        topDigest.TopRepos.Should().HaveCount(2);
+        topDigest.TopRepos[0].Name.Should().Be("busy");
+        topDigest.TopRepos.Should().NotContain(r => r.Name == "dormant");
 
-        digest.ReposTouched.Should().Be(2);
-        digest.TopRepos.Should().HaveCount(2);
-        digest.TopRepos[0].Name.Should().Be("busy");
-        digest.TopRepos.Should().NotContain(r => r.Name == "dormant");
-    }
-
-    /// <summary>
-    /// Growth without commits is real: re-analysing with a different counted-extension list moves
-    /// a repository's size with no new commit behind it, and that is exactly the change a
-    /// returning user wants flagged.
-    /// </summary>
-    [Fact]
-    public async Task ActiveDays_CountsDistinctDays_NotCommits()
-    {
-        // Two commits at the SAME instant, not merely a close one. Offsets of 2 and 3 hours land
-        // on the same calendar day for most of the day and straddle midnight for the rest, so a
-        // test written that way passes or fails depending on the hour it is run at — which is a
-        // flake, not a check. Identical timestamps are the same day at every hour; the third
-        // commit is three days out, so it cannot collide either.
-        GivenRepositories(GivenRepository("me", "app",
+        GivenRepositories(GivenRepository("me", "active",
             Commit(hoursAgo: 2, 100, linesAdded: 1),
             Commit(hoursAgo: 2, 90, linesAdded: 1),
             Commit(hoursAgo: 24 * 3, 80, linesAdded: 1)));
 
-        var digest = await WhenDigested();
-
-        digest.Commits.Should().Be(3);
-        digest.ActiveDays.Should().Be(2);
+        var activeDigest = await WhenDigested();
+        activeDigest.Commits.Should().Be(3);
+        activeDigest.ActiveDays.Should().Be(2);
     }
 }

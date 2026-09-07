@@ -16,14 +16,80 @@ internal static class AuthEndpoints
             .WithTags("Auth")
             .AllowAnonymous();
 
-        auth.MapGet("/login", (string? returnUrl, IConfiguration config) =>
+        auth.MapGet("/login", async (
+            string? returnUrl,
+            bool? dev,
+            IConfiguration config,
+            IWebHostEnvironment env,
+            HttpContext context,
+            IUserService userService) =>
         {
-            var ghClientId = config[ConfigKeys.GitHub.ClientId];
+            var ghClientId = env.IsDevelopment()
+                ? config[ConfigKeys.GitHub.DevClientId] ?? config[ConfigKeys.GitHub.ClientId]
+                : config[ConfigKeys.GitHub.ClientId];
+            var ghClientSecret = env.IsDevelopment()
+                ? config[ConfigKeys.GitHub.DevClientSecret] ?? config[ConfigKeys.GitHub.ClientSecret]
+                : config[ConfigKeys.GitHub.ClientSecret];
 
-            // GitHub is the only provider. If it is not configured, return 503 so the client can
-            // show a helpful message instead of a generic 500 "No authentication handler is
-            // registered".
-            if (!string.IsNullOrEmpty(ghClientId))
+            var isOAuthConfigured = !string.IsNullOrEmpty(ghClientId) && !string.IsNullOrEmpty(ghClientSecret);
+            var isDevBypass = env.IsDevelopment() && (!isOAuthConfigured || dev == true);
+
+            if (isDevBypass)
+            {
+                var devUserId = new UserId(new Guid("00000000-0000-0000-0000-000000000001"));
+                var username = "DevUser";
+                var displayName = "Local Developer";
+                var email = "dev@localhost";
+
+                try
+                {
+                    var savedUser = await userService.UpsertUserAsync(new User
+                    {
+                        Id = devUserId,
+                        GitHubId = "dev",
+                        Username = username,
+                        DisplayName = displayName,
+                        Email = email,
+                        AvatarUrl = string.Empty,
+                        AccessToken = config[ConfigKeys.GitHub.Pat] ?? string.Empty
+                    });
+                    devUserId = savedUser.Id;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Storage unavailable during dev sign-in; claims fallback will be used");
+                }
+
+                var claims = new List<Claim>
+                {
+                    new(ClaimsPrincipalExtensions.UserIdClaim, devUserId.ToString()),
+                    new(ClaimTypes.NameIdentifier, devUserId.ToString()),
+                    new(ClaimTypes.Name, username),
+                    new("DisplayName", displayName),
+                    new(ClaimTypes.Email, email),
+                    new("AvatarUrl", string.Empty)
+                };
+
+                var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                var principal = new ClaimsPrincipal(identity);
+
+                await context.SignInAsync(
+                    CookieAuthenticationDefaults.AuthenticationScheme,
+                    principal,
+                    new AuthenticationProperties
+                    {
+                        IsPersistent = true,
+                        RedirectUri = returnUrl ?? "/"
+                    });
+
+                var target = !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//")
+                    ? returnUrl
+                    : "/";
+
+                return Results.Redirect(target);
+            }
+
+            if (isOAuthConfigured)
             {
                 return Results.Challenge(
                     new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },

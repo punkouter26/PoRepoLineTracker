@@ -7,9 +7,6 @@ param storageAccountName string
 @description('Name of the Application Insights instance')
 param appInsightsName string
 
-@description('Name of the Log Analytics Workspace')
-param logAnalyticsName string
-
 @description('Name of the App Service (Web App)')
 param webAppName string
 
@@ -42,10 +39,6 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing 
 }
 
 // Shared resources in PoShared RG
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = {
-  name: logAnalyticsName
-  scope: resourceGroup(sharedResourceGroupName)
-}
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: appInsightsName
@@ -220,9 +213,6 @@ output appInsightsConnectionString string = appInsights.properties.ConnectionStr
 
 @description('Public URL of the deployed Web App')
 output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
-
-@description('Resource ID of the Log Analytics Workspace')
-output logAnalyticsId string = logAnalytics.id
 
 @description('Web App managed identity principal ID (use to grant Key Vault access)')
 output webAppPrincipalId string = webApp.identity.principalId

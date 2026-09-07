@@ -78,71 +78,39 @@ public class GetCodeHealthQueryHandlerTests
         """;
 
     [Fact]
-    public async Task CSharpRepository_IsMeasuredByTheParser_NotTheHeuristic()
+    public async Task Handle_LanguageRouting_RoutesCSharpToParserAndNonCSharpToHeuristic()
     {
-        var handler = CreateHandler(new SourceFile("src/Widget.cs", ".cs", CSharpSource));
+        // 1. C# only
+        var csHandler = CreateHandler(new SourceFile("src/Widget.cs", ".cs", CSharpSource));
+        var csReport = await csHandler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
+        csReport.Should().NotBeNull();
+        csReport!.Metrics.Should().NotBeNull();
+        csReport.Metrics!.MembersMeasured.Should().Be(1);
+        csReport.Metrics.MaintainabilityIndex.Should().NotBeNull();
+        csReport.Metrics.CyclomaticComplexity.Should().Be(2);
+        csReport.FilesAnalyzed.Should().Be(0);
+        csReport.HasData.Should().BeTrue();
 
-        var report = await handler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
-
-        report.Should().NotBeNull();
-        report!.Metrics.Should().NotBeNull("the .cs file must reach the Roslyn analyser");
-        report.Metrics!.MembersMeasured.Should().Be(1);
-        report.Metrics.MaintainabilityIndex.Should().NotBeNull();
-        report.Metrics.CyclomaticComplexity.Should().Be(2, "one baseline plus one if");
-
-        // The heuristic never saw it, so it has no files to report on.
-        report.FilesAnalyzed.Should().Be(0, "C# is parsed, not estimated — counting it twice would " +
-            "put two maintainability numbers on one repository");
-    }
-
-    /// <summary>
-    /// A C#-only repository gives the heuristic nothing, so its Build reports "no data". The report
-    /// is not empty — it was measured by the other analyser — and saying otherwise would send the
-    /// UI to its "nothing to measure" state for a fully-measured repository.
-    /// </summary>
-    [Fact]
-    public async Task CSharpOnlyRepository_ReportsHasData_EvenThoughTheHeuristicSawNothing()
-    {
-        var handler = CreateHandler(new SourceFile("src/Widget.cs", ".cs", CSharpSource));
-
-        var report = await handler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
-
-        report!.HasData.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task NonCSharpRepository_KeepsTheHeuristic_AndReportsNoMetrics()
-    {
-        var handler = CreateHandler(new SourceFile("app/main.py", ".py",
+        // 2. Non-C# only
+        var pyHandler = CreateHandler(new SourceFile("app/main.py", ".py",
             "def add(a, b):\n    if a > b:\n        return a\n    return b\n"));
+        var pyReport = await pyHandler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
+        pyReport!.Metrics.Should().BeNull();
+        pyReport.FilesAnalyzed.Should().Be(1);
+        pyReport.HasData.Should().BeTrue();
 
-        var report = await handler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
-
-        report!.Metrics.Should().BeNull("there is no C# to parse");
-        report.FilesAnalyzed.Should().Be(1, "the other languages still get the line-oriented proxies");
-        report.HasData.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task MixedRepository_SplitsFilesBetweenTheTwoAnalysers()
-    {
-        var handler = CreateHandler(
+        // 3. Mixed
+        var mixedHandler = CreateHandler(
             new SourceFile("src/Widget.cs", ".cs", CSharpSource),
             new SourceFile("app/main.py", ".py", "def add(a, b):\n    return a + b\n"),
             new SourceFile("web/app.ts", ".ts", "export const add = (a: number, b: number) => a + b;\n"));
-
-        var report = await handler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
-
-        report!.Metrics!.FilesAnalyzed.Should().Be(1, "one .cs file");
-        report.FilesAnalyzed.Should().Be(2, "the Python and TypeScript files");
+        var mixedReport = await mixedHandler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
+        mixedReport!.Metrics!.FilesAnalyzed.Should().Be(1);
+        mixedReport.FilesAnalyzed.Should().Be(2);
     }
 
-    /// <summary>
-    /// Razor holds C#, but the text on disk is not a compilation unit — parsing it as C# yields a
-    /// parse-error soup whose metrics would be noise wearing the label of a measurement.
-    /// </summary>
     [Fact]
-    public async Task RazorFiles_GoToTheHeuristic_NotTheCSharpParser()
+    public async Task Handle_RazorFiles_RoutesToHeuristic()
     {
         var handler = CreateHandler(new SourceFile("Pages/Index.razor", ".razor",
             "@page \"/\"\n<h1>Hello</h1>\n@code { int X => 1; }\n"));
@@ -153,63 +121,45 @@ public class GetCodeHealthQueryHandlerTests
         report.FilesAnalyzed.Should().Be(1);
     }
 
-    // ── The memo ────────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// A commit already scored must never be re-walked. This is the whole point of the memo, and it
-    /// is invisible without an explicit assertion: a broken cache still returns a correct report, it
-    /// just quietly costs seconds of tree-walking and parsing on every single view.
-    /// </summary>
     [Fact]
-    public async Task CommitAlreadyInTheMemo_IsServedFromStorage_WithoutTouchingTheClone()
+    public async Task Handle_MemoStore_ServesCachedOrFallsBackOnCorruptData()
     {
         var handler = CreateHandler(new SourceFile("src/Widget.cs", ".cs", CSharpSource));
 
-        // First pass computes and writes.
+        // First pass computes and writes
         var first = await handler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
         var stored = _snapshots.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(ICodeHealthSnapshotStore.SaveAsync))
             .Select(c => (CodeHealthSnapshotEntity)c.GetArguments()[0]!)
             .Single();
 
-        stored.RowKey.Should().Be("abcdef1234567890", "the memo is keyed on the commit, not the month");
+        stored.RowKey.Should().Be("abcdef1234567890");
         stored.ReportJson.Should().NotBeEmpty();
 
-        // Second pass: the memo now holds that commit.
+        // Cached read
         _gitHub.ClearReceivedCalls();
         _snapshots.GetByRepositoryAsync(Arg.Any<RepositoryId>())
             .Returns(new Dictionary<string, CodeHealthSnapshotEntity> { [stored.RowKey] = stored });
 
         var second = await handler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
-
         second!.OverallScore.Should().Be(first!.OverallScore);
         _gitHub.DidNotReceive().EnumerateSourceFiles(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IEnumerable<string>>());
-    }
 
-    /// <summary>
-    /// A memo row whose document cannot be read — written before a shape change, or truncated — must
-    /// fall through to a recompute rather than surfacing a null report or throwing.
-    /// </summary>
-    [Fact]
-    public async Task UnreadableMemoRow_FallsBackToRecomputing()
-    {
-        var handler = CreateHandler(new SourceFile("src/Widget.cs", ".cs", CSharpSource));
-
+        // Corrupt row fallback
         _snapshots.GetByRepositoryAsync(Arg.Any<RepositoryId>())
             .Returns(new Dictionary<string, CodeHealthSnapshotEntity>
             {
                 ["abcdef1234567890"] = new() { RowKey = "abcdef1234567890", ReportJson = "{ not json" }
             });
 
-        var report = await handler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
-
-        report.Should().NotBeNull();
-        report!.Metrics!.MembersMeasured.Should().Be(1, "the bad row must degrade to a recompute");
+        var fallbackReport = await handler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
+        fallbackReport.Should().NotBeNull();
+        fallbackReport!.Metrics!.MembersMeasured.Should().Be(1);
     }
 
     [Fact]
-    public async Task RepositoryWithNoAnalysedCommits_ReturnsNull()
+    public async Task Handle_NoAnalysedCommits_ReturnsNull()
     {
         _repositories.GetRepositoryByIdAsync(RepoId).Returns(new GitHubRepository
         {
@@ -225,6 +175,6 @@ public class GetCodeHealthQueryHandlerTests
 
         var report = await handler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
 
-        report.Should().BeNull("a report of zeroes reads as genuinely terrible code");
+        report.Should().BeNull();
     }
 }

@@ -63,24 +63,49 @@
             </RadzenStack>
         </RadzenCard>
 
-        @* Three <ConnectionGrid> calls replace three byte-identical card+grid blocks. *@
-        <div class="app-dashboard">
-            <ConnectionGrid Title="Azure Services"
-                            Icon="cloud"
-                            IconClass="xc-icon--azure"
-                            Connections="@_diagnostics.ExternalConnections.Azure" />
+        @* Consolidate providers into RadzenTabs with full-width clarity (Option 5) *@
+        <RadzenTabs RenderMode="TabRenderMode.Client" class="xc-tabs">
+            <Tabs>
+                <RadzenTabsItem Text="Azure Services" Icon="cloud">
+                    <ConnectionGrid Title="Azure Services"
+                                    Icon="cloud"
+                                    IconClass="xc-icon--azure"
+                                    Connections="@_diagnostics.ExternalConnections.Azure" />
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="GitHub Integrations" Icon="code">
+                    <ConnectionGrid Title="GitHub Integrations"
+                                    Icon="code"
+                                    IconClass="xc-icon--github"
+                                    Connections="@_diagnostics.ExternalConnections.GitHub"
+                                    StatusIsHealthy="@(s => s.Contains("Configured") || s.Contains("PAT"))" />
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="Observability" Icon="analytics">
+                    <ConnectionGrid Title="Observability"
+                                    Icon="analytics"
+                                    IconClass="xc-icon--otel"
+                                    Connections="@_diagnostics.ExternalConnections.OpenTelemetry" />
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="All Providers" Icon="view_list">
+                    <div class="app-dashboard">
+                        <ConnectionGrid Title="Azure Services"
+                                        Icon="cloud"
+                                        IconClass="xc-icon--azure"
+                                        Connections="@_diagnostics.ExternalConnections.Azure" />
 
-            <ConnectionGrid Title="GitHub Integrations"
-                            Icon="code"
-                            IconClass="xc-icon--github"
-                            Connections="@_diagnostics.ExternalConnections.GitHub"
-                            StatusIsHealthy="@(s => s.Contains("Configured") || s.Contains("PAT"))" />
+                        <ConnectionGrid Title="GitHub Integrations"
+                                        Icon="code"
+                                        IconClass="xc-icon--github"
+                                        Connections="@_diagnostics.ExternalConnections.GitHub"
+                                        StatusIsHealthy="@(s => s.Contains("Configured") || s.Contains("PAT"))" />
 
-            <ConnectionGrid Title="Observability"
-                            Icon="analytics"
-                            IconClass="xc-icon--otel"
-                            Connections="@_diagnostics.ExternalConnections.OpenTelemetry" />
-        </div>
+                        <ConnectionGrid Title="Observability"
+                                        Icon="analytics"
+                                        IconClass="xc-icon--otel"
+                                        Connections="@_diagnostics.ExternalConnections.OpenTelemetry" />
+                    </div>
+                </RadzenTabsItem>
+            </Tabs>
+        </RadzenTabs>
 
         @* Purpose *@
         <RadzenCard class="xc-summary-card">

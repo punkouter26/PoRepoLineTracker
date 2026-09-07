@@ -20,14 +20,8 @@ internal static class ContributorEndpoints
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            var existing = await repoDataService.GetRepositoryByIdAsync(repositoryId);
-            if (existing == null) return Results.NotFound($"Repository {repositoryId} not found.");
-            if (existing.UserId != userId)
-            {
-                Log.Warning("IDOR attempt: user {UserId} tried to read contributors for repo {RepositoryId} owned by {OwnerId}",
-                    userId, repositoryId, existing.UserId);
-                return Results.Forbid();
-            }
+            var (_, error) = await RepositoryOwnership.AuthorizeAsync(repoDataService, repositoryId, userId, "read contributors for");
+            if (error != null) return error;
 
             try
             {

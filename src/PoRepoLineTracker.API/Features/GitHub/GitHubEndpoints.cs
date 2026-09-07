@@ -11,7 +11,14 @@ internal static class GitHubEndpoints
             .WithTags("GitHub")
             .RequireAuthorization();
 
-        github.MapGet("/user-repositories", async (HttpContext ctx, IGitHubService githubService, IUserService userService, IConfiguration config, HybridCache cache, CancellationToken cancellationToken) =>
+        github.MapGet("/user-repositories", async (
+            HttpContext ctx,
+            IGitHubService githubService,
+            IUserService userService,
+            IConfiguration config,
+            HybridCache cache,
+            IWebHostEnvironment env,
+            CancellationToken cancellationToken) =>
         {
             try
             {
@@ -28,6 +35,44 @@ internal static class GitHubEndpoints
 
                 if (string.IsNullOrEmpty(accessToken))
                 {
+                    if (env.IsDevelopment())
+                    {
+                        var devRepos = new List<GitHubUserRepositoryDto>
+                        {
+                            new()
+                            {
+                                Name = "PoRepoLineTracker",
+                                Owner = "punkouter26",
+                                FullName = "punkouter26/PoRepoLineTracker",
+                                CloneUrl = "https://github.com/punkouter26/PoRepoLineTracker.git",
+                                Description = "Track lines of code across all your GitHub repositories over time",
+                                IsPrivate = false,
+                                Language = "C#"
+                            },
+                            new()
+                            {
+                                Name = "Hello-World",
+                                Owner = "octocat",
+                                FullName = "octocat/Hello-World",
+                                CloneUrl = "https://github.com/octocat/Hello-World.git",
+                                Description = "My first repository on GitHub!",
+                                IsPrivate = false,
+                                Language = "Text"
+                            },
+                            new()
+                            {
+                                Name = "Spoon-Knife",
+                                Owner = "octocat",
+                                FullName = "octocat/Spoon-Knife",
+                                CloneUrl = "https://github.com/octocat/Spoon-Knife.git",
+                                Description = "This repo is for spooning and knifing.",
+                                IsPrivate = false,
+                                Language = "HTML"
+                            }
+                        };
+                        return Results.Ok(devRepos);
+                    }
+
                     // No GitHub credential available at all: GitHub sign-in gives a per-user token;
                     // otherwise a server GitHub:PAT must be configured in Key Vault.
                     return Results.Problem(

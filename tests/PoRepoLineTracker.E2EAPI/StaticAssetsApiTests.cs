@@ -15,25 +15,18 @@ namespace PoRepoLineTracker.E2EAPI;
 /// </summary>
 public sealed class StaticAssetsApiTests
 {
-    // One row per serving path: the SPA fallback shell, a wwwroot static, and a Blazor
-    // framework file — each arrives through a different middleware branch.
-    [SkippableTheory]
-    [InlineData("/")]
-    [InlineData("/_framework/blazor.webassembly.js")]
-    public async Task StaticAsset_Anonymous_IsServed(string asset)
-    {
-        var response = await E2EApiClient.GetAsync(asset);
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK,
-            "an anonymous browser must be able to load the app shell and its assets");
-    }
-
     [SkippableFact]
-    public async Task Stylesheet_IsServedAsCss()
+    public async Task StaticAssets_And_Stylesheets_Anonymous_AreServed()
     {
-        var response = await E2EApiClient.GetAsync("/css/app.css");
+        var shellResponse = await E2EApiClient.GetAsync("/");
+        shellResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        response.Content.Headers.ContentType?.MediaType.Should().Be("text/css");
+        var jsResponse = await E2EApiClient.GetAsync("/_framework/blazor.webassembly.js");
+        jsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var cssResponse = await E2EApiClient.GetAsync("/css/app.css");
+        cssResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        cssResponse.Content.Headers.ContentType?.MediaType.Should().Be("text/css");
     }
 
     /// <summary>

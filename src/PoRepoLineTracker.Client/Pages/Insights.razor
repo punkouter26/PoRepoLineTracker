@@ -65,7 +65,7 @@
     @if (_isLoading)
     {
         <div class="app-dashboard app-dashboard--tiles">
-            @for (var i = 0; i < 4; i++)
+            @for (var i = 0; i < 3; i++)
             {
                 <RadzenCard><RadzenSkeleton Width="100%" Height="72px" /></RadzenCard>
             }
@@ -129,20 +129,30 @@
         @* Through <ChartCard> as well — the heading/caption pair and the surface were a third copy,
            and the intensity key is exactly what its <Toolbar> slot is for. *@
         <ChartCard Title="Activity"
-                   Description="Commits per day across every tracked repository, last 12 months"
+                   Description="@($"Commits per day across every tracked repository, last {(_heatmapDays >= 365 ? "12 months" : $"{_heatmapDays} days")}")"
                    IsEmpty="@(_insights.Activity.Count == 0)"
                    EmptyIcon="calendar_month"
                    EmptyText="No commit activity recorded yet.">
             <Toolbar>
-                <div class="ins-heat__legend">
-                    <span class="ins-muted">Less</span>
-                    <span class="ins-heat__cell ins-heat--0"></span>
-                    <span class="ins-heat__cell ins-heat--1"></span>
-                    <span class="ins-heat__cell ins-heat--2"></span>
-                    <span class="ins-heat__cell ins-heat--3"></span>
-                    <span class="ins-heat__cell ins-heat--4"></span>
-                    <span class="ins-muted">More</span>
-                </div>
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem" Wrap="FlexWrap.Wrap">
+                    <RadzenSelectBar @bind-Value="_heatmapDays" TValue="int" Size="ButtonSize.ExtraSmall" class="ins-zoom-bar">
+                        <Items>
+                            <RadzenSelectBarItem Value="30" Text="30d" />
+                            <RadzenSelectBarItem Value="90" Text="90d" />
+                            <RadzenSelectBarItem Value="365" Text="1y" />
+                        </Items>
+                    </RadzenSelectBar>
+
+                    <div class="ins-heat__legend">
+                        <span class="ins-muted">Less</span>
+                        <span class="ins-heat__cell ins-heat--0"></span>
+                        <span class="ins-heat__cell ins-heat--1"></span>
+                        <span class="ins-heat__cell ins-heat--2"></span>
+                        <span class="ins-heat__cell ins-heat--3"></span>
+                        <span class="ins-heat__cell ins-heat--4"></span>
+                        <span class="ins-muted">More</span>
+                    </div>
+                </RadzenStack>
             </Toolbar>
             <ChildContent>
                 <div class="u-scroll-x ins-heat__scroll">
@@ -153,7 +163,7 @@
                         {
                             <span class="ins-heat__cell ins-heat--blank"></span>
                         }
-                        @foreach (var day in _insights.Activity)
+                        @foreach (var day in DisplayedActivity)
                         {
                             <span class="ins-heat__cell @IntensityClass(day.Commits)"
                                   title="@($"{day.Date:MMM d, yyyy} — {day.Commits} commit{(day.Commits == 1 ? "" : "s")}, +{day.LinesAdded:N0} lines")"></span>
@@ -307,12 +317,19 @@
     private static string SparklineSummary(RepositoryMovementDto row) =>
         $"Commits per week, last 12 weeks: {string.Join(", ", row.WeeklyCommits)}";
 
+    private int _heatmapDays = 365;
+
+    private IReadOnlyList<ActivityDayDto> DisplayedActivity =>
+        _heatmapDays >= 365
+            ? (_insights?.Activity ?? [])
+            : (_insights?.Activity ?? []).TakeLast(_heatmapDays).ToList();
+
     /// <summary>
     /// Blank cells before the first day so each grid column is one calendar week.
     /// <see cref="DayOfWeek.Sunday"/> is 0, which is exactly the offset needed.
     /// </summary>
     private int LeadingBlanks =>
-        _insights?.Activity.Count > 0 ? (int)_insights.Activity[0].Date.DayOfWeek : 0;
+        DisplayedActivity.Count > 0 ? (int)DisplayedActivity[0].Date.DayOfWeek : 0;
 
     private string HeatmapSummary =>
         _insights is null

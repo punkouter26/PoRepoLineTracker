@@ -223,10 +223,10 @@
     --bg-secondary: #1e293b;
     --bg-tertiary: #334155;
     --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
+    --text-secondary: #cbd5e1;
     --text-muted: #94a3b8;
-    --border-light: #334155;
-    --border-medium: #475569;
+    --border-light: rgba(255, 255, 255, 0.14);
+    --border-medium: rgba(255, 255, 255, 0.24);
 
     /* Lightened so they clear 4.5:1 against the dark card surface rather than the light one. */
     --status-pos: #4ade80;
@@ -235,7 +235,7 @@
     --status-info: #38bdf8;
     --status-crit: #fb7185;
 
-    --ambient-glow: color-mix(in srgb, var(--brand-violet) 14%, transparent);
+    --ambient-glow: color-mix(in srgb, var(--brand-violet) 18%, transparent);
 
     --primary-on-surface: #D0BCFF;
     /* #c02d76 measured 3.08:1 on the dark card. */
@@ -254,10 +254,10 @@
         --bg-secondary: #1e293b;
         --bg-tertiary: #334155;
         --text-primary: #f8fafc;
-        --text-secondary: #94a3b8;
+        --text-secondary: #cbd5e1;
         --text-muted: #94a3b8;
-        --border-light: #334155;
-        --border-medium: #475569;
+        --border-light: rgba(255, 255, 255, 0.14);
+        --border-medium: rgba(255, 255, 255, 0.24);
 
         --status-pos: #4ade80;
         --status-neg: #f87171;
@@ -265,7 +265,7 @@
         --status-info: #38bdf8;
         --status-crit: #fb7185;
 
-        --ambient-glow: color-mix(in srgb, var(--brand-violet) 14%, transparent);
+        --ambient-glow: color-mix(in srgb, var(--brand-violet) 18%, transparent);
 
         --primary-on-surface: #D0BCFF;
         /* #c02d76 measured 3.08:1 on the dark card. */
@@ -649,6 +649,77 @@ a:focus-visible, .btn-link:focus-visible {
 
 @media (min-width: 769px) {
     .app-scrim { display: none; }
+}
+
+/* ─── Mobile Bottom Navigation Bar (Option 8) ────────────────────────────── */
+.app-bottom-nav {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .app-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 56px;
+        background: color-mix(in srgb, var(--bg-primary) 94%, transparent);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-top: 1px solid var(--border-light);
+        z-index: 950;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
+        align-items: center;
+        justify-content: space-around;
+    }
+
+    .app-bottom-nav__item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        height: 100%;
+        color: var(--text-secondary);
+        font-size: 0.7rem;
+        font-weight: 500;
+        text-decoration: none;
+        gap: 2px;
+        transition: color 0.15s ease, transform 0.15s ease;
+        padding: 4px 0;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .app-bottom-nav__item .rzi {
+        font-size: 1.25rem;
+    }
+
+    .app-bottom-nav__item:hover,
+    .app-bottom-nav__item--active {
+        color: var(--primary-on-surface) !important;
+        text-decoration: none;
+    }
+
+    .app-bottom-nav__item--active .rzi {
+        transform: scale(1.1);
+        color: var(--primary-on-surface);
+    }
+
+    .app-content {
+        padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px) + var(--space-md)) !important;
+    }
+}
+
+/* Elevated card boundaries in dark mode */
+[data-theme="dark"] .rz-card {
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .rz-card:hover {
+    border-color: rgba(124, 58, 237, 0.35) !important;
 }
 
 /* ─── Navigation (NavMenu.razor roots at a component, so styling lives here) ─ */

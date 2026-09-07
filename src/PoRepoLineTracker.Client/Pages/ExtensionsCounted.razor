@@ -72,14 +72,10 @@
     else
     {
         <RadzenCard>
-            <RadzenStack Gap="1rem">
-                @* A wrapping flex row, not a two-column RadzenRow. The 12-column grid split the bar
-                   in half at every width, so on a phone the "Add Extension" button was squeezed
-                   into 50% of a 340px card and its label wrapped; here the heading takes what it
-                   needs and the button drops to its own line only when it genuinely will not fit. *@
+            <RadzenStack Gap="1rem" class="rz-pt-2">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
                              JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem">
-                    <RadzenText TextStyle="TextStyle.H6" class="ext-count-title">Extensions (@(extensionItems?.Count ?? 0))</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H6" class="ext-count-title">Counted Extensions (@(extensionItems?.Count ?? 0))</RadzenText>
                     <RadzenButton Text="Add Extension"
                                   Icon="add"
                                   ButtonStyle="ButtonStyle.Primary"
@@ -87,10 +83,6 @@
                                   Click="@AddNewExtension" />
                 </RadzenStack>
 
-                @* Responsive + .u-scroll-x, matching every other grid in the app. Without them this
-                   one obstructed itself on a phone: the three fixed column widths sum to 470px, so
-                   on a 375px screen the Actions column — the only way to edit or delete a row —
-                   sat permanently off the right edge with nothing to scroll it into view. *@
                 <div class="u-scroll-x">
                 <RadzenDataGrid @ref="extensionGrid"
                                 Data="@extensionItems"
@@ -142,6 +134,19 @@
                     </Columns>
                 </RadzenDataGrid>
                 </div>
+            </RadzenStack>
+        </RadzenCard>
+
+        <RadzenCard class="rz-mt-4">
+            <RadzenStack Gap="0.75rem">
+                <RadzenText TextStyle="TextStyle.Subtitle1" style="font-weight: 600;">GitHub Integration &amp; Permissions</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">
+                    PoRepoLineTracker connects to GitHub using Personal Access Tokens (PAT) or GitHub OAuth to analyze repository trees and commit histories.
+                </RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                    <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="repo (Full control of private repositories)" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="read:user (Read profile data)" />
+                </RadzenStack>
             </RadzenStack>
         </RadzenCard>
 

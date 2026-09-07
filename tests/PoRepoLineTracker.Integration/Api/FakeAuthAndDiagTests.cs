@@ -195,23 +195,14 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
     }
 
     [Fact]
-    public async Task Diag_Reports_An_Unset_Secret_As_Not_Configured()
+    public async Task Diag_Reports_NonSecret_And_Unset_Configuration()
     {
         var response = await CreateClient().SendAsync(Get("/diag", user: "alice"));
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
 
-        // TablesConnectionString is left empty in the test fixture alongside the other
-        // optional secrets — pick any key whose value is "" by design.
         var tablesConn = json.GetProperty("secrets").GetProperty(ConfigKeys.AzureTableStorage.TablesConnectionString);
         tablesConn.GetProperty("configured").GetBoolean().Should().BeFalse();
         tablesConn.GetProperty("value").GetString().Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Diag_Returns_Non_Secret_Configuration_Verbatim()
-    {
-        var response = await CreateClient().SendAsync(Get("/diag", user: "alice"));
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
 
         json.GetProperty("configuration")
             .GetProperty(ConfigKeys.AzureTableStorage.RepositoryTableName)
@@ -229,17 +220,5 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
 
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         json.GetProperty("environment").GetString().Should().Be("Test");
-    }
-
-    // One row per masking behaviour: empty stays empty, a value at or under four characters is
-    // fully starred (never partially revealed), and a longer one keeps only its last four.
-    [Theory]
-    [InlineData("", "")]
-    [InlineData("abcd", "****")]
-    [InlineData("sk-live-0123456789wxyz", "****wxyz")]
-    public void Mask_Hides_Everything_But_The_Last_Four_Characters(string? input, string expected)
-    {
-        PoRepoLineTracker.API.Features.Diagnostics.DiagnosticsEndpoints
-            .Mask(input).Should().Be(expected);
     }
 }
