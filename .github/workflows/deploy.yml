@@ -125,10 +125,14 @@ jobs:
       - name: Publish API
         run: dotnet publish ${{ env.API_PROJECT_PATH }} -c Release --no-build -o publish
       # Zip HERE, not in the deploy job. The published output is a Blazor WASM site: 475 files /
-      # 102 MB, which compresses to a single 44 MB zip. Uploading the folder made the pipeline
-      # move 102 MB out and 102 MB back in — as hundreds of small files, which is the slow part
-      # of artifact transfer — and then zip it anyway before handing it to webapps-deploy. One
-      # file, built once, is the same package with a fraction of the transfer.
+      # 102 MB, which compresses to a single 44 MB zip.
+      #
+      # This is NOT a speed fix, and the earlier version of this comment claimed it was. Measured
+      # on run 84: upload 4s, download 1s, zip-in-deploy 4s. Artifact transfer is runner-local and
+      # was never the bottleneck — the time in this job is Build (39s) and Publish (44s). What it
+      # buys is that the deploy job ships the exact bytes the build job produced and tested,
+      # instead of re-zipping a folder it just unpacked, and that the retained artifact is 44 MB
+      # rather than 102 MB for the 14 days it is kept.
       - name: Package (zip)
         run: |
           set -euo pipefail
