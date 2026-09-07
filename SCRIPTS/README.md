@@ -1,29 +1,15 @@
 # SCRIPTS
 
-Utility scripts for local development and maintenance of PoRepoLineTracker.
-
 | Script | Purpose |
 |--------|---------|
-| `setup.ps1` | **First-run setup** for new machines. Installs prerequisites (Docker, .NET 10 SDK, Azure CLI) via Winget, starts the compose services (Azurite + Jaeger), checks `az login` for Key Vault access, and kills orphaned dotnet processes on ports 5002/5003. |
-| `verify-deploy.ps1` | **Post-deploy smoke probe** for the live Azure site. Hits `/health`, `/`, and `/diag` against `app-porepolinetracker.azurewebsites.net` from the developer's machine. Useful after triggering `workflow_dispatch`, or when the pipeline is green but you want to confirm from your own network. Override the target with `$env:PoRepoLineTracker_VerifyUrl`. |
+| `setup.ps1` | **First-run setup** for a new machine. Installs Docker, the .NET 10 SDK and the Azure CLI via Winget, starts the compose services, checks `az login` for Key Vault access, and frees ports 5002/5003 of orphaned dotnet processes. |
+| `verify-deploy.ps1` | **Post-deploy smoke probe** against the live site — the same checks the pipeline runs, from your own network. Override the target with `$env:PoRepoLineTracker_VerifyUrl`. |
 
-## First-Run Setup (New Machine)
+Run either from the repo root: `.\SCRIPTS\setup.ps1`, `.\SCRIPTS\verify-deploy.ps1`.
 
-```powershell
-# From the repo root — installs everything needed for a fresh checkout
-.\SCRIPTS\setup.ps1
-```
+Each script's header comment carries its own detail — usage, why the URL is hard-coded, what each
+probe proves. This file is the index, not a second copy of that; two descriptions of one script
+drift, and the one further from the code is the one that goes stale.
 
-## Verifying a Deployment
-
-```powershell
-# From anywhere — defaults to https://app-porepolinetracker.azurewebsites.net
-.\SCRIPTS\verify-deploy.ps1
-```
-
-## Prerequisites
-
-- Docker must be running; `docker compose up -d` from the repo root starts Azurite
-  (Table Storage emulator, ports 10000-10002) and Jaeger (trace UI on
-  <http://localhost:16686>).
-- PowerShell 5.1+ or PowerShell 7+.
+Docker must be running: `docker compose up -d` starts Azurite (Table Storage emulator, ports
+10000-10002) and Jaeger (traces, <http://localhost:16686>).

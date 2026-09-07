@@ -111,17 +111,36 @@ jobs:
       # honest, so it is the gate it keeps. If you ever wire up a self-hosted runner with
       # persistent Azurite + Playwright, add `if: runner.dedicated == true` here rather
       # than removing the comment — the WHY is the part that needs to survive.
+      #
+      # RunSettingsFilePath is cleared to switch the coverlet collector OFF for CI. The Unit
+      # csproj points it at tests/coverlet.runsettings, so the collector instruments every
+      # assembly and writes cobertura+lcov on every run — and nothing in this pipeline reads
+      # either file. (The 70% threshold in that runsettings is only enforced under an explicit
+      # `--collect`, which CI does not pass, so dropping the collector loses no gate.) It stays
+      # wired for local runs, where the report is actually looked at.
       - name: Test (Unit only — Integration/E2E require live infra)
-        run: dotnet test tests/PoRepoLineTracker.Unit --no-build -c Release --verbosity minimal
+        run: dotnet test tests/PoRepoLineTracker.Unit --no-build -c Release --verbosity minimal -p:RunSettingsFilePath=
       # --no-build, not just --no-restore. Without it publish re-ran the entire Release build that
       # the step above had already done, compiling every project twice per pipeline.
       - name: Publish API
         run: dotnet publish ${{ env.API_PROJECT_PATH }} -c Release --no-build -o publish
+      # Zip HERE, not in the deploy job. The published output is a Blazor WASM site: 475 files /
+      # 102 MB, which compresses to a single 44 MB zip. Uploading the folder made the pipeline
+      # move 102 MB out and 102 MB back in — as hundreds of small files, which is the slow part
+      # of artifact transfer — and then zip it anyway before handing it to webapps-deploy. One
+      # file, built once, is the same package with a fraction of the transfer.
+      - name: Package (zip)
+        run: |
+          set -euo pipefail
+          cd publish
+          zip -r ../webapp.zip . -q
       - name: Upload webapp artifact
         uses: actions/upload-artifact@v7
         with:
           name: webapp
-          path: publish
+          path: webapp.zip
+          # Already compressed — re-compressing a zip costs CPU and saves nothing.
+          compression-level: 0
           # Long enough to redeploy a known-good build by hand after a bad one. At the previous
           # single day, the only way back from a broken deploy was a revert commit through the
           # whole pipeline — F1 has no deployment slots to swap.
@@ -146,10 +165,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      # Lands webapp.zip in the workspace root — the build job already packaged it, so this job
+      # deploys the exact bytes that were tested rather than re-zipping a folder it just unpacked.
       - uses: actions/download-artifact@v8
         with:
           name: webapp
-          path: publish
+          path: .
       # OIDC federated identity — no client secrets stored in GitHub.
       # Federated credential subject: repo:punkouter26/PoRepoLineTracker:ref:refs/heads/master
       - uses: azure/login@v2
@@ -184,12 +205,6 @@ jobs:
             --template-file infra/main.bicep \
             --name porepolinetracker-${{ github.run_id }} \
             -o none
-
-      - name: Package and zip deploy
-        run: |
-          cd publish
-          zip -r ../webapp.zip . -q
-          cd ..
 
       - name: Deploy to App Service
         uses: azure/webapps-deploy@v3
