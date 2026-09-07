@@ -190,6 +190,74 @@ public class GetPortfolioInsightsQueryHandlerTests
         topEight.LanguageMix.Sum(l => l.Percentage).Should().BeApproximately(100, 0.2);
     }
 
+    // ─── Language drift ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Drift is a move in SHARE, not in lines — the whole reason the card exists beside the mix.
+    /// This portfolio is built so the two disagree in the direction that matters: .js grows
+    /// outright (400 → 500 lines) while its share collapses (100% → 25%), because .cs arrived.
+    /// A line-count delta would rank .js as the year's gainer.
+    /// </summary>
+    [Fact]
+    public async Task LanguageDrift_RanksBySharePointsNotLines_AndNamesTheRisingAndFadingTypes()
+    {
+        GivenRepositories(GivenRepository("acme", "api",
+            // The baseline the drift window reads: the newest snapshot at or before 365 days ago.
+            Commit(daysAgo: 400, totalLines: 400, byFileType: new Dictionary<string, int> { [".js"] = 400 }),
+            Commit(daysAgo: 1, totalLines: 2_000, byFileType: new Dictionary<string, int>
+            {
+                [".cs"] = 1_500,
+                [".js"] = 500
+            })));
+
+        var insights = await WhenQueried();
+
+        var js = insights.LanguageDrift.Single(d => d.Extension == ".js");
+        js.EndLines.Should().BeGreaterThan(js.StartLines, "the language itself grew");
+        js.PercentDelta.Should().BeNegative("but everything else grew faster, so its share fell");
+
+        // Gainers first, so the page reads the rising language off the front and the fading one
+        // off the back.
+        insights.LanguageDrift[0].Extension.Should().Be(".cs");
+        insights.RisingLanguage.Should().Be(".cs");
+        insights.FadingLanguage.Should().Be(".js");
+    }
+
+    /// <summary>
+    /// Two ways there is no drift to report, both of which must yield an EMPTY card rather than a
+    /// card full of zeroes. A portfolio younger than the window has no share to have moved from —
+    /// every extension would read "+100%", a fact about the baseline. And a portfolio that only
+    /// grew uniformly has moved no shares at all.
+    /// </summary>
+    [Fact]
+    public async Task LanguageDrift_IsEmpty_WhenThePortfolioIsYoungerThanTheWindow_OrDidNotMove()
+    {
+        GivenRepositories(GivenRepository("acme", "new",
+            Commit(daysAgo: 30, totalLines: 300, byFileType: new Dictionary<string, int> { [".cs"] = 300 }),
+            Commit(daysAgo: 1, totalLines: 900, byFileType: new Dictionary<string, int> { [".cs"] = 900 })));
+
+        var young = await WhenQueried();
+        young.LanguageDrift.Should().BeEmpty("there is no snapshot a year back to measure against");
+        young.RisingLanguage.Should().BeNull();
+        young.FadingLanguage.Should().BeNull();
+
+        // Same mix at both ends, three times the lines: every share is unchanged.
+        GivenRepositories(GivenRepository("acme", "steady",
+            Commit(daysAgo: 400, totalLines: 1_000, byFileType: new Dictionary<string, int>
+            {
+                [".cs"] = 700,
+                [".razor"] = 300
+            }),
+            Commit(daysAgo: 1, totalLines: 3_000, byFileType: new Dictionary<string, int>
+            {
+                [".cs"] = 2_100,
+                [".razor"] = 900
+            })));
+
+        var steady = await WhenQueried();
+        steady.LanguageDrift.Should().BeEmpty("a language holding exactly its share is not drift");
+    }
+
     // ─── Streaks and the heatmap ─────────────────────────────────────────────
 
     [Fact]

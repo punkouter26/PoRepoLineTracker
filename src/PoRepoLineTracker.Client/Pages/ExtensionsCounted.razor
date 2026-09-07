@@ -1,5 +1,4 @@
 @page "/settings"
-@page "/settings/extensions-counted"
 @attribute [Authorize]
 @inject HttpClient Http
 @inject Radzen.NotificationService NotificationService
@@ -7,7 +6,7 @@
 @inject ILogger<ExtensionsCounted> Logger
 @inject UserPreferencesClient PreferencesClient
 @using Microsoft.AspNetCore.Authorization
-@using PoRepoLineTracker.Domain.Models
+@using PoRepoLineTracker.Shared.Domain
 @using Radzen
 @using Radzen.Blazor
 

@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.API.Analysis;
 
 /// <summary>
 /// One source file's text at a particular commit, read straight from the git object store.

@@ -1,4 +1,4 @@
-using PoRepoLineTracker.Domain.Models;
+using PoRepoLineTracker.Shared.Domain;
 using PoRepoLineTracker.Shared.Models;
 using PoRepoLineTracker.Shared.Serialization;
 

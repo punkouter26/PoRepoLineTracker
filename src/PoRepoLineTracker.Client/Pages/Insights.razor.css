@@ -226,3 +226,51 @@
     border-radius: 3px;
     background: var(--primary-color);
 }
+
+/* ─── Language drift ─────────────────────────────────────────────────────────
+   A three-column row rather than a chart. The figure is a signed shift in percentage points over
+   six rows — a bar chart of it would need a zero-crossing axis to say what "+2.1 pts" says in
+   four characters. */
+.ins-drift__lede {
+    margin: 0 0 0.75rem;
+    color: var(--text-secondary);
+}
+
+.ins-drift {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.ins-drift__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ins-drift__span {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Tabular figures so the deltas line up on the decimal down the column — they are read against
+   each other, not individually. */
+.ins-drift__delta {
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 4.5rem;
+    text-align: right;
+}
+
+/* --status-pos/neg rather than a raw green/red: those are the tokens app.css already darkens far
+   enough to carry AA against the card surface, and re-lightens for the dark theme. */
+.ins-drift__delta--up {
+    color: var(--status-pos);
+}
+
+.ins-drift__delta--down {
+    color: var(--status-neg);
+}

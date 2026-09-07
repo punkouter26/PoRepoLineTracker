@@ -1,5 +1,5 @@
 using System.Net.Http.Json;
-using PoRepoLineTracker.Domain.Models;
+using PoRepoLineTracker.Shared.Domain;
 using PoRepoLineTracker.Shared.Serialization;
 
 namespace PoRepoLineTracker.Client.Services;

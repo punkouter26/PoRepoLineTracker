@@ -292,6 +292,59 @@
                 }
             </div>
         </ChartCard>
+
+        @* ─── Language drift ──────────────────────────────────────────────────
+           The one figure here that the mix card beside it cannot show. Measured in SHARE, not
+           lines: a language can grow its share while shrinking outright, because everything else
+           shrank faster — and a line-count delta reads that as a loss.
+
+           IsEmpty covers both "no drift" cases at once. The handler returns an empty list when the
+           portfolio is younger than the window (every share would read +100%, a fact about the
+           baseline) and drops rows that did not move, so a steady portfolio renders the empty state
+           rather than six rows of "70% → 70%, +0.0 pts" under a sentence with nothing to name. *@
+        <ChartCard Title="Language drift"
+                   Description="How the mix moved over the last year, in share"
+                   IsEmpty="@(_insights.LanguageDrift.Count == 0)"
+                   EmptyIcon="swap_vert"
+                   EmptyText="No drift to report yet."
+                   EmptyHint="Needs a year of history across at least two file types.">
+            @if (_insights.RisingLanguage is not null || _insights.FadingLanguage is not null)
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="ins-drift__lede">
+                    @if (_insights.RisingLanguage is not null)
+                    {
+                        <text>You drifted toward <code class="ins-lang__code">@_insights.RisingLanguage</code></text>
+                    }
+                    @if (_insights.RisingLanguage is not null && _insights.FadingLanguage is not null)
+                    {
+                        <text> and away from </text>
+                    }
+                    else if (_insights.FadingLanguage is not null)
+                    {
+                        <text>You drifted away from </text>
+                    }
+                    @if (_insights.FadingLanguage is not null)
+                    {
+                        <code class="ins-lang__code">@_insights.FadingLanguage</code>
+                    }<text>.</text>
+                </RadzenText>
+            }
+
+            <div class="ins-drift">
+                @foreach (var drift in _insights.LanguageDrift)
+                {
+                    <div class="ins-drift__row">
+                        <code class="ins-lang__code">@drift.Extension</code>
+                        <span class="ins-drift__span">
+                            @drift.StartPercent.ToString("F1")% → @drift.EndPercent.ToString("F1")%
+                        </span>
+                        <span class="@(drift.PercentDelta > 0 ? "ins-drift__delta ins-drift__delta--up" : "ins-drift__delta ins-drift__delta--down")">
+                            @(drift.PercentDelta > 0 ? "+" : "")@drift.PercentDelta.ToString("F1") pts
+                        </span>
+                    </div>
+                }
+            </div>
+        </ChartCard>
     }
 </div>
 

@@ -4,7 +4,7 @@ using LibGit2Sharp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.API.Analysis;
 
 /// <summary>
 /// Git client that uses the git CLI for network operations (clone/pull) to avoid

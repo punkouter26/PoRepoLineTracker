@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using PoRepoLineTracker.Domain.Models;
+using PoRepoLineTracker.Shared.Domain;
 using PoRepoLineTracker.Shared.Models;
 using PoRepoLineTracker.Shared.Models.Dtos;
 
@@ -60,12 +60,6 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(LanguageShareDto))]
 [JsonSerializable(typeof(ActivityDayDto))]
 [JsonSerializable(typeof(PortfolioTrendPointDto))]
-
-// ─── Year in Code recap ─────────────────────────────────────────────────────────────────────
-[JsonSerializable(typeof(YearInCodeDto))]
-[JsonSerializable(typeof(RecapDayDto))]
-[JsonSerializable(typeof(RecapRepoDto))]
-[JsonSerializable(typeof(RecapCommitDto))]
 [JsonSerializable(typeof(LanguageDriftDto))]
 
 // ─── Since-you-were-away digest ─────────────────────────────────────────────────────────────

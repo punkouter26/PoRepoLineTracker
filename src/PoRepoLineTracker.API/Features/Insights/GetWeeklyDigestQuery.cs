@@ -39,8 +39,8 @@ public sealed class GetWeeklyDigestQueryHandler(
 
     /// <summary>
     /// Above this, the last visit is ignored too. A year-old timestamp would report the whole year
-    /// under a "since you were last here" label, which is true but is the recap's job, not a
-    /// banner's.
+    /// under a "since you were last here" label — true, but a banner is the wrong surface for it,
+    /// and the dashboard behind it already reports the year.
     /// </summary>
     private const int MaximumAwayDays = 90;
 

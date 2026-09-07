@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using PoRepoLineTracker.Domain.Models;
+using PoRepoLineTracker.Shared.Domain;
 using Radzen;
 
 namespace PoRepoLineTracker.Client.Services;

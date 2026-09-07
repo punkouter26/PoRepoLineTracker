@@ -2,7 +2,7 @@
 
    WHAT BELONGS HERE: rules whose target is, or sits under, a plain HTML element declared in
    MainLayout.razor — `.app-header`, `.app-header__brand`, `.app-header__actions`,
-   `.app-header__session`, `.app-sidebar__nav`, `.app-breadcrumb`, `.app-content`.
+   `.app-header__session`, `.app-sidebar__nav`, `.app-content`.
 
    WHAT DOES NOT: anything targeting `.rz-layout`, `.rz-header`, `.rz-sidebar` or `.rz-body`.
    Blazor compiles `::deep .x` to `[b-scope] .x`, which needs a plain HTML ancestor carrying the
@@ -53,11 +53,4 @@
 
 ::deep .header-icon-btn.header-icon-btn {
     color: rgba(255, 255, 255, 0.85) !important;
-}
-
-/* ─── Print ──────────────────────────────────────────────────────────────── */
-@media print {
-    .app-breadcrumb {
-        display: none;
-    }
 }

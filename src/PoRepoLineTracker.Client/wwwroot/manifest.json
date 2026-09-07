@@ -17,9 +17,9 @@
       "url": "/insights"
     },
     {
-      "name": "Year in Code",
-      "short_name": "Recap",
-      "url": "/recap"
+      "name": "Code Health",
+      "short_name": "Health",
+      "url": "/code-health"
     }
   ],
   "icons": [

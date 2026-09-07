@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.API.Analysis;
 
 /// <summary>
 /// Filters files and directories that should be excluded from line counting.

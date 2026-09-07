@@ -1,5 +1,4 @@
 @inherits LayoutComponentBase
-@implements IDisposable
 @using PoRepoLineTracker.Client.Layout
 @using PoRepoLineTracker.Client.Components
 @using PoRepoLineTracker.Client.Services
@@ -104,65 +103,16 @@
         @* tabindex="-1" so the skip link can move focus here; without it the anchor scrolls the
            page but leaves focus stranded back in the nav, which is the failure mode that makes
            skip links look like they work while doing nothing for a keyboard. *@
+        @* No breadcrumb row. It was deleted along with the mobile bottom-nav bar: the app is two
+           levels deep at its worst (Repositories → one repository), every destination is one tap
+           away in the drawer beside it, and on every route but the detail page the trail was a
+           single non-link naming the <h1> directly underneath it. Three navigation affordances for
+           six destinations is the thing that made this app feel bigger than it is. *@
         <main id="main-content" class="app-content" tabindex="-1" @ref="_mainContent">
-            @if (!string.IsNullOrEmpty(_breadcrumbCurrent))
-            {
-                <nav class="app-breadcrumb" aria-label="breadcrumb">
-                    @* The root IS the repositories page, so on "/" the trail is a single current
-                       item. It previously rendered nothing at all there — the one route without a
-                       breadcrumb — which moved the page header up by its height relative to every
-                       other route. Linking "Home" to the page you are already on would be the
-                       other way to keep the row, and a worse one. *@
-                    @if (!_breadcrumbIsRoot)
-                    {
-                        <a href="/">Home</a>
-                        @if (!string.IsNullOrEmpty(_breadcrumbParent))
-                        {
-                            <span class="bc-sep">›</span>
-                            @if (!string.IsNullOrEmpty(_breadcrumbParentPath))
-                            {
-                                <a href="@_breadcrumbParentPath">@_breadcrumbParent</a>
-                            }
-                            else
-                            {
-                                <span>@_breadcrumbParent</span>
-                            }
-                        }
-                        <span class="bc-sep">›</span>
-                    }
-                    <span class="bc-current" aria-current="page">@_breadcrumbCurrent</span>
-                </nav>
-            }
             @Body
         </main>
     </RadzenBody>
 </RadzenLayout>
-
-@if (_isMobile)
-{
-    <nav class="app-bottom-nav" aria-label="Mobile Navigation">
-        <a href="/" class="app-bottom-nav__item @(IsActive("/") ? "app-bottom-nav__item--active" : "")">
-            <RadzenIcon Icon="storage" />
-            <span>Repos</span>
-        </a>
-        <a href="/insights" class="app-bottom-nav__item @(IsActive("/insights") ? "app-bottom-nav__item--active" : "")">
-            <RadzenIcon Icon="insights" />
-            <span>Insights</span>
-        </a>
-        <a href="/code-health" class="app-bottom-nav__item @(IsActive("/code-health") ? "app-bottom-nav__item--active" : "")">
-            <RadzenIcon Icon="health_and_safety" />
-            <span>Health</span>
-        </a>
-        <a href="/recap" class="app-bottom-nav__item @(IsActive("/recap") ? "app-bottom-nav__item--active" : "")">
-            <RadzenIcon Icon="auto_awesome" />
-            <span>Recap</span>
-        </a>
-        <a href="/settings" class="app-bottom-nav__item @(IsActive("/settings") ? "app-bottom-nav__item--active" : "")">
-            <RadzenIcon Icon="tune" />
-            <span>Settings</span>
-        </a>
-    </nav>
-}
 
 <RadzenDialog />
 <RadzenNotification />
@@ -175,30 +125,11 @@
     private bool sidebarExpanded = true;
     private bool _isMobile = false;
     private bool _isDarkMode = false;
-    private string? _breadcrumbCurrent;
-    private string? _breadcrumbParent;
-    private string? _breadcrumbParentPath;
-
-    private bool IsActive(string path)
-    {
-        var current = Navigation.ToBaseRelativePath(Navigation.Uri);
-        if (path == "/") return string.IsNullOrEmpty(current) || current.StartsWith("repositories", StringComparison.OrdinalIgnoreCase);
-        return current.StartsWith(path.TrimStart('/'), StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>True on "/" and "/repositories", where the trail is a single item with no Home link ahead of it.</summary>
-    private bool _breadcrumbIsRoot;
 
     /// <summary>The skip link's target. Focusable only because &lt;main&gt; carries tabindex="-1".</summary>
     private ElementReference _mainContent;
 
     private async Task SkipToMainAsync() => await _mainContent.FocusAsync();
-
-    protected override void OnInitialized()
-    {
-        Navigation.LocationChanged += OnLocationChanged;
-        UpdateBreadcrumb(Navigation.Uri);
-    }
 
     /// <summary>
     /// `app-sidebar--open` drives the off-canvas transform below 768px;
@@ -252,34 +183,6 @@
         if (_isMobile) sidebarExpanded = false;
     }
 
-    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
-    {
-        UpdateBreadcrumb(e.Location);
-        InvokeAsync(StateHasChanged);
-    }
-
-    private void UpdateBreadcrumb(string uri)
-    {
-        var path = new Uri(uri).AbsolutePath.TrimEnd('/');
-        _breadcrumbIsRoot = path is "" or "/" or "/repositories";
-        (_breadcrumbCurrent, _breadcrumbParent, _breadcrumbParentPath) = path switch
-        {
-            "" or "/" or "/repositories" => ("Repositories", null, null),
-            "/insights" => ("Global Insights", null, null),
-            "/recap" => ("Year in Code", null, null),
-            // /recap/2024 is the same page under an explicit year, so it reads as a child of the
-            // year-less route rather than as a destination of its own.
-            _ when path.StartsWith("/recap/") && path.Length > "/recap/".Length
-                => (path["/recap/".Length..], "Year in Code", "/recap"),
-            "/settings" => ("Settings", null, null),
-            "/settings/extensions-counted" => ("Settings", null, null),
-            "/diag" => ("Diagnostics", null, null),
-            _ when path.StartsWith("/repositories/") && path.Length > "/repositories/".Length
-                => ("Repository Detail", "Repositories", "/"),
-            _ => (null, null, null)
-        };
-    }
-
     private void ToggleSidebar()
     {
         sidebarExpanded = !sidebarExpanded;
@@ -292,10 +195,4 @@
         await JSRuntime.InvokeVoidAsync("setTheme", _isDarkMode ? "dark" : "light");
         StateHasChanged();
     }
-
-    public void Dispose()
-    {
-        Navigation.LocationChanged -= OnLocationChanged;
-    }
-
-    }
+}

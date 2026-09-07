@@ -29,6 +29,16 @@ public sealed class GetPortfolioInsightsQueryHandler(
     /// <summary>Weeks of commit cadence kept per repository for the ranking table's sparkline.</summary>
     private const int SparklineWeeks = 12;
 
+    /// <summary>Extensions shown on the language-drift card, ranked by how far their share moved.</summary>
+    private const int DriftCount = 6;
+
+    /// <summary>
+    /// Below this many lines at BOTH endpoints, an extension is left out of the drift ranking.
+    /// A file type that went from 3 lines to 9 has tripled and tops the ranking on any relative
+    /// measure, while saying nothing about how the year was spent.
+    /// </summary>
+    private const int DriftMinimumLines = 100;
+
     public async Task<PortfolioInsightsDto> Handle(GetPortfolioInsightsQuery request, CancellationToken cancellationToken)
     {
         var repositories = (await repositoryDataService.GetAllRepositoriesAsync(request.UserId)).ToList();
@@ -61,6 +71,12 @@ public sealed class GetPortfolioInsightsQueryHandler(
 
         var movers = new List<RepositoryMovementDto>();
         var languageTotals = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+
+        // The drift baseline: the same portfolio measured a year ago. Trailing, like every other
+        // window on this page — a calendar-year edge would give one card on the dashboard a
+        // different notion of "the last year" from the twelve figures around it.
+        var languageBaseline = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+
         var commitsByDay = new Dictionary<DateTime, (int Commits, int LinesAdded)>();
 
         long recentLinesAdded = 0;
@@ -90,6 +106,13 @@ public sealed class GetPortfolioInsightsQueryHandler(
             foreach (var (extension, lines) in latest.LinesByFileType)
                 languageTotals[extension] = languageTotals.GetValueOrDefault(extension) + lines;
 
+            // LinesByFileTypeAsOf, not a sum of per-commit deltas: the per-extension breakdown on a
+            // commit is a whole-repository snapshot, so the value a year ago is the newest snapshot
+            // at or before that date. A repository with no commit that old contributes nothing,
+            // which is correct — it had no lines to have drifted from.
+            foreach (var (extension, lines) in RepositoryTotals.LinesByFileTypeAsOf(commits, activityCutoff))
+                languageBaseline[extension] = languageBaseline.GetValueOrDefault(extension) + lines;
+
             var recent = commits.Where(c => c.CommitDate >= recentCutoff).ToList();
             recentCommits += recent.Count;
             recentLinesAdded += recent.Sum(c => (long)c.LinesAdded);
@@ -118,6 +141,9 @@ public sealed class GetPortfolioInsightsQueryHandler(
 
         insights.Movers = movers.OrderByDescending(m => m.NetChange30Days).ToList();
         insights.LanguageMix = BuildLanguageMix(languageTotals);
+        insights.LanguageDrift = BuildDrift(languageBaseline, languageTotals);
+        insights.RisingLanguage = insights.LanguageDrift.FirstOrDefault(d => d.PercentDelta > 0)?.Extension;
+        insights.FadingLanguage = insights.LanguageDrift.LastOrDefault(d => d.PercentDelta < 0)?.Extension;
         insights.Activity = BuildActivity(commitsByDay, activityCutoff, today);
         insights.TrendLine = trendDates
             .Select((date, i) => new PortfolioTrendPointDto { Date = date, TotalLines = (int)Math.Min(trendTotals[i], int.MaxValue) })
@@ -181,6 +207,62 @@ public sealed class GetPortfolioInsightsQueryHandler(
         }
 
         return mix;
+    }
+
+    /// <summary>
+    /// Ranks extensions by how far their SHARE of the portfolio moved across the window.
+    ///
+    /// <para>Share rather than absolute lines, because absolute lines answer the question the
+    /// language-mix card beside it already answers. A share that grew while the language itself
+    /// shrank means everything else shrank faster — which is the drift worth showing, and is
+    /// invisible in a line-count delta.</para>
+    ///
+    /// <para>Ordered by signed delta, largest gain first, so the caller can read the rising language
+    /// off the front and the fading one off the back.</para>
+    /// </summary>
+    private static List<LanguageDriftDto> BuildDrift(Dictionary<string, long> start, Dictionary<string, long> end)
+    {
+        var startTotal = start.Values.Sum();
+        var endTotal = end.Values.Sum();
+
+        // A portfolio that did not exist at the start of the window has no share to have moved from.
+        if (startTotal <= 0 || endTotal <= 0) return [];
+
+        var drift = new List<LanguageDriftDto>();
+
+        foreach (var extension in start.Keys.Union(end.Keys, StringComparer.OrdinalIgnoreCase))
+        {
+            var startLines = start.GetValueOrDefault(extension);
+            var endLines = end.GetValueOrDefault(extension);
+            if (startLines < DriftMinimumLines && endLines < DriftMinimumLines) continue;
+
+            var startPercent = Math.Round((double)startLines / startTotal * 100, 1);
+            var endPercent = Math.Round((double)endLines / endTotal * 100, 1);
+
+            drift.Add(new LanguageDriftDto
+            {
+                Extension = extension,
+                StartLines = (int)Math.Min(startLines, int.MaxValue),
+                EndLines = (int)Math.Min(endLines, int.MaxValue),
+                StartPercent = startPercent,
+                EndPercent = endPercent,
+                PercentDelta = Math.Round(endPercent - startPercent, 1)
+            });
+        }
+
+        // Take the largest movers in EITHER direction, then re-sort signed so the list reads
+        // gainers-first. Sorting signed before taking would drop every fading language.
+        //
+        // Rows that did not move are dropped rather than ranked last: a language holding exactly its
+        // share is not drift, and including it produced a card whose every row read "70% → 70%,
+        // +0.0 pts" with an empty sentence above it, because there was no rising or fading language
+        // for the sentence to name. Filtering here means the card simply does not render.
+        return drift
+            .Where(d => d.PercentDelta != 0)
+            .OrderByDescending(d => Math.Abs(d.PercentDelta))
+            .Take(DriftCount)
+            .OrderByDescending(d => d.PercentDelta)
+            .ToList();
     }
 
     /// <summary>

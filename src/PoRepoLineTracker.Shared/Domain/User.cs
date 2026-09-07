@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.Domain.Models;
+namespace PoRepoLineTracker.Shared.Domain;
 
 /// <summary>
 /// Represents an authenticated user in the system.

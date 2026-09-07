@@ -30,10 +30,27 @@ PoRepoLineTracker.API      Minimal API + storage + feature slices. Also serves t
 PoRepoLineTracker.Client   Blazor WASM. Depends on Shared only; talks to the API over HTTP.
 ```
 
+Everything in Shared is under `PoRepoLineTracker.Shared.*` — one prefix, no exceptions.
+`Shared/Domain/` (and the strongly-typed IDs, which live there too) used to declare
+`PoRepoLineTracker.Domain.Models`, so most consuming files carried two `using` lines where one
+would do and the folder name did not predict the namespace.
+
 Vertical slices under `API/Features/{Name}/` own their endpoints, commands/queries and handlers
 together. **Slices must not reference each other** — `GlobalUsings.cs` deliberately omits
 `Features.*` so cross-slice coupling needs an explicit `using`, and only `Extensions/` (the
 composition root) has one.
+
+Outside the slices, the API splits by what the code does rather than by layer:
+
+```
+API/Analysis/    Walks a repository and counts it — GitHubService, GitClient, FileIgnoreFilter.
+API/Storage/     Azure Table Storage entities and the services that read/write them. Nothing else.
+API/Services/    Measuring and scoring — the metrics analysers, the line counter, progress.
+```
+
+`Analysis/` was carved out of `Storage/`: the three files in it are the largest in the API and none
+of them touches a table, so the folder name was actively misleading about the biggest thing under
+it. Both are in `GlobalUsings.cs`, so moving a type between them does not ripple.
 
 ## Build, run, test
 
@@ -42,11 +59,16 @@ docker compose up -d                                   # Azurite (Table Storage)
 dotnet run --project src/PoRepoLineTracker.API --launch-profile https   # https://localhost:5003
 
 dotnet build
-dotnet test tests/PoRepoLineTracker.Unit          # 204 — no external deps
-dotnet test tests/PoRepoLineTracker.Integration   # 54  — WebApplicationFactory + Testcontainers Azurite
-dotnet test tests/PoRepoLineTracker.E2EAPI        # 31  — needs the app running
-dotnet test tests/PoRepoLineTracker.E2EUI         # 42  — needs the app running + Playwright (~3m30s)
+dotnet test tests/PoRepoLineTracker.Unit          # 89 — no external deps
+dotnet test tests/PoRepoLineTracker.Integration   # 46 — WebApplicationFactory + Testcontainers Azurite
+dotnet test tests/PoRepoLineTracker.E2EAPI        # 25 — needs the app running
+dotnet test tests/PoRepoLineTracker.E2EUI         # 22 — needs the app running + Playwright (~3m30s)
 ```
+
+Those four counts are capped at 100 / 50 / 25 / 25 respectively. The cap is the point: a suite that
+grows without bound stops being run before a commit, and an unrun test is worse than an absent one
+because it still reads as coverage. Adding a test past a cap means deleting a weaker one in the
+same tier, not raising the number here.
 
 **Traces**: `docker compose` also runs Jaeger. `OpenTelemetry:OtlpEndpoint` in
 `appsettings.Development.json` points at it, so every request, outbound call and analysis step
@@ -73,6 +95,13 @@ perfectly-configured app.
 
 All four tiers are **green with zero skips**. Keep it that way — a skip in E2EUI now means the app
 isn't up, not that a fixture is missing.
+
+**E2EUI is timing-sensitive under machine load.** A clean run is ~2 minutes. When the box is busy
+(other containers, a build running alongside), the run stretches past 3 minutes and one or two
+tests fail on a wait that expired — `Chart_ResponsiveStepAndHeight` measuring a chart box as 0, or
+the service-worker wait in `InstallUiTests` timing out. Both pass in isolation and the failure
+moves between runs. Before treating an E2EUI failure as a regression, re-run the one test alone:
+if it passes, the suite was starved, not broken.
 
 First E2EUI run needs browsers:
 `pwsh tests/PoRepoLineTracker.E2EUI/bin/Debug/net10.0/playwright.ps1 install`
@@ -109,7 +138,7 @@ one strands the user on a page that thinks it is logged out. `service-worker.pub
 goes straight to the network. `service-worker.js` — the development one — is a deliberate no-op,
 because a worker serving yesterday's `_framework/*.wasm` is indistinguishable from a build that
 silently did not take. The swap happens via the `<ServiceWorker>` item in the client csproj, and
-`RecapAndInstallUiTests` asserts the dev worker holds no cache, which is what proves the swap is
+`InstallUiTests` asserts the dev worker holds no cache, which is what proves the swap is
 real rather than the published file having been served all along.
 
 **The install button is driven by an event, not a query.** There is no "is this installable" API;
@@ -317,20 +346,18 @@ read from it and subscribe; they do not render their own copy of a settings cont
 
 **Streaks and per-extension snapshots have one definition each, in Shared.** `CommitStreaks`
 (current/longest run of active days) and `RepositoryTotals.LinesByFileTypeAsOf` sit next to
-`RepositoryTotals` for the reason stated there: three surfaces now print a streak — Insights, the
-digest banner, the recap — and they live in different slices, which may not reference each other.
-Without a shared home each would grow its own copy, and a streak reading 12 on one page and 11 on
-another is indistinguishable from a data bug.
-
-**The recap's windows are calendar edges, the dashboard's are trailing.** `/api/recap/{year}`
-answers "what did this year look like" — fixed 1 January to 31 December boundaries, an answer that
-stops changing once the year is over, and figures (peak hour, weekday rhythm, language drift,
-biggest single commit) that appear nowhere else. That is why it is its own slice while the digest,
-which is the portfolio question over a different window, sits beside `GetPortfolioInsightsQuery`.
+`RepositoryTotals` for the reason stated there: more than one surface prints a streak — Insights
+and the digest banner today — and slices may not reference each other, so the next one to want it
+would have no shared home to reach for. Without one each would grow its own copy, and a streak
+reading 12 on one page and 11 on another is indistinguishable from a data bug.
 
 **Language drift is measured in share, not lines.** A file type's share of the portfolio can grow
-while the type itself shrinks — everything else shrank faster. That is the recap's one genuinely
-non-obvious figure and a line-count delta cannot show it.
+while the type itself shrinks — everything else shrank faster. It is the one figure on Insights
+that the language-mix card beside it cannot show, and a line-count delta reads it as a loss. Its
+window is **trailing 365 days**, like every other window on that page; `GetPortfolioInsightsQuery`
+computes it in the loop it already runs, off `RepositoryTotals.LinesByFileTypeAsOf`. Rows that did
+not move are dropped rather than ranked last — a card whose every row reads "70% → 70%, +0.0 pts"
+under a sentence with nothing to name is worse than no card.
 
 **The digest's read and its "mark seen" write are separate calls, deliberately.**
 `GET /api/insights/digest` never records the visit; `POST /api/insights/digest/seen` does, and the
@@ -338,13 +365,13 @@ banner only calls it once it has actually rendered. Merge them and a page opened
 the user looking consumes the window, leaving the next real visit with nothing to report. The write
 is read-modify-write because `SavePreferencesAsync` upserts with `TableUpdateMode.Replace` — build
 the preferences object from anything less than the stored row and recording a visit silently blanks
-the user's counted-extensions list. `RecapAndDigestTests` pins exactly that.
+the user's counted-extensions list. `DigestTests` pins exactly that.
 
 **A last visit is only used when it is between 12 hours and 90 days old.** Anything more recent
 falls back to a trailing 7 days: someone who reloaded twenty minutes ago has no news, and a banner
 announcing "0 commits since you were last here" looks broken on the one path — an engaged user —
-where it most needs not to. Anything older falls back too; reporting a year under that label is the
-recap's job.
+where it most needs not to. Anything older falls back too: a banner is the wrong surface for a
+year's worth of news, and the dashboard behind it already reports the year.
 
 ## Conventions
 
@@ -368,3 +395,15 @@ Do not reintroduce these without asking — each was removed for a stated reason
 - **SmartAlerts**, **Failed Operations**, the **AI model selector**. (The reasoning lived in
   AGENT.MD, which no longer exists — treat the removal itself as the decision, and ask before
   reviving any of the three.)
+- **The Year in Code recap** (`/recap`, `Features/Recap/`, `YearInCodeDto`, `Recap.razor` and its
+  436-line stylesheet) — ~1,400 lines for a page built around a once-a-year novelty, whose figures
+  were a dozen hand-rolled bar charts in bespoke CSS that nothing else reused. Its one genuinely
+  non-obvious figure, language drift, moved to Insights as a card on a trailing window; the rest
+  (peak hour, weekday rhythm, biggest single commit) went with the page.
+- **The mobile bottom-nav bar and the breadcrumb row** (`MainLayout`) — a second and third copy of
+  navigation the drawer already provides. The app is two levels deep at its worst, so on every
+  route but the detail page the breadcrumb was a single non-link naming the `<h1>` directly beneath
+  it, and the bar permanently consumed 56px of every phone screen. `NavMenu.razor` is now the only
+  list of destinations, which is the point: a second copy is a second thing to keep in sync.
+- **`/settings/extensions-counted`** — a second `@page` on the Settings screen that nothing linked
+  to. One screen under two names is a routing table that has to be read to be trusted.

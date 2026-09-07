@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.Domain.Models;
+namespace PoRepoLineTracker.Shared.Domain;
 
 public class CommitLineCount
 {

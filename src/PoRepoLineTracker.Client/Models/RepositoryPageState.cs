@@ -1,5 +1,5 @@
 using PoRepoLineTracker.Shared.Models.Dtos;
-using PoRepoLineTracker.Domain.Models;
+using PoRepoLineTracker.Shared.Domain;
 
 namespace PoRepoLineTracker.Client.Models;
 

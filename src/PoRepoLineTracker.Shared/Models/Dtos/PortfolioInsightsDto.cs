@@ -1,4 +1,4 @@
-using PoRepoLineTracker.Domain.Models;
+using PoRepoLineTracker.Shared.Domain;
 
 namespace PoRepoLineTracker.Shared.Models.Dtos;
 
@@ -44,6 +44,21 @@ public sealed class PortfolioInsightsDto
     /// <summary>Current language mix across the portfolio, largest share first.</summary>
     public List<LanguageShareDto> LanguageMix { get; set; } = [];
 
+    /// <summary>
+    /// How the language mix moved over the trailing year, ranked by the size of the move, gainers
+    /// first. Measured in SHARE, not lines: a share that grew while the language itself shrank means
+    /// everything else shrank faster, and a line-count delta cannot show that. Empty when the
+    /// portfolio did not exist a year ago — every extension would read "+100%", which is a fact
+    /// about the baseline rather than about the year.
+    /// </summary>
+    public List<LanguageDriftDto> LanguageDrift { get; set; } = [];
+
+    /// <summary>Extension whose share grew most over the window. Null when there is no drift to report.</summary>
+    public string? RisingLanguage { get; set; }
+
+    /// <summary>Extension whose share shrank most.</summary>
+    public string? FadingLanguage { get; set; }
+
     /// <summary>One entry per day for the last year, including zero-commit days — the heatmap needs the gaps.</summary>
     public List<ActivityDayDto> Activity { get; set; } = [];
 
@@ -86,6 +101,19 @@ public sealed class LanguageShareDto
     public string Extension { get; set; } = string.Empty;
     public int Lines { get; set; }
     public double Percentage { get; set; }
+}
+
+/// <summary>How one extension's share of the portfolio moved between the window's two endpoints.</summary>
+public sealed class LanguageDriftDto
+{
+    public string Extension { get; set; } = string.Empty;
+    public int StartLines { get; set; }
+    public int EndLines { get; set; }
+    public double StartPercent { get; set; }
+    public double EndPercent { get; set; }
+
+    /// <summary>End share minus start share, in percentage points. Negative when the language lost ground.</summary>
+    public double PercentDelta { get; set; }
 }
 
 /// <summary>A single cell of the contribution heatmap.</summary>

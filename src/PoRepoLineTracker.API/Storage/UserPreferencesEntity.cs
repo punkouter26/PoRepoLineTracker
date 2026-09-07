@@ -42,7 +42,7 @@ public class UserPreferencesEntity : ITableEntity
 
     public UserPreferencesEntity() { }
 
-    public UserPreferencesEntity(PoRepoLineTracker.Domain.Models.UserPreferences prefs)
+    public UserPreferencesEntity(PoRepoLineTracker.Shared.Domain.UserPreferences prefs)
     {
         PartitionKey = "PREFS";
         RowKey = prefs.UserId.ToString();
@@ -57,13 +57,13 @@ public class UserPreferencesEntity : ITableEntity
         LastUpdated = prefs.LastUpdated;
     }
 
-    public PoRepoLineTracker.Domain.Models.UserPreferences ToDomainModel()
+    public PoRepoLineTracker.Shared.Domain.UserPreferences ToDomainModel()
     {
-        return new PoRepoLineTracker.Domain.Models.UserPreferences
+        return new PoRepoLineTracker.Shared.Domain.UserPreferences
         {
-            UserId = new PoRepoLineTracker.Domain.Models.UserId(UserId),
+            UserId = new PoRepoLineTracker.Shared.Domain.UserId(UserId),
             FileExtensions = string.IsNullOrEmpty(FileExtensions)
-                ? PoRepoLineTracker.Domain.Models.UserPreferences.DefaultFileExtensions
+                ? PoRepoLineTracker.Shared.Domain.UserPreferences.DefaultFileExtensions
                 : FileExtensions.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
             LastSeenUtc = LastSeenUtc,
             LastUpdated = LastUpdated

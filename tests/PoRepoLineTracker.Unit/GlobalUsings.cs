@@ -1,10 +1,11 @@
+global using PoRepoLineTracker.API.Analysis;
 global using PoRepoLineTracker.API.Features.Contributors;
 global using PoRepoLineTracker.API.Features.Repositories;
 global using PoRepoLineTracker.API.Features.Settings;
 global using PoRepoLineTracker.API.Services;
 global using PoRepoLineTracker.API.Storage;
 global using PoRepoLineTracker.API.Telemetry;
-global using PoRepoLineTracker.Domain.Models;
+global using PoRepoLineTracker.Shared.Domain;
 global using PoRepoLineTracker.Shared.Models;
 global using PoRepoLineTracker.Shared.Models.Dtos;
 global using PoRepoLineTracker.Shared.Validation;

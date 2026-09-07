@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO; // Added for Stream
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.API.Analysis;
 
 public class GitHubService : IGitHubService
 {

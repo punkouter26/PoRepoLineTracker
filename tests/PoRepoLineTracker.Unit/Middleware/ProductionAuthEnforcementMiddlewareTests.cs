@@ -65,7 +65,7 @@ public class ProductionAuthEnforcementMiddlewareTests
     [Fact]
     public async Task Production_UnauthenticatedPage_RedirectsToLoginPageWithRelativeReturnUrl()
     {
-        var context = await InvokeAsync("Production", "/recap/2025", "?tab=languages");
+        var context = await InvokeAsync("Production", "/repositories/2025", "?tab=languages");
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status302Found);
 
@@ -75,7 +75,7 @@ public class ProductionAuthEnforcementMiddlewareTests
 
         var returnUrl = Uri.UnescapeDataString(location.Split("returnUrl=")[1]);
         Uri.IsWellFormedUriString(returnUrl, UriKind.Absolute).Should().BeFalse();
-        returnUrl.Should().StartWith("/recap/2025?tab=languages");
+        returnUrl.Should().StartWith("/repositories/2025?tab=languages");
         _nextCalled.Should().BeFalse();
     }
 

@@ -1,4 +1,4 @@
-using PoRepoLineTracker.Domain.Models;
+using PoRepoLineTracker.Shared.Domain;
 namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>

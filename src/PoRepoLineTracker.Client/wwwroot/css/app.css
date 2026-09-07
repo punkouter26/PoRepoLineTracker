@@ -301,19 +301,10 @@ html, body {
     overscroll-behavior-x: contain;
 }
 
-/* Screen-reader-only text. Used to give a meaningful name to icon-only buttons and
-   decorative data-grid columns without giving the element visible real estate. */
-.visually-hidden {
-    position: absolute !important;
-    width: 1px !important;
-    height: 1px !important;
-    padding: 0 !important;
-    margin: -1px !important;
-    overflow: hidden !important;
-    clip: rect(0, 0, 0, 0) !important;
-    white-space: nowrap !important;
-    border: 0 !important;
-}
+/* `.visually-hidden` was defined here and applied to nothing — every icon-only button in the app
+   names itself with `aria-label` or `title` instead, which is the reason it was never reached for.
+   A screen-reader-only utility that no element carries is a rule that cannot be observed to work,
+   so re-add it beside its first real use rather than keeping it warm. */
 
 #app {
     display: flex;
@@ -357,7 +348,7 @@ h3 { font-size: clamp(1.125rem, 1rem + 0.6vw, 1.25rem); }
 h4 { font-size: var(--text-lg); }
 h5, h6 { font-size: var(--text-base); }
 
-a, .btn-link {
+a {
     color: var(--primary-on-surface);
     text-decoration: none;
     transition: color 0.2s ease;
@@ -368,12 +359,12 @@ a, .btn-link {
    so on the dark theme hovering a link made it harder to read than not hovering it. Mixing
    against --text-primary moves toward whichever end of the scale the current theme calls
    "foreground", which is the direction that reads as emphasis either way. */
-a:hover, .btn-link:hover {
+a:hover {
     color: color-mix(in srgb, var(--primary-on-surface) 78%, var(--text-primary));
     text-decoration: underline;
 }
 
-a:focus-visible, .btn-link:focus-visible {
+a:focus-visible {
     outline: 2px solid var(--primary-on-surface);
     outline-offset: 2px;
     text-decoration: underline;
@@ -651,66 +642,10 @@ a:focus-visible, .btn-link:focus-visible {
     .app-scrim { display: none; }
 }
 
-/* ─── Mobile Bottom Navigation Bar (Option 8) ────────────────────────────── */
-.app-bottom-nav {
-    display: none;
-}
-
-@media (max-width: 768px) {
-    .app-bottom-nav {
-        display: flex;
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 56px;
-        background: color-mix(in srgb, var(--bg-primary) 94%, transparent);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border-top: 1px solid var(--border-light);
-        z-index: 950;
-        padding-bottom: env(safe-area-inset-bottom, 0px);
-        box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
-        align-items: center;
-        justify-content: space-around;
-    }
-
-    .app-bottom-nav__item {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        flex: 1;
-        height: 100%;
-        color: var(--text-secondary);
-        font-size: 0.7rem;
-        font-weight: 500;
-        text-decoration: none;
-        gap: 2px;
-        transition: color 0.15s ease, transform 0.15s ease;
-        padding: 4px 0;
-        -webkit-tap-highlight-color: transparent;
-    }
-
-    .app-bottom-nav__item .rzi {
-        font-size: 1.25rem;
-    }
-
-    .app-bottom-nav__item:hover,
-    .app-bottom-nav__item--active {
-        color: var(--primary-on-surface) !important;
-        text-decoration: none;
-    }
-
-    .app-bottom-nav__item--active .rzi {
-        transform: scale(1.1);
-        color: var(--primary-on-surface);
-    }
-
-    .app-content {
-        padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px) + var(--space-md)) !important;
-    }
-}
+/* The mobile bottom-nav bar lived here. It was a second copy of the drawer's six destinations,
+   fixed over the content on every phone viewport, and its `.app-content` padding-bottom override
+   existed only to keep the page clear of it. Deleted with the bar — the drawer is one tap away
+   behind the header's toggle, and it does not permanently consume 56px of a phone screen. */
 
 /* Elevated card boundaries in dark mode */
 [data-theme="dark"] .rz-card {
@@ -815,41 +750,7 @@ a:focus-visible, .btn-link:focus-visible {
     .app-header__session {
         flex: 0 0 auto;
     }
-
-    .app-header__actions .header-action-btn {
-        display: none;
-    }
 }
-
-/* ─── Breadcrumb ─────────────────────────────────────────────────────────── */
-.app-breadcrumb {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-    padding: 0 0 0.5rem;
-    margin-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border-light);
-}
-
-/* min-height meets the WCAG 2.2 AA 2.5.8 target minimum: at 0.78rem the link box was ~17px
-   tall, below the 24px floor, without the type having to grow. */
-.app-breadcrumb a {
-    color: var(--primary-on-surface);
-    text-decoration: none;
-    font-weight: 500;
-    display: inline-flex;
-    align-items: center;
-    min-height: 24px;
-    padding-inline: 0.15rem;
-    border-radius: 4px;
-}
-
-.app-breadcrumb a:hover { text-decoration: underline; }
-.app-breadcrumb .bc-sep { color: var(--text-muted); font-size: 0.7rem; }
-.app-breadcrumb .bc-current { color: var(--text-primary); font-weight: 500; }
 
 /* ─── Radzen component polish ────────────────────────────────────────────── */
 .rz-button {
@@ -1386,21 +1287,6 @@ a:focus-visible, .btn-link:focus-visible {
     /* Reads as a cutout from the card behind it, so it tracks the theme — a hardcoded white ring
        became a bright halo on the dark card. */
     border: 2px solid var(--bg-secondary);
-}
-
-.login-feature-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.72rem;
-    font-weight: 600;
-    padding: 0.25rem 0.6rem;
-    border-radius: 20px;
-    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-    color: var(--primary-on-surface);
-    border: 1px solid color-mix(in srgb, var(--primary-color) 15%, transparent);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
 }
 
 .login-cta-btn {

@@ -5,8 +5,7 @@ using FluentAssertions;
 namespace PoRepoLineTracker.Integration;
 
 /// <summary>
-/// The recap and digest routes end to end, through the real endpoint pipeline and real Azure Table
-/// Storage.
+/// The digest routes end to end, through the real endpoint pipeline and real Azure Table Storage.
 ///
 /// <para>The unit tier already covers the arithmetic. What only this tier can prove is the part
 /// that spans a storage round-trip: <c>POST /api/insights/digest/seen</c> writes the visit through
@@ -16,64 +15,12 @@ namespace PoRepoLineTracker.Integration;
 /// the symptom on a real account is every repository quietly re-analysing against the defaults.</para>
 /// </summary>
 [Collection(IntegrationTestCollection.Name)]
-public class RecapAndDigestTests
+public class DigestTests
 {
     private readonly HttpClient _client;
 
-    public RecapAndDigestTests(CustomWebApplicationFactory factory)
+    public DigestTests(CustomWebApplicationFactory factory)
         => _client = factory.CreateAntiforgeryClient();
-
-    // ─── Recap ──────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task Recap_WithNoYear_Returns_200_ForTheCurrentYear()
-    {
-        var response = await _client.GetAsync("/api/recap");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
-
-        var recap = await response.Content.ReadFromJsonAsync<YearInCodeDto>();
-        recap.Should().NotBeNull();
-        recap!.Year.Should().Be(DateTime.UtcNow.Year);
-        recap.IsPartialYear.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task Recap_WithAnExplicitYear_Returns_ThatYear()
-    {
-        var response = await _client.GetAsync("/api/recap/2020");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var recap = await response.Content.ReadFromJsonAsync<YearInCodeDto>();
-        recap!.Year.Should().Be(2020);
-        recap.IsPartialYear.Should().BeFalse();
-        // A year with nothing in it still returns full-length buckets, so the page never indexes
-        // past the end of a short list.
-        recap.CommitsByHour.Should().HaveCount(24);
-        recap.CommitsByMonth.Should().HaveCount(12);
-    }
-
-    [Theory]
-    [InlineData(1969)]
-    public async Task Recap_WithAnOutOfRangeYear_Is_Rejected(int year)
-    {
-        var response = await _client.GetAsync($"/api/recap/{year}");
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Recap_WithANonNumericYear_Does_Not_Match_The_Route()
-    {
-        // The {year:int} constraint must reject this rather than letting it reach the handler.
-        var response = await _client.GetAsync("/api/recap/last-year");
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    // ─── Digest ─────────────────────────────────────────────────────────
 
     [Fact]
     public async Task Digest_Returns_200_With_AWindowItDeclares()
