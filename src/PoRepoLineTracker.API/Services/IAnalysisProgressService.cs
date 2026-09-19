@@ -54,4 +54,10 @@ public interface IAnalysisProgressService
 
     /// <summary>Get the current progress snapshot for a repository. Returns null if no job is tracked.</summary>
     AnalysisProgressDto? GetProgress(RepositoryId repositoryId);
+
+    /// <summary>
+    /// Resolves the owning user for a job, if any. Used by the SignalR reader so it can target
+    /// the right group without expanding the wire shape of <see cref="AnalysisProgressDto"/>.
+    /// </summary>
+    bool TryGetOwner(RepositoryId repositoryId, out UserId userId);
 }

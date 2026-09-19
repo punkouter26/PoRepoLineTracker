@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using PoRepoLineTracker.API.Hubs;
+using PoRepoLineTracker.Shared.Models;
 
 namespace PoRepoLineTracker.API.Services;
 
@@ -8,15 +9,13 @@ namespace PoRepoLineTracker.API.Services;
 /// In-memory singleton that stores live analysis progress for background jobs.
 /// Safe for concurrent access from multiple background Task.Run threads.
 ///
-/// <para>Every mutation is also pushed to the owning user's SignalR group, so the UI reflects a
-/// step change immediately instead of on the next poll. <see cref="IHubContext{THub}"/> is
-/// registered as a singleton by <c>AddSignalR</c>, so taking it on a singleton is safe — unlike a
-/// scoped service, which is why ownership is captured up front in <see cref="BeginJob"/> rather
-/// than resolved here.</para>
+/// <para>Every mutation is also handed to the bounded channel that <see cref="AnalysisProgressReader"/>
+/// drains, so the UI reflects a step change immediately instead of on the next poll. The reader
+/// owns the SignalR <c>IHubContext</c>; the producer (this service) owns only the in-memory
+/// snapshot and the writer half of the channel. That split is what keeps the analysis loop
+/// non-blocking even when a SignalR client is wedged — see SPEC §10.</para>
 /// </summary>
-public sealed class AnalysisProgressService(
-    IHubContext<AnalysisHub> hubContext,
-    ILogger<AnalysisProgressService> logger) : IAnalysisProgressService
+public sealed class AnalysisProgressService : IAnalysisProgressService
 {
     private readonly ConcurrentDictionary<RepositoryId, AnalysisProgressDto> _progress = new();
 
@@ -122,35 +121,35 @@ public sealed class AnalysisProgressService(
         _progress.TryGetValue(repositoryId, out var dto) ? dto : null;
 
     /// <summary>
-    /// Sends a snapshot to the job owner's group.
+    /// Resolves the owning user for a job, if any. Used by <see cref="Hubs.AnalysisProgressReader"/>
+    /// to look up the SignalR group for a frame it pulled off the bounded channel. The producer
+    /// side (<c>Publish</c>) already gates on the owner map; this is the read-side mirror so the
+    /// reader does not need to take a wire-shape dependency on <see cref="AnalysisProgressDto"/>.
+    /// </summary>
+    public bool TryGetOwner(RepositoryId repositoryId, out UserId userId) =>
+        _jobOwners.TryGetValue(repositoryId, out userId);
+
+    /// <summary>
+    /// Hands a snapshot to the bounded channel that <see cref="AnalysisProgressReader"/> drains.
     ///
-    /// <para>Fire-and-forget with a swallowed failure, deliberately. These calls sit inside the
-    /// analysis loop — <c>ReportCommitProgress</c> fires every five commits — and the loop's job
-    /// is to finish the analysis. Awaiting would make a slow client throttle the work it is
-    /// reporting on, and letting the send throw would abort an analysis because a browser tab
-    /// closed. A dropped frame costs nothing: the client reconciles from the snapshot on
-    /// reconnect, and the polling endpoint is still there behind it.</para>
+    /// <para>The channel is the backpressure boundary named in SPEC §10: a slow SignalR client
+    /// cannot stall the analysis loop, because the writer is non-blocking (TryWrite) and the
+    /// channel's <c>DropOldest</c> policy caps memory at 64 frames. Recovery on slow-consumer
+    /// loss is the fallback poll in <c>Repositories.razor</c>, which synthesises the same
+    /// frames from the persisted snapshot, so a lost frame costs at most one stale tick.</para>
     ///
-    /// <para>A job with no recorded owner is not broadcast at all rather than broadcast to
-    /// everyone — that is the case where <see cref="BeginJob"/> was skipped, and guessing would
-    /// mean leaking one user's repository names to another.</para>
+    /// <para>A job with no recorded owner is not handed to the channel at all rather than
+    /// broadcast to everyone — that is the case where <see cref="BeginJob"/> was skipped, and
+    /// guessing would mean leaking one user's repository names to another.</para>
     /// </summary>
     private void Publish(AnalysisProgressDto dto)
     {
         if (!_jobOwners.TryGetValue(dto.RepositoryId, out var userId)) return;
 
-        _ = SendAsync(AnalysisHub.GroupFor(userId), dto);
-    }
-
-    private async Task SendAsync(string group, AnalysisProgressDto dto)
-    {
-        try
-        {
-            await hubContext.Clients.Group(group).SendAsync(AnalysisHub.ProgressMethod, dto);
-        }
-        catch (Exception ex)
-        {
-            logger.LogDebug(ex, "Dropped progress push for repository {RepositoryId}", dto.RepositoryId);
-        }
+        // TryWrite rather than WriteAsync: the producer is the analysis loop, which is the
+        // thing we are protecting from backpressure. With DropOldest, TryWrite always succeeds
+        // and the channel drops an older frame on its own; with Wait it would block, which is
+        // the failure mode the channel exists to prevent.
+        AnalysisHub.ProgressChannel.Writer.TryWrite(dto);
     }
 }

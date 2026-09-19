@@ -1,7 +1,4 @@
 using FluentAssertions;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Logging;
-using NSubstitute;
 using PoRepoLineTracker.API.Hubs;
 
 namespace PoRepoLineTracker.Unit;
@@ -11,22 +8,14 @@ namespace PoRepoLineTracker.Unit;
 /// Verifies in-memory progress tracking for background analysis jobs.
 /// Thread-safe singleton behavior tested via sequential operations.
 ///
-/// <para>The hub context is substituted rather than exercised. These tests assert the stored
-/// snapshot, which is what <c>GetProgress</c> and the polling endpoint read; the push is a
-/// side effect of the same mutation and is covered where it matters — that a job with no
-/// recorded owner is never broadcast — by <see cref="Publish_WithoutBeginJob_SendsNothing"/>.</para>
+/// <para>The hub context is no longer on this service — it lives on <see cref="AnalysisProgressReader"/>,
+/// the single reader of the bounded channel. These tests assert the stored snapshot, which is
+/// what <c>GetProgress</c> and the polling endpoint read; the push is now a channel write, and
+/// the channel policy is pinned by <c>AnalysisHubChannelTests</c>.</para>
 /// </summary>
 public class AnalysisProgressServiceTests
 {
-    private readonly IHubContext<AnalysisHub> _hubContext = Substitute.For<IHubContext<AnalysisHub>>();
-    private readonly AnalysisProgressService _sut;
-
-    public AnalysisProgressServiceTests()
-    {
-        _sut = new AnalysisProgressService(
-            _hubContext,
-            Substitute.For<ILogger<AnalysisProgressService>>());
-    }
+    private readonly AnalysisProgressService _sut = new();
 
     [Fact]
     public void StepReportingAndLifecycle_TracksStateTransitionsCorrectly()
@@ -124,10 +113,17 @@ public class AnalysisProgressServiceTests
         resetProgress.IsRunning.Should().BeTrue();
         resetProgress.CommitsProcessed.Should().Be(0);
 
+        // The hub push was on this service in the previous design; in the current design the
+        // push goes through the bounded channel, drained by AnalysisProgressReader. Asserting
+        // "no broadcast without owner" at the channel level is AnalysisHubChannelTests' job;
+        // here we pin the in-memory invariant that ReportStep on an unowned repo still records
+        // no owner (TryGetOwner returns false) and TryGetOwner on a begun repo returns true.
         var unownedRepoId = RepositoryId.New();
-        _hubContext.ClearReceivedCalls();
+        _sut.TryGetOwner(unownedRepoId, out _).Should().BeFalse();
         _sut.ReportStep(unownedRepoId, 1, "Cloning", "Cloning...");
+        _sut.TryGetOwner(unownedRepoId, out _).Should().BeFalse();
         _sut.ReportError(unownedRepoId, "boom");
-        _ = _hubContext.DidNotReceive().Clients;
+
+        _sut.TryGetOwner(repoId, out var ownerOfBegun).Should().BeTrue();
     }
 }

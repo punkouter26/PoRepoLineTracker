@@ -1,4 +1,5 @@
 using PoRepoLineTracker.API.Features.Repositories;
+using PoRepoLineTracker.API.Hubs;
 using Microsoft.AspNetCore.HttpOverrides;
 using Azure.Identity;
 using FluentValidation;
@@ -167,6 +168,9 @@ public static class InfrastructureServiceExtensions
         // has to be resolvable for the singleton above to take a dependency on it).
         services.AddSignalR();
         services.AddSingleton<IAnalysisProgressService, AnalysisProgressService>();
+        // Drains the bounded AnalysisHub.ProgressChannel on a single reader thread; takes
+        // IHubContext from the SignalR registration above. Long-running by definition.
+        services.AddHostedService<AnalysisProgressReader>();
 
         services.AddScoped<IGitHubService>(sp => new GitHubService(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("GitHubClient"),
