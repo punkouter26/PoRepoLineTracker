@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using PoRepoLineTracker.API.Telemetry;
 using PoRepoLineTracker.Shared.Models.Dtos;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -335,8 +336,17 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
 
             try
             {
+                // Per-commit telemetry: lines counted (tagged by repo) and the wall-clock
+                // duration of one count pass. Both go into the AppTelemetry meter so the OTel
+                // pipeline in AddTelemetry exports them; the live view's "throughput" reads
+                // from CommitCountDuration, the digest's "since you were last here" reads from
+                // LinesCounted.
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 var lineCounts = await _gitHubService.CountLinesInCommitAsync(repositoryPath, commitStat.Sha, fileExtensionsToCount);
+                sw.Stop();
                 var totalLines = lineCounts.Values.Sum();
+                AnalysisMetrics.RecordLinesCounted(request.RepositoryId, totalLines);
+                AnalysisMetrics.RecordCommitCountDuration(request.RepositoryId, sw.Elapsed.TotalMilliseconds);
 
                 var commitLineCount = new CommitLineCount
                 {
