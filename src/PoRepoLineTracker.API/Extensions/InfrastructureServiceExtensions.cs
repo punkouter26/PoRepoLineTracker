@@ -1,4 +1,5 @@
 using PoRepoLineTracker.API.Features.Repositories;
+using PoRepoLineTracker.API.Features.Diagnostics;
 using PoRepoLineTracker.API.Hubs;
 using Microsoft.AspNetCore.HttpOverrides;
 using Azure.Identity;
@@ -191,9 +192,13 @@ public static class InfrastructureServiceExtensions
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(
             typeof(Program).Assembly));
 
-        // Health checks
+        // Health checks — all three dependencies share the same registry so /health and
+        // /diag agree (SPEC §11.3). Names use hyphens to match the documented contract and
+        // the diagnostic page's ExternalConnections rows.
         services.AddHealthChecks()
-            .AddCheck<AzureTableStorageHealthCheck>("azure_table_storage");
+            .AddCheck<AzureTableStorageHealthCheck>("azure-table-storage")
+            .AddCheck<KeyVaultHealthCheck>("key-vault")
+            .AddCheck<GitHubApiHealthCheck>("github-api");
 
         // Forwarded headers for Azure Container Apps reverse proxy
         services.Configure<ForwardedHeadersOptions>(options =>

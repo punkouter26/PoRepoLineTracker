@@ -9,3 +9,4 @@ global using PoRepoLineTracker.Shared.Domain;
 global using PoRepoLineTracker.Shared.Models;
 global using PoRepoLineTracker.Shared.Models.Dtos;
 global using PoRepoLineTracker.Shared.Validation;
+global using Microsoft.Extensions.Options;

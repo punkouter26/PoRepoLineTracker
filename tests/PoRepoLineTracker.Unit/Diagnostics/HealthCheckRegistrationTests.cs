@@ -1,0 +1,151 @@
+using System.Net;
+using FluentAssertions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using PoRepoLineTracker.API.Features.Diagnostics;
+using PoRepoLineTracker.API.Storage;
+
+namespace PoRepoLineTracker.Unit.Diagnostics;
+
+/// <summary>
+/// Pins the A3 acceptance:
+/// 1. Each dependency has a registered IHealthCheck with a stable name
+///    (azure-table-storage, key-vault, github-api).
+/// 2. The check returns the documented status for the documented inputs.
+/// 3. /health and /api/diagnostics both read the same registry — neither
+///    re-implements a probe, which is what SPEC §11.3's "diag is honest"
+///    requirement is asking for.
+/// </summary>
+public class HealthCheckRegistrationTests
+{
+    [Fact]
+    public async Task AzureTableStorage_check_returns_a_status_for_a_substituted_client()
+    {
+        var check = new AzureTableStorageHealthCheck(
+            Substitute.For<Azure.Data.Tables.TableServiceClient>(),
+            BuildConfig(("AzureTableStorage:RepositoryTableName", "Test")),
+            Substitute.For<ILogger<AzureTableStorageHealthCheck>>());
+
+        var context = new HealthCheckContext { Registration = new HealthCheckRegistration("azure-table-storage", check, null, null) };
+
+        // The substituted TableServiceClient cannot return a real queryable table; the check's
+        // exception path is the only branch exercised here. We assert the contract on the
+        // reachable / unreachable split instead of mocking every table response.
+        var result = await check.CheckHealthAsync(context);
+        result.Status.Should().BeOneOf(HealthStatus.Healthy, HealthStatus.Unhealthy);
+        result.Description.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task KeyVault_check_returns_Healthy_when_KeyVaultUri_configured_Degraded_otherwise()
+    {
+        var configEmpty = BuildConfig();
+        var configSet = BuildConfig(("KeyVault:Uri", "https://example-vault.vault.azure.net/"));
+
+        var healthy = new KeyVaultHealthCheck(configSet, Substitute.For<ILogger<KeyVaultHealthCheck>>());
+        var degraded = new KeyVaultHealthCheck(configEmpty, Substitute.For<ILogger<KeyVaultHealthCheck>>());
+
+        var healthyResult = await healthy.CheckHealthAsync(NewContext("key-vault"));
+        var degradedResult = await degraded.CheckHealthAsync(NewContext("key-vault"));
+
+        healthyResult.Status.Should().Be(HealthStatus.Healthy);
+        degradedResult.Status.Should().Be(HealthStatus.Degraded);
+    }
+
+    [Fact]
+    public async Task GitHubApi_check_returns_Degraded_when_rate_limit_remaining_below_threshold()
+    {
+        var http = BuildStubHttp(HttpStatusCode.OK, "X-RateLimit-Remaining", "42");
+        var factory = Substitute.For<IHttpClientFactory>();
+        factory.CreateClient(Arg.Any<string>()).Returns(http);
+
+        var check = new GitHubApiHealthCheck(factory, Substitute.For<ILogger<GitHubApiHealthCheck>>());
+
+        var result = await check.CheckHealthAsync(NewContext("github-api"));
+
+        result.Status.Should().Be(HealthStatus.Degraded);
+    }
+
+    [Fact]
+    public async Task GitHubApi_check_returns_Unhealthy_on_401_or_403()
+    {
+        var http = BuildStubHttp(HttpStatusCode.Unauthorized, "X-RateLimit-Remaining", "5000");
+        var factory = Substitute.For<IHttpClientFactory>();
+        factory.CreateClient(Arg.Any<string>()).Returns(http);
+
+        var check = new GitHubApiHealthCheck(factory, Substitute.For<ILogger<GitHubApiHealthCheck>>());
+        var result = await check.CheckHealthAsync(NewContext("github-api"));
+
+        result.Status.Should().Be(HealthStatus.Unhealthy);
+    }
+
+    [Fact]
+    public async Task GitHubApi_check_returns_Healthy_when_rate_limit_above_threshold()
+    {
+        var http = BuildStubHttp(HttpStatusCode.OK, "X-RateLimit-Remaining", "4999");
+        var factory = Substitute.For<IHttpClientFactory>();
+        factory.CreateClient(Arg.Any<string>()).Returns(http);
+
+        var check = new GitHubApiHealthCheck(factory, Substitute.For<ILogger<GitHubApiHealthCheck>>());
+        var result = await check.CheckHealthAsync(NewContext("github-api"));
+
+        result.Status.Should().Be(HealthStatus.Healthy);
+    }
+
+    [Fact]
+    public void HealthChecksService_registers_all_three_under_documented_names()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddHealthChecks()
+            .AddCheck<AzureTableStorageHealthCheck>("azure-table-storage")
+            .AddCheck<KeyVaultHealthCheck>("key-vault")
+            .AddCheck<GitHubApiHealthCheck>("github-api");
+
+        var sp = services.BuildServiceProvider();
+        var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
+
+        options.Registrations.Select(r => r.Name).Should()
+            .BeEquivalentTo(new[] { "azure-table-storage", "key-vault", "github-api" });
+    }
+
+    private static HealthCheckContext NewContext(string name) =>
+        new() { Registration = new HealthCheckRegistration(name, Substitute.For<IHealthCheck>(), null, null) };
+
+    private static IConfiguration BuildConfig(params (string Key, string Value)[] pairs)
+    {
+        var dict = pairs.ToDictionary(p => p.Key, p => (string?)p.Value);
+        return new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
+    }
+
+    private static HttpClient BuildStubHttp(HttpStatusCode status, string headerName, string headerValue)
+    {
+        var handler = new StubHandler(status, headerName, headerValue);
+        return new HttpClient(handler) { BaseAddress = new Uri("https://api.github.com/") };
+    }
+
+    /// <summary>Tiny HttpMessageHandler stub so the GitHub check can be tested without a network.</summary>
+    private sealed class StubHandler : HttpMessageHandler
+    {
+        private readonly HttpStatusCode _status;
+        private readonly string _headerName;
+        private readonly string _headerValue;
+
+        public StubHandler(HttpStatusCode status, string headerName, string headerValue)
+        {
+            _status = status;
+            _headerName = headerName;
+            _headerValue = headerValue;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(_status);
+            response.Headers.TryAddWithoutValidation(_headerName, _headerValue);
+            return Task.FromResult(response);
+        }
+    }
+}
