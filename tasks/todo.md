@@ -74,12 +74,13 @@ Vertical-slice checklist, ≤5 files per task, one commit per task. Read `tasks/
 
 ## Stream B — UI scale prep
 
-### B1. `RadzenDataGrid` template replacing the bespoke table on `Repositories.razor`
+### B1. `RadzenDataGrid` template replacing the bespoke table on `Repositories.razor` (Phase 3 pick: A7)
 
 - **Acceptance**
   - New `Components/Repositories/RepositoriesGrid.razor` renders a `RadzenDataGrid` with columns `FullName`, `TotalLines`, `Health`, `Last commit`.
-  - `Pages/Repositories.razor` replaces its table with `<RepositoriesGrid Items="@repositories" />`.
+  - `Pages/Repositories.razor` keeps `PortfolioStatTiles` above the grid (Phase 3 pick A7: tiled header + grid, single visual seam). The bespoke table is replaced with `<RepositoriesGrid Items="@repositories" />`.
   - `Repositories.razor.css` selectors that target the old table move to `RepositoriesGrid.razor.css`. No inline CSS.
+  - Page hero carries h1 + subtitle "Your repositories — N total · M lines." (Phase 3 pick B1). Subtitle values are server-known so `[StreamRendering]` (B3) renders the same text pre- and post-hydration.
   - `AccessibilityUiTests` passes unchanged: one h1 on `/repositories`, distinct page title, sortable columns announced to assistive tech.
 - **Files** (`≤5`)
   - `src/PoRepoLineTracker.Client/Components/Repositories/RepositoriesGrid.razor` (new)
@@ -107,10 +108,12 @@ Vertical-slice checklist, ≤5 files per task, one commit per task. Read `tasks/
   - Full E2EUI: `dotnet test tests/PoRepoLineTracker.E2EUI` — **zero skips**.
 - **Dependencies** — B1 merged.
 
-### B3. `[StreamRendering]` on Repositories, Insights, RepositoryDetail
+### B3. `[StreamRendering]` on Repositories, Insights, RepositoryDetail (Phase 3 hero: B1 + B10)
 
 - **Acceptance**
   - The three pages carry `@attribute [StreamRendering]`.
+  - `Pages/Repositories.razor` keeps B1 hero (h1 + subtitle "Your repositories — N total · M lines."); subtitle values are server-known (counts from `GetAllRepositoriesQuery`) so the prerendered text matches post-hydration exactly.
+  - `Pages/Insights.razor` and `Pages/RepositoryDetail.razor` carry the B10 minimal hero (h1 only, no subtitle) — Phase 3 decision: minimal is correct where there's no count or orientation affordance to surface.
   - New `PreRenderUiTests.cs` (E2EUI) asserts: "first request to `/repositories` while authenticated returns a non-empty `<main>` before client-side hydration".
   - Logout flow assertion: after `SignOut`, the prerendered snapshot matches `/auth/me`'s `isAuthenticated: false` (no stale auth UI from a previous user).
 - **Files** (`≤5`)
