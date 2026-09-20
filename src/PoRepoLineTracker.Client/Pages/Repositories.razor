@@ -40,6 +40,33 @@
             </RadzenStack>
         </Heading>
         <Actions>
+            @if (pageState.Repositories.Count > 0)
+            {
+                <RadzenButton Text="Print"
+                              Icon="print"
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Medium"
+                              title="Print executive brief / Save as PDF"
+                              aria-label="Print executive brief / Save as PDF"
+                              Click="@PrintReportAsync" />
+                <RadzenButton Text="CSV"
+                              Icon="download"
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Medium"
+                              title="Download portfolio as CSV"
+                              aria-label="Download portfolio as CSV"
+                              Click="@(() => Navigation.NavigateTo("/api/repositories/export?format=csv", forceLoad: true))" />
+                <RadzenButton Text="JSON"
+                              Icon="data_object"
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Medium"
+                              title="Download portfolio as JSON"
+                              aria-label="Download portfolio as JSON"
+                              Click="@(() => Navigation.NavigateTo("/api/repositories/export?format=json", forceLoad: true))" />
+            }
             <RadzenButton Text="@(_showAddPanel ? "Cancel" : "Add Repository")"
                           Icon="@(_showAddPanel ? "close" : "add_circle")"
                           ButtonStyle="@(_showAddPanel ? ButtonStyle.Light : ButtonStyle.Primary)"
@@ -163,7 +190,8 @@
 
         @* ─── Repository Data Grid (extracted; see Components/Repositories/RepositoriesGrid.razor) ─── *@
         <RadzenCard>
-            <RepositoriesGrid Items="@RepositoryRows"
+            <RepositoriesGrid @ref="_grid"
+                              Items="@RepositoryRows"
                               ProgressMap="@_analysisProgress"
                               ReanalysisStartTimes="@_reanalysisStartTimes"
                               ReanalyzingId="@reanalyzingRepositoryId"
@@ -377,6 +405,11 @@
     }
 
     // ToRelativeTime moved to ChartFormat — it was duplicated verbatim on RepositoryDetail.
+
+    private async Task PrintReportAsync()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
 
     private void ToggleAddPanel()
     {

@@ -8,6 +8,7 @@ using PoRepoLineTracker.API.Features.GitHub;
 using PoRepoLineTracker.API.Features.Insights;
 using PoRepoLineTracker.API.Features.Repositories;
 using PoRepoLineTracker.API.Features.Settings;
+using PoRepoLineTracker.API.Features.Webhooks;
 
 namespace PoRepoLineTracker.API.Extensions;
 
@@ -32,12 +33,14 @@ public static class ApiEndpointExtensions
         app.MapAntiforgeryEndpoints();
         app.MapAuthEndpoints();
         app.MapRepositoryEndpoints();
+        app.MapPortfolioExportEndpoints();
         app.MapSettingsEndpoints();
         app.MapGitHubEndpoints();
         app.MapDiagnosticsEndpoints();
         app.MapContributorEndpoints();
         app.MapInsightsEndpoints();
         app.MapCodeHealthEndpoints();
+        app.MapWebhookEndpoints();
 
         if (isDevelopment)
         {

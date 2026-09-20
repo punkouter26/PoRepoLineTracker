@@ -70,6 +70,27 @@ internal static class RepositoryEndpoints
         })
         .WithName("GetRepositoryLineHistory");
 
+        repos.MapGet("/{repositoryId}/punchcard/{days}", async (RepositoryId repositoryId, int days, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        {
+            if (!ctx.User.TryGetUserId(out var userId))
+                return Results.Unauthorized();
+
+            var (_, error) = await AuthorizeOwnerAsync(repoDataService, repositoryId, userId, "read punchcard for");
+            if (error != null) return error;
+
+            try
+            {
+                var punchcard = await mediator.Send(new GetRepositoryPunchcardQuery(repositoryId, days));
+                return Results.Ok(punchcard);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error retrieving punchcard for repository {RepositoryId}", repositoryId);
+                return Results.Problem($"Error retrieving punchcard: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+            }
+        })
+        .WithName("GetRepositoryPunchcard");
+
         repos.MapGet("/allcharts/{days}", async (int days, HttpContext ctx, IMediator mediator) =>
         {
             try

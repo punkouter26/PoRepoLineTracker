@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.FileSystemGlobbing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -165,15 +166,43 @@ public class FileIgnoreFilter
     /// </summary>
     /// <param name="fileName">The name of the file (e.g., "Program.cs").</param>
     /// <param name="filePath">The full path to the file within the repository.</param>
+    /// <summary>
+    /// Custom glob patterns to ignore during repository analysis (e.g. "**/*.generated.*", "migrations/**").
+    /// </summary>
+    public IReadOnlyList<string> CustomIgnoreGlobs { get; set; } = [];
+
+    public static bool MatchesCustomGlobs(string relativePath, IEnumerable<string>? customGlobs)
+    {
+        if (customGlobs == null) return false;
+        var globs = customGlobs.Where(g => !string.IsNullOrWhiteSpace(g)).ToList();
+        if (globs.Count == 0) return false;
+
+        var matcher = new Microsoft.Extensions.FileSystemGlobbing.Matcher(StringComparison.OrdinalIgnoreCase);
+        foreach (var glob in globs)
+        {
+            matcher.AddInclude(glob.Trim());
+        }
+
+        var normalized = relativePath.Replace('\\', '/').TrimStart('/');
+        return matcher.Match(normalized).HasMatches;
+    }
+
     public bool ShouldIgnoreFile(string fileName, string filePath)
     {
         var nameLower = fileName.ToLowerInvariant();
         var normalizedPath = NormalizePath(filePath);
 
-        // Fast exact match
+        // Custom user-defined globs
+        if (CustomIgnoreGlobs.Count > 0 && MatchesCustomGlobs(string.IsNullOrEmpty(normalizedPath) ? nameLower : normalizedPath, CustomIgnoreGlobs))
+        {
+            _logger.LogDebug("Ignoring file (custom glob): {FilePath}", filePath);
+            return true;
+        }
+
+        // Exact name match
         if (_exactFileNames.Contains(nameLower))
         {
-            _logger.LogDebug("Ignoring file (exact match): {FileName}", fileName);
+            _logger.LogDebug("Ignoring file (exact name): {FileName}", fileName);
             return true;
         }
 
@@ -219,6 +248,17 @@ public class FileIgnoreFilter
     /// </summary>
     public bool ShouldIgnoreDirectory(string directoryPath)
     {
+        if (CustomIgnoreGlobs.Count > 0)
+        {
+            var dirNormalized = directoryPath.Replace('\\', '/').Trim('/');
+            if (MatchesCustomGlobs(dirNormalized, CustomIgnoreGlobs) ||
+                MatchesCustomGlobs(dirNormalized + "/_check_", CustomIgnoreGlobs))
+            {
+                _logger.LogDebug("Ignoring directory (custom glob): {DirectoryPath}", directoryPath);
+                return true;
+            }
+        }
+
         var normalized = NormalizePath(directoryPath) + "/";
 
         var shouldIgnore = _directoryPatterns.Any(p =>

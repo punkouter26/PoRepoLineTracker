@@ -123,12 +123,9 @@
 
     [Parameter] public EventCallback<GitHubRepository> OnReanalyze { get; set; }
     [Parameter] public EventCallback<GitHubRepository> OnDelete { get; set; }
-    // RowClick and RowRender mirror the original RadzenDataGrid signature (Action<>, not
-    // EventCallback<>), so they bind directly to Radzen's RowClick="..." / RowRender="..."
-    // attributes without a wrapper. The page passes plain methods.
-    [Parameter] public Action<DataGridRowMouseEventArgs<RepositoryGridRow>>? OnRowClick { get; set; }
+    [Parameter] public EventCallback<DataGridRowMouseEventArgs<RepositoryGridRow>> OnRowClick { get; set; }
     [Parameter] public Action<RowRenderEventArgs<RepositoryGridRow>>? OnRowRender { get; set; }
 
     /// <summary>Forwarded so the page can call <c>Reload()</c> after a delete.</summary>
-    [Parameter] public RadzenDataGrid<RepositoryGridRow>? Grid { get; set; }
+    public RadzenDataGrid<RepositoryGridRow>? Grid { get; set; }
 }

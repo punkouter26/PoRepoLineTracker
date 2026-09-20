@@ -1,0 +1,99 @@
+.rhythm-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    width: 100%;
+    overflow-x: auto;
+}
+
+.rhythm-header {
+    display: flex;
+    align-items: center;
+    min-width: 540px;
+    height: 18px;
+}
+
+.rhythm-day-label-space {
+    width: 42px;
+    flex-shrink: 0;
+}
+
+.rhythm-hours {
+    position: relative;
+    flex: 1;
+    height: 100%;
+}
+
+.rhythm-hour-mark {
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    color: var(--rz-text-tertiary-color, #888888);
+    white-space: nowrap;
+}
+
+.rhythm-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 540px;
+}
+
+.rhythm-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rhythm-day-label {
+    width: 34px;
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--rz-text-secondary-color, #666666);
+}
+
+.rhythm-cells {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 4px;
+    flex: 1;
+}
+
+.rhythm-cell {
+    aspect-ratio: 1 / 1;
+    min-width: 12px;
+    min-height: 12px;
+    border-radius: 2px;
+    background-color: var(--rz-border-color, rgba(128, 128, 128, 0.15));
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.rhythm-cell--active {
+    background-color: color-mix(in srgb, var(--rz-primary, #1976d2) calc(var(--intensity, 0.5) * 100%), var(--rz-border-color, rgba(128, 128, 128, 0.15)));
+}
+
+.rhythm-cell:hover {
+    transform: scale(1.25);
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.rhythm-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--rz-border-color, rgba(128, 128, 128, 0.1));
+    font-size: 0.8rem;
+    color: var(--rz-text-secondary-color, #555555);
+}
+
+.rhythm-footer__icon {
+    font-size: 1rem;
+    color: var(--rz-warning, #f59e0b);
+}
+

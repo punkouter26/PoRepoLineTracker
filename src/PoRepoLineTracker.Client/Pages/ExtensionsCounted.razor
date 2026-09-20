@@ -138,6 +138,55 @@
 
         <RadzenCard class="rz-mt-4">
             <RadzenStack Gap="0.75rem">
+                <RadzenText TextStyle="TextStyle.Subtitle1" style="font-weight: 600;">Custom Ignore Patterns (Globs)</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">
+                    Exclude generated code, test fixtures, or docs using glob patterns (e.g. <code>**/migrations/**</code>, <code>**/*.g.cs</code>).
+                </RadzenText>
+
+                @* Quick Presets *@
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                    <RadzenText TextStyle="TextStyle.Caption" style="font-weight: 500;">Presets:</RadzenText>
+                    <RadzenButton Text="+ Migrations" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined"
+                                  Click="@(() => AddPresetGlob("**/migrations/**"))" />
+                    <RadzenButton Text="+ Generated (.g.cs)" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined"
+                                  Click="@(() => AddPresetGlob("**/*.g.cs"))" />
+                    <RadzenButton Text="+ Docs (**/*.md)" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined"
+                                  Click="@(() => AddPresetGlob("**/*.md"))" />
+                </RadzenStack>
+
+                @* Add Input *@
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                    <RadzenTextBox @bind-Value="newGlobValue" Placeholder="e.g. tests/fixtures/**" Style="max-width: 320px;"
+                                   @onkeydown="@(e => { if (e.Key == "Enter") AddCustomGlob(); })" />
+                    <RadzenButton Text="Add Pattern" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                                  Click="@AddCustomGlob" Disabled="@string.IsNullOrWhiteSpace(newGlobValue)" />
+                </RadzenStack>
+
+                @* Active Patterns Chips *@
+                @if (customGlobs.Count > 0)
+                {
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mt-2">
+                        @foreach (var glob in customGlobs)
+                        {
+                            var pattern = glob;
+                            <span class="rz-badge rz-badge-pill rz-badge-secondary" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem;">
+                                <code>@pattern</code>
+                                <span style="cursor: pointer; font-weight: bold; margin-left: 4px;"
+                                      title="Remove pattern"
+                                      @onclick="@(() => RemoveCustomGlob(pattern))">&times;</span>
+                            </span>
+                        }
+                    </RadzenStack>
+                }
+                else
+                {
+                    <RadzenText TextStyle="TextStyle.Caption" class="rz-color-secondary">No custom ignore patterns configured.</RadzenText>
+                }
+            </RadzenStack>
+        </RadzenCard>
+
+        <RadzenCard class="rz-mt-4">
+            <RadzenStack Gap="0.75rem">
                 <RadzenText TextStyle="TextStyle.Subtitle1" style="font-weight: 600;">GitHub Integration &amp; Permissions</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2">
                     PoRepoLineTracker connects to GitHub using Personal Access Tokens (PAT) or GitHub OAuth to analyze repository trees and commit histories.
@@ -156,6 +205,9 @@
     private RadzenDataGrid<ExtensionItem>? extensionGrid;
     private List<ExtensionItem>? extensionItems;
     private List<ExtensionItem>? originalExtensionItems;
+    private List<string> customGlobs = [];
+    private List<string> originalCustomGlobs = [];
+    private string newGlobValue = string.Empty;
     private string? errorMessage;
     private bool isLoading = true;
     private bool isSaving = false;
@@ -189,6 +241,8 @@
             var extensions = preferences?.FileExtensions?.ToList() ?? [];
             extensionItems = extensions.Select(ext => new ExtensionItem { Extension = ext, Category = GetCategory(ext) }).ToList();
             originalExtensionItems = extensionItems.Select(e => new ExtensionItem { Extension = e.Extension, Category = e.Category }).ToList();
+            customGlobs = preferences?.CustomIgnoreGlobs?.ToList() ?? [];
+            originalCustomGlobs = customGlobs.ToList();
             hasChanges = false;
         }
         catch (Exception ex)
@@ -289,9 +343,45 @@
         }
     }
 
+    private void AddPresetGlob(string pattern)
+    {
+        if (!customGlobs.Contains(pattern, StringComparer.OrdinalIgnoreCase))
+        {
+            customGlobs.Add(pattern);
+            CheckForChanges();
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Added", Detail = $"Added ignore pattern '{pattern}'", Duration = 2000 });
+        }
+    }
+
+    private void AddCustomGlob()
+    {
+        var trimmed = newGlobValue.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return;
+
+        if (customGlobs.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+        {
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Warning, Summary = "Duplicate", Detail = $"Pattern '{trimmed}' already exists.", Duration = 3000 });
+            newGlobValue = string.Empty;
+            return;
+        }
+
+        customGlobs.Add(trimmed);
+        newGlobValue = string.Empty;
+        CheckForChanges();
+        NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Added", Detail = $"Added pattern '{trimmed}'", Duration = 2000 });
+    }
+
+    private void RemoveCustomGlob(string pattern)
+    {
+        customGlobs.RemoveAll(p => p.Equals(pattern, StringComparison.OrdinalIgnoreCase));
+        CheckForChanges();
+        NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Info, Summary = "Removed", Detail = $"Removed pattern '{pattern}'", Duration = 2000 });
+    }
+
     private void ResetToDefaults()
     {
         extensionItems = UserPreferences.DefaultFileExtensions.Select(ext => new ExtensionItem { Extension = ext, Category = GetCategory(ext) }).ToList();
+        customGlobs = [];
         CheckForChanges();
         NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Info, Summary = "Reset", Detail = "Preferences reset. Save to apply.", Duration = 3000 });
     }
@@ -301,7 +391,9 @@
         if (originalExtensionItems == null || extensionItems == null) { hasChanges = false; return; }
         var currentSet = extensionItems.Select(e => e.Extension.ToLowerInvariant()).OrderBy(x => x).ToList();
         var originalSet = originalExtensionItems.Select(e => e.Extension.ToLowerInvariant()).OrderBy(x => x).ToList();
-        hasChanges = !currentSet.SequenceEqual(originalSet);
+        var currentGlobs = customGlobs.OrderBy(x => x).ToList();
+        var origGlobs = originalCustomGlobs.OrderBy(x => x).ToList();
+        hasChanges = !currentSet.SequenceEqual(originalSet) || !currentGlobs.SequenceEqual(origGlobs);
     }
 
     private async Task SavePreferences()
@@ -316,12 +408,15 @@
             {
                 UserId = preferences?.UserId ?? UserId.Empty,
                 FileExtensions = extensionItems.Select(e => e.Extension).ToList(),
+                CustomIgnoreGlobs = customGlobs.ToList(),
+                LastSeenUtc = preferences?.LastSeenUtc,
                 LastUpdated = DateTime.UtcNow
             };
             preferences = await PreferencesClient.SaveAsync(updatedPrefs);
             originalExtensionItems = extensionItems.Select(e => new ExtensionItem { Extension = e.Extension, Category = e.Category }).ToList();
+            originalCustomGlobs = customGlobs.ToList();
             hasChanges = false;
-            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Saved", Detail = "Preferences saved. Re-analyze repositories only if you changed extensions.", Duration = 4000 });
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Saved", Detail = "Preferences saved. Re-analyze repositories only if you changed extensions or globs.", Duration = 4000 });
         }
         catch (Exception ex)
         {

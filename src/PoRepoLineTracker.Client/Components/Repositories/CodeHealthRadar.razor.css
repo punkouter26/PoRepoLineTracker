@@ -1,0 +1,60 @@
+.radar-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 420px;
+    margin: 0.5rem auto;
+}
+
+.radar-svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.radar-grid-ring {
+    fill: none;
+    stroke: var(--rz-border-color, rgba(128, 128, 128, 0.2));
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+}
+
+.radar-axis-spoke {
+    stroke: var(--rz-border-color, rgba(128, 128, 128, 0.25));
+    stroke-width: 1;
+}
+
+.radar-data-area {
+    fill: var(--rz-primary, #1976d2);
+    fill-opacity: 0.25;
+    transition: all 0.3s ease;
+}
+
+.radar-data-line {
+    fill: none;
+    stroke: var(--rz-primary, #1976d2);
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+}
+
+.radar-data-point {
+    fill: var(--rz-base-background-color, #ffffff);
+    stroke: var(--rz-primary, #1976d2);
+    stroke-width: 2.5;
+    transition: transform 0.2s ease, r 0.2s ease;
+    cursor: pointer;
+}
+
+.radar-data-point:hover {
+    r: 6.5;
+    fill: var(--rz-primary, #1976d2);
+}
+
+.radar-label {
+    fill: var(--rz-text-color, #333333);
+    font-size: 11px;
+    font-weight: 500;
+    user-select: none;
+}
+

@@ -243,6 +243,25 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
+    public async Task<GitHubRepository?> FindRepositoryByOwnerAndNameAsync(string owner, string name)
+    {
+        await EnsureTablesExistAsync();
+        _logger.LogInformation("Finding repository by Owner: {Owner} and Name: {Name} from Table Storage.", owner, name);
+        try
+        {
+            await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(r => r.Owner == owner && r.Name == name))
+            {
+                return entity.ToDomainModel();
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error finding repository by Owner {Owner} and Name {Name}. Error: {ErrorMessage}", owner, name, ex.Message);
+            throw;
+        }
+    }
+
     public async Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(RepositoryId repositoryId, int days)
     {
         _logger.LogInformation("Getting line count history for repository {RepositoryId} for the last {Days} days from Table Storage.", repositoryId, days);

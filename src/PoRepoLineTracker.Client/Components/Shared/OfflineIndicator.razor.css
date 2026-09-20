@@ -1,0 +1,24 @@
+.offline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    background-color: var(--rz-warning-lighter, #fff3cd);
+    color: var(--rz-warning-darker, #856404);
+    border: 1px solid var(--rz-warning-light, #ffeeba);
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.offline-badge__icon {
+    font-size: 0.95rem;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+

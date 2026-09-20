@@ -78,6 +78,9 @@
                 </div>
             </div>
 
+            @* Radar chart visualization of technical debt shape *@
+            <CodeHealthRadar Factors="@report.Factors" />
+
             @* Each factor shows its own bar, its raw measurement and its weight. A single score
                with no breakdown is not actionable, and an unexplained score invites the reader to
                assume it measures something it does not. *@

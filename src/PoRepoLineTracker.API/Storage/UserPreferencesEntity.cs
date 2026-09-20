@@ -26,6 +26,11 @@ public class UserPreferencesEntity : ITableEntity
     public string FileExtensions { get; set; } = string.Empty;
 
     /// <summary>
+    /// Semicolon-separated list of custom glob ignore patterns.
+    /// </summary>
+    public string CustomIgnoreGlobs { get; set; } = string.Empty;
+
+    /// <summary>
     /// When the user last opened the app. Null on rows written before this column existed, which
     /// the digest reads as "no recorded visit" — see <see cref="Domain.Models.UserPreferences.LastSeenUtc"/>.
     ///
@@ -48,6 +53,7 @@ public class UserPreferencesEntity : ITableEntity
         RowKey = prefs.UserId.ToString();
         UserId = prefs.UserId.Value;
         FileExtensions = string.Join(",", prefs.FileExtensions);
+        CustomIgnoreGlobs = string.Join(";", prefs.CustomIgnoreGlobs ?? []);
         // Table Storage stores DateTime as UTC and round-trips anything else with its offset
         // applied, so a Local or Unspecified kind here would come back shifted and make the digest
         // window start at the wrong instant.
@@ -65,6 +71,9 @@ public class UserPreferencesEntity : ITableEntity
             FileExtensions = string.IsNullOrEmpty(FileExtensions)
                 ? PoRepoLineTracker.Shared.Domain.UserPreferences.DefaultFileExtensions
                 : FileExtensions.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
+            CustomIgnoreGlobs = string.IsNullOrEmpty(CustomIgnoreGlobs)
+                ? []
+                : CustomIgnoreGlobs.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
             LastSeenUtc = LastSeenUtc,
             LastUpdated = LastUpdated
         };

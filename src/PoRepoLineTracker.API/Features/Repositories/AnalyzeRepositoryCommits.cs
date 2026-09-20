@@ -31,6 +31,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
     private readonly IAnalysisProgressService _progressService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
+    private readonly PoRepoLineTracker.API.Analysis.FileIgnoreFilter? _fileIgnoreFilter;
 
     // #10 fix: per-repository semaphore prevents git Checkout() race conditions on shared local path
     private static readonly ConcurrentDictionary<RepositoryId, SemaphoreSlim> _repoLocks = new();
@@ -49,7 +50,8 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         IUserPreferencesService userPreferencesService,
         IAnalysisProgressService progressService,
         IConfiguration configuration,
-        ILogger<AnalyzeRepositoryCommitsCommandHandler> logger)
+        ILogger<AnalyzeRepositoryCommitsCommandHandler> logger,
+        PoRepoLineTracker.API.Analysis.FileIgnoreFilter? fileIgnoreFilter = null)
     {
         _gitHubService = gitHubService;
         _repositoryDataService = repositoryDataService;
@@ -58,6 +60,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         _progressService = progressService;
         _configuration = configuration;
         _logger = logger;
+        _fileIgnoreFilter = fileIgnoreFilter;
     }
 
     public async Task<Unit> Handle(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken)
@@ -123,9 +126,23 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             if (repositoryPath is null) return Unit.Value;
 
             // Get user-specific file extensions to count (falls back to defaults if not configured)
-            var fileExtensionsToCount = repository.UserId != UserId.Empty
-                ? await _userPreferencesService.GetFileExtensionsAsync(repository.UserId)
-                : UserPreferences.DefaultFileExtensions;
+            List<string> fileExtensionsToCount = UserPreferences.DefaultFileExtensions;
+            if (repository.UserId != UserId.Empty)
+            {
+                var userPrefs = await _userPreferencesService.GetPreferencesAsync(repository.UserId);
+                if (userPrefs != null)
+                {
+                    fileExtensionsToCount = userPrefs.FileExtensions;
+                    if (_fileIgnoreFilter != null)
+                    {
+                        _fileIgnoreFilter.CustomIgnoreGlobs = userPrefs.CustomIgnoreGlobs;
+                    }
+                }
+                else
+                {
+                    fileExtensionsToCount = (await _userPreferencesService.GetFileExtensionsAsync(repository.UserId)).ToList();
+                }
+            }
 
             // ── Step 2: Fetch all commit stats ────────────────────────────────────────
             var commitStatsList = await FetchAllCommitStatsAsync(repository, repositoryPath, request.RepositoryId, cancellationToken);

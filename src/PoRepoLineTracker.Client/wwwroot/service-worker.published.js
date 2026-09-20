@@ -28,6 +28,8 @@ const offlineAssetsExclude = [/^service-worker\.js$/];
 // returned to an XHR or a SignalR negotiate is a 200 carrying HTML, which fails in whatever way
 // the caller happens to parse it, rather than the 401 the caller knows how to handle.
 const serverRoutePrefixes = ['/api/', '/auth/', '/hubs/', '/health', '/signin-', '/signout-'];
+const apiCacheName = 'porepolinetracker-api-cache';
+const offlineApiEndpoints = ['/api/repositories', '/api/insights/portfolio'];
 
 async function onInstall() {
     const assetsRequests = self.assetsManifest.assets
@@ -49,6 +51,25 @@ async function onActivate() {
 
 async function onFetch(event) {
     const url = new URL(event.request.url);
+
+    // Feature 3: Stale-while-revalidate / network-first for read-only portfolio & repo data
+    // Allows viewing dashboard offline when disconnected.
+    if (event.request.method === 'GET' && url.origin === self.location.origin && offlineApiEndpoints.includes(url.pathname)) {
+        return fetch(event.request)
+            .then(async response => {
+                if (response && response.ok) {
+                    const cache = await caches.open(apiCacheName);
+                    cache.put(event.request, response.clone());
+                }
+                return response;
+            })
+            .catch(async () => {
+                const cache = await caches.open(apiCacheName);
+                const cached = await cache.match(event.request);
+                if (cached) return cached;
+                throw new Error('Offline and no cached data available.');
+            });
+    }
 
     // Same-origin GETs only, and never a server route. A cross-origin request (the Google Fonts
     // stylesheets, for instance) is left to the network untouched, and a POST/PUT/DELETE has no

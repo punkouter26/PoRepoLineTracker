@@ -17,6 +17,11 @@ public record UserPreferences
     public List<string> FileExtensions { get; init; } = DefaultFileExtensions;
 
     /// <summary>
+    /// Custom glob patterns to ignore during repository analysis (e.g. "**/migrations/**", "**/*.g.cs").
+    /// </summary>
+    public List<string> CustomIgnoreGlobs { get; init; } = [];
+
+    /// <summary>
     /// Default file extensions for new users.
     /// Tuned for a typical Blazor WebAssembly + .NET API codebase:
     ///   .NET (server + Razor) + modern JS/TS frontend tooling + Python.

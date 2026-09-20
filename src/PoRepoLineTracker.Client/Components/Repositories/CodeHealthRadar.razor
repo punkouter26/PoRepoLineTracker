@@ -1,0 +1,114 @@
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using System.Globalization
+
+@* Pure SVG 6-axis Radar/Spider chart visualizing the six code health proxies.
+   Respects frozen scoring weights while providing an immediate shape-of-debt visual. *@
+
+<div class="radar-container" role="img" aria-label="Code health radar chart">
+    <svg viewBox="0 0 380 340" class="radar-svg" xmlns="http://www.w3.org/2000/svg">
+        <title>Code Health Factor Radar</title>
+        <desc>Multi-axis radar comparing all measured code health factors on a 0 to 100 scale.</desc>
+
+        <!-- Concentric grid rings (25%, 50%, 75%, 100%) -->
+        @for (int level = 1; level <= 4; level++)
+        {
+            var r = Radius * (level / 4.0);
+            <polygon points="@GetRingPolygon(r)" class="radar-grid-ring" />
+        }
+
+        <!-- Axis spokes -->
+        @for (int i = 0; i < Count; i++)
+        {
+            var angle = GetAngle(i);
+            var x = CenterX + Radius * Math.Cos(angle);
+            var y = CenterY + Radius * Math.Sin(angle);
+            <line x1="@CenterX.ToString("F1", CultureInfo.InvariantCulture)"
+                  y1="@CenterY.ToString("F1", CultureInfo.InvariantCulture)"
+                  x2="@x.ToString("F1", CultureInfo.InvariantCulture)"
+                  y2="@y.ToString("F1", CultureInfo.InvariantCulture)"
+                  class="radar-axis-spoke" />
+        }
+
+        <!-- Data polygon -->
+        @if (Count > 2)
+        {
+            var dataPoints = GetDataPolygonPoints();
+            <polygon points="@dataPoints" class="radar-data-area" />
+            <polygon points="@dataPoints" class="radar-data-line" />
+
+            <!-- Vertex dots -->
+            @for (int i = 0; i < Count; i++)
+            {
+                var factor = Factors[i];
+                var (vx, vy) = GetFactorPoint(factor.Score, i);
+                <circle cx="@vx.ToString("F1", CultureInfo.InvariantCulture)"
+                        cy="@vy.ToString("F1", CultureInfo.InvariantCulture)"
+                        r="4.5"
+                        class="radar-data-point"
+                        title="@($"{factor.Name}: {factor.Score}/100")">
+                </circle>
+            }
+        }
+
+        <!-- Axis labels -->
+        @for (int i = 0; i < Count; i++)
+        {
+            var factor = Factors[i];
+            var angle = GetAngle(i);
+            var labelDist = Radius + 24;
+            var lx = CenterX + labelDist * Math.Cos(angle);
+            var ly = CenterY + labelDist * Math.Sin(angle) + 4; // slight vertical optical center
+            var anchor = Math.Abs(Math.Cos(angle)) < 0.15 ? "middle" : (Math.Cos(angle) > 0 ? "start" : "end");
+
+            @((MarkupString)$"<text x=\"{lx.ToString("F1", CultureInfo.InvariantCulture)}\" y=\"{ly.ToString("F1", CultureInfo.InvariantCulture)}\" text-anchor=\"{anchor}\" class=\"radar-label\">{System.Net.WebUtility.HtmlEncode(factor.Name)}</text>")
+        }
+    </svg>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<CodeHealthFactorDto> Factors { get; set; } = [];
+
+    private const double CenterX = 190;
+    private const double CenterY = 165;
+    private const double Radius = 110;
+
+    private int Count => Factors.Count;
+
+    public static double GetAngle(int index, int total = 6) =>
+        -Math.PI / 2.0 + (index * 2.0 * Math.PI / Math.Max(total, 1));
+
+    public static (double X, double Y) CalculatePoint(double centerX, double centerY, double radius, double score, int index, int total = 6)
+    {
+        var normalized = Math.Clamp(score, 0, 100) / 100.0;
+        var angle = GetAngle(index, total);
+        var r = radius * normalized;
+        return (centerX + r * Math.Cos(angle), centerY + r * Math.Sin(angle));
+    }
+
+    private (double X, double Y) GetFactorPoint(double score, int index) =>
+        CalculatePoint(CenterX, CenterY, Radius, score, index, Count);
+
+    private string GetRingPolygon(double ringRadius)
+    {
+        var pts = new List<string>();
+        for (int i = 0; i < Count; i++)
+        {
+            var angle = GetAngle(i);
+            var x = CenterX + ringRadius * Math.Cos(angle);
+            var y = CenterY + ringRadius * Math.Sin(angle);
+            pts.Add($"{x.ToString("F1", CultureInfo.InvariantCulture)},{y.ToString("F1", CultureInfo.InvariantCulture)}");
+        }
+        return string.Join(" ", pts);
+    }
+
+    private string GetDataPolygonPoints()
+    {
+        var pts = new List<string>();
+        for (int i = 0; i < Count; i++)
+        {
+            var (x, y) = GetFactorPoint(Factors[i].Score, i);
+            pts.Add($"{x.ToString("F1", CultureInfo.InvariantCulture)},{y.ToString("F1", CultureInfo.InvariantCulture)}");
+        }
+        return string.Join(" ", pts);
+    }
+}

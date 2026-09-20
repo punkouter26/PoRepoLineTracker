@@ -1,0 +1,51 @@
+@inject IJSRuntime JS
+@inject ILogger<OfflineIndicator> Logger
+@implements IDisposable
+@using Radzen
+@using Radzen.Blazor
+
+@if (_isOffline)
+{
+    <div class="offline-badge" role="status" aria-live="polite" title="Network disconnected — viewing cached data">
+        <RadzenIcon Icon="cloud_off" class="offline-badge__icon" />
+        <span class="offline-badge__text">Offline</span>
+    </div>
+}
+
+@code {
+    private bool _isOffline;
+    private DotNetObjectReference<OfflineIndicator>? _selfRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            _selfRef = DotNetObjectReference.Create(this);
+            var online = await JS.InvokeAsync<bool>("registerNetworkStatusListener", _selfRef);
+            _isOffline = !online;
+            if (_isOffline)
+            {
+                StateHasChanged();
+            }
+        }
+        catch (JSException ex)
+        {
+            Logger.LogDebug(ex, "Network status listener unavailable");
+        }
+    }
+
+    [JSInvokable]
+    public void SetOnlineStatus(bool online)
+    {
+        _isOffline = !online;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _selfRef?.Dispose();
+    }
+}
+

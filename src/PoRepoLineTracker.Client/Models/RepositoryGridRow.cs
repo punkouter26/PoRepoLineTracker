@@ -12,8 +12,8 @@ public sealed record RepositoryGridRow(
     GitHubRepository Repository,
     int? TotalLinesSortValue)
 {
-    public RepositoryId Id => Repository.Id;
-    public string Owner => Repository.Owner;
-    public string Name => Repository.Name;
-    public DateTime? LastAnalyzedCommitDate => Repository.LastAnalyzedCommitDate;
+    public RepositoryId Id => Repository?.Id ?? default;
+    public string Owner => Repository?.Owner!;
+    public string Name => Repository?.Name!;
+    public DateTime? LastAnalyzedCommitDate => Repository?.LastAnalyzedCommitDate;
 }

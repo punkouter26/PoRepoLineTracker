@@ -174,6 +174,17 @@
             return choice.outcome === 'accepted';
         }
 
+        // Network status detection for offline read mode
+        function isOnline() {
+            return navigator.onLine !== false;
+        }
+
+        function registerNetworkStatusListener(dotNetRef) {
+            window.addEventListener('online', function () { dotNetRef.invokeMethodAsync('SetOnlineStatus', true); });
+            window.addEventListener('offline', function () { dotNetRef.invokeMethodAsync('SetOnlineStatus', false); });
+            return navigator.onLine !== false;
+        }
+
         // Already installed and launched from the home screen — there is nothing left to
         // offer, and `navigator.standalone` covers iOS, which does not implement
         // display-mode.

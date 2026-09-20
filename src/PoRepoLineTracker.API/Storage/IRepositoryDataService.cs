@@ -7,6 +7,7 @@ public interface IRepositoryDataService
     Task UpdateRepositoryAsync(GitHubRepository repository);
     Task<GitHubRepository?> GetRepositoryByIdAsync(RepositoryId id);
     Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name, UserId userId);
+    Task<GitHubRepository?> FindRepositoryByOwnerAndNameAsync(string owner, string name);
     Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync(UserId userId);
 
     Task AddCommitLineCountAsync(CommitLineCount commitLineCount);
