@@ -161,105 +161,16 @@
 
         <AllReposComparisonChart @ref="_comparisonChart" />
 
-        @* ─── Repository Data Grid ─────────────────────────────────────────── *@
+        @* ─── Repository Data Grid (extracted; see Components/Repositories/RepositoriesGrid.razor) ─── *@
         <RadzenCard>
-            <div class="u-scroll-x">
-            <RadzenDataGrid @ref="grid"
-                            Data="@RepositoryRows"
-                            TItem="RepositoryGridRow"
-                            AllowFiltering="false"
-                            AllowSorting="true"
-                            AllowPaging="true"
-                            PageSize="10"
-                            PagerHorizontalAlign="HorizontalAlign.Center"
-                            ShowPagingSummary="true"
-                            PagingSummaryFormat="Showing {0} to {1} of {2} repositories"
-                            AllowColumnResize="true"
-                            Responsive="true"
-                            RowRender="@OnRowRender"
-                            RowClick="@OnRowClick"
-                            Density="Density.Compact"
-                            class="rp-grid">
-                    <Columns>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Repository" MinWidth="160px" Width="180px">
-                        <Template Context="row">
-                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
-                                <RadzenText class="rp-repo-name" title="@($"{row.Owner}/{row.Name}")">@($"{row.Owner}/{row.Name}")</RadzenText>
-                                <span @onclick:stopPropagation="true">
-                                    <a href="@($"https://github.com/{row.Owner}/{row.Name}")" target="_blank"
-                                       title="Open on GitHub"
-                                       aria-label="@($"Open {row.Owner}/{row.Name} on GitHub in a new tab")"
-                                       class="rp-github-link">
-                                        @* RadzenIcon, not a bare <span class="material-icons">: the glyph
-                                           comes from Radzen's bundled font rather than the Google Fonts
-                                           CDN, so a failed CDN request cannot leave the literal text
-                                           "open_in_new" in the middle of the grid row. *@
-                                        <RadzenIcon Icon="open_in_new" class="rp-github-link__icon" />
-                                    </a>
-                                </span>
-                            </RadzenStack>
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false">
-                        <Template Context="row">
-                            @if (row.TotalLinesSortValue.HasValue)
-                            {
-                                <RadzenText class="rp-lines-value">@row.TotalLinesSortValue.Value.ToString("N0")</RadzenText>
-                            }
-                            else if (row.LastAnalyzedCommitDate.HasValue)
-                            {
-                                <RadzenSkeleton Width="70px" Height="18px" />
-                            }
-                            else
-                            {
-                                <RadzenText class="rp-disabled">—</RadzenText>
-                            }
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last Analyzed" Width="120px" Sortable="true">
-                        <Template Context="row">
-                            @if (row.LastAnalyzedCommitDate.HasValue)
-                            {
-                                <RadzenStack Gap="0.1rem">
-                                    <RadzenText class="rp-relative-time">@ChartFormat.RelativeTime(row.LastAnalyzedCommitDate)</RadzenText>
-                                    <RadzenText TextStyle="TextStyle.Caption" class="rp-muted">@row.LastAnalyzedCommitDate.Value.ToString("MM/dd/yy HH:mm")</RadzenText>
-                                </RadzenStack>
-                            }
-                            else
-                            {
-                                <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Never" />
-                            }
-                        </Template>
-                    </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Status" Width="130px" Filterable="false" Sortable="false">
-                        <Template Context="row">
-                            <AnalysisStatusCell Progress="@(_analysisProgress.TryGetValue(row.Id, out var p) ? p : null)"
-                                                IsReanalyzing="@(reanalyzingRepositoryId == row.Id)"
-                                                HasBeenAnalyzed="@row.LastAnalyzedCommitDate.HasValue"
-                                                StartedUtc="@(_reanalysisStartTimes.TryGetValue(row.Id, out var st) ? st : null)" />
-                        </Template>
-                    </RadzenDataGridColumn>
-
-                    <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Actions" Width="80px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
-                        <Template Context="row">
-                            <span @onclick:stopPropagation="true">
-                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
-                                    <RadzenButton Icon="refresh" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Outlined"
-                                                  Click="@(() => ConfirmReanalyze(row.Repository))"
-                                                  title="Re-analyze from scratch"
-                                                  aria-label="@($"Re-analyze {row.Owner}/{row.Name}")"
-                                                  Disabled="@(reanalyzingRepositoryId == row.Id)" />
-                                    <RadzenButton Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined"
-                                                  Click="@(() => ConfirmDeleteRepository(row.Repository))"
-                                                  title="Delete repository"
-                                                  aria-label="@($"Delete {row.Owner}/{row.Name}")" />
-                                </RadzenStack>
-                            </span>
-                        </Template>
-                    </RadzenDataGridColumn>
-                </Columns>
-            </RadzenDataGrid>
-            </div>
+            <RepositoriesGrid Items="@RepositoryRows"
+                              ProgressMap="@_analysisProgress"
+                              ReanalysisStartTimes="@_reanalysisStartTimes"
+                              ReanalyzingId="@reanalyzingRepositoryId"
+                              OnReanalyze="@ConfirmReanalyze"
+                              OnDelete="@ConfirmDeleteRepository"
+                              OnRowClick="@OnRowClick"
+                              OnRowRender="@OnRowRender" />
 
             @* Danger Zone — separated from primary actions *@
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
@@ -280,7 +191,7 @@
 
 @code {
     private RepositoryPageState pageState = new();
-    private RadzenDataGrid<RepositoryGridRow>? grid;
+    private RepositoriesGrid? _grid;
     private AllReposComparisonChart? _comparisonChart;
     private AddRepository? _addRepository;
     private bool _chartPrimed;
@@ -387,7 +298,7 @@
         }
 
         await InvokeAsync(StateHasChanged);
-        if (grid is not null) await InvokeAsync(grid.Reload);
+        if (_grid is not null && _grid.Grid is not null) await InvokeAsync(_grid.Grid.Reload);
     }
 
     /// <summary>
@@ -611,16 +522,6 @@
         _disposeCts.Dispose();
     }
 
-    private sealed record RepositoryGridRow(
-        GitHubRepository Repository,
-        int? TotalLinesSortValue)
-    {
-        public RepositoryId Id => Repository.Id;
-        public string Owner => Repository.Owner;
-        public string Name => Repository.Name;
-        public DateTime? LastAnalyzedCommitDate => Repository.LastAnalyzedCommitDate;
-    }
-
     private async Task DeleteRepository(RepositoryId repositoryId)
     {
         var repo = pageState.Repositories.FirstOrDefault(r => r.Id == repositoryId);
@@ -631,7 +532,7 @@
         // Page state, deliberately left here rather than on the service: what to redraw is a fact
         // about the screen, not about the command.
         if (repo is not null) pageState.Repositories.Remove(repo);
-        if (grid is not null) await grid.Reload();
+        if (_grid is not null && _grid.Grid is not null) await _grid.Grid.Reload();
     }
 
     private async Task ConfirmRemoveAll()

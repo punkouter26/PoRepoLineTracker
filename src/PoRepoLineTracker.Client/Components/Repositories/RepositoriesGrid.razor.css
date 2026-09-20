@@ -1,0 +1,81 @@
+/* Scoped styles for the Repositories grid. Moved from Repositories.razor.css so the page CSS
+   stays focused on hero / add panel / onboarding. See Repositories.razor.css for the ::deep
+   doubled-class pattern. Shared visuals stay in app.css. */
+
+::deep .rp-grid.rp-grid {
+    height: auto !important;
+    /* Radzen's grid cells carry overflow:hidden and white-space:nowrap — without `width: max-content`
+       here the table shrinks to fit its parent and columns get clipped at "punkouter26/Pol". The
+       .u-scroll-x wrapper around the grid already provides overflow-x:auto for any columns that
+       don't fit. The 100% min-width keeps the wrapper from showing a horizontal scrollbar at
+       desktop widths where the columns fit naturally. */
+    width: max-content !important;
+    min-width: 100%;
+}
+
+/* The inner table needs the same treatment — it is what actually sizes to its column widths. */
+::deep .rp-grid.rp-grid > .rz-datatable-scrollable-wrapper,
+::deep .rp-grid.rp-grid .rz-grid-table {
+    width: max-content !important;
+    min-width: 100%;
+}
+
+/* The reflow card variant — Radzen only switches to it at <768px viewport, but the sidebar
+   alone eats 220px, so the well is already narrow at 949px. */
+@container appwell (max-width: 640px) {
+    ::deep .rp-grid.rp-grid {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+}
+
+/* ─── Grid cell contents (rendered inside Radzen column templates) ────────── */
+
+::deep .rp-repo-name.rp-repo-name {
+    font-weight: 600 !important;
+}
+
+::deep .rp-lines-value.rp-lines-value {
+    font-weight: 600 !important;
+    color: var(--primary-on-surface) !important;
+}
+
+::deep .rp-relative-time.rp-relative-time {
+    font-weight: 500 !important;
+}
+
+/* The icon glyph alone measured ~15px, below the WCAG 2.2 AA 2.5.8 minimum of 24x24. */
+::deep .rp-github-link {
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    min-width: 24px;
+    min-height: 24px;
+    border-radius: 6px;
+    flex: 0 0 auto;
+}
+
+::deep .rp-github-link:hover {
+    color: var(--primary-on-surface);
+    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+}
+
+::deep .rp-github-link__icon {
+    font-size: 0.95rem;
+}
+
+/* ─── Sticky table header & compact grid ──────────────────────────────────── */
+
+::deep .rp-grid.rp-grid thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 5 !important;
+    background: var(--bg-primary) !important;
+}
+
+::deep .rp-grid.rz-density-compact td {
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.85rem !important;
+}
