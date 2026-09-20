@@ -1,4 +1,6 @@
 /* Scoped styles for the repositories list (the app's home page).
+   Grid-specific rules (rp-grid, column cell content) live in
+   Components/Repositories/RepositoriesGrid.razor.css alongside the markup that targets them.
    See AddRepository.razor.css for the ::deep / doubled-class / !important pattern.
    Shared visuals that other pages also use (.stat-card, .onboarding-step, the fadeSlideUp
    keyframes) stay in app.css; only what used to sit on a style= attribute here lives below. */
@@ -78,92 +80,6 @@
     max-width: 520px;
 }
 
-/* ─── Grid ─────────────────────────────────────────────────────────────────── */
-
-::deep .rp-grid.rp-grid {
-    height: auto !important;
-    /* Radzen's grid cells carry overflow:hidden and white-space:nowrap — without `width: max-content`
-       here the table shrinks to fit its parent and columns get clipped at "punkouter26/Pol". The
-       .u-scroll-x wrapper around the grid already provides overflow-x:auto for any columns that
-       don't fit. The 100% min-width keeps the wrapper from showing a horizontal scrollbar at
-       desktop widths where the columns fit naturally. */
-    width: max-content !important;
-    min-width: 100%;
-}
-
-/* The inner table needs the same treatment — it is what actually sizes to its column widths. */
-::deep .rp-grid.rp-grid > .rz-datatable-scrollable-wrapper,
-::deep .rp-grid.rp-grid .rz-grid-table {
-    width: max-content !important;
-    min-width: 100%;
-}
-
-/* The reflow card variant — Radzen only switches to it at <768px viewport, but the sidebar
-   alone eats 220px, so the well is already narrow at 949px.
-
-   This is now the container query the comment above it always claimed it was. It read "make the
-   responsive switch track the wrapper instead of the viewport" and then asked `@media
-   (max-width: 720px)`, which is the viewport — so collapsing the sidebar handed the grid 220px
-   more room without changing anything here, and a 900px window reported "desktop" to a well that
-   was actually 680px wide. 720 was also the app's only viewport breakpoint that was not 768,
-   for no reason other than that it had been tuned by eye through a sidebar that happened to be
-   open at the time.
-
-   `@container appwell` measures the well itself (see .rz-body in app.css), so the reflow now
-   happens at the width the grid is genuinely being laid out in — and at --bp-well, the same
-   640px every other content rule in the app uses. */
-@container appwell (max-width: 640px) {
-    ::deep .rp-grid.rp-grid {
-        width: 100% !important;
-        min-width: 0 !important;
-    }
-}
-
-/* The .rp-grid-scroll rule that lived here was byte-identical to .cc-grid-scroll in
-   ContributorChart.razor.css. Both are now the shared .u-scroll-x utility in app.css. */
-
-/* ─── Grid cell contents (rendered inside Radzen column templates) ────────── */
-
-::deep .rp-repo-name.rp-repo-name {
-    font-weight: 600 !important;
-}
-
-::deep .rp-lines-value.rp-lines-value {
-    font-weight: 600 !important;
-    color: var(--primary-on-surface) !important;
-}
-
-::deep .rp-relative-time.rp-relative-time {
-    font-weight: 500 !important;
-}
-
-/* The icon glyph alone measured ~15px, below the WCAG 2.2 AA 2.5.8 minimum of 24x24. The link
-   box is padded out to 24px rather than the glyph being enlarged, so the target grows without
-   the icon visually dominating the repository name beside it. */
-::deep .rp-github-link {
-    /* --text-muted, not --rz-text-disabled-color. This is a real link to GitHub, and Radzen's
-       disabled grey measured 1.88:1 in light and 2.20:1 in dark — an interactive control painted
-       in the one colour the design system reserves for "you cannot use this". */
-    color: var(--text-muted);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    min-width: 24px;
-    min-height: 24px;
-    border-radius: 6px;
-    flex: 0 0 auto;
-}
-
-::deep .rp-github-link:hover {
-    color: var(--primary-on-surface);
-    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-}
-
-::deep .rp-github-link__icon {
-    font-size: 0.95rem;
-}
-
 /* ─── Danger zone ─────────────────────────────────────────────────────────── */
 
 /* --rz-border-disabled-color is not defined by either Radzen theme in use (it computes to the
@@ -180,20 +96,6 @@
 ::deep .rp-danger-zone__label.rp-danger-zone__label {
     color: var(--text-muted) !important;
     font-style: italic !important;
-}
-
-/* ─── Sticky table header & compact grid ──────────────────────────────────── */
-
-::deep .rp-grid.rp-grid thead th {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 5 !important;
-    background: var(--bg-primary) !important;
-}
-
-::deep .rp-grid.rz-density-compact td {
-    padding: 0.35rem 0.5rem !important;
-    font-size: 0.85rem !important;
 }
 
 /* ─── Executive Brief / Printable View ────────────────────────────────────── */
