@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 using PoRepoLineTracker.API.Telemetry;
@@ -12,9 +11,9 @@ namespace PoRepoLineTracker.API.Features.Repositories;
 /// inserted without checking for an existing row, so adding the same repository twice through it
 /// produced two records for one GitHub repo.
 /// </summary>
-public record AddMultipleRepositoriesCommand(IEnumerable<BulkRepositoryDto> Repositories, UserId UserId) : IRequest<BulkAddResult>;
+public record AddMultipleRepositoriesCommand(IEnumerable<BulkRepositoryDto> Repositories, UserId UserId);
 
-public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultipleRepositoriesCommand, BulkAddResult>
+public class AddMultipleRepositoriesCommandHandler
 {
     private readonly IRepositoryDataService _repositoryDataService;
     private readonly ILogger<AddMultipleRepositoriesCommandHandler> _logger;
@@ -27,7 +26,7 @@ public class AddMultipleRepositoriesCommandHandler : IRequestHandler<AddMultiple
         _logger = logger;
     }
 
-    public async Task<BulkAddResult> Handle(AddMultipleRepositoriesCommand request, CancellationToken cancellationToken)
+    public async Task<BulkAddResult> Handle(AddMultipleRepositoriesCommand request, CancellationToken cancellationToken = default)
     {
         // Span and metrics carried over from the deleted single-add handler, which was the only
         // add path that reported any. Now that this is the only one, it is where they belong.

@@ -8,14 +8,6 @@ namespace PoRepoLineTracker.API.Extensions;
 
 public static class TelemetryServiceExtensions
 {
-    /// <summary>
-    /// Hardcoded staging Application Insights connection string used as the final fallback
-    /// when neither APPLICATIONINSIGHTS_CONNECTION_STRING nor APPINSIGHTS_INSTRUMENTATIONKEY
-    /// is configured. Left empty by default so local/dev runs do not emit to a shared
-    /// staging resource; set it to a real staging connection string to enable the fallback.
-    /// </summary>
-    private const string StagingFallbackConnectionString = "";
-
     public static IServiceCollection AddTelemetry(
         this IServiceCollection services,
         IConfiguration configuration,
@@ -25,15 +17,12 @@ public static class TelemetryServiceExtensions
         //   1. APPLICATIONINSIGHTS_CONNECTION_STRING  / ApplicationInsights:ConnectionString
         //   2. APPINSIGHTS_INSTRUMENTATIONKEY         / ApplicationInsights:InstrumentationKey
         //                                               (promoted to a connection string)
-        //   3. Hardcoded staging connection string fallback
         //
-        // The first two steps live in TelemetrySettings so the diagnostics page can report exactly
-        // what this method will do. They used to be inline here, and /diag reimplemented a subset
-        // of them — which is why an app configured through Key Vault showed "Not configured".
+        // The resolution lives in TelemetrySettings so the diagnostics endpoint can report exactly
+        // what this method will do. It used to be inline here, and the client diagnostics view
+        // reimplemented a subset of it — which is why an app configured through Key Vault showed
+        // "Not configured".
         var aiCs = TelemetrySettings.ResolveAppInsightsConnectionString(configuration);
-
-        if (string.IsNullOrWhiteSpace(aiCs) && !string.IsNullOrWhiteSpace(StagingFallbackConnectionString))
-            aiCs = StagingFallbackConnectionString;
 
         // cloud_RoleName mapping: resolve the real assembly name via reflection so the
         // App Insights "cloud_RoleName" never falls back to "unknown_service:dotnet".

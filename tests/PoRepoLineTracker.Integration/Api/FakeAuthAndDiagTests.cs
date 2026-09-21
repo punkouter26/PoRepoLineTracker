@@ -64,7 +64,7 @@ public class RealAuthFactory : WebApplicationFactory<Program>
 }
 
 /// <summary>
-/// Header-driven dev/test auth, and /diag returns masked configuration.
+/// Header-driven dev/test auth, and /api/diagnostics as the single diagnostics surface.
 /// </summary>
 public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
 {
@@ -164,56 +164,29 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
         actOutside.Should().NotThrow();
     }
 
-    // ── /diag ─────────────────────────────────────────────────────────────────────────
+    // ── /api/diagnostics ───────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Diag_Requires_Authentication()
+    public async Task ApiDiagnostics_Requires_Authentication()
     {
-        var response = await CreateClient().SendAsync(Get("/diag"));
+        var response = await CreateClient().SendAsync(Get("/api/diagnostics"));
         response.StatusCode.Should().BeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Found);
     }
 
     [Fact]
-    public async Task Diag_Never_Echoes_A_Configured_Secret_Value()
+    public async Task ApiDiagnostics_Never_Echoes_A_Configured_Secret_Value()
     {
-        var response = await CreateClient().SendAsync(Get("/diag", user: "alice"));
+        var response = await CreateClient().SendAsync(Get("/api/diagnostics", user: "alice"));
         var body = await response.Content.ReadAsStringAsync();
 
         body.Should().NotContain(RealAuthFactory.KnownSecret,
-            "/diag must mask secret values, never return them in full");
+            "the diagnostics payload reports configured/not-configured, never a secret value");
     }
 
     [Fact]
-    public async Task Diag_Reports_A_Configured_Secret_As_Set_But_Masked()
+    public async Task ApiDiagnostics_Reports_The_Running_Environment_As_Json()
     {
-        var response = await CreateClient().SendAsync(Get("/diag", user: "alice"));
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        var pat = json.GetProperty("secrets").GetProperty(ConfigKeys.GitHub.Pat);
-        pat.GetProperty("configured").GetBoolean().Should().BeTrue();
-        pat.GetProperty("value").GetString().Should().StartWith("****").And.HaveLength(8);
-    }
-
-    [Fact]
-    public async Task Diag_Reports_NonSecret_And_Unset_Configuration()
-    {
-        var response = await CreateClient().SendAsync(Get("/diag", user: "alice"));
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        var tablesConn = json.GetProperty("secrets").GetProperty(ConfigKeys.AzureTableStorage.TablesConnectionString);
-        tablesConn.GetProperty("configured").GetBoolean().Should().BeFalse();
-        tablesConn.GetProperty("value").GetString().Should().BeEmpty();
-
-        json.GetProperty("configuration")
-            .GetProperty(ConfigKeys.AzureTableStorage.RepositoryTableName)
-            .GetString()
-            .Should().NotBeNullOrEmpty("non-secret settings are the point of /diag");
-    }
-
-    [Fact]
-    public async Task Diag_Reports_The_Running_Environment_As_Json()
-    {
-        var response = await CreateClient().SendAsync(Get("/diag", user: "alice"));
+        var response = await CreateClient().SendAsync(Get("/api/diagnostics", user: "alice"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");

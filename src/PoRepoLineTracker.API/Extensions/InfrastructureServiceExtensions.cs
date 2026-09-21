@@ -1,9 +1,11 @@
+using PoRepoLineTracker.API.Features.CodeHealth;
+using PoRepoLineTracker.API.Features.Contributors;
+using PoRepoLineTracker.API.Features.Insights;
 using PoRepoLineTracker.API.Features.Repositories;
 using PoRepoLineTracker.API.Features.Diagnostics;
 using PoRepoLineTracker.API.Hubs;
 using Microsoft.AspNetCore.HttpOverrides;
 using Azure.Identity;
-using FluentValidation;
 
 namespace PoRepoLineTracker.API.Extensions;
 
@@ -40,9 +42,6 @@ public static class InfrastructureServiceExtensions
 
             return new Azure.Data.Tables.TableServiceClient("UseDevelopmentStorage=true");
         });
-
-        // FluentValidation rules (defined in .Shared) for request DTOs.
-        services.AddValidatorsFromAssemblyContaining<BulkRepositoryDtoValidator>();
 
         // OpenAPI
         services.AddOpenApi(options =>
@@ -188,12 +187,28 @@ public static class InfrastructureServiceExtensions
         // TableClient, which is cheap to resolve and safe to share within a request.
         services.AddScoped<ICodeHealthSnapshotStore, CodeHealthSnapshotStore>();
 
-        // MediatR — register every handler in this assembly (all slices live here now)
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(
-            typeof(Program).Assembly));
+        // Slice handlers, one per route, called directly by their endpoint — no mediator in
+        // between. Each has exactly one caller; the registration replaces the old MediatR
+        // assembly scan (dropped with its commercial-license nag).
+        services.AddScoped<GetAllRepositoriesQueryHandler>();
+        services.AddScoped<GetLineCountHistoryQueryHandler>();
+        services.AddScoped<GetRepositoryPunchcardQueryHandler>();
+        services.AddScoped<GetAllRepositoriesLineCountHistoryQueryHandler>();
+        services.AddScoped<GetFileExtensionPercentagesQueryHandler>();
+        services.AddScoped<DeleteRepositoryCommandHandler>();
+        services.AddScoped<RemoveAllRepositoriesCommandHandler>();
+        services.AddScoped<AddMultipleRepositoriesCommandHandler>();
+        services.AddScoped<AnalyzeRepositoryCommitsCommandHandler>();
+        services.AddScoped<GetContributorStatsQueryHandler>();
+        services.AddScoped<GetPortfolioInsightsQueryHandler>();
+        services.AddScoped<GetWeeklyDigestQueryHandler>();
+        services.AddScoped<GetCodeHealthQueryHandler>();
+        services.AddScoped<GetCodeHealthTrendQueryHandler>();
+        services.AddScoped<GetPortfolioCodeHealthQueryHandler>();
+        services.AddScoped<GetPortfolioCodeHealthTrendQueryHandler>();
 
         // Health checks — all three dependencies share the same registry so /health and
-        // /diag agree (SPEC §11.3). Names use hyphens to match the documented contract and
+        // /api/diagnostics agree (SPEC §11.3). Names use hyphens to match the documented contract and
         // the diagnostic page's ExternalConnections rows.
         services.AddHealthChecks()
             .AddCheck<AzureTableStorageHealthCheck>("azure-table-storage")

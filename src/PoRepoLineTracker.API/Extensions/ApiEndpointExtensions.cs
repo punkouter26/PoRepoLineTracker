@@ -1,14 +1,10 @@
-using PoRepoLineTracker.API.Features.Antiforgery;
+using PoRepoLineTracker.API.Features;
 using PoRepoLineTracker.API.Features.Auth;
 using PoRepoLineTracker.API.Features.CodeHealth;
 using PoRepoLineTracker.API.Features.Contributors;
-using PoRepoLineTracker.API.Features.Dev;
 using PoRepoLineTracker.API.Features.Diagnostics;
-using PoRepoLineTracker.API.Features.GitHub;
 using PoRepoLineTracker.API.Features.Insights;
 using PoRepoLineTracker.API.Features.Repositories;
-using PoRepoLineTracker.API.Features.Settings;
-using PoRepoLineTracker.API.Features.Webhooks;
 
 namespace PoRepoLineTracker.API.Extensions;
 
@@ -40,7 +36,6 @@ public static class ApiEndpointExtensions
         app.MapContributorEndpoints();
         app.MapInsightsEndpoints();
         app.MapCodeHealthEndpoints();
-        app.MapWebhookEndpoints();
 
         if (isDevelopment)
         {

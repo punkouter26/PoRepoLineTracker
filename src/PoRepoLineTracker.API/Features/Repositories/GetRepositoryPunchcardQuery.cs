@@ -1,13 +1,12 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.API.Storage;
 using PoRepoLineTracker.Shared.Models.Dtos;
 
 namespace PoRepoLineTracker.API.Features.Repositories;
 
-public record GetRepositoryPunchcardQuery(RepositoryId RepositoryId, int Days = 365) : IRequest<List<PunchcardItemDto>>;
+public record GetRepositoryPunchcardQuery(RepositoryId RepositoryId, int Days = 365);
 
-public class GetRepositoryPunchcardQueryHandler : IRequestHandler<GetRepositoryPunchcardQuery, List<PunchcardItemDto>>
+public class GetRepositoryPunchcardQueryHandler
 {
     private readonly IRepositoryDataService _repositoryDataService;
     private readonly ILogger<GetRepositoryPunchcardQueryHandler> _logger;
@@ -20,7 +19,7 @@ public class GetRepositoryPunchcardQueryHandler : IRequestHandler<GetRepositoryP
         _logger = logger;
     }
 
-    public async Task<List<PunchcardItemDto>> Handle(GetRepositoryPunchcardQuery request, CancellationToken cancellationToken)
+    public async Task<List<PunchcardItemDto>> Handle(GetRepositoryPunchcardQuery request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Getting commit punchcard for repository {RepositoryId} for last {Days} days",
             request.RepositoryId, request.Days);

@@ -182,37 +182,7 @@
                     </div>
                 </RadzenTabsItem>
                 <RadzenTabsItem Text="Composition" Icon="donut_large">
-                    <ChartCard Title="By Extension"
-                               Description="Share of tracked lines per file type"
-                               IsEmpty="@(_extensions is null || !_extensions.Any())"
-                               EmptyIcon="donut_large"
-                               EmptyText="No extension data yet.">
-                        <RadzenChart>
-                            <RadzenDonutSeries Data="@ExtensionSlices"
-                                               CategoryProperty="Label"
-                                               ValueProperty="Percentage"
-                                               Title="Share of lines">
-                                <RadzenSeriesDataLabels Visible="false" />
-                            </RadzenDonutSeries>
-                            <RadzenLegend Position="LegendPosition.Bottom" />
-                        </RadzenChart>
-
-                        <div class="rd-ext-list">
-                            @foreach (var ext in _extensions!)
-                            {
-                                <div class="rd-ext-row">
-                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                        <code class="rd-ext-code">@ext.FileExtension</code>
-                                        <RadzenText TextStyle="TextStyle.Caption" class="rd-ext-pct">@ext.Percentage.ToString("F1")%</RadzenText>
-                                    </RadzenStack>
-                                    <progress class="rd-ext-bar"
-                                              max="100"
-                                              value="@Math.Min(ext.Percentage, 100)"
-                                              aria-label="@($"{ext.FileExtension}: {ext.Percentage:F1}% of lines")"></progress>
-                                </div>
-                            }
-                        </div>
-                    </ChartCard>
+                    <ExtensionBreakdownCard Extensions="@_extensions" />
                 </RadzenTabsItem>
                 <RadzenTabsItem Text="Code Health" Icon="health_and_safety">
                     <div class="app-dashboard app-dashboard--panels">
@@ -258,33 +228,6 @@
 
     private IReadOnlyList<DailyLineCountDto> DisplayedLineHistory =>
         (_lineHistory ?? []).OrderBy(d => d.Date).ToList();
-
-
-    /// <summary>
-    /// Donut slices for the extension breakdown. A repository can report dozens of extensions and
-    /// a donut with dozens of slivers communicates nothing, so everything past the top eight is
-    /// folded into a single "Other" wedge. The exact per-extension figures stay available in the
-    /// bar list rendered beneath the chart.
-    /// </summary>
-    private IReadOnlyList<ExtensionSlice> ExtensionSlices
-    {
-        get
-        {
-            if (_extensions is null || _extensions.Count == 0) return [];
-
-            var ranked = _extensions.OrderByDescending(e => e.Percentage).ToList();
-            var slices = ranked.Take(8)
-                .Select(e => new ExtensionSlice(e.FileExtension, e.Percentage))
-                .ToList();
-
-            var remainder = ranked.Skip(8).Sum(e => e.Percentage);
-            if (remainder > 0) slices.Add(new ExtensionSlice("Other", remainder));
-
-            return slices;
-        }
-    }
-
-    private sealed record ExtensionSlice(string Label, double Percentage);
 
     private const string ChartDescription = "Total lines of code by day";
     private const string ChartSeriesTitle = "Total Lines";

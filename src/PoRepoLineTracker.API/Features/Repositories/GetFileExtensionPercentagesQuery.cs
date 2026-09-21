@@ -1,4 +1,3 @@
-using MediatR;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -7,9 +6,9 @@ using System;
 
 namespace PoRepoLineTracker.API.Features.Repositories;
 
-public record GetFileExtensionPercentagesQuery(RepositoryId RepositoryId) : IRequest<IEnumerable<FileExtensionPercentageDto>>;
+public record GetFileExtensionPercentagesQuery(RepositoryId RepositoryId);
 
-public class GetFileExtensionPercentagesQueryHandler : IRequestHandler<GetFileExtensionPercentagesQuery, IEnumerable<FileExtensionPercentageDto>>
+public class GetFileExtensionPercentagesQueryHandler
 {
     private readonly IRepositoryDataService _repositoryDataService;
 
@@ -18,7 +17,7 @@ public class GetFileExtensionPercentagesQueryHandler : IRequestHandler<GetFileEx
         _repositoryDataService = repositoryDataService;
     }
 
-    public async Task<IEnumerable<FileExtensionPercentageDto>> Handle(GetFileExtensionPercentagesQuery request, CancellationToken cancellationToken)
+    public async Task<IEnumerable<FileExtensionPercentageDto>> Handle(GetFileExtensionPercentagesQuery request, CancellationToken cancellationToken = default)
     {
         // Get commit line counts for the repository
         var commitLineCounts = await _repositoryDataService.GetCommitLineCountsByRepositoryIdAsync(request.RepositoryId);

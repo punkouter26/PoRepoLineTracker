@@ -1,0 +1,58 @@
+/* Scoped to OnboardingEmptyState. Rules target Radzen-rendered descendants of the plain
+   <div class="onboarding"> root, hence ::deep + doubled classes — see AddRepository.razor.css
+   for the pattern. The .onboarding-step / .onboarding-connector chrome itself lives in app.css. */
+
+::deep .rp-onboarding-card.rp-onboarding-card {
+    padding: 1.75rem 1.5rem !important;
+}
+
+::deep .rp-onboarding-icon.rp-onboarding-icon {
+    font-size: 2rem !important;
+    color: var(--primary-on-surface) !important;
+    animation: fadeSlideUp 0.4s ease both !important;
+}
+
+::deep .rp-onboarding-title.rp-onboarding-title {
+    margin: 0 !important;
+    animation: fadeSlideUp 0.4s ease 0.05s both !important;
+}
+
+::deep .rp-onboarding-lede.rp-onboarding-lede {
+    color: var(--rz-text-secondary-color) !important;
+    text-align: center !important;
+    max-width: 380px !important;
+    animation: fadeSlideUp 0.4s ease 0.1s both !important;
+}
+
+::deep .rp-step-title.rp-step-title {
+    margin: 0 !important;
+    text-align: center !important;
+}
+
+::deep .rp-step-caption.rp-step-caption {
+    color: var(--rz-text-secondary-color) !important;
+    text-align: center !important;
+}
+
+::deep .rp-onboarding-cta.rp-onboarding-cta {
+    padding: 0.75rem 2rem !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    border-radius: 12px !important;
+}
+
+.rp-onboarding-steps {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 520px;
+}
+
+@media print {
+    .onboarding-step-icon {
+        display: none !important;
+    }
+}

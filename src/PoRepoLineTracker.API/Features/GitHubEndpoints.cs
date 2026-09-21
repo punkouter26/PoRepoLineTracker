@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Caching.Hybrid;
 using Serilog;
 
-namespace PoRepoLineTracker.API.Features.GitHub;
+namespace PoRepoLineTracker.API.Features;
 
 internal static class GitHubEndpoints
 {

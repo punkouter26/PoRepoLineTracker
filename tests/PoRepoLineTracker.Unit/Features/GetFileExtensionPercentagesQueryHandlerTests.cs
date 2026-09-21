@@ -1,6 +1,5 @@
 using FluentAssertions;
 using NSubstitute;
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.Unit;

@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +15,8 @@ namespace PoRepoLineTracker.Integration;
 /// return ProblemDetails JSON (via the endpoint's own try/catch which calls Results.Problem).
 /// Uses a custom factory that:
 ///   1. Mocks IRepositoryDataService so ThrowingRepoId is owned by the test user (passes IDOR check).
-///   2. Mocks IMediator so the query throws, triggering Results.Problem(500).
+///   2. Registers a line-history handler backed by a throwing data service, triggering
+///      Results.Problem(500).
 /// </summary>
 public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory>
 {
@@ -51,7 +51,7 @@ public class ExceptionMiddlewareTests : IClassFixture<ExceptionMiddlewareFactory
 /// Custom factory that:
 ///   1. Overrides IRepositoryDataService so ThrowingRepoId is "found" and owned by the test user,
 ///      allowing the endpoint to proceed past the repo-existence / IDOR checks.
-///   2. Overrides IMediator so the GetLineCountHistoryQuery throws for ThrowingRepoId,
+///   2. Registers a GetLineCountHistoryQueryHandler whose data service throws for any query,
 ///      exercising the endpoint's try/catch which returns Results.Problem (500).
 /// Inherits from <see cref="CustomWebApplicationFactory"/> to keep all other service mocks
 /// and test authentication active.
@@ -84,13 +84,14 @@ public class ExceptionMiddlewareFactory : CustomWebApplicationFactory
 
             services.AddScoped<IRepositoryDataService>(_ => mockRepoDataService);
 
-            // Mock IMediator: throw for GetLineCountHistoryQuery so Results.Problem(500) is returned.
-            var mockMediator = Substitute.For<IMediator>();
-            mockMediator
-                .Send(Arg.Is<GetLineCountHistoryQuery>(q => q.RepositoryId == ThrowingRepoId), Arg.Any<CancellationToken>())
+            // Throwing handler: the data service it wraps throws for any line-history query, so
+            // the endpoint's try/catch returns Results.Problem(500).
+            var throwingDataService = Substitute.For<IRepositoryDataService>();
+            throwingDataService
+                .GetLineCountHistoryAsync(Arg.Any<RepositoryId>(), Arg.Any<int>())
                 .ThrowsAsync(new InvalidOperationException("Deliberate test exception for middleware verification"));
 
-            services.AddScoped(_ => mockMediator);
+            services.AddScoped(_ => new GetLineCountHistoryQueryHandler(throwingDataService));
         });
     }
 }

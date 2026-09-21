@@ -18,11 +18,6 @@
 GET {{baseUrl}}/health
 Accept: application/json
 
-### Diagnostics page payload (auth required)
-GET {{baseUrl}}/diag
-X-Fake-User: {{fakeUser}}
-Accept: application/json
-
 ### Structured diagnostics (auth required)
 GET {{baseUrl}}/api/diagnostics
 X-Fake-User: {{fakeUser}}

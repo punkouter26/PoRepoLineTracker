@@ -48,7 +48,7 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
             _dataService, configuration, Substitute.For<ILogger<RemoveAllRepositoriesCommandHandler>>());
     }
 
-    private Task<MediatR.Unit> WhenRemovingAll(RemoveAllRepositoriesCommandHandler handler) =>
+    private Task WhenRemovingAll(RemoveAllRepositoriesCommandHandler handler) =>
         handler.Handle(new RemoveAllRepositoriesCommand(_userId), CancellationToken.None);
 
     private string GivenRepositoryTree()

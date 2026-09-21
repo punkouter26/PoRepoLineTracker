@@ -1,6 +1,4 @@
 using FluentAssertions;
-using PoRepoLineTracker.API.Services;
-
 namespace PoRepoLineTracker.Unit;
 
 /// <summary>

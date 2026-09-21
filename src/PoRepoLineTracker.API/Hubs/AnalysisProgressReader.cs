@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
-using PoRepoLineTracker.API.Services;
+using PoRepoLineTracker.API.Analysis;
 
 namespace PoRepoLineTracker.API.Hubs;
 

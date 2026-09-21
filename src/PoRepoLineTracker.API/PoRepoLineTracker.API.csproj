@@ -17,9 +17,7 @@
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" />
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" />
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="LibGit2Sharp" />
-    <PackageReference Include="MediatR" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
@@ -49,9 +47,8 @@
     <None Include="startup.sh" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- The Unit/Integration tiers assert on internal endpoint helpers (e.g. the /diag masking
-       function) and on FakeAuthHandler's Production guardrail. Those stay internal to the app;
-       only the test assemblies may see them. -->
+  <!-- The Unit/Integration tiers assert on internals (e.g. FakeAuthHandler's Production
+       guardrail). Those stay internal to the app; only the test assemblies may see them. -->
   <ItemGroup>
     <InternalsVisibleTo Include="PoRepoLineTracker.Unit" />
     <InternalsVisibleTo Include="PoRepoLineTracker.Integration" />

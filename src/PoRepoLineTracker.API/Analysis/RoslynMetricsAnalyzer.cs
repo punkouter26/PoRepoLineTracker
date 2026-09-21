@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace PoRepoLineTracker.API.Services;
+namespace PoRepoLineTracker.API.Analysis;
 
 /// <summary>
 /// Visual Studio's Code Metrics for C#, computed from the Roslyn SYNTAX tree alone.

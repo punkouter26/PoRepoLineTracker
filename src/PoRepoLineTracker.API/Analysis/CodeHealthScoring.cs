@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Services;
+namespace PoRepoLineTracker.API.Analysis;
 
 /// <summary>
 /// Turns raw <see cref="FileMetrics"/> into the scored report the UI renders.

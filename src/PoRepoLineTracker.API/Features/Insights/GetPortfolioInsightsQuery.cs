@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.API.Features.Insights;
@@ -6,12 +5,11 @@ namespace PoRepoLineTracker.API.Features.Insights;
 /// <summary>
 /// Aggregates every tracked repository into the single figure set the Insights dashboard renders.
 /// </summary>
-public record GetPortfolioInsightsQuery(UserId UserId) : IRequest<PortfolioInsightsDto>;
+public record GetPortfolioInsightsQuery(UserId UserId);
 
 public sealed class GetPortfolioInsightsQueryHandler(
     IRepositoryDataService repositoryDataService,
     ILogger<GetPortfolioInsightsQueryHandler> logger)
-    : IRequestHandler<GetPortfolioInsightsQuery, PortfolioInsightsDto>
 {
     /// <summary>Span of the activity heatmap, and the window the streak figures search.</summary>
     private const int ActivityWindowDays = 365;
@@ -39,7 +37,7 @@ public sealed class GetPortfolioInsightsQueryHandler(
     /// </summary>
     private const int DriftMinimumLines = 100;
 
-    public async Task<PortfolioInsightsDto> Handle(GetPortfolioInsightsQuery request, CancellationToken cancellationToken)
+    public async Task<PortfolioInsightsDto> Handle(GetPortfolioInsightsQuery request, CancellationToken cancellationToken = default)
     {
         var repositories = (await repositoryDataService.GetAllRepositoriesAsync(request.UserId)).ToList();
 

@@ -108,51 +108,8 @@
     }
     else if (!pageState.Repositories.Any())
     {
-        @* Animated onboarding empty state — step indicators + CTA *@
-        <RadzenCard class="rp-onboarding-card">
-            <RadzenStack AlignItems="AlignItems.Center" Gap="1.5rem">
-                <RadzenStack Gap="0.5rem" AlignItems="AlignItems.Center">
-                    <RadzenIcon Icon="code" class="rp-onboarding-icon" />
-                    <RadzenText TextStyle="TextStyle.H5" class="rp-onboarding-title">No repositories yet</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Body1" class="rp-onboarding-lede">
-                        Add your first GitHub repository and start tracking lines of code over time.
-                    </RadzenText>
-                </RadzenStack>
-
-                @* How it works — 3-step flow *@
-                <div class="rp-onboarding-steps">
-                    <div class="onboarding-step">
-                        <div class="onboarding-step-icon">
-                            <RadzenIcon Icon="add_link" />
-                        </div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rp-step-title">Add Repo</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" class="rp-step-caption">Connect your GitHub repository</RadzenText>
-                    </div>
-                    <div class="onboarding-connector" aria-hidden="true"></div>
-                    <div class="onboarding-step">
-                        <div class="onboarding-step-icon">
-                            <RadzenIcon Icon="manage_search" />
-                        </div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rp-step-title">Auto-Analyze</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" class="rp-step-caption">Commits scanned in background</RadzenText>
-                    </div>
-                    <div class="onboarding-connector" aria-hidden="true"></div>
-                    <div class="onboarding-step">
-                        <div class="onboarding-step-icon">
-                            <RadzenIcon Icon="trending_up" />
-                        </div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rp-step-title">Track Trends</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" class="rp-step-caption">Charts, extensions & top files</RadzenText>
-                    </div>
-                </div>
-
-                <RadzenButton Text="Add Your First Repository"
-                              Icon="add_circle"
-                              ButtonStyle="ButtonStyle.Primary"
-                              class="onboarding-cta-pulse rp-onboarding-cta"
-                              Click="@OpenAddRepositoryDialog" />
-            </RadzenStack>
-        </RadzenCard>
+        @* Animated onboarding empty state (markup + styles: OnboardingEmptyState.razor) *@
+        <OnboardingEmptyState OnAddClick="OpenAddRepositoryDialog" />
     }
     else
     {

@@ -1,10 +1,9 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.API.Features.CodeHealth;
 
 /// <summary>Every owned repository's monthly health, for one chart with a line each.</summary>
-public record GetPortfolioCodeHealthTrendQuery(UserId UserId) : IRequest<List<CodeHealthTrendDto>>;
+public record GetPortfolioCodeHealthTrendQuery(UserId UserId);
 
 /// <summary>
 /// <para><b>What this shows that the table cannot.</b> The grid is a snapshot: it says which
@@ -23,12 +22,11 @@ public record GetPortfolioCodeHealthTrendQuery(UserId UserId) : IRequest<List<Co
 /// </summary>
 public sealed class GetPortfolioCodeHealthTrendQueryHandler(
     IRepositoryDataService repositoryDataService,
-    IMediator mediator,
+    GetCodeHealthTrendQueryHandler codeHealthTrendQueryHandler,
     ILogger<GetPortfolioCodeHealthTrendQueryHandler> logger)
-    : IRequestHandler<GetPortfolioCodeHealthTrendQuery, List<CodeHealthTrendDto>>
 {
     public async Task<List<CodeHealthTrendDto>> Handle(
-        GetPortfolioCodeHealthTrendQuery request, CancellationToken cancellationToken)
+        GetPortfolioCodeHealthTrendQuery request, CancellationToken cancellationToken = default)
     {
         var repositories = (await repositoryDataService.GetAllRepositoriesAsync(request.UserId)).ToList();
         var trends = new List<CodeHealthTrendDto>(repositories.Count);
@@ -39,7 +37,7 @@ public sealed class GetPortfolioCodeHealthTrendQueryHandler(
 
             try
             {
-                var trend = await mediator.Send(new GetCodeHealthTrendQuery(repository.Id), cancellationToken);
+                var trend = await codeHealthTrendQueryHandler.Handle(new GetCodeHealthTrendQuery(repository.Id), cancellationToken);
 
                 // A repository with a single point draws no line, only a dot — kept, because one
                 // dot sitting well below the others is still information the grid does not give.

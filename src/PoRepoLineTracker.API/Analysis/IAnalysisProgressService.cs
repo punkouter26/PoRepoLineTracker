@@ -1,5 +1,5 @@
 
-namespace PoRepoLineTracker.API.Services;
+namespace PoRepoLineTracker.API.Analysis;
 
 /// <summary>
 /// Tracks live analysis progress for repository jobs running in background tasks.

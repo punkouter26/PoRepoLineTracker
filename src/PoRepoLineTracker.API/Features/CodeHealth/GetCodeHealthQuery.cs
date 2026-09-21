@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.API.Features.CodeHealth;
@@ -6,7 +5,7 @@ namespace PoRepoLineTracker.API.Features.CodeHealth;
 /// <summary>
 /// Measures one repository's source at its most recent analysed commit.
 /// </summary>
-public record GetCodeHealthQuery(RepositoryId RepositoryId) : IRequest<CodeHealthDto?>;
+public record GetCodeHealthQuery(RepositoryId RepositoryId);
 
 /// <summary>
 /// <para><b>Why this reads the working clone rather than stored data.</b> Every other query in the
@@ -30,9 +29,8 @@ public sealed class GetCodeHealthQueryHandler(
     IUserPreferencesService userPreferencesService,
     ICodeHealthSnapshotStore snapshotStore,
     ILogger<GetCodeHealthQueryHandler> logger)
-    : IRequestHandler<GetCodeHealthQuery, CodeHealthDto?>
 {
-    public async Task<CodeHealthDto?> Handle(GetCodeHealthQuery request, CancellationToken cancellationToken)
+    public async Task<CodeHealthDto?> Handle(GetCodeHealthQuery request, CancellationToken cancellationToken = default)
     {
         var repository = await repositoryDataService.GetRepositoryByIdAsync(request.RepositoryId);
         if (repository is null) return null;

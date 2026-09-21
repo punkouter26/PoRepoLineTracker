@@ -1,4 +1,3 @@
-using MediatR;
 using System.Net;
 using Serilog;
 
@@ -15,14 +14,14 @@ internal static class InsightsEndpoints
         // No IDOR check of the kind the repository routes carry: the query is scoped by the
         // caller's own user id rather than by a supplied repository id, so there is no identifier
         // here for a caller to substitute. The same holds for both digest routes below.
-        insights.MapGet("/portfolio", async (HttpContext ctx, IMediator mediator) =>
+        insights.MapGet("/portfolio", async (HttpContext ctx, GetPortfolioInsightsQueryHandler portfolioHandler) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
             try
             {
-                var result = await mediator.Send(new GetPortfolioInsightsQuery(userId));
+                var result = await portfolioHandler.Handle(new GetPortfolioInsightsQuery(userId));
                 return Results.Ok(result);
             }
             catch (Exception ex)
@@ -38,7 +37,7 @@ internal static class InsightsEndpoints
         // separate calls so that a page refresh, a prefetch, or a second tab cannot silently
         // collapse the window to nothing before the user has seen the banner — the client marks
         // seen only once it has actually rendered one.
-        insights.MapGet("/digest", async (HttpContext ctx, IMediator mediator, IUserPreferencesService preferencesService) =>
+        insights.MapGet("/digest", async (HttpContext ctx, GetWeeklyDigestQueryHandler digestHandler, IUserPreferencesService preferencesService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -46,7 +45,7 @@ internal static class InsightsEndpoints
             try
             {
                 var preferences = await preferencesService.GetPreferencesAsync(userId);
-                var result = await mediator.Send(new GetWeeklyDigestQuery(userId, preferences.LastSeenUtc));
+                var result = await digestHandler.Handle(new GetWeeklyDigestQuery(userId, preferences.LastSeenUtc));
                 return Results.Ok(result);
             }
             catch (Exception ex)

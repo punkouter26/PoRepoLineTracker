@@ -104,8 +104,7 @@
     ::deep .rz-button,
     ::deep .page-hero__actions,
     ::deep .rz-paginator,
-    ::deep .rp-inline-card,
-    ::deep .onboarding-step-icon {
+    ::deep .rp-inline-card {
         display: none !important;
     }
 

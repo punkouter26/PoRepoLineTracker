@@ -5,7 +5,7 @@ PoRepoLineTracker is a self-hosted GitHub repository analytics app built with Bl
 ## Architecture overview
 
 - Edge delivery: a Blazor WebAssembly client is served from the same App Service as the API.
-- Compute tier: minimal APIs handle auth, settings, repository CRUD, GitHub lookups, and diagnostics; MediatR handlers and background tasks coordinate analysis, with live progress pushed over SignalR.
+- Compute tier: minimal APIs handle auth, settings, repository CRUD, GitHub lookups, and diagnostics; per-route handler classes and background tasks coordinate analysis, with live progress pushed over SignalR.
 - Data tier: Azure Table Storage holds users, repositories, commit aggregates, and user preferences.
 - External dependencies: GitHub provides OAuth identity, repository metadata, and clone/pull access; Azure Key Vault provides secrets; Application Insights collects telemetry (Jaeger via OTLP locally).
 

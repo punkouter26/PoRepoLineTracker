@@ -1,10 +1,9 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.API.Features.CodeHealth;
 
 /// <summary>Every repository the caller owns, scored so they can be ranked against each other.</summary>
-public record GetPortfolioCodeHealthQuery(UserId UserId) : IRequest<List<CodeHealthSummaryDto>>;
+public record GetPortfolioCodeHealthQuery(UserId UserId);
 
 /// <summary>
 /// <para><b>Why this is worth a page when the per-repository report already exists.</b> The
@@ -26,13 +25,12 @@ public record GetPortfolioCodeHealthQuery(UserId UserId) : IRequest<List<CodeHea
 /// </summary>
 public sealed class GetPortfolioCodeHealthQueryHandler(
     IRepositoryDataService repositoryDataService,
-    IMediator mediator,
+    GetCodeHealthQueryHandler codeHealthQueryHandler,
     IGitHubService gitHubService,
     ILogger<GetPortfolioCodeHealthQueryHandler> logger)
-    : IRequestHandler<GetPortfolioCodeHealthQuery, List<CodeHealthSummaryDto>>
 {
     public async Task<List<CodeHealthSummaryDto>> Handle(
-        GetPortfolioCodeHealthQuery request, CancellationToken cancellationToken)
+        GetPortfolioCodeHealthQuery request, CancellationToken cancellationToken = default)
     {
         var repositories = (await repositoryDataService.GetAllRepositoriesAsync(request.UserId)).ToList();
         var summaries = new List<CodeHealthSummaryDto>(repositories.Count);
@@ -60,7 +58,7 @@ public sealed class GetPortfolioCodeHealthQueryHandler(
 
             try
             {
-                var report = await mediator.Send(new GetCodeHealthQuery(repository.Id), cancellationToken);
+                var report = await codeHealthQueryHandler.Handle(new GetCodeHealthQuery(repository.Id), cancellationToken);
 
                 if (report is null)
                 {

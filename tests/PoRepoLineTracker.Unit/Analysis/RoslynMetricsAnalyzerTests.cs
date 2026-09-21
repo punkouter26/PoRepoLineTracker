@@ -1,7 +1,6 @@
 using FluentAssertions;
-using PoRepoLineTracker.API.Services;
 
-namespace PoRepoLineTracker.Unit.Services;
+namespace PoRepoLineTracker.Unit;
 
 /// <summary>
 /// The parsed C# metrics — Visual Studio's Code Metrics figures, computed from the syntax tree.

@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.API.Telemetry;
@@ -20,9 +19,9 @@ namespace PoRepoLineTracker.API.Features.Repositories;
 public record AnalyzeRepositoryCommitsCommand(
     RepositoryId RepositoryId,
     bool ForceReanalysis = false,
-    bool ClearExistingData = false) : IRequest<Unit>;
+    bool ClearExistingData = false);
 
-public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRepositoryCommitsCommand, Unit>
+public class AnalyzeRepositoryCommitsCommandHandler
 {
     private readonly IGitHubService _gitHubService;
     private readonly IRepositoryDataService _repositoryDataService;
@@ -63,19 +62,19 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         _fileIgnoreFilter = fileIgnoreFilter;
     }
 
-    public async Task<Unit> Handle(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken)
+    public async Task Handle(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken = default)
     {
         // #10 fix: if another analysis is already running for this repo, skip instead of racing
         var semaphore = _repoLocks.GetOrAdd(request.RepositoryId, _ => new SemaphoreSlim(1, 1));
         if (!await semaphore.WaitAsync(TimeSpan.Zero, cancellationToken))
         {
             _logger.LogWarning("Analysis for repository {RepositoryId} already in progress — skipping concurrent request", request.RepositoryId);
-            return Unit.Value;
+            return;
         }
 
         try
         {
-            return await HandleInternalAsync(request, cancellationToken);
+            await HandleInternalAsync(request, cancellationToken);
         }
         finally
         {
@@ -83,7 +82,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         }
     }
 
-    private async Task<Unit> HandleInternalAsync(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken)
+    private async Task HandleInternalAsync(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Analyzing commits for repository ID: {RepositoryId} (ForceReanalysis: {ForceReanalysis}, ClearExistingData: {ClearExistingData})",
             request.RepositoryId, request.ForceReanalysis, request.ClearExistingData);
@@ -94,7 +93,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         {
             _logger.LogWarning("Repository with ID {RepositoryId} not found", request.RepositoryId);
             _progressService.ReportError(request.RepositoryId, "Repository not found.");
-            return Unit.Value;
+            return;
         }
 
         // Opens the job and records its owner before any step is reported — the progress service
@@ -123,7 +122,7 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
         {
             // ── Step 1: Clone/pull OR validate local repository ───────────────────────
             var repositoryPath = await EnsureRepositoryOnDiskAsync(repository, accessToken, request.RepositoryId, cancellationToken);
-            if (repositoryPath is null) return Unit.Value;
+            if (repositoryPath is null) return;
 
             // Get user-specific file extensions to count (falls back to defaults if not configured)
             List<string> fileExtensionsToCount = UserPreferences.DefaultFileExtensions;
@@ -164,8 +163,6 @@ public class AnalyzeRepositoryCommitsCommandHandler : IRequestHandler<AnalyzeRep
             _progressService.ReportError(request.RepositoryId, ex.Message);
             throw; // Re-throw to let the API handle the error
         }
-
-        return Unit.Value;
     }
 
     /// <summary>

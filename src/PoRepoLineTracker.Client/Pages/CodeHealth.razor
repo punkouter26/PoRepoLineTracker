@@ -48,32 +48,24 @@
        which no column can show: a repository sitting at 66 and falling matters more than one at 62
        and flat. Its own button, because on a cold cache it measures every repository at every month
        boundary; after that it is served from the per-commit memo. *@
-    <div class="ch">
-        <RadzenCard class="ch__card">
-            <div class="ch__head">
-                <RadzenText TextStyle="TextStyle.H6">Health over time</RadzenText>
-                <RadzenButton Text="@(_trends is null ? "Chart it" : "Refresh")"
-                              Icon="@(_isCharting ? "hourglass_top" : "timeline")"
-                              ButtonStyle="ButtonStyle.Secondary"
-                              Variant="Variant.Outlined"
-                              Size="ButtonSize.Small"
-                              Disabled="@_isCharting"
-                              Click="@LoadTrendsAsync" />
-            </div>
+    <ChartCard Title="Health over time"
+               IsLoading="@_isCharting"
+               ErrorMessage="@_trendMessage"
+               OnRetry="@LoadTrendsAsync"
+               IsEmpty="@(_trends is null or { Count: 0 })"
+               EmptyText="@TrendEmptyText">
+        <Toolbar>
+            <RadzenButton Text="@(_trends is null ? "Chart it" : "Refresh")"
+                          Icon="@(_isCharting ? "hourglass_top" : "timeline")"
+                          ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Outlined"
+                          Size="ButtonSize.Small"
+                          Disabled="@_isCharting"
+                          Click="@LoadTrendsAsync" />
+        </Toolbar>
 
-            @if (_isCharting)
-            {
-                <RadzenText TextStyle="TextStyle.Caption" class="ch__message">
-                    Measuring each repository at each month boundary. The first run does the work; later ones
-                    read the stored results.
-                </RadzenText>
-                <RadzenSkeleton Height="260px" />
-            }
-            else if (!string.IsNullOrEmpty(_trendMessage))
-            {
-                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">@_trendMessage</RadzenText>
-            }
-            else if (_trends is { Count: > 0 } trends)
+        <ChildContent>
+            @if (_trends is { Count: > 0 } trends)
             {
                 <RadzenChart>
                     @foreach (var trend in trends)
@@ -131,47 +123,27 @@
                     no measurable month are absent from the chart; the grid below says why.
                 </RadzenText>
             }
-            else if (_trends is { Count: 0 })
-            {
-                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">
-                    No repository has history spanning a month boundary yet, so there is nothing to plot.
-                </RadzenText>
-            }
-            else
-            {
-                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">
-                    Plot every repository's health month by month, for the trailing two years.
-                </RadzenText>
-            }
-        </RadzenCard>
-    </div>
+        </ChildContent>
+    </ChartCard>
 
-    <div class="ch">
-        <RadzenCard class="ch__card">
-            <div class="ch__head">
-                <RadzenText TextStyle="TextStyle.H6">Repositories</RadzenText>
-                <RadzenButton Text="@(_rows is null ? "Analyze all" : "Re-run")"
-                              Icon="@(_isLoading ? "hourglass_top" : "insights")"
-                              ButtonStyle="ButtonStyle.Secondary"
-                              Variant="Variant.Outlined"
-                              Size="ButtonSize.Small"
-                              Disabled="@_isLoading"
-                              Click="@LoadAsync" />
-            </div>
+    <ChartCard Title="Repositories"
+               IsLoading="@_isLoading"
+               ErrorMessage="@_message"
+               OnRetry="@LoadAsync"
+               IsEmpty="@(_rows is null or { Count: 0 })"
+               EmptyText="@GridEmptyText">
+        <Toolbar>
+            <RadzenButton Text="@(_rows is null ? "Analyze all" : "Re-run")"
+                          Icon="@(_isLoading ? "hourglass_top" : "insights")"
+                          ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Outlined"
+                          Size="ButtonSize.Small"
+                          Disabled="@_isLoading"
+                          Click="@LoadAsync" />
+        </Toolbar>
 
-            @if (_isLoading)
-            {
-                <RadzenStack Gap="0.75rem">
-                    <RadzenSkeleton Height="40px" />
-                    <RadzenSkeleton Height="40px" />
-                    <RadzenSkeleton Height="40px" />
-                </RadzenStack>
-            }
-            else if (!string.IsNullOrEmpty(_message))
-            {
-                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">@_message</RadzenText>
-            }
-            else if (_rows is { Count: > 0 })
+        <ChildContent>
+            @if (_rows is { Count: > 0 })
             {
                 <div class="u-scroll-x">
                     <RadzenDataGrid Data="@_rows"
@@ -277,21 +249,8 @@
                     Inheritance and Class Coupling need a resolved compilation and are not shown.
                 </RadzenText>
             }
-            else if (_rows is { Count: 0 })
-            {
-                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">
-                    No repositories yet. Add some from the Repositories page and analyze them first.
-                </RadzenText>
-            }
-            else
-            {
-                <RadzenText TextStyle="TextStyle.Body2" class="ch__message">
-                    Nothing has been measured yet. Analyzing walks each repository's tree and parses its C#,
-                    so it takes a few seconds per repository.
-                </RadzenText>
-            }
-        </RadzenCard>
-    </div>
+        </ChildContent>
+    </ChartCard>
 </div>
 
 @code {
@@ -335,6 +294,15 @@
     }
 
     private int _measuredCount => _rows?.Count(r => r.Measured) ?? 0;
+
+    /// <summary>Empty-state copy: distinguishes "never fetched" from "fetched and genuinely empty".</summary>
+    private string TrendEmptyText => _trends is null
+        ? "Plot every repository's health month by month, for the trailing two years."
+        : "No repository has history spanning a month boundary yet, so there is nothing to plot.";
+
+    private string GridEmptyText => _rows is null
+        ? "Nothing has been measured yet. Analyzing walks each repository's tree and parses its C#, so it takes a few seconds per repository."
+        : "No repositories yet. Add some from the Repositories page and analyze them first.";
 
     private async Task LoadAsync()
     {

@@ -1,5 +1,3 @@
-using FluentValidation;
-using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using Serilog;
@@ -35,21 +33,21 @@ internal static class RepositoryEndpoints
         // differently on the case that matters: /bulk checks GetRepositoryByOwnerAndNameAsync and
         // buckets a repeat into AlreadyTracked, while the single-add handler inserted
         // unconditionally — so adding the same repository twice through it produced two rows for
-        // one GitHub repo. /bulk also validates through the shared FluentValidation rules and
+        // one GitHub repo. /bulk also validates through the shared repository rules in .Shared and
         // queues analysis for what it actually added; neither happened here.
 
-        repos.MapGet("/", async (HttpContext ctx, IMediator mediator) =>
+        repos.MapGet("/", async (HttpContext ctx, GetAllRepositoriesQueryHandler getAllHandler) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            var repositories = await mediator.Send(new GetAllRepositoriesQuery(userId));
+            var repositories = await getAllHandler.Handle(new GetAllRepositoriesQuery(userId));
             return Results.Ok(repositories);
         })
         .WithName("GetAllRepositories");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        repos.MapGet("/{repositoryId}/linehistory/{days}", async (RepositoryId repositoryId, int days, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        repos.MapGet("/{repositoryId}/linehistory/{days}", async (RepositoryId repositoryId, int days, HttpContext ctx, GetLineCountHistoryQueryHandler lineHistoryHandler, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -59,7 +57,7 @@ internal static class RepositoryEndpoints
 
             try
             {
-                var lineHistory = await mediator.Send(new GetLineCountHistoryQuery(repositoryId, days));
+                var lineHistory = await lineHistoryHandler.Handle(new GetLineCountHistoryQuery(repositoryId, days));
                 return Results.Ok(lineHistory);
             }
             catch (Exception ex)
@@ -70,7 +68,7 @@ internal static class RepositoryEndpoints
         })
         .WithName("GetRepositoryLineHistory");
 
-        repos.MapGet("/{repositoryId}/punchcard/{days}", async (RepositoryId repositoryId, int days, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        repos.MapGet("/{repositoryId}/punchcard/{days}", async (RepositoryId repositoryId, int days, HttpContext ctx, GetRepositoryPunchcardQueryHandler punchcardHandler, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -80,7 +78,7 @@ internal static class RepositoryEndpoints
 
             try
             {
-                var punchcard = await mediator.Send(new GetRepositoryPunchcardQuery(repositoryId, days));
+                var punchcard = await punchcardHandler.Handle(new GetRepositoryPunchcardQuery(repositoryId, days));
                 return Results.Ok(punchcard);
             }
             catch (Exception ex)
@@ -91,14 +89,14 @@ internal static class RepositoryEndpoints
         })
         .WithName("GetRepositoryPunchcard");
 
-        repos.MapGet("/allcharts/{days}", async (int days, HttpContext ctx, IMediator mediator) =>
+        repos.MapGet("/allcharts/{days}", async (int days, HttpContext ctx, GetAllRepositoriesLineCountHistoryQueryHandler allChartsHandler) =>
         {
             try
             {
                 if (!ctx.User.TryGetUserId(out var userId))
                     return Results.Unauthorized();
 
-                var data = await mediator.Send(new GetAllRepositoriesLineCountHistoryQuery(days, userId));
+                var data = await allChartsHandler.Handle(new GetAllRepositoriesLineCountHistoryQuery(days, userId));
                 return Results.Ok(data);
             }
             catch (Exception ex)
@@ -110,7 +108,7 @@ internal static class RepositoryEndpoints
         .WithName("GetAllRepositoriesLineHistory");
 
         // #6 fix: added RequireAuthorization() + ownership check - was fully unprotected
-        repos.MapDelete("/{repositoryId}", async (RepositoryId repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        repos.MapDelete("/{repositoryId}", async (RepositoryId repositoryId, HttpContext ctx, DeleteRepositoryCommandHandler deleteHandler, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -121,7 +119,7 @@ internal static class RepositoryEndpoints
 
             try
             {
-                await mediator.Send(new DeleteRepositoryCommand(repositoryId));
+                await deleteHandler.Handle(new DeleteRepositoryCommand(repositoryId));
                 Log.Information("Repository {RepositoryId} deleted successfully via API.", repositoryId);
                 return Results.NoContent();
             }
@@ -137,7 +135,7 @@ internal static class RepositoryEndpoints
         })
         .WithName("DeleteRepository");
 
-        repos.MapDelete("/all", async (HttpContext ctx, IMediator mediator) =>
+        repos.MapDelete("/all", async (HttpContext ctx, RemoveAllRepositoriesCommandHandler removeAllHandler) =>
         {
             try
             {
@@ -148,7 +146,7 @@ internal static class RepositoryEndpoints
                 }
 
                 Log.Information("Starting removal of all repositories for user {UserId}", userId);
-                await mediator.Send(new RemoveAllRepositoriesCommand(userId));
+                await removeAllHandler.Handle(new RemoveAllRepositoriesCommand(userId));
                 Log.Information("All repositories for user {UserId} removed successfully via API.", userId);
                 return Results.NoContent();
             }
@@ -160,7 +158,7 @@ internal static class RepositoryEndpoints
         })
         .WithName("RemoveAllRepositories");
 
-        repos.MapPost("/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory, IValidator<BulkRepositoryDto> repoValidator) =>
+        repos.MapPost("/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, AddMultipleRepositoriesCommandHandler addHandler, IServiceScopeFactory scopeFactory) =>
         {
             try
             {
@@ -171,12 +169,11 @@ internal static class RepositoryEndpoints
                 var repoList = repositories?.ToList() ?? [];
                 Log.Information("Number of repositories in request: {Count}", repoList.Count);
 
-                // Validate each entry with the shared FluentValidation rules.
+                // Validate each entry with the shared repository rules.
                 foreach (var dto in repoList)
                 {
-                    var v = await repoValidator.ValidateAsync(dto);
-                    if (!v.IsValid)
-                        return Results.ValidationProblem(v.ToDictionary());
+                    if (RepositoryValidators.Validate(dto) is { } errors)
+                        return Results.ValidationProblem(errors);
                 }
 
                 for (int i = 0; i < repoList.Count; i++)
@@ -186,8 +183,7 @@ internal static class RepositoryEndpoints
                         i, repo?.Owner ?? "NULL", repo?.RepoName ?? "NULL", repo?.CloneUrl ?? "NULL");
                 }
 
-                Log.Information("Sending AddMultipleRepositoriesCommand to MediatR with {Count} repositories for user {UserId}", repoList.Count, userId);
-                var result = await mediator.Send(new AddMultipleRepositoriesCommand(
+                var result = await addHandler.Handle(new AddMultipleRepositoriesCommand(
                     repoList, userId));
 
                 Log.Information("Bulk add: Added={Added}, AlreadyTracked={AlreadyTracked}",
@@ -200,13 +196,13 @@ internal static class RepositoryEndpoints
                     _ = Task.Run(async () =>
                     {
                         using var scope = scopeFactory.CreateScope();
-                        var bgMediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                        var bgAnalyzer = scope.ServiceProvider.GetRequiredService<AnalyzeRepositoryCommitsCommandHandler>();
                         foreach (var repoId in newRepoIds)
                         {
                             try
                             {
                                 Log.Information("Background: starting analysis for new repo {RepoId}", repoId);
-                                await bgMediator.Send(new AnalyzeRepositoryCommitsCommand(repoId));
+                                await bgAnalyzer.Handle(new AnalyzeRepositoryCommitsCommand(repoId));
                                 Log.Information("Background: analysis complete for repo {RepoId}", repoId);
                             }
                             catch (Exception bgEx)
@@ -227,53 +223,6 @@ internal static class RepositoryEndpoints
         })
         .WithName("AddMultipleRepositories");
 
-        // Tracks the caller's whole GitHub account. The Insights dashboard calls this on load so
-        // "Global Insights" covers every repository the user owns rather than the handful added by
-        // hand. Idempotent: the underlying add dedupes, so repeat visits import nothing.
-        repos.MapPost("/import-github", async (HttpContext ctx, IMediator mediator, IServiceScopeFactory scopeFactory) =>
-        {
-            if (!ctx.User.TryGetUserId(out var userId))
-                return Results.Unauthorized();
-
-            try
-            {
-                var result = await mediator.Send(new ImportGitHubRepositoriesCommand(userId));
-
-                // Analysis clones each repository, so it runs SEQUENTIALLY in one background task —
-                // the same shape /bulk uses. Firing one task per repository would start a dozen
-                // concurrent clones and exhaust the Free-tier App Service's disk and CPU.
-                if (result.Added.Count > 0)
-                {
-                    var newRepoIds = result.Added.Select(r => r.Id).ToList();
-                    _ = Task.Run(async () =>
-                    {
-                        using var scope = scopeFactory.CreateScope();
-                        var bgMediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-                        foreach (var repoId in newRepoIds)
-                        {
-                            try
-                            {
-                                await bgMediator.Send(new AnalyzeRepositoryCommitsCommand(repoId));
-                            }
-                            catch (Exception bgEx)
-                            {
-                                Log.Error(bgEx, "Background: analysis failed for imported repo {RepoId}", repoId);
-                            }
-                        }
-                    });
-                }
-
-                return Results.Ok(result);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error importing GitHub repositories for user {UserId}", userId);
-                return Results.Problem($"Error importing GitHub repositories: {ex.Message}",
-                    statusCode: (int)HttpStatusCode.InternalServerError);
-            }
-        })
-        .WithName("ImportGitHubRepositories");
-
         repos.MapPost("/{repositoryId}/reanalyze", async (RepositoryId repositoryId, HttpContext ctx, IServiceScopeFactory scopeFactory, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
@@ -286,10 +235,10 @@ internal static class RepositoryEndpoints
             _ = Task.Run(async () =>
             {
                 using var scope = scopeFactory.CreateScope();
-                var bgMediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                var bgAnalyzer = scope.ServiceProvider.GetRequiredService<AnalyzeRepositoryCommitsCommandHandler>();
                 try
                 {
-                    await bgMediator.Send(new AnalyzeRepositoryCommitsCommand(
+                    await bgAnalyzer.Handle(new AnalyzeRepositoryCommitsCommand(
                         repositoryId, ForceReanalysis: false, ClearExistingData: true));
                     Log.Information("Background re-analysis completed for repository {RepositoryId}", repositoryId);
                 }
@@ -303,7 +252,7 @@ internal static class RepositoryEndpoints
         .WithName("ReanalyzeRepository");
 
         // #6 fix: added RequireAuthorization() - was unprotected
-        repos.MapGet("/{repositoryId}/file-extension-percentages", async (RepositoryId repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        repos.MapGet("/{repositoryId}/file-extension-percentages", async (RepositoryId repositoryId, HttpContext ctx, GetFileExtensionPercentagesQueryHandler extensionHandler, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -313,7 +262,7 @@ internal static class RepositoryEndpoints
 
             try
             {
-                var percentages = await mediator.Send(new GetFileExtensionPercentagesQuery(repositoryId));
+                var percentages = await extensionHandler.Handle(new GetFileExtensionPercentagesQuery(repositoryId));
                 return Results.Ok(percentages);
             }
             catch (Exception ex)

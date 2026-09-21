@@ -1,0 +1,50 @@
+/* Scoped to ExtensionBreakdownCard. The extension bar list is plain markup authored here, so the
+   non-deep rules carry this file's scope id; .rd-ext-pct sits on a RadzenText and needs ::deep
+   behind a plain ancestor (.rd-ext-row). */
+
+.rd-ext-list {
+    margin-top: 1rem;
+}
+
+.rd-ext-row {
+    margin-bottom: 0.6rem;
+}
+
+.rd-ext-code {
+    font-size: 0.85em;
+    overflow-wrap: anywhere;
+}
+
+::deep .rd-ext-pct.rd-ext-pct {
+    font-weight: 600 !important;
+    color: var(--primary-on-surface) !important;
+    flex: 0 0 auto !important;
+}
+
+/* Native <progress>: the percentage rides in the value attribute, so the bar needs no inline
+   style and is announced by screen readers. */
+.rd-ext-bar {
+    display: block;
+    width: 100%;
+    height: 4px;
+    border: none;
+    border-radius: 4px;
+    background: var(--border-light);
+    margin-top: 3px;
+    appearance: none;
+}
+
+.rd-ext-bar::-webkit-progress-bar {
+    border-radius: 4px;
+    background: var(--border-light);
+}
+
+.rd-ext-bar::-webkit-progress-value {
+    border-radius: 4px;
+    background: var(--rz-primary);
+}
+
+.rd-ext-bar::-moz-progress-bar {
+    border-radius: 4px;
+    background: var(--rz-primary);
+}

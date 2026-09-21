@@ -3,8 +3,6 @@ using LibGit2Sharp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using PoRepoLineTracker.API.Services;
-
 namespace PoRepoLineTracker.Unit;
 
 /// <summary>

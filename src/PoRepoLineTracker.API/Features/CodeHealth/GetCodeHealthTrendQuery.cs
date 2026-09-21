@@ -1,10 +1,9 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.API.Features.CodeHealth;
 
 /// <summary>One repository's health month by month, over the trailing two years.</summary>
-public record GetCodeHealthTrendQuery(RepositoryId RepositoryId) : IRequest<CodeHealthTrendDto?>;
+public record GetCodeHealthTrendQuery(RepositoryId RepositoryId);
 
 /// <summary>
 /// <para><b>Which commit a month is measured at.</b> The last commit on or before the 1st, UTC —
@@ -30,12 +29,11 @@ public sealed class GetCodeHealthTrendQueryHandler(
     IUserPreferencesService userPreferencesService,
     ICodeHealthSnapshotStore snapshotStore,
     ILogger<GetCodeHealthTrendQueryHandler> logger)
-    : IRequestHandler<GetCodeHealthTrendQuery, CodeHealthTrendDto?>
 {
     /// <summary>Two years: long enough to show a slow drift, bounded enough that a first run ends.</summary>
     private const int MonthsBack = 24;
 
-    public async Task<CodeHealthTrendDto?> Handle(GetCodeHealthTrendQuery request, CancellationToken cancellationToken)
+    public async Task<CodeHealthTrendDto?> Handle(GetCodeHealthTrendQuery request, CancellationToken cancellationToken = default)
     {
         var repository = await repositoryDataService.GetRepositoryByIdAsync(request.RepositoryId);
         if (repository is null) return null;

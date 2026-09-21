@@ -23,11 +23,11 @@ concurrency:
   group: deploy-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: false
 
-# Action majors are kept at the current release of each (checkout v7, setup-dotnet v6, cache v6,
-# upload-artifact v7, download-artifact v8). They float within a major on purpose — a security fix
-# to an action should land without a commit here — but upload-artifact and download-artifact must
-# be upgraded TOGETHER: an artifact written by one major is not readable by an older one, and the
-# failure is a deploy that cannot find the package it just built.
+# Action majors are pinned at v4 (checkout, setup-dotnet, cache, upload/download-artifact).
+# Upgrading checkout/setup-dotnet/cache to their current majors is safe independently, but
+# upload-artifact and download-artifact must be upgraded TOGETHER: an artifact written by one
+# major is not readable by the other, and the failure is a deploy that cannot find the package
+# it just built.
 permissions:
   contents: read
   # OIDC federated credential — the workflow exchanges the GitHub OIDC token
@@ -120,6 +120,26 @@ jobs:
       # wired for local runs, where the report is actually looked at.
       - name: Test (Unit only — Integration/E2E require live infra)
         run: dotnet test tests/PoRepoLineTracker.Unit --no-build -c Release --verbosity minimal -p:RunSettingsFilePath=
+      # Suite-size caps: Unit ≤ 100, Integration ≤ 50, API E2E ≤ 25, UI E2E ≤ 25. Counting
+      # [Fact]/[Theory] attributes is approximate (a Theory row counts as one) but catches the
+      # failure mode that matters: a suite quietly outgrowing its cap. Grep, not a test — the
+      # counter must not live inside the thing it counts.
+      - name: Enforce test-suite caps
+        run: |
+          set -euo pipefail
+          check_cap () {
+            local dir=$1 cap=$2 name=$3 count
+            count=$(grep -rE --include='*.cs' -c '^\s*\[(Fact|Theory)\]' "$dir" | awk -F: '{s+=$2} END {print s+0}')
+            echo "$name: $count tests (cap $cap)"
+            if [ "$count" -gt "$cap" ]; then
+              echo "::error::$name suite has $count tests, over the cap of $cap — prune or merge before adding."
+              exit 1
+            fi
+          }
+          check_cap tests/PoRepoLineTracker.Unit       100 "Unit"
+          check_cap tests/PoRepoLineTracker.Integration  50 "Integration"
+          check_cap tests/PoRepoLineTracker.E2EAPI       25 "API E2E"
+          check_cap tests/PoRepoLineTracker.E2EUI        25 "UI E2E"
       # --no-build, not just --no-restore. Without it publish re-ran the entire Release build that
       # the step above had already done, compiling every project twice per pipeline.
       - name: Publish API

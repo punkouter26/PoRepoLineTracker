@@ -51,7 +51,6 @@ public static class ConfigKeys
         /// <summary>Server-side Personal Access Token, used when the caller has no GitHub token.</summary>
         public const string Pat = "GitHub:PAT";
         public const string LocalReposPath = "GitHub:LocalReposPath";
-        public const string WebhookSecret = "GitHub:WebhookSecret";
     }
 
     // The Microsoft / Entra ID key group was removed with the Microsoft OAuth provider — a

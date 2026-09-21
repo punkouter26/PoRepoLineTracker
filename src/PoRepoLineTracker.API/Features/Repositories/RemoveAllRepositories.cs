@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.IO;
@@ -11,14 +10,14 @@ namespace PoRepoLineTracker.API.Features.Repositories;
 /// Command Pattern: Command to remove all repositories for a user, their commit data, and local file system data.
 /// This is a destructive operation that cleans up all repository-related data for the specified user.
 /// </summary>
-public record RemoveAllRepositoriesCommand(UserId UserId) : IRequest<Unit>;
+public record RemoveAllRepositoriesCommand(UserId UserId);
 
 /// <summary>
 /// Command Pattern: Handler for RemoveAllRepositoriesCommand.
 /// Implements comprehensive cleanup of all repository data including Azure Table Storage and local file system.
 /// Uses Repository Pattern via IRepositoryDataService for storage operations.
 /// </summary>
-public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepositoriesCommand, Unit>
+public class RemoveAllRepositoriesCommandHandler
 {
     private readonly IRepositoryDataService _repositoryDataService;
     private readonly IConfiguration _configuration;
@@ -34,7 +33,7 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
         _logger = logger;
     }
 
-    public async Task<Unit> Handle(RemoveAllRepositoriesCommand request, CancellationToken cancellationToken)
+    public async Task Handle(RemoveAllRepositoriesCommand request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting removal of all repositories and associated data for user {UserId}.", request.UserId);
 
@@ -57,7 +56,7 @@ public class RemoveAllRepositoriesCommandHandler : IRequestHandler<RemoveAllRepo
             }
 
             _logger.LogInformation("Successfully completed removal of all repositories and associated data for user {UserId}.", request.UserId);
-            return Unit.Value;
+            return;
         }
         catch (Exception ex)
         {

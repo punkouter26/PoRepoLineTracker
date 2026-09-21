@@ -1,4 +1,3 @@
-using MediatR;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -7,9 +6,9 @@ using System;
 
 namespace PoRepoLineTracker.API.Features.Repositories;
 
-public record GetAllRepositoriesLineCountHistoryQuery(int Days, UserId UserId) : IRequest<IEnumerable<RepositoryLineCountHistoryDto>>;
+public record GetAllRepositoriesLineCountHistoryQuery(int Days, UserId UserId);
 
-public class GetAllRepositoriesLineCountHistoryQueryHandler : IRequestHandler<GetAllRepositoriesLineCountHistoryQuery, IEnumerable<RepositoryLineCountHistoryDto>>
+public class GetAllRepositoriesLineCountHistoryQueryHandler
 {
     private readonly IRepositoryDataService _repositoryDataService;
 
@@ -18,7 +17,7 @@ public class GetAllRepositoriesLineCountHistoryQueryHandler : IRequestHandler<Ge
         _repositoryDataService = repositoryDataService;
     }
 
-    public async Task<IEnumerable<RepositoryLineCountHistoryDto>> Handle(GetAllRepositoriesLineCountHistoryQuery request, CancellationToken cancellationToken)
+    public async Task<IEnumerable<RepositoryLineCountHistoryDto>> Handle(GetAllRepositoriesLineCountHistoryQuery request, CancellationToken cancellationToken = default)
     {
         var allRepositories = (await _repositoryDataService.GetAllRepositoriesAsync(request.UserId)).ToList();
 

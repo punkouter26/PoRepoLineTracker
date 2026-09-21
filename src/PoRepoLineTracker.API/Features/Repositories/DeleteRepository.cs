@@ -1,13 +1,12 @@
-using MediatR;
 using System.Threading.Tasks;
 using System.Threading;
 using System;
 
 namespace PoRepoLineTracker.API.Features.Repositories;
 
-public record DeleteRepositoryCommand(RepositoryId RepositoryId) : IRequest<Unit>;
+public record DeleteRepositoryCommand(RepositoryId RepositoryId);
 
-public class DeleteRepositoryCommandHandler : IRequestHandler<DeleteRepositoryCommand, Unit>
+public class DeleteRepositoryCommandHandler
 {
     private readonly IRepositoryDataService _repositoryDataService;
 
@@ -16,9 +15,6 @@ public class DeleteRepositoryCommandHandler : IRequestHandler<DeleteRepositoryCo
         _repositoryDataService = repositoryDataService;
     }
 
-    public async Task<Unit> Handle(DeleteRepositoryCommand request, CancellationToken cancellationToken)
-    {
-        await _repositoryDataService.DeleteRepositoryAsync(request.RepositoryId);
-        return Unit.Value;
-    }
+    public Task Handle(DeleteRepositoryCommand request, CancellationToken cancellationToken = default)
+        => _repositoryDataService.DeleteRepositoryAsync(request.RepositoryId);
 }

@@ -42,28 +42,3 @@ public sealed class DiagnosticsSummary
     public int ConfiguredCount { get; set; }
     public string ApplicationPurpose { get; set; } = string.Empty;
 }
-
-/// <summary>
-/// Wire shape for <c>GET /diag</c> — the masked configuration snapshot. Secret VALUES are never
-/// present in full here; see <c>DiagnosticsEndpoints.Mask</c>.
-/// </summary>
-public sealed class MaskedConfigurationResponse
-{
-    public string Environment { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; }
-
-    /// <summary>Keyed by configuration key; the value carries only a masked hint.</summary>
-    public Dictionary<string, MaskedSecret> Secrets { get; set; } = [];
-
-    /// <summary>Non-secret keys, returned verbatim — the point of /diag is confirming a deploy read them.</summary>
-    public Dictionary<string, string> Configuration { get; set; } = [];
-}
-
-/// <summary>Whether a secret is present, plus a hint that cannot reconstruct it.</summary>
-public sealed class MaskedSecret
-{
-    public bool Configured { get; set; }
-
-    /// <summary>"****" plus at most the last four characters. Never a usable credential.</summary>
-    public string Value { get; set; } = string.Empty;
-}

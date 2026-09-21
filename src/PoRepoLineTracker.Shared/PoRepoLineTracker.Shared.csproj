@@ -11,10 +11,4 @@
     <IsTrimmable>true</IsTrimmable>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
   </PropertyGroup>
-
-  <ItemGroup>
-    <!-- Rule 2.2 — Shared is the leaf: DTOs + FluentValidation rules only, no project refs. -->
-    <PackageReference Include="FluentValidation" />
-  </ItemGroup>
-
 </Project>

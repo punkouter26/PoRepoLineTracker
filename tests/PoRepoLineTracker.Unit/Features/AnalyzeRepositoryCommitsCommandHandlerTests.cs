@@ -1,5 +1,4 @@
 using FluentAssertions;
-using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -52,8 +51,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         var notFoundId = RepositoryId.New();
         _dataService.GetRepositoryByIdAsync(notFoundId).Returns((GitHubRepository?)null);
 
-        var result = await _sut.Handle(new AnalyzeRepositoryCommitsCommand(notFoundId), CancellationToken.None);
-        result.Should().Be(MediatR.Unit.Value);
+        await _sut.Handle(new AnalyzeRepositoryCommitsCommand(notFoundId), CancellationToken.None);
         await _gitHubService.DidNotReceive().CloneRepositoryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>());
 
         var newRepoId = RepositoryId.New();

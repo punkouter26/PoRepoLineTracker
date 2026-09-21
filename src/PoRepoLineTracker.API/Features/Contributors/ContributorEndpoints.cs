@@ -1,4 +1,3 @@
-using MediatR;
 using System.Net;
 using Serilog;
 
@@ -15,7 +14,7 @@ internal static class ContributorEndpoints
             .RequireAuthorization();
 
         // Get top contributors by lines of code
-        contributors.MapGet("/{repositoryId}/contributors/{days}", async (RepositoryId repositoryId, int days, int topN, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        contributors.MapGet("/{repositoryId}/contributors/{days}", async (RepositoryId repositoryId, int days, int topN, HttpContext ctx, GetContributorStatsQueryHandler contributorsHandler, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -25,7 +24,7 @@ internal static class ContributorEndpoints
 
             try
             {
-                var contributorStats = await mediator.Send(new GetContributorStatsQuery(repositoryId, days, topN > 0 ? topN : 10));
+                var contributorStats = await contributorsHandler.Handle(new GetContributorStatsQuery(repositoryId, days, topN > 0 ? topN : 10));
                 return Results.Ok(contributorStats);
             }
             catch (Exception ex)

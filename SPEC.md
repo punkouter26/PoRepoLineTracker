@@ -16,13 +16,14 @@ The single primary journey optimises every page:
 1. **Sign in** — `/auth/login` → GitHub OAuth → application cookie. In Dev/Test, tools authenticate by sending `X-Fake-User`; no dev-login route.
 2. **Bulk-add owned repositories** — `/api/repositories/bulk` is the only write path. Single-add was removed because it did not dedupe.
 3. **Watch analysis** — background clone/pull + line counting pushes progress over `/hubs/analysis` (SignalR); a fallback poll synthesises the same frames when the hub is unreachable. UI shows live tallies (`LinesCounted`, throughput, ETA), never a percentage alone.
-4. **Webhook-driven auto re-analysis** *(added 2026-09-20)* — A push to a tracked repo's default branch, signed with the configured `GitHub:WebhookSecret`, hits `POST /api/webhooks/github` and re-queues `AnalyzeRepositoryCommitsCommand` on a background task. The user doesn't take an action; the dashboard simply shows the new analysis in progress.
-5. **Read the dashboard** — `Repositories` page lists the portfolio with totals. Drill into `RepositoryDetail` for line history, extension percentages, contributor stats, **code health (radar + cards)**, **activity-rhythm punchcard**, recent activity.
-6. **Export the portfolio** *(added 2026-09-20)* — `GET /api/repositories/export` returns JSON by default; `?format=csv` returns `text/csv`. Discoverable endpoint, no client affordance in the danger zone yet (see §13.7).
-7. **See what changed since last visit** — `Insights` page shows the digest banner (12h–90d window; trailing-7d fallback outside that), the recap (calendar-year edges), and language drift measured in **share, not lines**.
-8. **Survive a network drop** *(added 2026-09-20)* — The PWA shell is cached; the `OfflineIndicator` shows network status when the connection is gone; on reconnect, the indicator clears and the next server fetch resumes. Read-only when offline.
+4. **Read the dashboard** — `Repositories` page lists the portfolio with totals. Drill into `RepositoryDetail` for line history, extension percentages, contributor stats, **code health (radar + cards)**, **activity-rhythm punchcard**, recent activity.
+5. **Export the portfolio** *(added 2026-09-20)* — `GET /api/repositories/export` returns JSON by default; `?format=csv` returns `text/csv`. Discoverable endpoint, no client affordance in the danger zone yet (see §13.7).
+6. **See what changed since last visit** — `Insights` page shows the digest banner (12h–90d window; trailing-7d fallback outside that), the recap (calendar-year edges), and language drift measured in **share, not lines**.
+7. **Survive a network drop** *(added 2026-09-20)* — The PWA shell is cached; the `OfflineIndicator` shows network status when the connection is gone; on reconnect, the indicator clears and the next server fetch resumes. Read-only when offline.
 
-Secondary paths: settings (`/api/settings/user-preferences` for counted extensions), diagnostics (`/diag` + `/api/diagnostics`), PWA install (`beforeinstallprompt` event captured at boot), re-analyse a single repo.
+*(The webhook-driven auto re-analysis journey added 2026-09-20 was removed 2026-09-21 — see §D.1 note. Repositories are added via the Add Repository dialog only.)*
+
+Secondary paths: settings (`/api/settings/user-preferences` for counted extensions), diagnostics (`/api/diagnostics`), PWA install (`beforeinstallprompt` event captured at boot), re-analyse a single repo.
 
 ## 3. Pinned tech stack (versions)
 
@@ -32,7 +33,7 @@ Secondary paths: settings (`/api/settings/user-preferences` for counted extensio
 - **Centralised package management** — all versions in `Directory.Packages.props`; no `<Version>` on `<PackageReference>`.
 - **Compiler guards** — `Directory.Build.props` sets `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`, `<Nullable>enable</Nullable>`.
 - **Git-driven versioning** — MinVer 6.0.0 derives `AssemblyVersion`/`FileVersion`/`InformationalVersion` from the nearest `v*` tag.
-- **Key runtime packages** — Radzen.Blazor 8.4.2 (UI), MediatR 14.1.0 (slice handlers), FluentValidation 12.0.0, HybridCache 10.0.0, OpenTelemetry 1.15.3 + OTLP exporter, Serilog.AspNetCore 10.0.0, Azure.Data.Tables 12.11.0, Azure.Identity 1.21.0, Azure.Extensions.AspNetCore.Configuration.Secrets 1.5.1, Azure.Monitor.OpenTelemetry.AspNetCore 1.4.0, Microsoft.AspNetCore.SignalR.Client 10.0.5, LibGit2Sharp 0.31.0, Microsoft.CodeAnalysis.CSharp 4.14.0 (syntax-only, no Workspaces.MSBuild), AspNet.Security.OAuth.GitHub 9.3.0, Scalar.AspNetCore 2.13.20, Microsoft.OpenApi 2.7.5.
+- **Key runtime packages** — Radzen.Blazor 8.4.2 (UI), HybridCache 10.0.0, OpenTelemetry 1.15.3 + OTLP exporter, Serilog.AspNetCore 10.0.0, Azure.Data.Tables 12.11.0, Azure.Identity 1.21.0, Azure.Extensions.AspNetCore.Configuration.Secrets 1.5.1, Azure.Monitor.OpenTelemetry.AspNetCore 1.4.0, Microsoft.AspNetCore.SignalR.Client 10.0.5, LibGit2Sharp 0.31.0, Microsoft.CodeAnalysis.CSharp 4.14.0 (syntax-only, no Workspaces.MSBuild), AspNet.Security.OAuth.GitHub 9.3.0, Scalar.AspNetCore 2.13.20, Microsoft.OpenApi 2.7.5. (MediatR and FluentValidation were removed 2026-09-21 — 17 single-caller handlers are injected directly and the four bulk-add rules are plain checks in `Shared/RepositoryValidators.cs`.)
 - **Test stack — single stack** — xunit 2.9.3 + NSubstitute 5.3.0 + FluentAssertions 8.8.0 + Xunit.SkippableFact 1.5.23 + Microsoft.Playwright 1.55.0 + Testcontainers.Azurite 4.6.0. SSH.NET pinned past advisory GHSA-q939-rpr3-3284 via central packages.
 - **Local dependencies** — Docker Compose: Azurite (table 10002, blob 10000, queue 10001) + Jaeger all-in-one 1.62.0 (UI 16686, OTLP/gRPC 4317, OTLP/HTTP 4318). Start with `docker compose up -d`.
 
@@ -120,7 +121,7 @@ SCRIPTS/                          ← setup.ps1 (provision), verify-deploy.ps1 (
 ## 6. Code-style & conventions
 
 - **`AGENTS.md` + `.github/copilot-instructions.md`** are the writing ruleset (YAGNI ladder; never cut validation, error handling, security, a11y). Comments explain *why*, not *what* — match the tone of the inline rationale already in this repo.
-- **Vertical Slice Architecture** under `Features/{FeatureName}/` — endpoints, validators, MediatR handlers, and queries co-located. Slices **may not reference each other**. Shared code that more than one slice needs goes to `Storage/`, `Analysis/`, `Services/`, or `Shared/Domain/`.
+- **Vertical Slice Architecture** under `Features/{FeatureName}/` — endpoints, handlers, and queries co-located; single-file slices are flat files under `Features/`. Slices **may not reference each other**. Shared code that more than one slice needs goes to `Storage/`, `Analysis/`, or `Shared/`.
 - **Source-generated JSON** in `Shared/Serialization/AppJsonSerializerContext`. The reflection resolver is deliberately unreachable from the client — every wire type needs a `[JsonSerializable]` entry, otherwise trim kills it.
 - **No single-implementation interfaces** — only abstract when a test or alternate impl already proves the seam; otherwise use the concrete type.
 - **AuthZ on repositories** — any route that takes a repository id from the URL uses `Auth/RepositoryOwnership`. The check lives outside slices so the second slice to need it cannot copy a stale copy.
@@ -255,11 +256,8 @@ These features landed on `origin/master` after this SPEC's initial freeze. They 
 
 ### D.1 — In-scope features added
 
-1. **GitHub webhook receiver** (`/api/webhooks/github`, `Features/Webhooks/GitHubWebhookEndpoints.cs`)
-   - `POST /api/webhooks/github` accepts a GitHub `push` payload, verifies HMAC-SHA256 against `GitHub:WebhookSecret` (constant-time comparison via `CryptographicOperations.FixedTimeEquals`), and on a default-branch push for a tracked repository re-queues `AnalyzeRepositoryCommitsCommand` on a background task.
-   - `AllowAnonymous` + `SkipAntiforgeryAttribute` because GitHub authenticates with the signature header, not a browser antiforgery cookie.
-   - **Contract**: signature mismatches return `401`; malformed JSON `400`; untracked-repo `200` with `"Repository is not tracked"`; non-default-branch `200` with `"Ignored push to non-default branch {ref}"`; tracked default-branch push `202 Accepted` with `"Analysis queued"`.
-   - **Risk**: any push for any tracked repo re-queues analysis — no throttle, no per-repo allowlist. See Open Question §13.6.
+1. **GitHub webhook receiver** — **REMOVED 2026-09-21.** Nothing in-repo configured `GitHub:WebhookSecret` (absent from every appsettings) and no GitHub-side wiring existed in infra, so the endpoint, `GitHubWebhookPayload`, its config key and its unit tests were deleted. Restore from git history if a signed webhook is ever wanted — the HMAC verification contract below documents what it did.
+   - *(Historical contract)* `POST /api/webhooks/github` accepted a GitHub `push` payload, verified HMAC-SHA256 against `GitHub:WebhookSecret` (constant-time comparison via `CryptographicOperations.FixedTimeEquals`), and on a default-branch push for a tracked repository re-queued `AnalyzeRepositoryCommitsCommand` on a background task; `AllowAnonymous` + `SkipAntiforgeryAttribute`.
 
 2. **Punchcard / activity-rhythm chart** (`/api/repositories/{id}/punchcard`, `Features/Repositories/GetRepositoryPunchcardQuery.cs`; `Components/Repositories/CommitActivityHeatmap.razor`)
    - 7×24 grid of `(dayOfWeek, hour)` buckets. `PunchcardItemDto` carries `CommitCount` + `LinesAdded` + `LinesRemoved`. Default range is 365 days; `Days` parameter is the knob.

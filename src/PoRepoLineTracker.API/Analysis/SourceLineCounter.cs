@@ -1,7 +1,7 @@
 using System.IO;
 using System.Threading.Tasks;
 
-namespace PoRepoLineTracker.API.Services
+namespace PoRepoLineTracker.API.Analysis
 {
     /// <summary>
     /// Counts genuine source lines: blank lines and comment-only lines are excluded, and a file

@@ -1,13 +1,6 @@
 /* Rooted on plain elements written in this file's own markup — a Radzen-rendered element carries
-   no scope id, so a rule targeting one would compile and match nothing. */
-
-.ch__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
+   no scope id, so a rule targeting one would compile and match nothing. Card chrome (heading,
+   loading, error, empty states) is ChartCard's job; only the grid and its annotations live here. */
 
 .ch-repo-link {
     color: var(--text-primary);
@@ -41,7 +34,6 @@
     text-align: center;
 }
 
-.ch__message,
 .ch__caveat {
     display: block;
     margin-top: 1rem;

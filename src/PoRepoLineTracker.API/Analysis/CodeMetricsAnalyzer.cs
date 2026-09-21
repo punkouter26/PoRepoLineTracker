@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace PoRepoLineTracker.API.Services;
+namespace PoRepoLineTracker.API.Analysis;
 
 /// <summary>
 /// Static analysis of source text into maintainability metrics, in the spirit of Visual Studio's

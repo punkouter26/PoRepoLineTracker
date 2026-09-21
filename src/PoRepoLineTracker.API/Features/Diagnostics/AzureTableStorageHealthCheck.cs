@@ -2,7 +2,7 @@ using Azure;
 using Azure.Data.Tables;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.API.Features.Diagnostics;
 
 public class AzureTableStorageHealthCheck : IHealthCheck
 {

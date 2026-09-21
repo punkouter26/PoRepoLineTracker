@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Services;
+namespace PoRepoLineTracker.API.Analysis;
 
 /// <summary>
 /// Turns a commit's source files into a report.

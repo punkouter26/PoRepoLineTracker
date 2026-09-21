@@ -1,4 +1,3 @@
-using MediatR;
 using System.Net;
 using Serilog;
 
@@ -15,12 +14,12 @@ internal static class CodeHealthEndpoints
         // The portfolio list. No path segment, so it cannot be confused with the {repositoryId}
         // route below - and no ownership guard is needed because it never takes an id from the
         // caller: it returns exactly the repositories the signed-in user owns.
-        health.MapGet("/", async (HttpContext ctx, IMediator mediator) =>
+        health.MapGet("/", async (HttpContext ctx, GetPortfolioCodeHealthQueryHandler portfolioHandler) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            var summaries = await mediator.Send(new GetPortfolioCodeHealthQuery(userId));
+            var summaries = await portfolioHandler.Handle(new GetPortfolioCodeHealthQuery(userId));
             return Results.Ok(summaries);
         })
         .WithName("GetPortfolioCodeHealth")
@@ -29,12 +28,12 @@ internal static class CodeHealthEndpoints
         // Every repository's trend, for the combined chart. A literal segment, so it is matched
         // ahead of the {repositoryId} route below rather than being parsed as an id — and it is
         // plural to keep it distinct from the per-repository "/{id}/trend".
-        health.MapGet("/trends", async (HttpContext ctx, IMediator mediator) =>
+        health.MapGet("/trends", async (HttpContext ctx, GetPortfolioCodeHealthTrendQueryHandler trendsHandler) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            var trends = await mediator.Send(new GetPortfolioCodeHealthTrendQuery(userId));
+            var trends = await trendsHandler.Handle(new GetPortfolioCodeHealthTrendQuery(userId));
             return Results.Ok(trends);
         })
         .WithName("GetPortfolioCodeHealthTrends")
@@ -43,7 +42,7 @@ internal static class CodeHealthEndpoints
         // Unlike the portfolio routes, this one takes a repository id from the URL — so it needs
         // the ownership guard. Without it any signed-in caller could read a report (paths,
         // hotspots, file sizes) for someone else's private repository.
-        health.MapGet("/{repositoryId}", async (RepositoryId repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        health.MapGet("/{repositoryId}", async (RepositoryId repositoryId, HttpContext ctx, GetCodeHealthQueryHandler codeHealthHandler, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -53,7 +52,7 @@ internal static class CodeHealthEndpoints
 
             try
             {
-                var report = await mediator.Send(new GetCodeHealthQuery(repositoryId));
+                var report = await codeHealthHandler.Handle(new GetCodeHealthQuery(repositoryId));
 
                 // Null means the repository has never been analysed. A 404 rather than an empty
                 // report: a page of zeroes is indistinguishable from genuinely terrible code, and
@@ -79,7 +78,7 @@ internal static class CodeHealthEndpoints
 
         // The monthly trend. Same ownership guard as the report above — it is the same data, only
         // measured at more commits, so it leaks exactly as much if left open.
-        health.MapGet("/{repositoryId}/trend", async (RepositoryId repositoryId, HttpContext ctx, IMediator mediator, IRepositoryDataService repoDataService) =>
+        health.MapGet("/{repositoryId}/trend", async (RepositoryId repositoryId, HttpContext ctx, GetCodeHealthTrendQueryHandler trendHandler, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -87,7 +86,7 @@ internal static class CodeHealthEndpoints
             var (_, error) = await RepositoryOwnership.AuthorizeAsync(repoDataService, repositoryId, userId, "read the code health trend for");
             if (error != null) return error;
 
-            var trend = await mediator.Send(new GetCodeHealthTrendQuery(repositoryId));
+            var trend = await trendHandler.Handle(new GetCodeHealthTrendQuery(repositoryId));
 
             return trend is null
                 ? Results.NotFound(new ErrorResponse

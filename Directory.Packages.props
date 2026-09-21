@@ -10,11 +10,6 @@
     <PackageVersion Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.4.0" />
     <!-- Azure & Storage -->
     <PackageVersion Include="Azure.Data.Tables" Version="12.11.0" />
-    <!-- MediatR -->
-    <PackageVersion Include="MediatR" Version="14.1.0" />
-    <!-- Validation (FluentValidation rules live in .Shared) -->
-    <PackageVersion Include="FluentValidation" Version="12.0.0" />
-    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
     <!-- Microsoft Core Extensions (.NET 10.0.1) -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.5" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.5" />

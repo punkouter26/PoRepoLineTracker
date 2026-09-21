@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 using PoRepoLineTracker.API.Hubs;
 using PoRepoLineTracker.Shared.Models;
 
-namespace PoRepoLineTracker.API.Services;
+namespace PoRepoLineTracker.API.Analysis;
 
 /// <summary>
 /// In-memory singleton that stores live analysis progress for background jobs.

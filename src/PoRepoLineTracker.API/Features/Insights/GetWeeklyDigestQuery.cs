@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.API.Features.Insights;
@@ -11,7 +10,7 @@ namespace PoRepoLineTracker.API.Features.Insights;
 /// The user's last recorded visit, or null if none. The handler — not the caller — decides whether
 /// that timestamp is a usable window start; see <see cref="GetWeeklyDigestQueryHandler"/>.
 /// </param>
-public record GetWeeklyDigestQuery(UserId UserId, DateTime? LastSeenUtc) : IRequest<WeeklyDigestDto>;
+public record GetWeeklyDigestQuery(UserId UserId, DateTime? LastSeenUtc);
 
 /// <summary>
 /// <para><b>Why this lives beside the portfolio query rather than in its own slice.</b> It answers
@@ -24,7 +23,6 @@ public record GetWeeklyDigestQuery(UserId UserId, DateTime? LastSeenUtc) : IRequ
 public sealed class GetWeeklyDigestQueryHandler(
     IRepositoryDataService repositoryDataService,
     ILogger<GetWeeklyDigestQueryHandler> logger)
-    : IRequestHandler<GetWeeklyDigestQuery, WeeklyDigestDto>
 {
     /// <summary>Window used when there is no usable last-visit timestamp.</summary>
     private const int FallbackWindowDays = 7;
@@ -50,7 +48,7 @@ public sealed class GetWeeklyDigestQueryHandler(
     /// <summary>Span the streak figure searches, matching the Insights dashboard's own window.</summary>
     private const int StreakWindowDays = 365;
 
-    public async Task<WeeklyDigestDto> Handle(GetWeeklyDigestQuery request, CancellationToken cancellationToken)
+    public async Task<WeeklyDigestDto> Handle(GetWeeklyDigestQuery request, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         var (since, isSinceLastVisit) = ResolveWindow(request.LastSeenUtc, now);

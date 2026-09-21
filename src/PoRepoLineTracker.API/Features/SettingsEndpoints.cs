@@ -1,6 +1,6 @@
 using Serilog;
 
-namespace PoRepoLineTracker.API.Features.Settings;
+namespace PoRepoLineTracker.API.Features;
 
 internal static class SettingsEndpoints
 {

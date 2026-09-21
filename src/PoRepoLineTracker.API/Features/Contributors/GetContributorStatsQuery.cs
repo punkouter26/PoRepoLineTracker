@@ -1,11 +1,10 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.API.Features.Contributors;
 
-public record GetContributorStatsQuery(RepositoryId RepositoryId, int Days = 365, int TopN = 10) : IRequest<IEnumerable<ContributorStatsDto>>;
+public record GetContributorStatsQuery(RepositoryId RepositoryId, int Days = 365, int TopN = 10);
 
-public class GetContributorStatsQueryHandler : IRequestHandler<GetContributorStatsQuery, IEnumerable<ContributorStatsDto>>
+public class GetContributorStatsQueryHandler
 {
     private readonly IRepositoryDataService _repositoryDataService;
     private readonly ILogger<GetContributorStatsQueryHandler> _logger;
@@ -18,7 +17,7 @@ public class GetContributorStatsQueryHandler : IRequestHandler<GetContributorSta
         _logger = logger;
     }
 
-    public async Task<IEnumerable<ContributorStatsDto>> Handle(GetContributorStatsQuery request, CancellationToken cancellationToken)
+    public async Task<IEnumerable<ContributorStatsDto>> Handle(GetContributorStatsQuery request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Getting contributor stats for repository {RepositoryId} for last {Days} days",
             request.RepositoryId, request.Days);
