@@ -105,7 +105,6 @@ src/
     Domain/                       ← GitHubRepository, CommitLineCount, CommitStreaks, RepositoryTotals (single definition of "Total Lines"), StronglyTypedIds, User, UserPreferences
     Models/                       ← AnalysisProgressDto, AuthResponse, ConfigKeys, ErrorResponse, Dtos/
     Serialization/                ← AppJsonSerializerContext (trim-safe, reflection resolver unreachable from client)
-    Validation/                   ← FluentValidation rules
 
 tests/
   PoRepoLineTracker.Unit/         ← pure logic; the only CI-gate tier
@@ -118,6 +117,15 @@ SCRIPTS/                          ← setup.ps1 (provision), verify-deploy.ps1 (
 .github/workflows/deploy.yml      ← lint + build → package → webapp deploy; manual `deploy_infra` input applies Bicep
 ```
 
+### 5.1 Tracked files that look deletable but aren't
+
+These are referenced from production paths; a lazy cleanup must keep them.
+
+- `src/PoRepoLineTracker.API/startup.sh` — App Service Linux startup; installs `git` (LibGit2Sharp's network stack SIGABRTs in the container, so `GitClient` shells out). Configure via `az webapp config set --startup-file`.
+- `src/PoRepoLineTracker.API/PrefixKeyVaultSecretManager.cs` — `KeyVaultSecretManager` that strips the `PoRepoLineTracker--` prefix and treats the rest as `Section:Key`. Wired in `Program.cs` (search `AddAzureKeyVault`).
+- `src/PoRepoLineTracker.API/appsettings.Development.local.json.template` — copy-rename template for the gitignored per-machine OAuth credentials. The deployed site never reads it; Program.cs loads the local file *after* Key Vault so dev credentials win locally without changing prod.
+```
+
 ## 6. Code-style & conventions
 
 - **`AGENTS.md` + `.github/copilot-instructions.md`** are the writing ruleset (YAGNI ladder; never cut validation, error handling, security, a11y). Comments explain *why*, not *what* — match the tone of the inline rationale already in this repo.
@@ -126,6 +134,7 @@ SCRIPTS/                          ← setup.ps1 (provision), verify-deploy.ps1 (
 - **No single-implementation interfaces** — only abstract when a test or alternate impl already proves the seam; otherwise use the concrete type.
 - **AuthZ on repositories** — any route that takes a repository id from the URL uses `Auth/RepositoryOwnership`. The check lives outside slices so the second slice to need it cannot copy a stale copy.
 - **Scoped CSS** — root the `.razor.css` at a plain `<div>`; Radzen components don't carry the `[b-xxx]` attribute. `::deep` for anything Radzen renders. When markup moves between components, its scoped CSS moves with it.
+- **`<ChartCard>` requires an explicit `<ChildContent>` when paired with `<Toolbar>`** — passing the page body as a value-type child fires RZ9996 and the toolbar silently disappears. The wrapper sets `ChildContent` first and `Toolbar` last via separate parameters, never one inside the other.
 - **Headers/landmarks** — every page owns an `<h1>`, a `<PageTitle>`, and lives inside `<main>` in the layout. The page title is a real `<h1 class="page-hero__title">` written in the page's own markup (`PageHero` can't change the tag of a fragment handed to it).
 - **Skip link** moves focus in code (`ElementReference.FocusAsync` on click with `preventDefault`), not via fragment navigation — Blazor's router intercepts anchor clicks.
 - **Install button** — driven by the `beforeinstallprompt` event, captured in `index.html` (not in a module imported later). `registerInstallListener` returns the current availability *and* subscribes.
