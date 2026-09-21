@@ -36,8 +36,8 @@
                     <RadzenSparkline Data="@Trend"
                                      CategoryProperty="Date"
                                      ValueProperty="TotalLines"
-                                     Stroke="#0891b2"
-                                     Fill="rgba(8, 145, 178, 0.16)" />
+                                     Stroke="var(--status-info)"
+                                     Fill="color-mix(in srgb, var(--status-info) 16%, transparent)" />
                 </div>
             }
         </RadzenStack>
@@ -57,7 +57,7 @@
                         <RadzenArcGaugeScale Min="0" Max="@RepositoryCount"
                                              Step="@Math.Max(1, RepositoryCount / 4d)"
                                              ShowTickLabels="false" TickPosition="GaugeTickPosition.None">
-                            <RadzenArcGaugeScaleValue Value="@AnalyzedCount" ShowValue="false" Fill="#059669" />
+                            <RadzenArcGaugeScaleValue Value="@AnalyzedCount" ShowValue="false" Fill="var(--status-pos)" />
                         </RadzenArcGaugeScale>
                     </RadzenArcGauge>
                 </div>

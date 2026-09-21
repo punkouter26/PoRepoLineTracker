@@ -49,12 +49,18 @@ public class SourceLineCounterTests
 
     // ─── DefaultSet wiring ───────────────────────────────────────────────────
 
-    private static ILineCounter CounterFor(string extension) =>
+    private static SourceLineCounter CounterFor(string extension) =>
         SourceLineCounter.DefaultSet().Single(c => c.FileExtension == extension);
 
     [Fact]
-    public async Task DefaultSet_SpecificLanguageSyntaxes_HandledAccurately()
+    public async Task DefaultSet_RegistersEveryDefaultExtension_AndHandlesSyntaxesAccurately()
     {
+        var registered = SourceLineCounter.DefaultSet().Select(c => c.FileExtension).ToList();
+        registered.Should().Contain("*", "an unknown extension still needs blank-line exclusion");
+        registered.Should().OnlyHaveUniqueItems("a duplicate registration would make the counter map ambiguous");
+        registered.Should().Contain(UserPreferences.DefaultFileExtensions,
+            "every extension counted by default must have a counter, or it silently falls back to '*'");
+
         (await CounterFor(".css").CountLinesAsync(
             Stream("@import url(https://fonts.example.com/x.css);\nbody { color: red; }\n"))).Should().Be(2);
         (await CounterFor(".css").CountLinesAsync(
@@ -63,17 +69,6 @@ public class SourceLineCounterTests
             Stream("// a note\n$brand: red;\n"))).Should().Be(1);
         (await CounterFor(".razor").CountLinesAsync(
             Stream("<a href=\"https://example.com\">x</a>\n<p>hello</p>\n"))).Should().Be(2);
-    }
-
-    [Fact]
-    public void DefaultSet_RegistersEveryDefaultExtension_PlusTheFallback()
-    {
-        var registered = SourceLineCounter.DefaultSet().Select(c => c.FileExtension).ToList();
-
-        registered.Should().Contain("*", "an unknown extension still needs blank-line exclusion");
-        registered.Should().OnlyHaveUniqueItems("a duplicate registration would make the counter map ambiguous");
-        registered.Should().Contain(UserPreferences.DefaultFileExtensions,
-            "every extension counted by default must have a counter, or it silently falls back to '*'");
     }
 
     private static MemoryStream Stream(string content) => new(Encoding.UTF8.GetBytes(content));

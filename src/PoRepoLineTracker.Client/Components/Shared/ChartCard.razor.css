@@ -69,7 +69,11 @@
    drifted, and on a phone with browser chrome showing that is a visible jump at the moment the
    data lands. */
 ::deep .chart-card__skeleton.chart-card__skeleton {
-    height: var(--chart-h-min) !important;
+    aspect-ratio: var(--chart-aspect, 16 / 9);
+    min-height: var(--chart-h-min) !important;
+    max-height: var(--chart-h-max) !important;
+    height: clamp(var(--chart-h-min), 36dvh, var(--chart-h-max)) !important;
+    border-radius: 8px;
 }
 
 ::deep .chart-card__retry.chart-card__retry {

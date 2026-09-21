@@ -126,3 +126,14 @@
     gap: var(--space-stack, 1.25rem);
 }
 
+::deep .rd-tabs.rd-tabs {
+    background: transparent !important;
+    border: none !important;
+}
+
+::deep .rd-tabs .rz-tabview-panels {
+    padding: var(--space-md) 0 0 0 !important;
+    background: transparent !important;
+    border: none !important;
+}
+

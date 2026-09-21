@@ -6,18 +6,11 @@ namespace PoRepoLineTracker.Unit.Shared;
 public class CodeHealthRadarTests
 {
     [Fact]
-    public void GetAngle_distributes_six_axes_evenly_starting_at_top()
+    public void RadarGeometry_distributes_angles_and_clamps_points()
     {
-        var topAngle = CodeHealthRadar.GetAngle(0, 6);
-        topAngle.Should().BeApproximately(-Math.PI / 2.0, 0.001);
+        CodeHealthRadar.GetAngle(0, 6).Should().BeApproximately(-Math.PI / 2.0, 0.001);
+        CodeHealthRadar.GetAngle(1, 6).Should().BeApproximately(-Math.PI / 6.0, 0.001);
 
-        var rightAngle = CodeHealthRadar.GetAngle(1, 6);
-        rightAngle.Should().BeApproximately(-Math.PI / 6.0, 0.001);
-    }
-
-    [Fact]
-    public void CalculatePoint_clamps_scores_between_zero_and_hundred()
-    {
         const double cx = 100;
         const double cy = 100;
         const double radius = 50;

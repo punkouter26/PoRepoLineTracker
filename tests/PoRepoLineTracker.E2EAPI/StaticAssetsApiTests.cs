@@ -46,7 +46,7 @@ public sealed class StaticAssetsApiTests
         // MobileRepoCard.razor(.css) was deleted: no page ever referenced the component, and the
         // `.mobile-only` / `.desktop-only` classes written to switch it in were unused too.
         // Radzen's own responsive DataGrid covers the case it was built for.
-        ("xc-env-card", "ExternalConnections.razor.css"),
+        ("xc-env-card", "Diagnostics.razor.css"),
         ("arc-legend__swatch", "AllReposComparisonChart.razor.css"),
         ("chart-card__title", "ChartCard.razor.css"),
         ("page-hero__actions", "PageHero.razor.css"),

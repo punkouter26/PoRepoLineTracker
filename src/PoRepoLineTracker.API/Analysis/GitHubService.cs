@@ -13,7 +13,7 @@ public class GitHubService : IGitHubService
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubService> _logger;
     private readonly string _localReposPath;
-    private readonly Dictionary<string, ILineCounter> _lineCounterMap;
+    private readonly Dictionary<string, SourceLineCounter> _lineCounterMap;
     private readonly GitClient _gitClient;
     private readonly FileIgnoreFilter _fileIgnoreFilter;
 
@@ -37,7 +37,7 @@ public class GitHubService : IGitHubService
     /// </summary>
     private const int MaxMemoEntries = 200_000;
 
-    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<ILineCounter> lineCounters, GitClient gitClient, FileIgnoreFilter fileIgnoreFilter)
+    public GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger, IEnumerable<SourceLineCounter> lineCounters, GitClient gitClient, FileIgnoreFilter fileIgnoreFilter)
     {
         _httpClient = httpClient;
         _logger = logger;

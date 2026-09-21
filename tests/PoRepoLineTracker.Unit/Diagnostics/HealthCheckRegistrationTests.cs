@@ -56,43 +56,28 @@ public class HealthCheckRegistrationTests
     }
 
     [Fact]
-    public async Task GitHubApi_check_returns_Degraded_when_rate_limit_remaining_below_threshold()
+    public async Task GitHubApi_check_evaluates_rate_limits_and_status_codes()
     {
-        var http = BuildStubHttp(HttpStatusCode.OK, "X-RateLimit-Remaining", "42");
-        var factory = Substitute.For<IHttpClientFactory>();
-        factory.CreateClient(Arg.Any<string>()).Returns(http);
+        // Degraded when rate limit low
+        var degradedHttp = BuildStubHttp(HttpStatusCode.OK, "X-RateLimit-Remaining", "42");
+        var degradedFactory = Substitute.For<IHttpClientFactory>();
+        degradedFactory.CreateClient(Arg.Any<string>()).Returns(degradedHttp);
+        var degradedCheck = new GitHubApiHealthCheck(degradedFactory, Substitute.For<ILogger<GitHubApiHealthCheck>>());
+        (await degradedCheck.CheckHealthAsync(NewContext("github-api"))).Status.Should().Be(HealthStatus.Degraded);
 
-        var check = new GitHubApiHealthCheck(factory, Substitute.For<ILogger<GitHubApiHealthCheck>>());
+        // Degraded on 401 or 403 (configuration issue, serves cached reads)
+        var unauthHttp = BuildStubHttp(HttpStatusCode.Unauthorized, "X-RateLimit-Remaining", "5000");
+        var unauthFactory = Substitute.For<IHttpClientFactory>();
+        unauthFactory.CreateClient(Arg.Any<string>()).Returns(unauthHttp);
+        var unauthCheck = new GitHubApiHealthCheck(unauthFactory, Substitute.For<ILogger<GitHubApiHealthCheck>>());
+        (await unauthCheck.CheckHealthAsync(NewContext("github-api"))).Status.Should().Be(HealthStatus.Degraded);
 
-        var result = await check.CheckHealthAsync(NewContext("github-api"));
-
-        result.Status.Should().Be(HealthStatus.Degraded);
-    }
-
-    [Fact]
-    public async Task GitHubApi_check_returns_Unhealthy_on_401_or_403()
-    {
-        var http = BuildStubHttp(HttpStatusCode.Unauthorized, "X-RateLimit-Remaining", "5000");
-        var factory = Substitute.For<IHttpClientFactory>();
-        factory.CreateClient(Arg.Any<string>()).Returns(http);
-
-        var check = new GitHubApiHealthCheck(factory, Substitute.For<ILogger<GitHubApiHealthCheck>>());
-        var result = await check.CheckHealthAsync(NewContext("github-api"));
-
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-    }
-
-    [Fact]
-    public async Task GitHubApi_check_returns_Healthy_when_rate_limit_above_threshold()
-    {
-        var http = BuildStubHttp(HttpStatusCode.OK, "X-RateLimit-Remaining", "4999");
-        var factory = Substitute.For<IHttpClientFactory>();
-        factory.CreateClient(Arg.Any<string>()).Returns(http);
-
-        var check = new GitHubApiHealthCheck(factory, Substitute.For<ILogger<GitHubApiHealthCheck>>());
-        var result = await check.CheckHealthAsync(NewContext("github-api"));
-
-        result.Status.Should().Be(HealthStatus.Healthy);
+        // Healthy when rate limit high
+        var healthyHttp = BuildStubHttp(HttpStatusCode.OK, "X-RateLimit-Remaining", "4999");
+        var healthyFactory = Substitute.For<IHttpClientFactory>();
+        healthyFactory.CreateClient(Arg.Any<string>()).Returns(healthyHttp);
+        var healthyCheck = new GitHubApiHealthCheck(healthyFactory, Substitute.For<ILogger<GitHubApiHealthCheck>>());
+        (await healthyCheck.CheckHealthAsync(NewContext("github-api"))).Status.Should().Be(HealthStatus.Healthy);
     }
 
     [Fact]

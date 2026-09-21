@@ -24,6 +24,15 @@ internal static class AuthEndpoints
             HttpContext context,
             IUserService userService) =>
         {
+            // If in Development and accessed via http port 5000, redirect to https://localhost:5001
+            // so the OAuth challenge and correlation cookie align with GitHub's registered callback URL.
+            if (env.IsDevelopment() && context.Request.Host.Port == 5000 && (context.Request.Host.Host == "localhost" || context.Request.Host.Host == "127.0.0.1"))
+            {
+                var query = !string.IsNullOrEmpty(returnUrl) ? $"?returnUrl={Uri.EscapeDataString(returnUrl)}" : "";
+                if (dev == true) query += (string.IsNullOrEmpty(query) ? "?dev=true" : "&dev=true");
+                return Results.Redirect($"https://localhost:5001/auth/login{query}");
+            }
+
             var ghClientId = env.IsDevelopment()
                 ? config[ConfigKeys.GitHub.DevClientId] ?? config[ConfigKeys.GitHub.ClientId]
                 : config[ConfigKeys.GitHub.ClientId];

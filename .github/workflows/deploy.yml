@@ -50,11 +50,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       # Cached: `az bicep install` pulls the CLI from GitHub releases on every run otherwise,
       # which was ~20s of the job's total.
       - name: Cache Bicep CLI
-        uses: actions/cache@v6
+        uses: actions/cache@v4
         with:
           path: ~/.azure/bin
           key: bicep-${{ runner.os }}
@@ -76,14 +76,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       # NuGet cache — keyed on csproj + Directory.Packages.props, so a code-only
       # change still reuses the cache and skips the network restore.
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
@@ -139,7 +139,7 @@ jobs:
           cd publish
           zip -r ../webapp.zip . -q
       - name: Upload webapp artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: webapp
           path: webapp.zip
@@ -166,12 +166,12 @@ jobs:
       # github.event.before, and a depth-1 checkout does not contain that commit — the diff fails,
       # the guard falls through to "changed", and infra is applied on every push exactly as it was
       # before the guard existed.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       # Lands webapp.zip in the workspace root — the build job already packaged it, so this job
       # deploys the exact bytes that were tested rather than re-zipping a folder it just unpacked.
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v4
         with:
           name: webapp
           path: .
@@ -270,7 +270,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.deploy_infra
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}

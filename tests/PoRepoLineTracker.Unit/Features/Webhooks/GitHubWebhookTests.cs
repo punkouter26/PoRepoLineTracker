@@ -13,58 +13,27 @@ public class GitHubWebhookTests
     private const string TestSecret = "super-secret-webhook-key-12345";
 
     [Fact]
-    public void VerifySignature_with_valid_hmac_returns_true()
+    public void VerifySignature_validates_correct_signatures_and_rejects_tampered_or_malformed()
     {
         var body = """{"ref":"refs/heads/main","repository":{"name":"PoRepoLineTracker","owner":{"login":"punkouter26"}}}""";
         var bodyBytes = Encoding.UTF8.GetBytes(body);
 
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(TestSecret));
         var hash = hmac.ComputeHash(bodyBytes);
-        var signature = $"sha256={Convert.ToHexStringLower(hash)}";
+        var lowerSig = $"sha256={Convert.ToHexStringLower(hash)}";
+        var upperSig = $"sha256={Convert.ToHexString(hash).ToUpperInvariant()}";
 
-        var result = GitHubWebhookEndpoints.VerifySignature(bodyBytes, signature, TestSecret);
+        GitHubWebhookEndpoints.VerifySignature(bodyBytes, lowerSig, TestSecret).Should().BeTrue();
+        GitHubWebhookEndpoints.VerifySignature(bodyBytes, upperSig, TestSecret).Should().BeTrue();
 
-        result.Should().BeTrue();
-    }
-
-    [Fact]
-    public void VerifySignature_with_uppercase_signature_returns_true()
-    {
-        var body = """{"action":"push"}""";
-        var bodyBytes = Encoding.UTF8.GetBytes(body);
-
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(TestSecret));
-        var hash = hmac.ComputeHash(bodyBytes);
-        var signature = $"sha256={Convert.ToHexString(hash).ToUpperInvariant()}";
-
-        var result = GitHubWebhookEndpoints.VerifySignature(bodyBytes, signature, TestSecret);
-
-        result.Should().BeTrue();
-    }
-
-    [Fact]
-    public void VerifySignature_with_tampered_payload_returns_false()
-    {
-        var originalBody = """{"ref":"refs/heads/main"}""";
         var tamperedBody = """{"ref":"refs/heads/evil"}""";
-        var bodyBytes = Encoding.UTF8.GetBytes(originalBody);
+        GitHubWebhookEndpoints.VerifySignature(Encoding.UTF8.GetBytes(tamperedBody), lowerSig, TestSecret).Should().BeFalse();
 
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(TestSecret));
-        var signature = $"sha256={Convert.ToHexStringLower(hmac.ComputeHash(bodyBytes))}";
-
-        var result = GitHubWebhookEndpoints.VerifySignature(Encoding.UTF8.GetBytes(tamperedBody), signature, TestSecret);
-
-        result.Should().BeFalse();
-    }
-
-    [Fact]
-    public void VerifySignature_with_missing_or_empty_parameters_returns_false()
-    {
-        var bytes = Encoding.UTF8.GetBytes("{}");
-        GitHubWebhookEndpoints.VerifySignature(bytes, null, TestSecret).Should().BeFalse();
-        GitHubWebhookEndpoints.VerifySignature(bytes, "", TestSecret).Should().BeFalse();
-        GitHubWebhookEndpoints.VerifySignature(bytes, "invalid-format", TestSecret).Should().BeFalse();
-        GitHubWebhookEndpoints.VerifySignature(bytes, "sha256=abcdef", "").Should().BeFalse();
+        var emptyBytes = Encoding.UTF8.GetBytes("{}");
+        GitHubWebhookEndpoints.VerifySignature(emptyBytes, null, TestSecret).Should().BeFalse();
+        GitHubWebhookEndpoints.VerifySignature(emptyBytes, "", TestSecret).Should().BeFalse();
+        GitHubWebhookEndpoints.VerifySignature(emptyBytes, "invalid-format", TestSecret).Should().BeFalse();
+        GitHubWebhookEndpoints.VerifySignature(emptyBytes, "sha256=abcdef", "").Should().BeFalse();
     }
 
     [Fact]

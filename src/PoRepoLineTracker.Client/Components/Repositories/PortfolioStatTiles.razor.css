@@ -92,3 +92,11 @@
        copies could drift. The tile already carries it. */
     color: var(--stat-accent) !important;
 }
+
+::deep .rp-stat-spark path {
+    stroke: var(--status-info) !important;
+}
+
+::deep .rp-stat-gauge path {
+    fill: var(--status-pos) !important;
+}

@@ -42,49 +42,25 @@
         <Actions>
             @if (pageState.Repositories.Count > 0)
             {
-                <RadzenButton Text="Print"
-                              Icon="print"
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Outlined"
-                              Size="ButtonSize.Medium"
-                              title="Print executive brief / Save as PDF"
-                              aria-label="Print executive brief / Save as PDF"
-                              Click="@PrintReportAsync" />
-                <RadzenButton Text="CSV"
-                              Icon="download"
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Outlined"
-                              Size="ButtonSize.Medium"
-                              title="Download portfolio as CSV"
-                              aria-label="Download portfolio as CSV"
-                              Click="@(() => Navigation.NavigateTo("/api/repositories/export?format=csv", forceLoad: true))" />
-                <RadzenButton Text="JSON"
-                              Icon="data_object"
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Outlined"
-                              Size="ButtonSize.Medium"
-                              title="Download portfolio as JSON"
-                              aria-label="Download portfolio as JSON"
-                              Click="@(() => Navigation.NavigateTo("/api/repositories/export?format=json", forceLoad: true))" />
+                <RadzenSplitButton Text="Export"
+                                   Icon="download"
+                                   ButtonStyle="ButtonStyle.Light"
+                                   Variant="Variant.Outlined"
+                                   Size="ButtonSize.Medium"
+                                   Click="@(() => Navigation.NavigateTo("/api/repositories/export?format=csv", forceLoad: true))">
+                    <ChildContent>
+                        <RadzenSplitButtonItem Text="Export CSV" Value="csv" Icon="download" />
+                        <RadzenSplitButtonItem Text="Export JSON" Value="json" Icon="data_object" />
+                        <RadzenSplitButtonItem Text="Print / PDF" Value="print" Icon="print" />
+                    </ChildContent>
+                </RadzenSplitButton>
             }
-            <RadzenButton Text="@(_showAddPanel ? "Cancel" : "Add Repository")"
-                          Icon="@(_showAddPanel ? "close" : "add_circle")"
-                          ButtonStyle="@(_showAddPanel ? ButtonStyle.Light : ButtonStyle.Primary)"
-                          Variant="@(_showAddPanel ? Variant.Outlined : Variant.Filled)"
-                          Click="@ToggleAddPanel" />
+            <RadzenButton Text="Add Repository"
+                          Icon="add_circle"
+                          ButtonStyle="ButtonStyle.Primary"
+                          Click="@OpenAddRepositoryDialog" />
         </Actions>
     </PageHero>
-
-    @* Inline Add Repository Panel *@
-    @if (_showAddPanel)
-    {
-        <RadzenCard class="rp-inline-card">
-            @* AddRepository uses a 5-minute session cache so repeated toggles do not re-query GitHub. *@
-            <AddRepository @ref="_addRepository"
-                           IsInline="true"
-                           OnInlineCompleted="@HandleAddCompleted" />
-        </RadzenCard>
-    }
 
     @* Notification Messages *@
     @if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
@@ -174,7 +150,7 @@
                               Icon="add_circle"
                               ButtonStyle="ButtonStyle.Primary"
                               class="onboarding-cta-pulse rp-onboarding-cta"
-                              Click="@ToggleAddPanel" />
+                              Click="@OpenAddRepositoryDialog" />
             </RadzenStack>
         </RadzenCard>
     }
@@ -221,10 +197,8 @@
     private RepositoryPageState pageState = new();
     private RepositoriesGrid? _grid;
     private AllReposComparisonChart? _comparisonChart;
-    private AddRepository? _addRepository;
     private bool _chartPrimed;
     private RepositoryId? reanalyzingRepositoryId;
-    private bool _showAddPanel = false;
     private bool isRemovingAll = false;
     private Dictionary<RepositoryId, DateTime> _reanalysisStartTimes = new();
     private Dictionary<RepositoryId, int> _repoLatestLineCounts = new();
@@ -411,14 +385,29 @@
         await JS.InvokeVoidAsync("window.print");
     }
 
-    private void ToggleAddPanel()
+    private async Task OpenAddRepositoryDialog()
     {
-        _showAddPanel = !_showAddPanel;
+        var result = await DialogService.OpenAsync<AddRepository>(
+            "Add Repositories",
+            new Dictionary<string, object>
+            {
+                { "IsInline", false }
+            },
+            new DialogOptions
+            {
+                Width = "min(680px, 95vw)",
+                CloseDialogOnOverlayClick = true,
+                ShowClose = true
+            });
+
+        if (result is true)
+        {
+            await HandleAddCompleted();
+        }
     }
 
     private async Task HandleAddCompleted()
     {
-        _showAddPanel = false;
         await LoadRepositories();
         await LoadLatestLineCounts();
         await ReloadComparisonChartAsync();

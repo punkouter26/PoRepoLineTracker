@@ -6,10 +6,8 @@ namespace PoRepoLineTracker.Unit;
 public class CommitLineCountEntityTests
 {
     [Fact]
-    public void FromDomainModel_ToDomainModel_RoundTrip()
+    public void FromDomainModel_ToDomainModel_RoundTripAndEmptyJson()
     {
-        // Deliberately Unspecified: Azure Tables rejects non-UTC DateTimes, so the mapper must
-        // coerce the kind on the way in — asserted below alongside the value round-trip.
         var domain = new CommitLineCount
         {
             Id = Guid.NewGuid(),
@@ -33,28 +31,16 @@ public class CommitLineCountEntityTests
         roundTripped.LinesAdded.Should().Be(100);
         roundTripped.LinesRemoved.Should().Be(50);
         roundTripped.LinesByFileType.Should().BeEquivalentTo(domain.LinesByFileType);
-    }
 
-    [Fact]
-    public void ToDomainModel_EmptyJson_ReturnsEmptyDictionary()
-    {
-        var entity = new CommitLineCountEntity
-        {
-            LinesByFileTypeJson = "",
-            PartitionKey = "pk",
-            RowKey = "rk"
-        };
-
-        var domain = entity.ToDomainModel();
-
-        domain.LinesByFileType.Should().BeEmpty();
+        var emptyEntity = new CommitLineCountEntity { LinesByFileTypeJson = "", PartitionKey = "pk", RowKey = "rk" };
+        emptyEntity.ToDomainModel().LinesByFileType.Should().BeEmpty();
     }
 }
 
 public class GitHubRepositoryEntityTests
 {
     [Fact]
-    public void FromDomainModel_ToDomainModel_RoundTrip()
+    public void FromDomainModel_ToDomainModel_RoundTripAndRowKey()
     {
         var domain = new GitHubRepository
         {
@@ -74,15 +60,7 @@ public class GitHubRepositoryEntityTests
         roundTripped.Owner.Should().Be("testowner");
         roundTripped.Name.Should().Be("testrepo");
         roundTripped.CloneUrl.Should().Be(domain.CloneUrl);
-    }
-
-    [Fact]
-    public void FromDomainModel_RowKey_IsOwnerUnderscoreName()
-    {
-        var domain = new GitHubRepository { Owner = "myorg", Name = "myrepo", UserId = UserId.New() };
-        var entity = GitHubRepositoryEntity.FromDomainModel(domain);
-
-        entity.RowKey.Should().Be("myorg_myrepo");
+        entity.RowKey.Should().Be("testowner_testrepo");
         entity.PartitionKey.Should().Be(domain.UserId.ToString());
     }
 }
@@ -90,23 +68,11 @@ public class GitHubRepositoryEntityTests
 public class UserPreferencesEntityTests
 {
     [Fact]
-    public void ToDomainModel_EmptyExtensions_ReturnsDefaults()
+    public void Preferences_RoundTripAndEmptyExtensionsDefaults()
     {
-        var entity = new UserPreferencesEntity
-        {
-            UserId = Guid.NewGuid(),
-            FileExtensions = "",
-            RowKey = Guid.NewGuid().ToString()
-        };
+        var empty = new UserPreferencesEntity { UserId = Guid.NewGuid(), FileExtensions = "", RowKey = Guid.NewGuid().ToString() };
+        empty.ToDomainModel().FileExtensions.Should().BeEquivalentTo(UserPreferences.DefaultFileExtensions);
 
-        var domain = entity.ToDomainModel();
-
-        domain.FileExtensions.Should().BeEquivalentTo(UserPreferences.DefaultFileExtensions);
-    }
-
-    [Fact]
-    public void Extensions_RoundTripThroughTheCommaSeparatedColumn()
-    {
         var prefs = new UserPreferences
         {
             UserId = UserId.New(),
@@ -115,7 +81,6 @@ public class UserPreferencesEntityTests
         };
 
         var entity = new UserPreferencesEntity(prefs);
-
         entity.FileExtensions.Should().Be(".cs,.js,.py");
         entity.UserId.Should().Be(prefs.UserId.Value);
         entity.ToDomainModel().FileExtensions.Should().BeEquivalentTo(prefs.FileExtensions);

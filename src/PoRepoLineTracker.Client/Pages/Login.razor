@@ -1,6 +1,7 @@
 @page "/login"
 @layout PoRepoLineTracker.Client.Layout.LoginLayout
 @inject NavigationManager Navigation
+@inject Microsoft.AspNetCore.Components.WebAssembly.Hosting.IWebAssemblyHostEnvironment HostEnv
 @using Radzen
 @using Radzen.Blazor
 
@@ -47,6 +48,17 @@
                           ButtonStyle="ButtonStyle.Primary"
                           class="login-cta-btn"
                           Click="@SignIn" />
+
+            @if (HostEnv.Environment == "Development")
+            {
+                <RadzenButton Text="Dev Sign-In (Local Bypass)"
+                              Icon="developer_mode"
+                              aria-label="Dev Sign-In"
+                              ButtonStyle="ButtonStyle.Base"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Small"
+                              Click="@(() => Navigation.NavigateTo("auth/login?dev=true", forceLoad: true))" />
+            }
 
             <RadzenText TextStyle="TextStyle.Caption" class="login-footnote">
                 Your data stays in your own Azure Table Storage

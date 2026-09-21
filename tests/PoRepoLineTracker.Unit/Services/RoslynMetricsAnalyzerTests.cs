@@ -151,14 +151,10 @@ public class RoslynMetricsAnalyzerTests
             """);
         noMembers.MemberCount.Should().Be(0);
         noMembers.MaintainabilityIndex.Should().BeNull();
-    }
 
-    [Fact]
-    public void ClampsAndGuardsMaintainabilityIndex_AtBoundaries()
-    {
+        // Clamping & boundaries
         RoslynMetricsAnalyzer.MaintainabilityIndex(halsteadVolume: 5_000_000, cyclomaticComplexity: 900, linesOfCode: 4000)
             .Should().Be(0);
-
         var value = RoslynMetricsAnalyzer.MaintainabilityIndex(halsteadVolume: 0, cyclomaticComplexity: 0, linesOfCode: 0);
         value.Should().Be(100);
         double.IsFinite(value).Should().BeTrue();

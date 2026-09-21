@@ -12,7 +12,7 @@ public class StronglyTypedIdTests
     private sealed record Wrapper(RepositoryId RepositoryId, UserId UserId);
 
     [Fact]
-    public void Ids_SerializeAndRoundTripThroughJson()
+    public void Ids_SerializeRoundTripAndParse()
     {
         var guid = Guid.NewGuid();
         JsonSerializer.Serialize(new RepositoryId(guid))
@@ -26,12 +26,7 @@ public class StronglyTypedIdTests
         var legacy = $"{{\"RepositoryId\":\"{guid}\",\"UserId\":\"{Guid.Empty}\"}}";
         var restoredLegacy = JsonSerializer.Deserialize<Wrapper>(legacy);
         restoredLegacy!.RepositoryId.Value.Should().Be(guid);
-    }
 
-    [Fact]
-    public void TryParse_AcceptsValidAndRejectsMalformedInput()
-    {
-        var guid = Guid.NewGuid();
         RepositoryId.TryParse(guid.ToString(), out var parsed).Should().BeTrue();
         parsed.Value.Should().Be(guid);
 

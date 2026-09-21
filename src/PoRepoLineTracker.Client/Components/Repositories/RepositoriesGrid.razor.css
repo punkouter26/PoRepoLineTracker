@@ -79,3 +79,13 @@
     padding: 0.35rem 0.5rem !important;
     font-size: 0.85rem !important;
 }
+
+.rp-grid-heading {
+    margin: 0;
+    font-weight: 600;
+}
+
+.rp-search-input {
+    width: 220px;
+    max-width: 100%;
+}

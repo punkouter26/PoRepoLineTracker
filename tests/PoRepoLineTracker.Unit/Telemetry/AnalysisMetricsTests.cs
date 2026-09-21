@@ -16,62 +16,40 @@ namespace PoRepoLineTracker.Unit.Telemetry;
 public class AnalysisMetricsTests
 {
     [Fact]
-    public void LinesCounted_records_into_the_AppTelemetry_meter_and_a_listener_sees_the_sample()
+    public void AnalysisMetrics_record_into_the_AppTelemetry_meter()
     {
         var listener = new MeterListener();
-        var seen = new List<(long Value, IReadOnlyDictionary<string, object?> Tags)>();
+        var seenLongs = new List<(long Value, IReadOnlyDictionary<string, object?> Tags)>();
+        var seenDoubles = new List<(double Value, IReadOnlyDictionary<string, object?> Tags)>();
+
         listener.InstrumentPublished = (instrument, l) =>
         {
             if (instrument.Meter.Name == AppTelemetry.SourceName &&
-                instrument.Name == AnalysisMetrics.LinesCountedName)
+                (instrument.Name == AnalysisMetrics.LinesCountedName || instrument.Name == AnalysisMetrics.CommitCountDurationName))
             {
                 l.EnableMeasurementEvents(instrument);
             }
         };
-        // MeasurementCallback<long> in net10.0 is (Instrument, long, ReadOnlySpan<KeyValuePair<string, object?>>, object?).
-        // The compiler resolves the lambda to the 4-arg overload.
         listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
-            seen.Add((value, ToReadOnly(tags))));
+            seenLongs.Add((value, ToReadOnly(tags))));
+        listener.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
+            seenDoubles.Add((value, ToReadOnly(tags))));
         listener.Start();
 
         var repoId = new RepositoryId(Guid.NewGuid());
         AnalysisMetrics.RecordLinesCounted(repoId, 4_242);
-
-        listener.RecordObservableInstruments();
-        listener.Dispose();
-
-        seen.Should().ContainSingle();
-        seen[0].Value.Should().Be(4_242L);
-        seen[0].Tags.Should().ContainKey("repo")
-            .WhoseValue.Should().Be(repoId.Value.ToString());
-    }
-
-    [Fact]
-    public void CommitCountDuration_records_into_the_AppTelemetry_meter_and_a_listener_sees_the_sample()
-    {
-        var listener = new MeterListener();
-        var seen = new List<(double Value, IReadOnlyDictionary<string, object?> Tags)>();
-        listener.InstrumentPublished = (instrument, l) =>
-        {
-            if (instrument.Meter.Name == AppTelemetry.SourceName &&
-                instrument.Name == AnalysisMetrics.CommitCountDurationName)
-            {
-                l.EnableMeasurementEvents(instrument);
-            }
-        };
-        listener.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
-            seen.Add((value, ToReadOnly(tags))));
-        listener.Start();
-
-        var repoId = new RepositoryId(Guid.NewGuid());
         AnalysisMetrics.RecordCommitCountDuration(repoId, 12.5);
 
         listener.RecordObservableInstruments();
         listener.Dispose();
 
-        seen.Should().ContainSingle();
-        seen[0].Value.Should().Be(12.5);
-        seen[0].Tags["repo"].Should().Be(repoId.Value.ToString());
+        seenLongs.Should().ContainSingle();
+        seenLongs[0].Value.Should().Be(4_242L);
+        seenLongs[0].Tags.Should().ContainKey("repo").WhoseValue.Should().Be(repoId.Value.ToString());
+
+        seenDoubles.Should().ContainSingle();
+        seenDoubles[0].Value.Should().Be(12.5);
+        seenDoubles[0].Tags["repo"].Should().Be(repoId.Value.ToString());
     }
 
     private static IReadOnlyDictionary<string, object?> ToReadOnly(ReadOnlySpan<KeyValuePair<string, object?>> tags)

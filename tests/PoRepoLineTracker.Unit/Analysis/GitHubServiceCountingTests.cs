@@ -146,17 +146,15 @@ public sealed class GitHubServiceCountingTests : IDisposable
         counter.TotalReads.Should().Be(5);
     }
 
-    private sealed class CountingLineCounter(string extension) : ILineCounter
+    private sealed class CountingLineCounter(string extension) : SourceLineCounter(extension)
     {
         private readonly List<string> _read = [];
-
-        public string FileExtension { get; } = extension;
 
         public int TotalReads => _read.Count;
 
         public int ReadsOf(string content) => _read.Count(c => c == content);
 
-        public async Task<int> CountLinesAsync(Stream stream)
+        public override async Task<int> CountLinesAsync(Stream stream)
         {
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();

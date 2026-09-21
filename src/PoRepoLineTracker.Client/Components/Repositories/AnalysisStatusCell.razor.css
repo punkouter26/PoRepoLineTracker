@@ -17,7 +17,7 @@
 
 ::deep .rp-sync-icon.rp-sync-icon {
     font-size: 0.9rem !important;
-    color: var(--rz-info) !important;
+    color: var(--status-info) !important;
     flex-shrink: 0 !important;
 }
 
@@ -38,16 +38,16 @@
 }
 
 ::deep .rp-danger-sub.rp-danger-sub {
-    color: var(--rz-danger) !important;
+    color: var(--status-neg) !important;
     font-size: 0.65rem !important;
 }
 
 ::deep .rp-warn-icon.rp-warn-icon {
     font-size: 0.8rem !important;
-    color: var(--rz-danger) !important;
+    color: var(--status-warn) !important;
 }
 
 ::deep .rp-error-icon.rp-error-icon {
     font-size: 0.9rem !important;
-    color: var(--rz-danger) !important;
+    color: var(--status-neg) !important;
 }

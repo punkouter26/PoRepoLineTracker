@@ -172,45 +172,56 @@
             </ChildContent>
         </ChartCard>
 
-        @* ─── Composition + Authorship + Health ────────────────────────────────── *@
-        <div class="app-dashboard app-dashboard--panels">
-            <ChartCard Title="By Extension"
-                       Description="Share of tracked lines per file type"
-                       IsEmpty="@(_extensions is null || !_extensions.Any())"
-                       EmptyIcon="donut_large"
-                       EmptyText="No extension data yet.">
-                <RadzenChart>
-                    <RadzenDonutSeries Data="@ExtensionSlices"
-                                       CategoryProperty="Label"
-                                       ValueProperty="Percentage"
-                                       Title="Share of lines">
-                        <RadzenSeriesDataLabels Visible="false" />
-                    </RadzenDonutSeries>
-                    <RadzenLegend Position="LegendPosition.Bottom" />
-                </RadzenChart>
+        @* ─── Composition + Authorship + Health consolidated into RadzenTabs ─────── *@
+        <RadzenTabs RenderMode="TabRenderMode.Client" class="rd-tabs">
+            <Tabs>
+                <RadzenTabsItem Text="Activity & Authorship" Icon="group">
+                    <div class="app-dashboard app-dashboard--panels">
+                        <ContributorChart RepositoryId="@RepositoryId" Days="@_chartDays" />
+                        <CommitActivityHeatmap RepositoryId="@RepositoryId" Days="@_chartDays" />
+                    </div>
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="Composition" Icon="donut_large">
+                    <ChartCard Title="By Extension"
+                               Description="Share of tracked lines per file type"
+                               IsEmpty="@(_extensions is null || !_extensions.Any())"
+                               EmptyIcon="donut_large"
+                               EmptyText="No extension data yet.">
+                        <RadzenChart>
+                            <RadzenDonutSeries Data="@ExtensionSlices"
+                                               CategoryProperty="Label"
+                                               ValueProperty="Percentage"
+                                               Title="Share of lines">
+                                <RadzenSeriesDataLabels Visible="false" />
+                            </RadzenDonutSeries>
+                            <RadzenLegend Position="LegendPosition.Bottom" />
+                        </RadzenChart>
 
-                <div class="rd-ext-list">
-                    @foreach (var ext in _extensions!)
-                    {
-                        <div class="rd-ext-row">
-                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                <code class="rd-ext-code">@ext.FileExtension</code>
-                                <RadzenText TextStyle="TextStyle.Caption" class="rd-ext-pct">@ext.Percentage.ToString("F1")%</RadzenText>
-                            </RadzenStack>
-                            <progress class="rd-ext-bar"
-                                      max="100"
-                                      value="@Math.Min(ext.Percentage, 100)"
-                                      aria-label="@($"{ext.FileExtension}: {ext.Percentage:F1}% of lines")"></progress>
+                        <div class="rd-ext-list">
+                            @foreach (var ext in _extensions!)
+                            {
+                                <div class="rd-ext-row">
+                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                        <code class="rd-ext-code">@ext.FileExtension</code>
+                                        <RadzenText TextStyle="TextStyle.Caption" class="rd-ext-pct">@ext.Percentage.ToString("F1")%</RadzenText>
+                                    </RadzenStack>
+                                    <progress class="rd-ext-bar"
+                                              max="100"
+                                              value="@Math.Min(ext.Percentage, 100)"
+                                              aria-label="@($"{ext.FileExtension}: {ext.Percentage:F1}% of lines")"></progress>
+                                </div>
+                            }
                         </div>
-                    }
-                </div>
-            </ChartCard>
-
-            <ContributorChart RepositoryId="@RepositoryId" Days="@_chartDays" />
-            <CommitActivityHeatmap RepositoryId="@RepositoryId" Days="@_chartDays" />
-            <CodeHealthCard RepositoryId="@RepositoryId" />
-            <CodeHealthTrendCard RepositoryId="@RepositoryId" />
-        </div>
+                    </ChartCard>
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="Code Health" Icon="health_and_safety">
+                    <div class="app-dashboard app-dashboard--panels">
+                        <CodeHealthCard RepositoryId="@RepositoryId" />
+                        <CodeHealthTrendCard RepositoryId="@RepositoryId" />
+                    </div>
+                </RadzenTabsItem>
+            </Tabs>
+        </RadzenTabs>
     }
 </div>
 

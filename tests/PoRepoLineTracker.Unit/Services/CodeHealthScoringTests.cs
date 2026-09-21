@@ -120,7 +120,7 @@ public class CodeHealthScoringTests
 public class CodeHealthScoringCombineTests
 {
     [Fact]
-    public void Combine_PureLanguagesAndWeightedDominance()
+    public void Combine_PureLanguagesWeightedDominanceAndRange()
     {
         var (csScore, csGrade) = CodeHealthScoring.Combine(
             maintainabilityIndex: 82, csharpLines: 9_000, heuristicScore: 0, otherLines: 0);
@@ -139,24 +139,16 @@ public class CodeHealthScoringCombineTests
         var (equalScore, _) = CodeHealthScoring.Combine(
             maintainabilityIndex: 80, csharpLines: 1_000, heuristicScore: 60, otherLines: 1_000);
         equalScore.Should().Be(70);
-    }
 
-    [Fact]
-    public void Combine_EmptyAndZeroRecordedLines()
-    {
-        var (score, grade) = CodeHealthScoring.Combine(
+        var (emptyScore, emptyGrade) = CodeHealthScoring.Combine(
             maintainabilityIndex: null, csharpLines: 0, heuristicScore: 0, otherLines: 0);
-        score.Should().Be(0);
-        grade.Should().BeEmpty();
+        emptyScore.Should().Be(0);
+        emptyGrade.Should().BeEmpty();
 
         var (zeroLinesScore, _) = CodeHealthScoring.Combine(
             maintainabilityIndex: 40, csharpLines: 0, heuristicScore: 100, otherLines: 0);
         zeroLinesScore.Should().Be(40);
-    }
 
-    [Fact]
-    public void Combine_ScoreIsAlwaysWithinRange()
-    {
         foreach (var mi in new[] { 0, 50, 100 })
         foreach (var heuristic in new[] { 0, 50, 100 })
         {

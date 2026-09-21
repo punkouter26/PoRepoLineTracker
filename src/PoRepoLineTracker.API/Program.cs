@@ -79,7 +79,7 @@ namespace PoRepoLineTracker.API
 
                 if (context.HostingEnvironment.IsDevelopment())
                 {
-                    cfg.WriteTo.File("log.txt",
+                    cfg.WriteTo.File("logs/log.txt",
                         rollingInterval: RollingInterval.Day,
                         retainedFileCountLimit: 7,
                         shared: true,

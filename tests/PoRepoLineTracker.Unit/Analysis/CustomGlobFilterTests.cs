@@ -15,16 +15,14 @@ public class CustomGlobFilterTests
         _filter = new FileIgnoreFilter(logger);
     }
 
-    [Theory]
-    [InlineData("src/Generated/Models.cs", "src/Generated/**", true)]
-    [InlineData("src/Data/UserDbContextModelSnapshot.g.cs", "**/*.g.cs", true)]
-    [InlineData("docs/README.md", "docs/**", true)]
-    [InlineData("src/Controllers/HomeController.cs", "**/*.g.cs", false)]
-    [InlineData("src/Services/PaymentService.cs", "docs/**", false)]
-    public void MatchesCustomGlobs_correctly_matches_glob_patterns(string path, string pattern, bool expected)
+    [Fact]
+    public void MatchesCustomGlobs_correctly_matches_glob_patterns()
     {
-        var result = FileIgnoreFilter.MatchesCustomGlobs(path, [pattern]);
-        result.Should().Be(expected);
+        FileIgnoreFilter.MatchesCustomGlobs("src/Generated/Models.cs", ["src/Generated/**"]).Should().BeTrue();
+        FileIgnoreFilter.MatchesCustomGlobs("src/Data/UserDbContextModelSnapshot.g.cs", ["**/*.g.cs"]).Should().BeTrue();
+        FileIgnoreFilter.MatchesCustomGlobs("docs/README.md", ["docs/**"]).Should().BeTrue();
+        FileIgnoreFilter.MatchesCustomGlobs("src/Controllers/HomeController.cs", ["**/*.g.cs"]).Should().BeFalse();
+        FileIgnoreFilter.MatchesCustomGlobs("src/Services/PaymentService.cs", ["docs/**"]).Should().BeFalse();
     }
 
     [Fact]

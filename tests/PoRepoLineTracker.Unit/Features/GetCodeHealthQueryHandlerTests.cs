@@ -78,7 +78,7 @@ public class GetCodeHealthQueryHandlerTests
         """;
 
     [Fact]
-    public async Task Handle_LanguageRouting_RoutesCSharpToParserAndNonCSharpToHeuristic()
+    public async Task Handle_LanguageRouting_RoutesCSharpToParserAndNonCSharpAndRazorToHeuristic()
     {
         // 1. C# only
         var csHandler = CreateHandler(new SourceFile("src/Widget.cs", ".cs", CSharpSource));
@@ -107,18 +107,13 @@ public class GetCodeHealthQueryHandlerTests
         var mixedReport = await mixedHandler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
         mixedReport!.Metrics!.FilesAnalyzed.Should().Be(1);
         mixedReport.FilesAnalyzed.Should().Be(2);
-    }
 
-    [Fact]
-    public async Task Handle_RazorFiles_RoutesToHeuristic()
-    {
-        var handler = CreateHandler(new SourceFile("Pages/Index.razor", ".razor",
+        // 4. Razor files route to heuristic
+        var razorHandler = CreateHandler(new SourceFile("Pages/Index.razor", ".razor",
             "@page \"/\"\n<h1>Hello</h1>\n@code { int X => 1; }\n"));
-
-        var report = await handler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
-
-        report!.Metrics.Should().BeNull();
-        report.FilesAnalyzed.Should().Be(1);
+        var razorReport = await razorHandler.Handle(new GetCodeHealthQuery(RepoId), CancellationToken.None);
+        razorReport!.Metrics.Should().BeNull();
+        razorReport.FilesAnalyzed.Should().Be(1);
     }
 
     [Fact]

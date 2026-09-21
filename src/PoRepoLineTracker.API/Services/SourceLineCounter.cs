@@ -23,7 +23,7 @@ namespace PoRepoLineTracker.API.Services
     /// a byte-perfect one.
     /// </para>
     /// </summary>
-    public sealed class SourceLineCounter : ILineCounter
+    public class SourceLineCounter
     {
         public string FileExtension { get; }
 
@@ -63,7 +63,7 @@ namespace PoRepoLineTracker.API.Services
         /// every extension gets the SAME blank/comment-line exclusion and generated-file skip.
         /// This table replaced 17 individual DI registrations that carried the same data.
         /// </summary>
-        public static IReadOnlyList<ILineCounter> DefaultSet()
+        public static IReadOnlyList<SourceLineCounter> DefaultSet()
         {
             // Built from CommentSyntax, which is the single table of which language marks comments
             // how — shared with CodeMetricsAnalyzer so the two cannot disagree about where code
@@ -73,7 +73,7 @@ namespace PoRepoLineTracker.API.Services
             //
             // The "*" fallback counts blank lines out and nothing else: with no syntax configured
             // it cannot strip comments, which is the correct behaviour for an unknown language.
-            var counters = new List<ILineCounter> { new SourceLineCounter("*") };
+            var counters = new List<SourceLineCounter> { new SourceLineCounter("*") };
 
             foreach (var extension in CommentSyntax.KnownExtensions)
             {
@@ -84,7 +84,7 @@ namespace PoRepoLineTracker.API.Services
             return counters;
         }
 
-        public async Task<int> CountLinesAsync(Stream stream)
+        public virtual async Task<int> CountLinesAsync(Stream stream)
         {
             using var reader = new StreamReader(stream);
             var inBlockComment = false;

@@ -1,7 +1,7 @@
 @page "/diag"
 @attribute [Authorize]
 @inject HttpClient Http
-@inject ILogger<ExternalConnections> Logger
+@inject ILogger<Diagnostics> Logger
 @using Radzen
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
@@ -84,25 +84,6 @@
                                     Icon="analytics"
                                     IconClass="xc-icon--otel"
                                     Connections="@_diagnostics.ExternalConnections.OpenTelemetry" />
-                </RadzenTabsItem>
-                <RadzenTabsItem Text="All Providers" Icon="view_list">
-                    <div class="app-dashboard">
-                        <ConnectionGrid Title="Azure Services"
-                                        Icon="cloud"
-                                        IconClass="xc-icon--azure"
-                                        Connections="@_diagnostics.ExternalConnections.Azure" />
-
-                        <ConnectionGrid Title="GitHub Integrations"
-                                        Icon="code"
-                                        IconClass="xc-icon--github"
-                                        Connections="@_diagnostics.ExternalConnections.GitHub"
-                                        StatusIsHealthy="@(s => s.Contains("Configured") || s.Contains("PAT"))" />
-
-                        <ConnectionGrid Title="Observability"
-                                        Icon="analytics"
-                                        IconClass="xc-icon--otel"
-                                        Connections="@_diagnostics.ExternalConnections.OpenTelemetry" />
-                    </div>
                 </RadzenTabsItem>
             </Tabs>
         </RadzenTabs>

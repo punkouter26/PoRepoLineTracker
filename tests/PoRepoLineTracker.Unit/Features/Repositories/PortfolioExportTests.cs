@@ -40,14 +40,13 @@ public class PortfolioExportTests
         lines[2].Should().Be("bob,\"api,with,commas\",,,https://github.com/bob/api.git");
     }
 
-    [Theory]
-    [InlineData("simple", "simple")]
-    [InlineData("has,comma", "\"has,comma\"")]
-    [InlineData("has\"quote", "\"has\"\"quote\"")]
-    [InlineData("has\nnewline", "\"has\nnewline\"")]
-    public void EscapeCsv_handles_special_characters(string input, string expected)
+    [Fact]
+    public void EscapeCsv_handles_special_characters()
     {
-        PortfolioExportEndpoints.EscapeCsv(input).Should().Be(expected);
+        PortfolioExportEndpoints.EscapeCsv("simple").Should().Be("simple");
+        PortfolioExportEndpoints.EscapeCsv("has,comma").Should().Be("\"has,comma\"");
+        PortfolioExportEndpoints.EscapeCsv("has\"quote").Should().Be("\"has\"\"quote\"");
+        PortfolioExportEndpoints.EscapeCsv("has\nnewline").Should().Be("\"has\nnewline\"");
     }
 
     [Fact]

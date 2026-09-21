@@ -67,3 +67,10 @@
         justify-content: center;
     }
 }
+
+@media (max-height: 550px) {
+    .page-hero {
+        padding: 0.25rem var(--space-sm);
+        margin-bottom: 0.25rem;
+    }
+}

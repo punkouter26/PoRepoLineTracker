@@ -16,10 +16,9 @@ namespace PoRepoLineTracker.Unit.Hubs;
 public class AnalysisHubChannelTests
 {
     [Fact]
-    public void ProgressChannel_is_bounded_with_capacity_64_and_DropOldest()
+    public async Task ProgressChannel_contract_bounded_and_drops_oldest_under_load()
     {
         var options = AnalysisHub.ProgressChannelOptions;
-
         options.Capacity.Should().Be(64, "the SPEC §10 budget for backlogged progress frames");
         options.FullMode.Should().Be(BoundedChannelFullMode.DropOldest,
             "loss of the oldest frame is recoverable: the next report carries the same step forward");
@@ -27,15 +26,7 @@ public class AnalysisHubChannelTests
             "only AnalysisProgressReader drains it; SingleReader unlocks the SingleReader optimisation");
         options.AllowSynchronousContinuations.Should().BeFalse(
             "the reader runs on its own thread; sync continuations would pin it to the writer");
-    }
 
-    [Fact]
-    public async Task ProgressChannel_drops_oldest_frames_under_sustained_load_and_keeps_the_latest()
-    {
-        // The channel on AnalysisHub is static. For this assertion we re-create the same options
-        // shape so the test stays hermetic — the channel itself is exercised by the writer/reader
-        // pair below. This is the policy contract; the integration of AnalysisProgressService
-        // with that channel is pinned by Hub-level smoke tests, not here.
         var channel = Channel.CreateBounded<AnalysisProgressDto>(AnalysisHub.ProgressChannelOptions);
         var writer = channel.Writer;
         var reader = channel.Reader;
@@ -54,8 +45,6 @@ public class AnalysisHubChannelTests
             ok.Should().BeTrue("TryWrite must not block the producer even when the channel is full");
         }
 
-        // Drain whatever the reader got; we don't read in parallel here because that would race
-        // with the writes. The point of this test is "200 writes => a bounded reader sees ≤ 64".
         writer.TryComplete();
         var received = new List<AnalysisProgressDto>();
         while (await reader.WaitToReadAsync().AsTask())

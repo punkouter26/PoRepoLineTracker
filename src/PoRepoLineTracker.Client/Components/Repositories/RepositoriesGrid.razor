@@ -14,9 +14,31 @@
   grid below). Phase 3 pick B1 supplies the page hero above the tiles.
 *@
 
+<div class="rp-grid-toolbar">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="rz-mb-2">
+        <RadzenText TextStyle="TextStyle.Subtitle1" class="rp-grid-heading">Tracked Repositories</RadzenText>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
+            <RadzenTextBox @bind-Value="_searchQuery"
+                           Placeholder="Search repositories..."
+                           aria-label="Filter repositories by name or owner"
+                           class="rp-search-input" />
+            @if (!string.IsNullOrEmpty(_searchQuery))
+            {
+                <RadzenButton Icon="close"
+                              Size="ButtonSize.ExtraSmall"
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Text"
+                              Click="@(() => _searchQuery = string.Empty)"
+                              title="Clear search"
+                              aria-label="Clear search" />
+            }
+        </RadzenStack>
+    </RadzenStack>
+</div>
+
 <div class="u-scroll-x">
     <RadzenDataGrid @ref="Grid"
-                    Data="@Items"
+                    Data="@FilteredItems"
                     TItem="RepositoryGridRow"
                     AllowFiltering="false"
                     AllowSorting="true"
@@ -128,4 +150,11 @@
 
     /// <summary>Forwarded so the page can call <c>Reload()</c> after a delete.</summary>
     public RadzenDataGrid<RepositoryGridRow>? Grid { get; set; }
+
+    private string _searchQuery = string.Empty;
+
+    private IEnumerable<RepositoryGridRow> FilteredItems =>
+        string.IsNullOrWhiteSpace(_searchQuery)
+            ? Items
+            : Items.Where(r => $"{r.Owner}/{r.Name}".Contains(_searchQuery, StringComparison.OrdinalIgnoreCase));
 }

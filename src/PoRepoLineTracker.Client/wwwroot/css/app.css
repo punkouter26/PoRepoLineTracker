@@ -926,13 +926,17 @@ a:focus-visible {
    the panel filled the viewport, pushing everything else off-screen. Height-based, not
    width-based: a short viewport is the actual constraint, and a 1024x400 window has the same
    problem as a phone. */
-@media (orientation: landscape) and (max-height: 520px) {
+@media (max-height: 550px) {
+    :root {
+        --shell-header-height: 48px;
+    }
+
     .rz-layout {
-        grid-template-rows: 48px 1fr !important;
+        grid-template-rows: var(--shell-header-height) 1fr !important;
     }
 
     /* Height is the scarce axis here, so the guard rails come down rather than the ratio changing
-       — a rotated phone is very wide and very short, and letting the 16/9 ratio have its way would
+       — a rotated phone or short viewport is very short, and letting the 16/9 ratio have its way would
        fill the whole viewport with one plot. */
     .rz-chart {
         min-height: 140px !important;

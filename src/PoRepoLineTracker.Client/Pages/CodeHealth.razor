@@ -173,122 +173,99 @@
             }
             else if (_rows is { Count: > 0 })
             {
-                @* Desktop / Tablet: scrolls inside its own container with sticky headers *@
-                <div class="ch__table-wrap ch__desktop-view">
-                    <table class="ch__table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Repository</th>
-                                <th scope="col" class="ch__num">Health</th>
-                                <th scope="col" class="ch__num">Grade</th>
-                                <th scope="col" class="ch__num">C# maintainability</th>
-                                <th scope="col" class="ch__num">Complexity</th>
-                                <th scope="col" class="ch__num">Source lines</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var row in _rows)
-                            {
-                                <tr class="@(row.Measured ? null : "ch__row--unmeasured")">
-                                    <th scope="row" class="ch__repo">
-                                        <a href="@($"/repositories/{row.RepositoryId}")">@row.Owner/@row.Name</a>
-                                        @if (!row.Measured)
+                <div class="u-scroll-x">
+                    <RadzenDataGrid Data="@_rows"
+                                    TItem="CodeHealthSummaryDto"
+                                    AllowSorting="true"
+                                    AllowPaging="true"
+                                    PageSize="10"
+                                    PagerHorizontalAlign="HorizontalAlign.Center"
+                                    ShowPagingSummary="true"
+                                    PagingSummaryFormat="Showing {0} to {1} of {2} repositories"
+                                    Density="Density.Compact"
+                                    Responsive="true"
+                                    class="ch-grid">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="Name" Title="Repository" MinWidth="180px">
+                                <Template Context="row">
+                                    <RadzenStack Gap="0.1rem">
+                                        <a href="@($"/repositories/{row.RepositoryId}")" class="ch-repo-link">
+                                            <strong>@row.Owner/@row.Name</strong>
+                                        </a>
+                                        @if (!row.Measured && !string.IsNullOrEmpty(row.UnmeasuredReason))
                                         {
-                                            @* The reason, not a blank cell. A repository silently
-                                               missing a score is indistinguishable from one that
-                                               is fine. *@
-                                            <span class="ch__reason">@row.UnmeasuredReason</span>
+                                            <RadzenText TextStyle="TextStyle.Caption" class="ch-unmeasured-reason">@row.UnmeasuredReason</RadzenText>
                                         }
-                                    </th>
+                                    </RadzenStack>
+                                </Template>
+                            </RadzenDataGridColumn>
 
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="Score" Title="Health" Width="90px" TextAlign="TextAlign.Center" Sortable="true">
+                                <Template Context="row">
                                     @if (row.Measured)
                                     {
-                                        @* The one figure the table is ranked on. *@
-                                        <td class="ch__num">
-                                            <span class="@($"ch__score ch__score--{Band(row.Score)}")">@row.Score</span>
-                                        </td>
-                                        <td class="ch__num">
-                                            @if (!string.IsNullOrEmpty(row.Grade))
-                                            {
-                                                <span class="ch__grade">@row.Grade</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="ch__none">—</span>
-                                            }
-                                        </td>
-                                        @* The two halves behind it, for anyone asking why. *@
-                                        <td class="ch__num">
-                                            @if (row.MaintainabilityIndex is { } mi)
-                                            {
-                                                <span class="ch__sub">@mi</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="ch__none" title="No C# in this repository">—</span>
-                                            }
-                                        </td>
-                                        <td class="ch__num ch__sub">@row.CyclomaticComplexity.ToString("N0")</td>
-                                        <td class="ch__num ch__sub">@row.LinesOfSourceCode.ToString("N0")</td>
+                                        <RadzenBadge BadgeStyle="@HealthBadgeStyle(row.Score)" Text="@row.Score.ToString()" class="ch-score-badge" />
                                     }
                                     else
                                     {
-                                        <td class="ch__num ch__none" colspan="5">not measured</td>
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="—" />
                                     }
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                                </Template>
+                            </RadzenDataGridColumn>
 
-                @* Mobile: Accordion cards, eliminating horizontal table scroll (Option 7) *@
-                <div class="ch__mobile-view">
-                    <RadzenAccordion Multiple="true">
-                        <Items>
-                            @foreach (var row in _rows)
-                            {
-                                <RadzenAccordionItem Text="@($"{row.Owner}/{row.Name} — {(row.Measured ? $"{row.Score} ({row.Grade})" : "Unmeasured")}")" Selected="false">
-                                    <ChildContent>
-                                        <div class="ch__acc-content">
-                                            @if (row.Measured)
-                                            {
-                                                <div class="ch__acc-stat">
-                                                    <span class="ch__acc-label">Health Score</span>
-                                                    <span class="@($"ch__score ch__score--{Band(row.Score)}")">@row.Score</span>
-                                                </div>
-                                                <div class="ch__acc-stat">
-                                                    <span class="ch__acc-label">Grade</span>
-                                                    <span class="ch__grade">@(row.Grade ?? "—")</span>
-                                                </div>
-                                                <div class="ch__acc-stat">
-                                                    <span class="ch__acc-label">C# Maintainability</span>
-                                                    <span class="ch__acc-val">@(row.MaintainabilityIndex?.ToString() ?? "—")</span>
-                                                </div>
-                                                <div class="ch__acc-stat">
-                                                    <span class="ch__acc-label">Cyclomatic Complexity</span>
-                                                    <span class="ch__acc-val">@row.CyclomaticComplexity.ToString("N0")</span>
-                                                </div>
-                                                <div class="ch__acc-stat">
-                                                    <span class="ch__acc-label">Source Lines</span>
-                                                    <span class="ch__acc-val">@row.LinesOfSourceCode.ToString("N0")</span>
-                                                </div>
-                                            }
-                                            else
-                                            {
-                                                <div class="ch__acc-stat">
-                                                    <span class="ch__acc-label">Status</span>
-                                                    <span class="ch__reason">@row.UnmeasuredReason</span>
-                                                </div>
-                                            }
-                                            <div class="ch__acc-actions">
-                                                <a href="@($"/repositories/{row.RepositoryId}")" class="ch__acc-link">Open Repository →</a>
-                                            </div>
-                                        </div>
-                                    </ChildContent>
-                                </RadzenAccordionItem>
-                            }
-                        </Items>
-                    </RadzenAccordion>
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="Grade" Title="Grade" Width="80px" TextAlign="TextAlign.Center" Sortable="true">
+                                <Template Context="row">
+                                    @if (row.Measured && !string.IsNullOrEmpty(row.Grade))
+                                    {
+                                        <strong class="ch-grade">@row.Grade</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="ch-muted">—</span>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="MaintainabilityIndex" Title="C# Maintainability" Width="140px" TextAlign="TextAlign.Right" Sortable="true">
+                                <Template Context="row">
+                                    @if (row.Measured && row.MaintainabilityIndex.HasValue)
+                                    {
+                                        <span>@row.MaintainabilityIndex.Value.ToString("F1")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ch-muted">—</span>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="CyclomaticComplexity" Title="Complexity" Width="120px" TextAlign="TextAlign.Right" Sortable="true">
+                                <Template Context="row">
+                                    @if (row.Measured)
+                                    {
+                                        <span>@row.CyclomaticComplexity.ToString("N0")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ch-muted">—</span>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="LinesOfSourceCode" Title="Source Lines" Width="120px" TextAlign="TextAlign.Right" Sortable="true">
+                                <Template Context="row">
+                                    @if (row.Measured)
+                                    {
+                                        <span>@row.LinesOfSourceCode.ToString("N0")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ch-muted">—</span>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
                 </div>
 
                 <RadzenText TextStyle="TextStyle.Caption" class="ch__caveat">
@@ -390,5 +367,13 @@
         >= 60 => "ok",
         >= 40 => "warn",
         _ => "bad"
+    };
+
+    private static BadgeStyle HealthBadgeStyle(int score) => score switch
+    {
+        >= 80 => BadgeStyle.Success,
+        >= 60 => BadgeStyle.Info,
+        >= 40 => BadgeStyle.Warning,
+        _     => BadgeStyle.Danger
     };
 }
