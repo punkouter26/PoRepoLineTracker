@@ -91,3 +91,35 @@ A checkpoint is **a halt, not a release.** The Phase 5 review gates (`/code-revi
 - All 7 tasks merged, each in its own commit, each behind a passing Unit tier.
 - SPEC §12.1 (Unit green), §12.2 (E2EUI zero-skips), §12.5 (`/diag` honest) verified with concrete command output captured for Phase 5.
 - `tasks/todo.md` is fully checked.
+
+---
+
+## H. Re-baseline delta (2026-09-20)
+
+Between the original plan (`f0d93fc` + `b7e7c2c`) and now, two commits landed on `origin/master` in parallel with this session:
+
+| Commit | Title | Impact |
+|---|---|---|
+| `8a439ed` | (no subject) | Created `Components/Repositories/RepositoriesGrid.razor` + `.razor.css`, `Models/RepositoryGridRow.cs`, slimmed `Pages/Repositories.razor`, added `RepositoryGridRowTests`. **B1's deliverable landed before B1 started.** |
+| `307c20b` | `feat: implement features 3, 5, 6, 7, 9, 10 (PWA offline, webhooks, radar chart, punchcard, custom globs, portfolio export)` | 37 files, +1,553/-18. New surface outside the original SPEC's scope. |
+
+**Stream A — fully landed (A1, A2, A3 committed):**
+- A1 `2370a38` — bounded `Channel<AnalysisProgressDto>` between analysis loop and SignalR hub.
+- A2 `fa9e6e7` — `AnalysisMetrics.LinesCounted` + `CommitCountDurationMs` meter counter + histogram.
+- A3 `a1f975a` — three named `IHealthCheck` registrations; `/health` and `/diag` share the registry.
+
+**Stream B — partially landed by parallel work:**
+- B1 `c22be41` — `RepositoriesGrid.razor` extracted (my build/test passed; the parallel `8a439ed` had already shipped the bulk of it).
+- B2–B4 — supersedable by the parallel work. `307c20b` shipped PWA offline + the radar + the punchcard + portfolio export + custom globs + the Repositories page additions; the remaining UI-scale items in B2-B4 are now micro-features (`AllowVirtualization`, `[StreamRendering]`, `IAnalysisFeed` typed contract).
+
+**Decision (Phase 0/2 gate):** Stream A is complete. Stream B's B2-B4 as originally specified are deprecated. Replacing them with a single verification slice that runs against the current codebase:
+
+| # | Title | Files (≤5) | Why |
+|---|---|---|---|
+| B' | Phase 5 prep — verify full tier + add critical-path unit tests for the 7 new features | `tests/PoRepoLineTracker.Unit/Features/Webhooks/GitHubWebhookTests.cs` (already shipped), `tests/PoRepoLineTracker.Unit/Features/Repositories/PortfolioExportTests.cs` (already shipped), `tests/PoRepoLineTracker.Unit/Components/Shared/OfflineIndicatorTests.cs` (new — bUnit-less test via static analysis is impractical; document why and pin via E2EUI in Phase 5), `tests/PoRepoLineTracker.Unit/Storage/PortfolioExportRowMappingTests.cs` (new), `tests/PoRepoLineTracker.Unit/Analysis/CustomGlobFilterTests.cs` (already shipped) | Pin the contract on every shipped feature so a Phase 5 `/code-review` finds drift, not behaviour. |
+
+**Concretely, for Phase 5 acceptance:**
+- All 5 test tiers run (Unit, Integration, E2EAPI, E2EUI, E2EUI smoke).
+- `/code-review` runs against the current `master`.
+- `/security-review` runs; the webhook signature verification is the highest-priority new surface.
+- `/simplify` runs; the 1,553-line delta is the highest-value target.

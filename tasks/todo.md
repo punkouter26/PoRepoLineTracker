@@ -4,6 +4,13 @@ Vertical-slice checklist, ≤5 files per task, one commit per task. Read `tasks/
 
 **Hard gate:** No task is started before the previous task's commit lands and its verification command passes. No commit before the verification command for that task passes.
 
+**Status as of 2026-09-20:**
+- ✅ A1 — committed (`2370a38`)
+- ✅ A2 — committed (`fa9e6e7`)
+- ✅ A3 — committed (`a1f975a`)
+- ✅ B1 — committed (`c22be41`); the parallel `8a439ed` had already shipped the bulk of it
+- ⛔ B2 / B3 / B4 — superseded by the parallel work in `307c20b`. See `tasks/plan.md` §H for the re-baselined replacement.
+
 ---
 
 ## Stream A — Telemetry & health single source of truth

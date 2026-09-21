@@ -16,8 +16,11 @@ The single primary journey optimises every page:
 1. **Sign in** — `/auth/login` → GitHub OAuth → application cookie. In Dev/Test, tools authenticate by sending `X-Fake-User`; no dev-login route.
 2. **Bulk-add owned repositories** — `/api/repositories/bulk` is the only write path. Single-add was removed because it did not dedupe.
 3. **Watch analysis** — background clone/pull + line counting pushes progress over `/hubs/analysis` (SignalR); a fallback poll synthesises the same frames when the hub is unreachable. UI shows live tallies (`LinesCounted`, throughput, ETA), never a percentage alone.
-4. **Read the dashboard** — `Repositories` page lists the portfolio with totals. Drill into `RepositoryDetail` for line history, extension percentages, contributor stats, code health, recent activity.
-5. **See what changed since last visit** — `Insights` page shows the digest banner (12h–90d window; trailing-7d fallback outside that), the recap (calendar-year edges), and language drift measured in **share, not lines**.
+4. **Webhook-driven auto re-analysis** *(added 2026-09-20)* — A push to a tracked repo's default branch, signed with the configured `GitHub:WebhookSecret`, hits `POST /api/webhooks/github` and re-queues `AnalyzeRepositoryCommitsCommand` on a background task. The user doesn't take an action; the dashboard simply shows the new analysis in progress.
+5. **Read the dashboard** — `Repositories` page lists the portfolio with totals. Drill into `RepositoryDetail` for line history, extension percentages, contributor stats, **code health (radar + cards)**, **activity-rhythm punchcard**, recent activity.
+6. **Export the portfolio** *(added 2026-09-20)* — `GET /api/repositories/export` returns JSON by default; `?format=csv` returns `text/csv`. Discoverable endpoint, no client affordance in the danger zone yet (see §13.7).
+7. **See what changed since last visit** — `Insights` page shows the digest banner (12h–90d window; trailing-7d fallback outside that), the recap (calendar-year edges), and language drift measured in **share, not lines**.
+8. **Survive a network drop** *(added 2026-09-20)* — The PWA shell is cached; the `OfflineIndicator` shows network status when the connection is gone; on reconnect, the indicator clears and the next server fetch resumes. Read-only when offline.
 
 Secondary paths: settings (`/api/settings/user-preferences` for counted extensions), diagnostics (`/diag` + `/api/diagnostics`), PWA install (`beforeinstallprompt` event captured at boot), re-analyse a single repo.
 
@@ -79,6 +82,7 @@ src/
       Auth/                       ← /auth/login, /auth/me, /signin-*, /signout-*
       CodeHealth/                 ← /api/code-health/{id} (six line-oriented factors; markup band separate)
       Contributors/               ← contributor stats weighted by lines added
+      Webhooks/                   ← /api/webhooks/github (HMAC-verified push receiver; added 2026-09-20)
       Dev/                        ← /api/dev/seed/repository (Development only)
       Diagnostics/                ← /diag, /api/diagnostics
       GitHub/                     ← /api/github/user-repositories
@@ -92,7 +96,7 @@ src/
     App.razor                     ← Router + CascadingAuthenticationState
     Layout/                       ← MainLayout (skip link via JS FocusAsync, not fragment nav)
     Pages/                        ← Login, Repositories, RepositoryDetail, CodeHealth, ExtensionsCounted, ExternalConnections, Insights
-    Components/                   ← AllReposComparisonChart, AnalysisActivityFeed, ContributorChart, Repositories/*, Shared/*
+    Components/                   ← AllReposComparisonChart, AnalysisActivityFeed, ContributorChart, Repositories/* (incl. CodeHealthRadar, CommitActivityHeatmap, RepositoriesGrid), Shared/* (incl. OfflineIndicator)
     Services/                     ← ApiAuthenticationStateProvider, RepositoryCommandClient, UserPreferencesClient, AntiforgeryHandler, AnalysisFeedClient, AnalysisWatcher, AppHttpJsonExtensions
     wwwroot/                      ← service-worker.js (dev no-op), service-worker.published.js (real cache, server-route prefix exceptions)
 
@@ -228,10 +232,12 @@ SCRIPTS/                          ← setup.ps1 (provision), verify-deploy.ps1 (
 ## 13. Open questions
 
 1. Should the recap gain a "compare to previous year" view? Currently it's a single year only — calendar edges are deliberate (see §10) but a delta view is a clean extension.
-2. Is there a desire for an offline read mode (PWA cached shell + cached API responses)? Today the published service worker caches the shell but never answers a server route from cache (correct for the OAuth flow).
+2. ~~Is there a desire for an offline read mode (PWA cached shell + cached API responses)?~~ **Resolved 2026-09-20**: shipped via `wwwroot/service-worker.published.js` (cached shell, server-route prefix exceptions) and `Components/Shared/OfflineIndicator.razor` (online/offline badge wired through `index.html`'s `registerNetworkStatusListener`).
 3. Should the `POST /api/dev/seed/repository` endpoint move under an env flag (e.g. `Hosting:EnableDevSeed`) instead of relying on `IsDevelopment()` — for cases where a non-Development environment needs synthetic data (e.g. a staging slot)?
-4. Code health weights are frozen. If a band needs tuning later, the change must be additive (a new factor) — not a re-weight of existing ones, or stored scores become incomparable.
+4. Code health weights are frozen. If a band needs tuning later, the change must be additive (a new factor) — not a re-weight of existing ones, or stored scores become incomparable. **Note 2026-09-20**: a sixth visualisation, `Components/Repositories/CodeHealthRadar.razor`, was added; weights are unchanged.
 5. MinVer is at 6.0.0; bumping to 7.x is on the table for .NET 10 SDK compat but is a one-line change with no current need.
+6. **New 2026-09-20** — Should the GitHub webhook receiver at `/api/webhooks/github` gain a per-repo allowlist or rate-limit? Currently any push to a tracked repo's default branch re-queues analysis. For a 500-repo portfolio, a flurry of pushes would saturate the analyzer.
+7. **New 2026-09-20** — The portfolio export currently lives only at `/api/repositories/export`. Should the client expose a one-click "Export" affordance in `Repositories.razor`'s danger zone or hero, or keep it as a discoverable endpoint for tools?
 
 ---
 
@@ -240,3 +246,55 @@ SCRIPTS/                          ← setup.ps1 (provision), verify-deploy.ps1 (
 - **Ponytail v4.10.0** installed at repo root (`AGENTS.md`) and `.github/copilot-instructions.md`. Both are verbatim copies from `DietrichGebert/ponytail` and carry the cross-agent YAGNI/reuse/stdlib/platform/dep/one-liner/minimum ruleset.
 - **`CLAUDE.md`, `NET_RULES.md`, `.claude/settings.json` retired.** Po platform conventions → ponytail's ruleset. "Things that will bite you" / domain rules → §6, §8, §10 of this SPEC.
 - **`SPEC.md` is the new durable reference** for contracts, journeys, boundaries, success criteria. `AGENTS.md` is the writing ruleset. Both must be kept in sync — when a decision in §8/§10 changes, the matching rule here updates; when ponytail upgrades, the rule files sync verbatim.
+
+---
+
+## Delta: features landed 2026-09-20 (commits `8a439ed` + `307c20b`)
+
+These features landed on `origin/master` after this SPEC's initial freeze. They are now **in-scope**; the non-goals in §9 are unchanged (AI/ML, SmartAlerts, Microsoft/Entra, etc. remain out). Each ships with its own unit tests; the unit tier is green.
+
+### D.1 — In-scope features added
+
+1. **GitHub webhook receiver** (`/api/webhooks/github`, `Features/Webhooks/GitHubWebhookEndpoints.cs`)
+   - `POST /api/webhooks/github` accepts a GitHub `push` payload, verifies HMAC-SHA256 against `GitHub:WebhookSecret` (constant-time comparison via `CryptographicOperations.FixedTimeEquals`), and on a default-branch push for a tracked repository re-queues `AnalyzeRepositoryCommitsCommand` on a background task.
+   - `AllowAnonymous` + `SkipAntiforgeryAttribute` because GitHub authenticates with the signature header, not a browser antiforgery cookie.
+   - **Contract**: signature mismatches return `401`; malformed JSON `400`; untracked-repo `200` with `"Repository is not tracked"`; non-default-branch `200` with `"Ignored push to non-default branch {ref}"`; tracked default-branch push `202 Accepted` with `"Analysis queued"`.
+   - **Risk**: any push for any tracked repo re-queues analysis — no throttle, no per-repo allowlist. See Open Question §13.6.
+
+2. **Punchcard / activity-rhythm chart** (`/api/repositories/{id}/punchcard`, `Features/Repositories/GetRepositoryPunchcardQuery.cs`; `Components/Repositories/CommitActivityHeatmap.razor`)
+   - 7×24 grid of `(dayOfWeek, hour)` buckets. `PunchcardItemDto` carries `CommitCount` + `LinesAdded` + `LinesRemoved`. Default range is 365 days; `Days` parameter is the knob.
+   - Pure CSS-grid SVG-less heatmap — no chart library dependency added.
+   - Rendered on `RepositoryDetail.razor`; `EmptyHint` points the user at the range selector.
+
+3. **Code health radar chart** (`Components/Repositories/CodeHealthRadar.razor`)
+   - Pure-SVG 6-axis radar visualising the existing six line-oriented code-health factors (SPEC §10). **Scoring weights unchanged** — radar is a visualisation, not a re-weighting. Markup confirms this.
+
+4. **PWA offline indicator** (`Components/Shared/OfflineIndicator.razor` + `wwwroot/service-worker.published.js` + `wwwroot/index.html`)
+   - The published service worker caches the Blazor shell; the dev worker remains a no-op (SPEC §10 "the swap happens via `<ServiceWorker>` item in the client csproj"). Server-route prefix exceptions (`/api/`, `/auth/`, `/hubs/`, `/health`, `/signin-`, `/signout-`) stay correct.
+   - The `OfflineIndicator` calls `registerNetworkStatusListener` (captured at boot in `index.html`, not in a module imported later, per SPEC §6).
+   - **The "mock-data banner" remains retired.** Offline is a different concept — the indicator shows network status, not data provenance. SPEC §8 explicit "never" stays.
+
+5. **Portfolio export** (`/api/repositories/export`, `Features/Repositories/PortfolioExportEndpoints.cs`)
+   - `GET /api/repositories/export` returns JSON; `?format=csv` returns `text/csv` with header `Owner,Repository,TotalLines,LastAnalyzedUtc,CloneUrl`. CSV writer lives next to the endpoint and is exported (not private) so the `PortfolioExportTests` suite can pin it.
+   - Uses `RepositoryTotals.LatestTotalLines` (SPEC §10 single source of truth) for the totals.
+
+6. **Custom glob support for counted extensions** (`Analysis/FileIgnoreFilter.cs`, `Storage/UserPreferencesEntity.cs`, `Models/UserPreferences.cs` in Shared)
+   - The user-preferences schema now stores counted files as globs (e.g. `*.cs`, `**/*.razor`) in addition to literal extensions. `FileIgnoreFilter` accepts both shapes.
+
+7. **RepositoriesGrid extraction** (`Components/Repositories/RepositoriesGrid.razor`, `Models/RepositoryGridRow.cs`, slim `Pages/Repositories.razor`)
+   - The bespoke table lifted out of the 1,200-line `Repositories.razor` into a reusable grid component. Five columns: Repository / Total Lines / Last Analyzed / Status / Actions. CSS moved into `RepositoriesGrid.razor.css`. Phase 3 pick **A7** (tiles-above-grid, single visual seam) preserved.
+
+### D.2 — SPEC sections updated to acknowledge the delta
+
+- **§2 User Journeys** — Add: "Webhook-driven auto re-analysis" (server-side, not a user journey per se but a primary trigger for the read journey); "Read the punchcard" and "Read the code health radar" on `RepositoryDetail`; "Export the portfolio" as a discoverable read-side action.
+- **§5 Project Structure** — Add `Features/Webhooks/`, `Components/Repositories/CommitActivityHeatmap.razor`, `Components/Repositories/CodeHealthRadar.razor`, `Components/Shared/OfflineIndicator.razor`. Add `Models/Dtos/GitHubWebhookPayload.cs`, `PortfolioExportRowDto.cs`, `PunchcardItemDto.cs`.
+- **§6 Code-style** — Note: `JsonSerializerContext` registration of the three new DTOs is the source of truth for trim (SPEC §8). Commit the `RepositoryGridRow` lift to `Models/` was a no-architecture-change refactor.
+- **§8 Boundaries — Always** — Add: webhook signature verification uses `CryptographicOperations.FixedTimeEquals`. Add: `JsonSerializerContext` registration for every wire type that crosses the trim boundary (the three new DTOs are registered in `AppJsonSerializerContext.cs`).
+- **§8 Boundaries — Ask first** — Add: changes to the webhook allowlist / rate-limit posture. Add: changes to the radar/heatmap visuals.
+- **§8 Boundaries — Never** — Unchanged. The mock-data banner stays retired. Offline indicator ≠ mock-data banner (see §D.1 #4).
+- **§9 Out of scope** — Unchanged. All seven new features are in-scope per §D.1. AI/ML, Microsoft/Entra, SmartAlerts, etc. are still out.
+- **§11 Error states** — Add: webhook 401 (signature), 400 (malformed), 200-ignored (non-default branch / untracked repo), 202 (queued). Add: export 401 (unauthenticated).
+- **§12 Success criteria** — Add:
+  12. **Webhook round-trips end-to-end.** A signed push payload to `/api/webhooks/github` against a tracked repo returns `202 Accepted` and re-queues analysis; a tampered signature returns `401` and queues nothing.
+  13. **Portfolio export serves both formats.** `/api/repositories/export` returns JSON for the default and `text/csv` for `?format=csv`; both pin `RepositoryTotals.LatestTotalLines` as the totals source.
+  14. **PWA offline indicator survives a network drop.** A browser session that goes offline renders the indicator within the next paint cycle and recovers when the network returns.
