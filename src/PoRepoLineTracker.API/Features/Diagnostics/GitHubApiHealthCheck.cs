@@ -38,15 +38,25 @@ public sealed class GitHubApiHealthCheck(
         }
         catch (Exception ex)
         {
+            // Degraded, not Unhealthy: the app can still serve cached reads; the operator
+            // just shouldn't queue new bulk work. Unhealthy here would also flip /health to
+            // 503, which is the wrong answer for "the third-party API is briefly unreachable".
+            // An Azure load balancer or k8s probe would take the pod out of rotation for an
+            // outage that isn't this app's fault.
             logger.LogWarning(ex, "GitHub API health check failed to reach the endpoint");
-            return HealthCheckResult.Unhealthy("GitHub API is unreachable", ex);
+            return HealthCheckResult.Degraded("GitHub API is unreachable", ex);
         }
 
         using (response)
         {
             if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
             {
-                return HealthCheckResult.Unhealthy(
+                // Degraded, not Unhealthy: this is a configuration issue (no credential, or
+                // a revoked one), not an outage. The app can still serve cached reads;
+                // operator needs to fix the credential. Unhealthy here would flip /health
+                // to 503 and tell a load balancer to take this pod out of rotation, which
+                // would mask an unrelated bug with a configuration complaint.
+                return HealthCheckResult.Degraded(
                     $"GitHub API returned {response.StatusCode} — credential missing or revoked");
             }
 
