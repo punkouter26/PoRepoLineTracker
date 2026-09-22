@@ -82,7 +82,7 @@ A checkpoint is **a halt, not a release.** The Phase 5 review gates (`/code-revi
 - Code-health re-weight or new factor (SPEC §13 #4 — explicit freeze).
 - MinVer 7.x bump (SPEC §13 #5).
 - Snapshot testing with `Verify` (item 14 of the Phase 2 menu) — not in scope for these streams; can become a follow-up if the E2EAPI tier is unstable on DTO drift.
-- `Spectre.Console` in `SCRIPTS/setup.ps1` (menu item 10) — script-only, no runtime impact, not blocking.
+- `Spectre.Console` in `infra/setup.ps1` (menu item 10) — script-only, no runtime impact, not blocking.
 - `AspNetCore.HealthChecks.Uris` package add (menu item 12) — `GitHubApiHealthCheck` covers the only probe we need; the package is unnecessary overhead.
 - `System.IO.Hashing.XxHash3` (menu item 9) — no current consumer; stays on the bench.
 

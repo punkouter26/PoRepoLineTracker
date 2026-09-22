@@ -1,5 +1,5 @@
 # setup.ps1 — First-run setup for PoRepoLineTracker on a new machine.
-# Run from the repo root: .\SCRIPTS\setup.ps1
+# Run from the repo root: .\infra\setup.ps1
 #
 # This script:
 #   1. Checks for and installs prerequisites via Winget (Docker, .NET 10 SDK, Azure CLI)

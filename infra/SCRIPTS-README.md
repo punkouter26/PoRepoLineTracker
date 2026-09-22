@@ -1,11 +1,14 @@
 # SCRIPTS
 
+> **Note:** these files were moved from `SCRIPTS/` to `infra/` so all deploy/ops surfaces sit
+> together. The script bodies are unchanged.
+
 | Script | Purpose |
 |--------|---------|
 | `setup.ps1` | **First-run setup** for a new machine. Installs Docker, the .NET 10 SDK and the Azure CLI via Winget, starts the compose services, checks `az login` for Key Vault access, and frees ports 5002/5003 of orphaned dotnet processes. |
 | `verify-deploy.ps1` | **Post-deploy smoke probe** against the live site — the same checks the pipeline runs, from your own network. Override the target with `$env:PoRepoLineTracker_VerifyUrl`. |
 
-Run either from the repo root: `.\SCRIPTS\setup.ps1`, `.\SCRIPTS\verify-deploy.ps1`.
+Run either from the repo root: `.\infra\setup.ps1`, `.\infra\verify-deploy.ps1`.
 
 Each script's header comment carries its own detail — usage, why the URL is hard-coded, what each
 probe proves. This file is the index, not a second copy of that; two descriptions of one script

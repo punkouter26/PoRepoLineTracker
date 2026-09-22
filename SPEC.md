@@ -113,7 +113,7 @@ tests/
   PoRepoLineTracker.E2EUI/        ← Playwright (mobile + desktop)
 
 infra/                            ← Bicep: main.bicep, resources.bicep, availability-test.bicep, keyvault-access.bicep, storage-role.bicep
-SCRIPTS/                          ← setup.ps1 (provision), verify-deploy.ps1 (post-deploy smoke)
+SCRIPTS/                          ← (consolidated into infra/ as setup.ps1, verify-deploy.ps1, SCRIPTS-README.md)
 .github/workflows/deploy.yml      ← lint + build → package → webapp deploy; manual `deploy_infra` input applies Bicep
 ```
 

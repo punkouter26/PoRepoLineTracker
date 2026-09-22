@@ -7,7 +7,7 @@
 # auth-redirect layer are wired correctly — a /health that answers 200 from a half-deployed
 # package would still 500 on /.
 #
-# Usage: .\SCRIPTS\verify-deploy.ps1
+# Usage: .\infra\verify-deploy.ps1
 #
 # No parameters: the target URL is hard-coded so a developer cannot accidentally point this at
 # staging or a colleague's fork. Override the env var $env:PoRepoLineTracker_VerifyUrl if you
