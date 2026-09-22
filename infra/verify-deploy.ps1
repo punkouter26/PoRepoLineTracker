@@ -21,12 +21,17 @@ $Url = if ($env:PoRepoLineTracker_VerifyUrl) {
     'https://app-porepolinetracker.azurewebsites.net'
 }
 
-# /health: anonymous, used by Azure's probe AND by us. /: 302 to /login when anonymous.
-# /api/diagnostics: 302 to /login when anonymous. Both 200 and 302 are acceptable "alive" responses.
+# /health: anonymous, used by Azure's probe AND by us. /: 302 to /login when anonymous
+# (302 IS the right answer for an anonymous request to the SPA shell — the auth middleware
+# redirects to /login so the page renders a sign-in form, not a 401 plain body).
+# /api/diagnostics: 401 when anonymous (the API auth layer rejects, it does NOT redirect).
+# The cookie auth handler's OnRedirectToLogin turns an unauthenticated API request into a 401
+# rather than a redirect, so callers can distinguish "you need to log in" from "this URL
+# is wrong". A 200 here would mean the auth layer is broken (the endpoint is not anonymous).
 $paths = @(
     @{ Path = '/health';           Accept = @(200) },
     @{ Path = '/';                 Accept = @(200, 302) },
-    @{ Path = '/api/diagnostics';  Accept = @(200, 302) }
+    @{ Path = '/api/diagnostics';  Accept = @(200, 401) }
 )
 
 $failed = $false
