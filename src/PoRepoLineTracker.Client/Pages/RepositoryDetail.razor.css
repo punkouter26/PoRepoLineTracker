@@ -2,7 +2,9 @@
 
    The card, toolbar, section-title, muted/disabled text, empty-state and chart-height rules that
    used to live here are gone: the three panels on this page now render through <ChartCard>,
-   which owns that chrome. What remains is markup this page renders itself.
+   which owns that chrome. The "repository not found" panel now renders through <EmptyState>,
+   which carries its own icon and copy rhythm — the .rd-empty-icon rule is gone for the same
+   reason. What remains is markup this page renders itself.
 
    Rules are written `.x.x` where they must outrank a Radzen base class; a single class does not
    win that cascade on its own. */
@@ -37,11 +39,6 @@
     flex: 1 !important;
     height: 4px !important;
     min-width: 6rem !important;
-}
-
-::deep .rd-empty-icon.rd-empty-icon {
-    font-size: 3rem !important;
-    color: var(--text-muted) !important;
 }
 
 /* ─── Plain markup owned by this page ─────────────────────────────────────── */

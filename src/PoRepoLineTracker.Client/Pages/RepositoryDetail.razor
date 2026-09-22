@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject Radzen.DialogService DialogService
 @inject Radzen.NotificationService NotificationService
+@using PoRepoLineTracker.Client.Components.Shared
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Shared.Domain
 @using PoRepoLineTracker.Shared.Models.Dtos
@@ -31,16 +32,9 @@
                     <RadzenStack Gap="0.15rem">
                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
                             <h1 class="page-hero__title rd-title">@_repo.Owner/@_repo.Name</h1>
-                            <a href="@($"https://github.com/{_repo.Owner}/{_repo.Name}")" target="_blank"
-                               title="Open on GitHub"
-                               aria-label="@($"Open {_repo.Owner}/{_repo.Name} on GitHub in a new tab")"
-                               class="rd-github-link">
-                                @* RadzenIcon rather than a bare <span class="material-icons">: the
-                                   glyph then comes from Radzen's bundled icon font instead of the
-                                   Google Fonts CDN, so it renders as an icon rather than the
-                                   literal text "open_in_new" whenever that request fails. *@
-                                <RadzenIcon Icon="open_in_new" class="rd-github-link__icon" />
-                            </a>
+                            <GitHubLink Url="@($"https://github.com/{_repo.Owner}/{_repo.Name}")"
+                                         Title="@($"Open {_repo.Owner}/{_repo.Name} on GitHub in a new tab")"
+                                         Size="GitHubLink.LinkSize.Medium" />
                         </RadzenStack>
                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem">
                             @if (_repo.LastAnalyzedCommitDate.HasValue)
@@ -109,13 +103,14 @@
     }
     else if (_repo == null)
     {
-        <RadzenCard>
-            <RadzenStack AlignItems="AlignItems.Center" class="rz-p-8">
-                <RadzenIcon Icon="search_off" class="rd-empty-icon" />
-                <RadzenText TextStyle="TextStyle.H6">Repository not found</RadzenText>
-                <RadzenButton Text="Back to Repositories" Icon="arrow_back" Click="@(() => Navigation.NavigateTo("/"))" />
-            </RadzenStack>
-        </RadzenCard>
+        <EmptyState Kind="EmptyStateKind.NotFound"
+                    Title="Repository not found"
+                    Description="This repository is not in your tracked list — it may have been deleted or never added.">
+            <Actions>
+                <RadzenButton Text="Back to Repositories" Icon="arrow_back"
+                              Click="@(() => Navigation.NavigateTo("/"))" />
+            </Actions>
+        </EmptyState>
     }
     else
     {

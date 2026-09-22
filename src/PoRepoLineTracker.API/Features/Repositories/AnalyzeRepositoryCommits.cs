@@ -143,8 +143,8 @@ public class AnalyzeRepositoryCommitsCommandHandler
                 }
             }
 
-            // ── Step 2: Fetch all commit stats ────────────────────────────────────────
-            var commitStatsList = await FetchAllCommitStatsAsync(repository, repositoryPath, request.RepositoryId, cancellationToken);
+            // ── Step 2: Fetch commit stats (incremental where possible) ──────────────
+            var commitStatsList = await FetchAllCommitStatsAsync(repository, repositoryPath, request, cancellationToken);
 
             // Pre-load existing commits once, before the loop. See the rationale on the method.
             var existingCommitsBySha = await PreloadExistingCommitsAsync(request.RepositoryId, cancellationToken);
@@ -263,23 +263,34 @@ public class AnalyzeRepositoryCommitsCommandHandler
     }
 
     /// <summary>
-    /// Step 2: fetch every commit the repository has ever produced. The 50-year "since" date is
-    /// deliberate — we want the full history so re-analysis is not bounded to a window.
+    /// Step 2: fetch the commit list to process. Incremental for the ordinary run: once a
+    /// repository has been analysed (<see cref="GitHubRepository.LastAnalyzedCommitDate"/> set),
+    /// only commits newer than that date — minus a day of overlap for moved author dates
+    /// (rebases, cherry-picks) — are walked and diffed. The wide 50-year window stays for
+    /// <paramref name="request"/>'s ForceReanalysis (it must revisit stored rows anywhere in
+    /// history) and for never-analysed repositories, which have no window to narrow to.
+    ///
+    /// <para>ponytail: the overlap is author-date based, so a cherry-pick carrying a much older
+    /// author date than the last analysis can slip through until a full re-analysis; the SHA
+    /// preload still keeps such a commit from being double-counted.</para>
     /// </summary>
     private async Task<List<CommitStatsDto>> FetchAllCommitStatsAsync(
         GitHubRepository repository,
         string repositoryPath,
-        RepositoryId repositoryId,
+        AnalyzeRepositoryCommitsCommand request,
         CancellationToken cancellationToken)
     {
+        var repositoryId = request.RepositoryId;
         _progressService.ReportStep(repositoryId, 2, "Fetching",
             $"Step 2/4 — Fetching commit history for {repository.Owner}/{repository.Name}");
         _logger.LogInformation("[Step 2/4] Fetching commit stats for repository {RepositoryId}", repositoryId);
 
-        var sinceDate = DateTime.UtcNow.AddYears(-50);
+        var sinceDate = !request.ForceReanalysis && repository.LastAnalyzedCommitDate is { } lastAnalyzed
+            ? lastAnalyzed.AddDays(-1)
+            : DateTime.UtcNow.AddYears(-50);
         var commitStatsList = (await _gitHubService.GetCommitStatsAsync(repositoryPath, sinceDate)).ToList();
-        _logger.LogInformation("Found {CommitCount} commits to analyze for repository {RepositoryId}",
-            commitStatsList.Count, repositoryId);
+        _logger.LogInformation("Found {CommitCount} commits to analyze for repository {RepositoryId} (since {Since:u})",
+            commitStatsList.Count, repositoryId, sinceDate);
         _progressService.ReportCommitsFound(repositoryId, commitStatsList.Count);
         return commitStatsList;
     }

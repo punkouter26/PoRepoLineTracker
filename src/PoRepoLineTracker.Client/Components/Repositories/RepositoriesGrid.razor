@@ -1,3 +1,4 @@
+@using PoRepoLineTracker.Client.Components.Shared
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Shared.Models
 @using PoRepoLineTracker.Shared.Models.Dtos
@@ -42,11 +43,7 @@
                     TItem="RepositoryGridRow"
                     AllowFiltering="false"
                     AllowSorting="true"
-                    AllowPaging="true"
-                    PageSize="10"
-                    PagerHorizontalAlign="HorizontalAlign.Center"
-                    ShowPagingSummary="true"
-                    PagingSummaryFormat="Showing {0} to {1} of {2} repositories"
+                    AllowPaging="false"
                     AllowColumnResize="true"
                     Responsive="true"
                     RowRender="@OnRowRender"
@@ -58,14 +55,9 @@
                 <Template Context="row">
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
                         <RadzenText class="rp-repo-name" title="@($"{row.Owner}/{row.Name}")">@($"{row.Owner}/{row.Name}")</RadzenText>
-                        <span @onclick:stopPropagation="true">
-                            <a href="@($"https://github.com/{row.Owner}/{row.Name}")" target="_blank"
-                               title="Open on GitHub"
-                               aria-label="@($"Open {row.Owner}/{row.Name} on GitHub in a new tab")"
-                               class="rp-github-link">
-                                <RadzenIcon Icon="open_in_new" class="rp-github-link__icon" />
-                            </a>
-                        </span>
+                        <GitHubLink Url="@($"https://github.com/{row.Owner}/{row.Name}")"
+                                    Title="@($"Open {row.Owner}/{row.Name} on GitHub in a new tab")"
+                                    StopRowClickPropagation="true" />
                     </RadzenStack>
                 </Template>
             </RadzenDataGridColumn>

@@ -2,6 +2,8 @@
 @attribute [Authorize]
 @inject HttpClient Http
 @inject ILogger<Diagnostics> Logger
+@using PoRepoLineTracker.Client.Components.Shared
+@using PoRepoLineTracker.Client.Models
 @using Radzen
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
@@ -53,8 +55,9 @@
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="1rem">
                 <RadzenStack Gap="0.25rem">
                     <RadzenText TextStyle="TextStyle.H6" class="xc-section-title">@_diagnostics.Environment Environment</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" class="xc-caption">
-                        Last updated: @_diagnostics.Timestamp.ToLocalTime().ToString("g")
+                    <RadzenText TextStyle="TextStyle.Caption" class="xc-caption"
+                                title="@_diagnostics.Timestamp.ToLocalTime().ToString("f")">
+                        Last updated: @ChartFormat.RelativeTime(_diagnostics.Timestamp)
                     </RadzenText>
                 </RadzenStack>
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">

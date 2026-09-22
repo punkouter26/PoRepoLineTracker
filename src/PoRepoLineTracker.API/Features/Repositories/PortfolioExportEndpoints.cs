@@ -4,6 +4,7 @@ using PoRepoLineTracker.Shared.Domain;
 using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Shared.Serialization;
 using System.Text;
+using System.Text.Json;
 
 namespace PoRepoLineTracker.API.Features.Repositories;
 
@@ -40,7 +41,10 @@ public static class PortfolioExportEndpoints
                 return Results.File(bytes, "text/csv", $"porepo-portfolio-{DateTime.UtcNow:yyyyMMdd}.csv");
             }
 
-            return Results.Json(rows, AppJsonSerializerContext.Default.ListPortfolioExportRowDto);
+            // JSON download — same Content-Disposition trick as CSV, otherwise the browser
+            // renders the response inline in the navigation tab and "Export" never downloads.
+            var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(rows, AppJsonSerializerContext.Default.ListPortfolioExportRowDto);
+            return Results.File(jsonBytes, "application/json", $"porepo-portfolio-{DateTime.UtcNow:yyyyMMdd}.json");
         })
         .RequireAuthorization()
         .WithName("ExportPortfolio");

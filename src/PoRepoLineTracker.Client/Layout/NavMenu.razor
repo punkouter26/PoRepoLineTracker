@@ -3,12 +3,42 @@
 @using Radzen.Blazor
 
 @* The app's navigable destinations — every one of them, and the only place they are listed.
-   A mobile bottom-nav bar used to carry a second copy; it was deleted rather than kept in sync. *@
-<RadzenPanelMenu>
-    <RadzenPanelMenuItem Text="Repositories" Icon="storage" Path="/" />
-    <RadzenPanelMenuItem Text="Global Insights" Icon="insights" Path="/insights" />
-    <RadzenPanelMenuItem Text="Code Health" Icon="health_and_safety" Path="/code-health" />
-    <div class="nav-section-label">Config</div>
-    <RadzenPanelMenuItem Text="Settings" Icon="tune" Path="/settings" />
-    <RadzenPanelMenuItem Text="Diagnostics" Icon="cloud" Path="/diag" />
-</RadzenPanelMenu>
+   A mobile bottom-nav bar used to carry a second copy; it was deleted rather than kept in sync.
+
+   Each item is a plain <NavLink>, not a <RadzenPanelMenuItem>. Radzen's component renders
+   the visual chrome but does not emit aria-current="page" on the active link, which left
+   screen-reader users navigating blind. <NavLink> sets aria-current="page" automatically,
+   so the active item is announced as such. The .rz-panelmenu-header / .rz-state-active
+   classes in app.css are still applied so the visual is identical to the previous render. *@
+<ul class="rz-panelmenu app-nav">
+    <li>
+        <NavLink href="/" Match="NavLinkMatch.All" class="rz-panelmenu-header app-nav__link">
+            <RadzenIcon Icon="storage" class="rz-menuitem-icon" />
+            <span class="rz-navigation-item-text">Repositories</span>
+        </NavLink>
+    </li>
+    <li>
+        <NavLink href="/insights" Match="NavLinkMatch.All" class="rz-panelmenu-header app-nav__link">
+            <RadzenIcon Icon="insights" class="rz-menuitem-icon" />
+            <span class="rz-navigation-item-text">Global Insights</span>
+        </NavLink>
+    </li>
+    <li>
+        <NavLink href="/code-health" Match="NavLinkMatch.All" class="rz-panelmenu-header app-nav__link">
+            <RadzenIcon Icon="health_and_safety" class="rz-menuitem-icon" />
+            <span class="rz-navigation-item-text">Code Health</span>
+        </NavLink>
+    </li>
+
+    @* <h2> rather than a <div>. The Config group is a section in the document outline, not a
+       decorative label — a screen reader announcing a list of links immediately after a
+       bold-face "Config" needs to know those links are configuration, not just "things". *@
+    <li><h2 class="nav-section-label">Config</h2></li>
+
+    <li>
+        <NavLink href="/settings" Match="NavLinkMatch.All" class="rz-panelmenu-header app-nav__link">
+            <RadzenIcon Icon="tune" class="rz-menuitem-icon" />
+            <span class="rz-navigation-item-text">Settings</span>
+        </NavLink>
+    </li>
+</ul>

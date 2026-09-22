@@ -171,7 +171,7 @@
     --text-3xl: 1.875rem;
 
     /* Shell metrics — referenced by the grid and the mobile drawer offset. */
-    --shell-sidebar-width: 220px;
+    --shell-sidebar-width: 240px;
     --shell-header-height: 60px;
 
     /* Chart box. One source for the plot's guard rails, consumed by `.rz-chart` and by
@@ -666,14 +666,25 @@ a:focus-visible {
 .rz-navigation-item-text,
 .rz-panelmenu .rz-panelmenu-header {
     border-radius: 10px;
-    margin: 0.15rem 0.75rem;
-    padding: 0.55rem 0.85rem;
+    margin: 0.15rem 0.4rem;
+    padding: 0.55rem 0.65rem;
     transition: background 0.15s ease, color 0.15s ease;
     color: var(--text-primary);
+    /* The custom <NavLink> wraps text + icon in one flex row; without `nowrap` the label
+       breaks across lines on a 240px sidebar and the row balloons to twice its intended height.
+       The chrome that used to prevent this — Radzen's panel-menu item rendering — reserved a
+       fixed icon column. Replicating that visually would mean a CSS grid column; instead just
+       forbid the wrap, since every label here is short enough on one line at the sidebar width. */
+    white-space: nowrap;
+    gap: 0.55rem;
 }
 
+/* Active state: either the Radzen .rz-state-active class (legacy) OR aria-current="page" on a
+   <NavLink> (current — see Layout/NavMenu.razor). Both selectors render the same look, so
+   switching the source markup does not break the visual. */
 .rz-navigation-item.rz-state-active .rz-navigation-item-text,
-.rz-panelmenu .rz-panelmenu-header.rz-state-active {
+.rz-panelmenu .rz-panelmenu-header.rz-state-active,
+.rz-panelmenu .rz-panelmenu-header[aria-current="page"] {
     background: linear-gradient(135deg, var(--rz-primary) 0%, color-mix(in srgb, var(--primary-color) 75%, transparent) 100%) !important;
     color: #fff !important;
     font-weight: 600;
@@ -681,14 +692,39 @@ a:focus-visible {
 }
 
 .rz-navigation-item:not(.rz-state-active) .rz-navigation-item-text:hover,
-.rz-panelmenu .rz-panelmenu-header:not(.rz-state-active):hover {
+.rz-panelmenu .rz-panelmenu-header:not(.rz-state-active):not([aria-current="page"]):hover {
     background: color-mix(in srgb, var(--primary-color) 8%, transparent) !important;
     color: var(--primary-on-surface) !important;
 }
 
 .rz-panelmenu-header .rz-menuitem-icon {
-    font-size: 20px;
-    margin-right: var(--space-sm);
+    /* 18px (was 20) so the row height doesn't overshoot the label's line-height at the same
+       padding — that mismatch was the other thing making the items look heavy next to the
+       thin text labels. */
+    font-size: 18px;
+    /* The flex `gap` on the row sets the spacing now; an extra margin here double-counts. */
+    margin-right: 0;
+    flex: 0 0 auto;
+}
+
+/* The custom nav in NavMenu.razor uses <NavLink> elements styled with .rz-panelmenu-header.
+   Reset the <a>'s underline, inherit the panel's colour, and remove the default focus ring —
+   the global focus-visible style in the shell covers it. */
+.app-nav__link {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+}
+.app-nav__link:focus { outline: none; }
+
+/* The two-word labels (Global Insights, Code Health) used to wrap onto two lines in a 220px
+   sidebar with the original 0.75rem side margin + 20pxpx icon padding. Holding the row to one
+   line and tightening the horizontal chrome keeps them readable; this text block is the
+   spare capacity once the row is single-line. */
+.rz-navigation-item-text {
+    font-size: 0.92rem;
 }
 
 /* .nav-section-label is a plain <div> inside NavMenu.razor, so it scopes correctly

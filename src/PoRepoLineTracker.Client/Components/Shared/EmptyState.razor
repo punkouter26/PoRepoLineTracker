@@ -1,0 +1,67 @@
+@* Card-centred "nothing here yet" block: icon + heading + body + optional CTA.
+
+   Five call sites used to inline the same `<RadzenCard> <RadzenStack> <RadzenIcon> <RadzenText H6>
+   <RadzenText Body2> [button] </RadzenStack> </RadzenCard>` skeleton with bespoke icons and copy —
+   on Insights, Code Health (twice: chart + grid), Repositories (dev), and the RepositoryDetail
+   "not found" card. Every one of them re-derived the same icon size / muted colour / centre stack
+   from its own page CSS. Consolidating here deletes five copies of ~12 lines and stops the next
+   "no data" block from rendering in body-text size by default.
+
+   Rooted at a plain <div> so this file's scope id has an element to attach to. .::deep rules in
+   the stylesheet then reach Radzen's rendered descendants, mirroring the contract used by
+   ChartCard.razor.css. *@
+
+@using Radzen
+@using Radzen.Blazor
+
+<div class="empty-state">
+    <RadzenCard class="empty-state__surface">
+        <RadzenStack AlignItems="AlignItems.Center" Gap="0.75rem" class="empty-state__stack">
+            <RadzenIcon Icon="@IconForKind" class="empty-state__icon" />
+            @if (!string.IsNullOrWhiteSpace(Title))
+            {
+                <RadzenText TextStyle="@TitleStyle" class="empty-state__title">@Title</RadzenText>
+            }
+            @if (!string.IsNullOrWhiteSpace(Description))
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="empty-state__description">@Description</RadzenText>
+            }
+            @if (Actions is not null)
+            {
+                <div class="empty-state__actions">@Actions</div>
+            }
+        </RadzenStack>
+    </RadzenCard>
+</div>
+
+@code {
+    /// <summary>What kind of empty state this is — drives the icon when <see cref="EmptyIcon"/> is unset.</summary>
+    [Parameter] public EmptyStateKind Kind { get; set; } = EmptyStateKind.NoData;
+
+    /// <summary>Optional override. When non-null wins over <see cref="IconForKind"/>.</summary>
+    [Parameter] public string? EmptyIcon { get; set; }
+
+    /// <summary>Headline. Required — the whole point of the block is to say something is missing.</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    /// <summary>Body sentence below the title. Optional; many call sites have no second line.</summary>
+    [Parameter] public string? Description { get; set; }
+
+    /// <summary>Optional CTA slot — typically a single RadzenButton. Page owns click handlers.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    /// <summary>Heading size. Defaults to H6; the chart empty state uses H5-style "Nothing to plot yet".</summary>
+    [Parameter] public TextStyle TitleStyle { get; set; } = TextStyle.H6;
+
+    /// <summary>Icon used for the chosen <see cref="Kind"/>. Centralised here so callers don't restate it.</summary>
+    private string IconForKind => EmptyIcon ?? Kind switch
+    {
+        EmptyStateKind.NoData => "bar_chart",
+        EmptyStateKind.NoRepositories => "storage",
+        EmptyStateKind.NoInsights => "insights",
+        EmptyStateKind.Offline => "cloud_off",
+        EmptyStateKind.NotFound => "search_off",
+        EmptyStateKind.Custom => "bar_chart",
+        _ => "bar_chart",
+    };
+}

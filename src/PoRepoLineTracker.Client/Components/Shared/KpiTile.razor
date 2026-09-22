@@ -1,0 +1,60 @@
+@* Stat tile for dashboards — the small "label + big value + delta" card the Insights page has
+   three of in a row, and that any future dashboard will want too. Extracted from
+   Pages/Insights.razor where three near-identical 9-line blocks shared a single `.ins-kpi`
+   stylesheet.
+
+   The delta is plain text plus an optional modifier class; callers compute "is this number up or
+   down" themselves and pass the class. The component does not invent the colour rule because
+   the green-for-up / red-for-down logic is the caller's job to keep coherent with their data
+   (commits are good when high, debt markers are bad when high — same shape, opposite sign). *@
+
+@using Radzen
+@using Radzen.Blazor
+
+<div class="kpi">
+    <RadzenCard class="kpi__surface">
+        @if (!string.IsNullOrWhiteSpace(Label))
+        {
+            <RadzenText TextStyle="TextStyle.Caption" class="kpi__label">@Label</RadzenText>
+        }
+
+        <div class="kpi__value">
+            @ChildContent
+            @if (!string.IsNullOrWhiteSpace(Unit))
+            {
+                <span class="kpi__unit">@Unit</span>
+            }
+        </div>
+
+        @if (Delta is not null)
+        {
+            <div class="kpi__delta @DeltaClass">
+                @Delta
+                @if (Sub is not null)
+                {
+                    <span class="kpi__sub"> · @Sub</span>
+                }
+            </div>
+        }
+    </RadzenCard>
+</div>
+
+@code {
+    /// <summary>Uppercase label above the value. Optional so the tile can be used headless (e.g. inside a tab).</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>The big number/text. Rendered raw so callers can use <see cref="AnimatedNumber"/> or format strings.</summary>
+    [Parameter, EditorRequired] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Optional unit rendered after the value in a smaller size (e.g. <c>d</c> for "5<small>d</small>").</summary>
+    [Parameter] public string? Unit { get; set; }
+
+    /// <summary>Bottom row, e.g. "1,234 in 30d". Optional.</summary>
+    [Parameter] public string? Delta { get; set; }
+
+    /// <summary>CSS modifier on the bottom row (e.g. <c>kpi__delta--pos</c>, <c>kpi__delta--neg</c>). Optional.</summary>
+    [Parameter] public string? DeltaClass { get; set; }
+
+    /// <summary>Optional trailing text after the delta — typically a smaller sub-period ("· 12 in 7d").</summary>
+    [Parameter] public string? Sub { get; set; }
+}

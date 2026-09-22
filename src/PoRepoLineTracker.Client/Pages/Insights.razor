@@ -3,6 +3,8 @@
 @inject HttpClient Http
 @inject ILogger<Insights> Logger
 @inject NavigationManager Navigation
+@using PoRepoLineTracker.Client.Components.Shared
+@using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Shared.Models.Dtos
 @using Radzen
 @using Radzen.Blazor
@@ -27,18 +29,19 @@
             <RadzenStack Gap="0.125rem">
                 <h1 class="page-hero__title ins-title">Global Insights</h1>
                 <RadzenText TextStyle="TextStyle.Body1" class="ins-lede">
-                    @if (_isLoading)
+                    @if (_state.IsLoading)
                     {
                         <span>Crunching your portfolio…</span>
                     }
-                    else if (_insights is not null)
+                    else if (_state.HasData)
                     {
-                        <span>Your tracked repositories · @_insights.AnalyzedCount of @_insights.RepositoryCount analyzed</span>
-                        @if (_insights.RepositoryCount > _insights.AnalyzedCount)
+                        var data = _state.Data!;
+                        <span>Your tracked repositories · @data.AnalyzedCount of @data.RepositoryCount analyzed</span>
+                        @if (data.RepositoryCount > data.AnalyzedCount)
                         {
                             @* Analysis runs one repository at a time in the background, so the first
                                visit after adding a repository legitimately shows more tracked than analyzed. *@
-                            <span> · @(_insights.RepositoryCount - _insights.AnalyzedCount) still being analyzed — Refresh in a minute</span>
+                            <span> · @(data.RepositoryCount - data.AnalyzedCount) still being analyzed — Refresh in a minute</span>
                         }
                     }
                 </RadzenText>
@@ -47,76 +50,79 @@
         <Actions>
             <RadzenButton Text="Refresh" Icon="refresh" ButtonStyle="ButtonStyle.Secondary"
                           Variant="Variant.Outlined" Size="ButtonSize.Small"
-                          Click="@LoadAsync" Disabled="@_isLoading" />
+                          Click="@LoadAsync" Disabled="@_state.IsLoading" />
         </Actions>
     </PageHero>
 
-    @if (!string.IsNullOrEmpty(_error))
+    @* LoadingState<T> replaces the three-field ladder (_isLoading, _error, _insights). The four
+       states (loading / failed / empty / loaded) cannot co-exist on the same render — fixing
+       two bugs at once: an error banner that survived a successful reload, and a 0-repo page
+       that still showed the KPI tiles. *@
+    @switch (_state)
     {
-        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true" Close="@(() => _error = string.Empty)">
-            @_error
-        </RadzenAlert>
-    }
+        case LoadingState<PortfolioInsightsDto>.Loading:
+            <div class="app-dashboard app-dashboard--tiles">
+                @for (var i = 0; i < 3; i++)
+                {
+                    <RadzenCard><RadzenSkeleton Width="100%" Height="72px" /></RadzenCard>
+                }
+            </div>
+            <RadzenCard><RadzenSkeleton Width="100%" Height="220px" /></RadzenCard>
+            break;
 
-    @if (_isLoading)
-    {
-        <div class="app-dashboard app-dashboard--tiles">
-            @for (var i = 0; i < 3; i++)
-            {
-                <RadzenCard><RadzenSkeleton Width="100%" Height="72px" /></RadzenCard>
-            }
-        </div>
-        <RadzenCard><RadzenSkeleton Width="100%" Height="220px" /></RadzenCard>
-    }
-    else if (_insights is null || _insights.RepositoryCount == 0)
-    {
-        <RadzenCard>
-            <RadzenStack AlignItems="AlignItems.Center" Gap="0.75rem" class="rz-p-8">
-                <RadzenIcon Icon="insights" class="ins-empty-icon" />
-                <RadzenText TextStyle="TextStyle.H6">Nothing to summarise yet</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="ins-muted">
-                    Add and analyze a repository and this page fills in.
-                </RadzenText>
-                <RadzenButton Text="Go to Repositories" Icon="storage" Click="@(() => Navigation.NavigateTo("/"))" />
-            </RadzenStack>
-        </RadzenCard>
-    }
-    else
-    {
-        @* ─── KPI row ─────────────────────────────────────────────────────────────
-           Four figures, each with the context that makes it mean something: a total beside its
-           own change, a count beside how many days it was spread over. A bare number here would
-           be no more useful than the one already on the Repositories page. *@
-        <div class="app-dashboard app-dashboard--tiles">
-            <RadzenCard class="ins-kpi">
-                <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">Total lines</RadzenText>
-                <div class="ins-kpi__value">@_insights.TotalLines.ToString("N0")</div>
-                <div class="ins-kpi__delta @DeltaClass(_insights.NetLines30Days)">
-                    @DeltaText(_insights.NetLines30Days) in 30d
-                    <span class="ins-kpi__sub">· @DeltaText(_insights.NetLines7Days) in 7d</span>
-                </div>
-            </RadzenCard>
+        case LoadingState<PortfolioInsightsDto>.Failed f:
+            <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true"
+                         Close="@(() => _state = new LoadingState<PortfolioInsightsDto>.Loading())">
+                @f.Message
+            </RadzenAlert>
+            break;
 
-            <RadzenCard class="ins-kpi">
-                <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">Commits (30d)</RadzenText>
-                <div class="ins-kpi__value">@_insights.Commits30Days.ToString("N0")</div>
-                <div class="ins-kpi__delta">
-                    across @_insights.ActiveDays30 active @(_insights.ActiveDays30 == 1 ? "day" : "days")
-                </div>
-            </RadzenCard>
+        case LoadingState<PortfolioInsightsDto>.Empty:
+            <EmptyState Kind="EmptyStateKind.NoInsights"
+                        Title="Nothing to summarise yet"
+                        Description="Add and analyze a repository and this page fills in.">
+                <Actions>
+                    <RadzenButton Text="Go to Repositories" Icon="storage"
+                                  Click="@(() => Navigation.NavigateTo("/"))" />
+                </Actions>
+            </EmptyState>
+            break;
 
-            <RadzenCard class="ins-kpi">
-                <RadzenText TextStyle="TextStyle.Caption" class="ins-kpi__label">@(StreakHeading)</RadzenText>
+        case LoadingState<PortfolioInsightsDto>.Loaded loaded:
+            @RenderLoaded(loaded.Value!)
+            break;
+    }
+</div>
+
+@* Body of the populated dashboard — extracted as a local function so the switch reads as a flat
+   list of states rather than a deeply nested tree. *@
+@code {
+    private RenderFragment RenderLoaded(PortfolioInsightsDto data) =>
+        @<text>
+            @* ─── KPI row ─────────────────────────────────────────────────────────────
+               Four figures, each with the context that makes it mean something: a total beside
+               its own change, a count beside how many days it was spread over. A bare number here
+               would be no more useful than the one already on the Repositories page. *@
+            <div class="app-dashboard app-dashboard--tiles">
+                <KpiTile Label="Total lines"
+                         Delta="@($"{DeltaText(data.NetLines30Days)} in 30d")"
+                         Sub="@($"{DeltaText(data.NetLines7Days)} in 7d")"
+                         DeltaClass="@DeltaClass(data.NetLines30Days)">
+                    @data.TotalLines.ToString("N0")
+                </KpiTile>
+
+                <KpiTile Label="Commits (30d)"
+                         Delta="@($"across {data.ActiveDays30} active {(data.ActiveDays30 == 1 ? "day" : "days")}")">
+                    @data.Commits30Days.ToString("N0")
+                </KpiTile>
+
                 @{ var streak = Streak; }
-                <div class="ins-kpi__value">
-                    @streak.Value@if (streak.Unit is not null)
-                    {
-                        <span class="ins-kpi__unit">@streak.Unit</span>
-                    }
-                </div>
-                <div class="ins-kpi__delta">best @_insights.LongestStreakDays d this year</div>
-            </RadzenCard>
-        </div>
+                <KpiTile Label="@StreakHeading"
+                         Unit="@streak.Unit"
+                         Delta="@($"best {data.LongestStreakDays} d this year")">
+                    @streak.Value
+                </KpiTile>
+            </div>
 
         @* ─── Activity heatmap ────────────────────────────────────────────────────
            A year of commit activity at a glance. Rendered as a plain CSS grid rather than a
@@ -126,7 +132,7 @@
            and the intensity key is exactly what its <Toolbar> slot is for. *@
         <ChartCard Title="Activity"
                    Description="@($"Commits per day across every tracked repository, last {(_heatmapDays >= 365 ? "12 months" : $"{_heatmapDays} days")}")"
-                   IsEmpty="@(_insights.Activity.Count == 0)"
+                   IsEmpty="@(data.Activity.Count == 0)"
                    EmptyIcon="calendar_month"
                    EmptyText="No commit activity recorded yet.">
             <Toolbar>
@@ -173,11 +179,11 @@
         <div class="app-dashboard app-dashboard--panels">
             <ChartCard Title="Portfolio growth"
                        Description="Total lines across every repository, sampled monthly over the last year"
-                       IsEmpty="@(_insights.TrendLine.Count == 0)"
+                       IsEmpty="@(data.TrendLine.Count == 0)"
                        EmptyIcon="show_chart"
                        EmptyText="No history to chart yet.">
                 <RadzenChart>
-                    <RadzenAreaSeries Data="@_insights.TrendLine"
+                    <RadzenAreaSeries Data="@data.TrendLine"
                                       CategoryProperty="Date"
                                       ValueProperty="TotalLines"
                                       Title="Total lines"
@@ -189,7 +195,7 @@
 
                     @* Whole-day Step: see ChartFormat.DateAxisStep. *@
                     <RadzenCategoryAxis FormatString="{0:MMM yyyy}"
-                                        Step="@ChartFormat.DateAxisStep(_insights.TrendLine.Select(p => p.Date))"
+                                        Step="@ChartFormat.DateAxisStep(data.TrendLine.Select(p => p.Date))"
                                         LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
                     </RadzenCategoryAxis>
@@ -202,11 +208,11 @@
 
             <ChartCard Title="All repositories"
                        Description="Every tracked repository — click a header to sort, a row to open it"
-                       IsEmpty="@(_insights.Movers.Count == 0)"
+                       IsEmpty="@(data.Movers.Count == 0)"
                        EmptyIcon="storage"
                        EmptyText="No repositories analyzed yet.">
                 <div class="u-scroll-x">
-                    <RadzenDataGrid Data="@_insights.Movers"
+                    <RadzenDataGrid Data="@data.Movers"
                                     TItem="RepositoryMovementDto"
                                     AllowSorting="true"
                                     Responsive="true"
@@ -250,12 +256,12 @@
         <div class="app-dashboard app-dashboard--panels">
             <ChartCard Title="Language mix"
                        Description="Share of current lines by file type"
-                       IsEmpty="@(_insights.LanguageMix.Count == 0)"
+                       IsEmpty="@(data.LanguageMix.Count == 0)"
                        EmptyIcon="donut_large"
                        EmptyText="No per-extension data yet."
                        EmptyHint="Re-analyze a repository to populate it.">
                 <RadzenChart>
-                    <RadzenDonutSeries Data="@_insights.LanguageMix"
+                    <RadzenDonutSeries Data="@data.LanguageMix"
                                        CategoryProperty="Extension"
                                        ValueProperty="Percentage"
                                        Title="Share of lines">
@@ -265,7 +271,7 @@
                 </RadzenChart>
 
                 <div class="ins-langs">
-                    @foreach (var language in _insights.LanguageMix)
+                    @foreach (var language in data.LanguageMix)
                     {
                         <div class="ins-lang">
                             <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
@@ -285,31 +291,31 @@
 
             <ChartCard Title="Language drift"
                        Description="How the mix moved over the last year, in share"
-                       IsEmpty="@(_insights.LanguageDrift.Count == 0)"
+                       IsEmpty="@(data.LanguageDrift.Count == 0)"
                        EmptyIcon="swap_vert"
                        EmptyText="No drift to report yet."
                        EmptyHint="Needs a year of history across at least two file types.">
-                @if (_insights.RisingLanguage is not null || _insights.FadingLanguage is not null)
+                @if (data.RisingLanguage is not null || data.FadingLanguage is not null)
                 {
                     <RadzenText TextStyle="TextStyle.Body2" class="ins-drift__lede">
-                        @if (_insights.RisingLanguage is not null)
+                        @if (data.RisingLanguage is not null)
                         {
-                            <text>You drifted toward <code class="ins-lang__code">@_insights.RisingLanguage</code></text>
+                            <text>You drifted toward <code class="ins-lang__code">@data.RisingLanguage</code></text>
                         }
-                        @if (_insights.RisingLanguage is not null && _insights.FadingLanguage is not null)
+                        @if (data.RisingLanguage is not null && data.FadingLanguage is not null)
                         {
                             <text> and away from </text>
                         }
-                        @if (_insights.FadingLanguage is not null)
+                        @if (data.FadingLanguage is not null)
                         {
-                            <text><code class="ins-lang__code">@_insights.FadingLanguage</code></text>
+                            <text><code class="ins-lang__code">@data.FadingLanguage</code></text>
                         }
                         .
                     </RadzenText>
                 }
 
                 <div class="ins-drift">
-                    @foreach (var drift in _insights.LanguageDrift)
+                    @foreach (var drift in data.LanguageDrift)
                     {
                         <div class="ins-drift__row">
                             <code class="ins-lang__code">@drift.Extension</code>
@@ -324,13 +330,12 @@
                 </div>
             </ChartCard>
         </div>
-    }
-</div>
+        </text>;
+}
 
 @code {
-    private PortfolioInsightsDto? _insights;
-    private bool _isLoading = true;
-    private string _error = string.Empty;
+    private LoadingState<PortfolioInsightsDto> _state = new LoadingState<PortfolioInsightsDto>.Loading();
+    private int _heatmapDays = 90;
 
     private void OnRepoRowClick(DataGridRowMouseEventArgs<RepositoryMovementDto> args) =>
         Navigation.NavigateTo($"/repositories/{args.Data.RepositoryId}");
@@ -348,12 +353,14 @@
     private static string SparklineSummary(RepositoryMovementDto row) =>
         $"Commits per week, last 12 weeks: {string.Join(", ", row.WeeklyCommits)}";
 
-    private int _heatmapDays = 90;
-
-    private IReadOnlyList<ActivityDayDto> DisplayedActivity =>
-        _heatmapDays >= 365
-            ? (_insights?.Activity ?? [])
-            : (_insights?.Activity ?? []).TakeLast(_heatmapDays).ToList();
+    private IReadOnlyList<ActivityDayDto> DisplayedActivity
+    {
+        get
+        {
+            var activity = _state.HasData ? _state.Data!.Activity : [];
+            return _heatmapDays >= 365 ? activity : activity.TakeLast(_heatmapDays).ToList();
+        }
+    }
 
     /// <summary>
     /// Blank cells before the first day so each grid column is one calendar week.
@@ -363,10 +370,10 @@
         DisplayedActivity.Count > 0 ? (int)DisplayedActivity[0].Date.DayOfWeek : 0;
 
     private string HeatmapSummary =>
-        _insights is null
+        !_state.HasData
             ? "Commit activity heatmap"
-            : $"Commit activity heatmap: {_insights.Activity.Count(d => d.Commits > 0)} active days in the last year, " +
-              $"{_insights.Activity.Sum(d => d.Commits):N0} commits total";
+            : $"Commit activity heatmap: {_state.Data!.Activity.Count(d => d.Commits > 0)} active days in the last year, " +
+              $"{_state.Data!.Activity.Sum(d => d.Commits):N0} commits total";
 
     /// <summary>
     /// "Current streak: 0d" is technically accurate but reads like a feature is broken. When the
@@ -375,7 +382,7 @@
     /// year" line underneath keeps the same anchor in both states so the tile reads as one tile.
     /// </summary>
     private string StreakHeading =>
-        _insights is null || _insights.CurrentStreakDays > 0
+        !_state.HasData || _state.Data!.CurrentStreakDays > 0
             ? "Current streak"
             : "Last active";
 
@@ -388,10 +395,11 @@
     {
         get
         {
-            if (_insights is null) return ("—", null);
-            if (_insights.CurrentStreakDays > 0) return ($"{_insights.CurrentStreakDays}", "d");
+            if (!_state.HasData) return ("—", null);
+            var data = _state.Data!;
+            if (data.CurrentStreakDays > 0) return ($"{data.CurrentStreakDays}", "d");
 
-            var last = _insights.Activity.LastOrDefault(d => d.Commits > 0);
+            var last = data.Activity.LastOrDefault(d => d.Commits > 0);
             if (last is null) return ("—", null);
 
             var days = Math.Max(0, (int)(DateTime.UtcNow.Date - last.Date.Date).TotalDays);
@@ -436,24 +444,28 @@
 
     private async Task LoadAsync()
     {
-        _isLoading = true;
-        _error = string.Empty;
+        // Show the loading skeleton rather than the previous error banner; LoadingState
+        // deliberately re-renders as Loading on retry so the user always sees a refresh happen.
+        _state = new LoadingState<PortfolioInsightsDto>.Loading();
         StateHasChanged();
 
         try
         {
-            _insights = await Http.GetAppJsonAsync(
+            var data = await Http.GetAppJsonAsync(
                 "/api/insights/portfolio",
                 AppJsonSerializerContext.Default.PortfolioInsightsDto);
+
+            _state = data is null || data.RepositoryCount == 0
+                ? new LoadingState<PortfolioInsightsDto>.Empty()
+                : new LoadingState<PortfolioInsightsDto>.Loaded(data);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Insights: failed to load portfolio insights");
-            _error = "Could not load your insights. Please try again.";
+            _state = new LoadingState<PortfolioInsightsDto>.Failed("Could not load your insights. Please try again.");
         }
         finally
         {
-            _isLoading = false;
             StateHasChanged();
         }
     }

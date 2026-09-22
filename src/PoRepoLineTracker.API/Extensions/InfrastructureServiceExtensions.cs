@@ -171,6 +171,9 @@ public static class InfrastructureServiceExtensions
         // Drains the bounded AnalysisHub.ProgressChannel on a single reader thread; takes
         // IHubContext from the SignalR registration above. Long-running by definition.
         services.AddHostedService<AnalysisProgressReader>();
+        // Startup sweep: restarts kill the bulk-add fire-and-forget analysis loop mid-flight;
+        // this finishes whatever it left unanalyzed. Runs once, then idles.
+        services.AddHostedService<ResumePendingAnalysis>();
 
         services.AddScoped<IGitHubService>(sp => new GitHubService(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("GitHubClient"),

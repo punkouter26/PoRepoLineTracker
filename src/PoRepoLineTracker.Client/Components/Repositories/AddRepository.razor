@@ -19,7 +19,7 @@
         <RadzenText TextStyle="TextStyle.H4" class="add-repo-title">Add Repositories</RadzenText>
     }
 
-    @if (!string.IsNullOrEmpty(pageState.ErrorMessage) && !pageState.ShowRepositorySelector)
+    @if (!string.IsNullOrEmpty(pageState.ErrorMessage))
     {
         <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Flat"
                      Close="@(() => pageState.ErrorMessage = string.Empty)">
@@ -35,28 +35,37 @@
         </RadzenAlert>
     }
 
-    @if (pageState.ShowRepositorySelector)
+    @if (pageState.IsLoadingGitHubRepos)
     {
-        <GitHubRepositorySelector Repositories="pageState.GitHubUserRepositories"
-                                  SelectedRepositories="_selected"
-                                  SelectedRepositoriesChanged="OnSelectedRepositoriesChanged"
-                                  IsLoading="pageState.IsLoadingGitHubRepos"
-                                  ErrorMessage="@pageState.ErrorMessage"
-                                  IsSubmitting="pageState.IsAddingRepository"
-                                  OnAddSelected="AddSelectedRepositories"
-                                  OnSelectAll="SelectAllRepositories"
-                                  OnClearAll="ClearAllSelections"
-                                  OnCancel="HideRepositorySelection"
-                                  OnRetry="ReloadAsync" />
+        <RadzenCard class="add-repo-progress">
+            <RadzenStack Gap="0.4rem">
+                <RadzenProgressBar Mode="ProgressBarMode.Indeterminate"
+                                   aria-label="Fetching your GitHub repositories" />
+                <RadzenText TextStyle="TextStyle.Caption" class="add-repo-progress-message">Fetching your GitHub repositories…</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
     }
-
-    @* Single repository mode removed as requested *@
-
-    @if (pageState.IsAddingRepository)
+    else if (pageState.IsAddingRepository)
     {
-        <RadzenCard>
-            <RadzenProgressBar Value="@pageState.ProgressPercentage" ShowValue="true" />
-            <RadzenText TextStyle="TextStyle.Caption" class="add-repo-progress-message">@pageState.ProgressMessage</RadzenText>
+        <RadzenCard class="add-repo-progress">
+            <RadzenStack Gap="0.4rem">
+                @* `Value` is int?, so the same RadzenProgressBar handles both determinate and
+                   indeterminate. Mode=Indeterminate gives an honest "we don't know yet" bar
+                   instead of a fake 0→100 snap. The text underneath stays current from
+                   pageState.ProgressMessage and tells the user what is actually happening. *@
+                @if (pageState.ProgressPercentage.HasValue)
+                {
+                    <RadzenProgressBar Value="@pageState.ProgressPercentage.Value"
+                                        ShowValue="true"
+                                        aria-label="@pageState.ProgressMessage" />
+                }
+                else
+                {
+                    <RadzenProgressBar Mode="ProgressBarMode.Indeterminate"
+                                        aria-label="@pageState.ProgressMessage" />
+                }
+                <RadzenText TextStyle="TextStyle.Caption" class="add-repo-progress-message">@pageState.ProgressMessage</RadzenText>
+            </RadzenStack>
         </RadzenCard>
     }
 </RadzenStack>
@@ -81,31 +90,26 @@
         return ValueTask.CompletedTask;
     }
 
-    /// <summary>
-    /// Loaded repositories, cached for the session so the inline toggle in
-    /// <c>Repositories.razor</c> does not re-hit GitHub every time the panel is opened and
-    /// dismissed. The first inline open still pays the round-trip; every subsequent open reads
-    /// this cache. The cache is intentionally process-scoped (static) rather than per-component,
-    /// because each inline toggle remounts this component and a per-instance field would reset.
-    /// </summary>
-    private static List<GitHubUserRepositoryDto>? _cachedRepositories;
-    private static DateTime? _cachedAtUtc;
-
-    /// <summary>How long the cached list is considered fresh. GitHub repos do not change every minute.</summary>
-    private static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(5);
-
     protected override async Task OnInitializedAsync()
     {
-        pageState.ShowRepositorySelector = true;
+        // One-click import: fetch the GitHub repo list and immediately queue every repo for
+        // adding. The modal is a progress view, not a picker — there is no list and nothing to
+        // confirm.
+        await LoadGitHubRepositories();
 
-        if (IsCacheFresh())
+        // Fetch failed: leave the modal up showing the error alert; the user closes it via X.
+        if (!string.IsNullOrEmpty(pageState.ErrorMessage)) return;
+
+        if (pageState.GitHubUserRepositories.Count == 0)
         {
-            pageState.GitHubUserRepositories = _cachedRepositories!;
+            // Nothing on GitHub to import — close quietly; the page behind already shows what is
+            // tracked.
+            DialogService.Close(false);
+            return;
         }
-        else
-        {
-            await LoadGitHubRepositories();
-        }
+
+        _selected = pageState.GitHubUserRepositories;
+        await AddSelectedRepositories();
     }
 
     private async Task LoadGitHubRepositories()
@@ -123,8 +127,6 @@
                 var gitHubRepos = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.ListGitHubUserRepositoryDto);
                 var sorted = gitHubRepos?.OrderBy(r => r.Name).ToList() ?? new List<GitHubUserRepositoryDto>();
                 pageState.GitHubUserRepositories = sorted;
-                _cachedRepositories = sorted;
-                _cachedAtUtc = DateTime.UtcNow;
                 Logger.LogInformation("Loaded {Count} GitHub user repositories.", pageState.GitHubUserRepositories.Count);
             }
             else
@@ -165,50 +167,7 @@
         }
     }
 
-    /// <summary>
-    /// Force a fresh reload of repositories from GitHub, invalidating the session cache.
-    /// </summary>
-    public async Task ReloadAsync()
-    {
-        _cachedRepositories = null;
-        _cachedAtUtc = null;
-        await LoadGitHubRepositories();
-    }
-
-    /// <summary>
-    /// Inline panel entry point — reloads only if the session cache has expired.
-    /// </summary>
-    public async Task PrimeIfStaleAsync()
-    {
-        if (IsCacheFresh()) return;
-        await LoadGitHubRepositories();
-    }
-
-    private static bool IsCacheFresh() =>
-        _cachedRepositories is not null
-        && _cachedAtUtc is { } at
-        && DateTime.UtcNow - at < CacheLifetime;
-
     private IEnumerable<GitHubUserRepositoryDto> _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
-
-    private Task OnSelectedRepositoriesChanged(IEnumerable<GitHubUserRepositoryDto> repositories)
-    {
-        _selected = repositories;
-        StateHasChanged();
-        return Task.CompletedTask;
-    }
-
-    private void SelectAllRepositories()
-    {
-        _selected = pageState.GitHubUserRepositories;
-        StateHasChanged();
-    }
-
-    private void ClearAllSelections()
-    {
-        _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
-        StateHasChanged();
-    }
 
     private async Task AddSelectedRepositories()
     {
@@ -223,23 +182,26 @@
         _addCts?.Dispose();
         _addCts = new CancellationTokenSource(AddTimeout);
 
+        var selectedCount = _selected.Count();
+        // Indeterminate spinner (Value=null) is the right choice here: the POST is one round-trip
+        // for the whole list and the per-repo work happens in the background analysis pipeline,
+        // which the modal can only describe — not measure. Showing a "0/23" bar that snaps to
+        // 23/23 in 800 ms was what the old 4-step fake progress did, and it lied about work
+        // that hadn't started.
+        pageState.SetProgress($"Adding {selectedCount} {(selectedCount == 1 ? "repository" : "repositories")}…", null);
+
         try
         {
             Logger.LogInformation("=== START AddSelectedRepositories ===");
-            Logger.LogInformation("Number of selected repositories: {Count}", _selected.Count());
-            
+            Logger.LogInformation("Number of selected repositories: {Count}", selectedCount);
+
             var selectedList = _selected.ToList();
             for (int i = 0; i < selectedList.Count; i++)
             {
                 var repo = selectedList[i];
-                Logger.LogInformation("Selected Repo [{Index}]: FullName='{FullName}', CloneUrl='{CloneUrl}'", 
+                Logger.LogInformation("Selected Repo [{Index}]: FullName='{FullName}', CloneUrl='{CloneUrl}'",
                     i, repo.FullName, repo.CloneUrl);
             }
-            
-            // Step 1: Prepare repository data (25%)
-            pageState.SetProgress($"Preparing {_selected.Count()} repositories...", 25);
-            StateHasChanged();
-            await Task.Delay(300);
 
             var repositoriesToAdd = _selected.Select(repo =>
             {
@@ -251,7 +213,7 @@
                 }
                 Logger.LogInformation("Splitting FullName '{FullName}' into Owner='{Owner}' and RepoName='{RepoName}'",
                     repo.FullName, fullNameParts[0], fullNameParts[1]);
-                    
+
                 return new BulkRepositoryDto
                 {
                     Owner = fullNameParts[0],
@@ -261,18 +223,13 @@
             }).ToList();
 
             Logger.LogInformation("Prepared {Count} repositories for API call", repositoriesToAdd.Count);
-            
-            // Log detailed info about what we're sending
+
             for (int i = 0; i < repositoriesToAdd.Count; i++)
             {
                 var repo = repositoriesToAdd[i];
                 Logger.LogInformation("Sending Repo [{Index}]: Owner='{Owner}', RepoName='{RepoName}', CloneUrl='{CloneUrl}'",
                     i, repo.Owner, repo.RepoName, repo.CloneUrl);
             }
-
-            // Step 2: Adding to database (50%)
-            pageState.SetProgress("Adding repositories to database...", 50);
-            StateHasChanged();
 
             Logger.LogInformation("Making POST request to /api/repositories/bulk with {Count} repositories", repositoriesToAdd.Count);
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/repositories/bulk")
@@ -282,16 +239,11 @@
                 Content = JsonContent.Create(repositoriesToAdd, AppJsonSerializerContext.Default.ListBulkRepositoryDto)
             };
             var response = await Http.SendAsync(request, _addCts!.Token);
-            
+
             Logger.LogInformation("Bulk repository add response: Status={StatusCode}", response.StatusCode);
-            
+
             if (response.IsSuccessStatusCode)
             {
-                // Step 3: Repositories added successfully (75%)
-                pageState.SetProgress("Repositories added! Initializing analysis...", 75);
-                StateHasChanged();
-                await Task.Delay(500);
-
                 Logger.LogInformation("Reading response content as JSON...");
                 var bulkResult = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.BulkAddResult);
 
@@ -300,47 +252,54 @@
 
                 Logger.LogInformation("Bulk result: Added={Added}, AlreadyTracked={AlreadyTracked}", addedCount, alreadyTrackedCount);
 
-                // Step 4: Complete (100%)
-                pageState.SetProgress("Complete!", 100);
-                StateHasChanged();
-                await Task.Delay(1000);
-
+                // Summary line on the modal. Reads the actual numbers from the response, not
+                // "Complete!" — and tells the user the next thing that will happen, which is
+                // background analysis on the newly-added repos.
                 if (addedCount > 0 && alreadyTrackedCount == 0)
                 {
-                    pageState.AddRepoMessage = $"{addedCount} {(addedCount == 1 ? "repository" : "repositories")} added successfully! Analysis will begin automatically.";
+                    pageState.AddRepoMessage = $"Added {addedCount} {(addedCount == 1 ? "repository" : "repositories")}. " +
+                        $"Background analysis is queued — the page will refresh automatically.";
                 }
                 else if (addedCount > 0 && alreadyTrackedCount > 0)
                 {
                     var alreadyNames = bulkResult!.AlreadyTracked.Select(r => $"{r.Owner}/{r.Name}");
-                    pageState.AddRepoMessage = $"{addedCount} {(addedCount == 1 ? "repository" : "repositories")} added. " +
-                        $"{alreadyTrackedCount} already tracked ({string.Join(", ", alreadyNames)}) — no changes made to those.";
+                    pageState.AddRepoMessage = $"Added {addedCount} new; {alreadyTrackedCount} already tracked ({string.Join(", ", alreadyNames)}) — no changes to those. " +
+                        $"Background analysis queued for the new ones.";
+                }
+                else if (alreadyTrackedCount > 0)
+                {
+                    var alreadyNames = bulkResult?.AlreadyTracked.Select(r => $"{r.Owner}/{r.Name}") ?? [];
+                    pageState.AddRepoMessage = $"All {alreadyTrackedCount} selected {(alreadyTrackedCount == 1 ? "repository is" : "repositories are")} already tracked: {string.Join(", ", alreadyNames)}. " +
+                        $"No new repositories were added.";
                 }
                 else
                 {
-                    // All were already tracked
-                    var alreadyNames = bulkResult?.AlreadyTracked.Select(r => $"{r.Owner}/{r.Name}") ?? [];
-                    pageState.AddRepoMessage = $"All {alreadyTrackedCount} selected {(alreadyTrackedCount == 1 ? "repository is" : "repositories are")} already tracked: {string.Join(", ", alreadyNames)}. No new repositories were added.";
+                    pageState.AddRepoMessage = "No repositories added (server returned an empty result).";
                 }
 
-                _selected = Enumerable.Empty<GitHubUserRepositoryDto>(); // Clear selections
+                // Hold the success line briefly so the user can read it before the dialog closes.
+                // 1.2 s is enough to read two short sentences on the modal width without dragging.
+                await Task.Delay(1200);
 
-                Logger.LogInformation("Closing dialog / navigating to repositories page...");
-                await Task.Delay(1500); // Brief delay to show success message
+                _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
                 if (IsInline)
                 {
                     await OnInlineCompleted.InvokeAsync();
                 }
                 else
                 {
+                    // Close with `true` so the parent page reloads the repository list and
+                    // prime-polls the analysis feed. Don't `Navigation.NavigateTo("/repositories")`
+                    // here — the modal is opened FROM /repositories, and a hard navigate tears down
+                    // the analysis feed's SignalR subscription mid-handshake, which is what was
+                    // surfacing as "no live progress after bulk-add" before.
                     DialogService.Close(true);
-                    Navigation.NavigateTo("/repositories");
                 }
             }
             else
             {
-                pageState.SetProgress("Error occurred", 100);
+                pageState.SetProgress("Could not add repositories", null);
                 StateHasChanged();
-                await Task.Delay(500);
 
                 var errorContent = await response.Content.ReadAsStringAsync();
                 Logger.LogError("Bulk repository add failed: Status={StatusCode}, Content={ErrorContent}", response.StatusCode, errorContent);
@@ -387,30 +346,6 @@
             pageState.ProgressPercentage = 0;
             StateHasChanged();
         }
-    }
-
-    private async Task ShowRepositorySelection()
-    {
-        Logger.LogInformation("ShowRepositorySelection called. Current ShowRepositorySelector: {ShowRepositorySelector}", pageState.ShowRepositorySelector);
-        pageState.ShowRepositorySelector = true;
-        Logger.LogInformation("ShowRepositorySelector set to true. New value: {ShowRepositorySelector}", pageState.ShowRepositorySelector);
-        await LoadGitHubRepositories();
-        Logger.LogInformation("LoadGitHubRepositories completed. Calling StateHasChanged.");
-        StateHasChanged();
-    }
-
-    private void HideRepositorySelection()
-    {
-        _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
-        if (IsInline)
-        {
-            _ = OnInlineCompleted.InvokeAsync();
-            return;
-        }
-
-        pageState.ShowRepositorySelector = false;
-        DialogService.Close(false);
-        StateHasChanged();
     }
 }
 

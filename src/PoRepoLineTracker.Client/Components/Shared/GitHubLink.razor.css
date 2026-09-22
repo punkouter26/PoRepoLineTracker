@@ -1,0 +1,49 @@
+/* Scoped styles for GitHubLink. Two usages have to match each other (a user clicking the grid
+   link should look exactly like a user clicking the hero link), and only the surrounding
+   context — table cell vs hero strip — differs. Two size variants capture that. */
+
+.github-link {
+    color: var(--text-secondary);
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    flex: 0 0 auto;
+    /* WCAG 2.2 AA 2.5.8 minimum target — the glyph alone falls short. */
+    min-width: 24px;
+    min-height: 24px;
+}
+
+.github-link:hover {
+    color: var(--primary-on-surface);
+    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+}
+
+/* ::deep because the <RadzenIcon> Radzen renders does not carry this file's scope id, but the
+   enclosing <a class="github-link"> does, so the rule still reaches the glyph. */
+::deep .github-link__icon {
+    font-size: 1.1rem;
+}
+
+/* Compact sits inside a data grid row beside the owner/name — keep the hit target at the
+   24x24 minimum and don't bump the row's height. */
+.github-link--compact {
+    min-width: 24px;
+    min-height: 24px;
+}
+
+::deep .github-link--compact .github-link__icon {
+    font-size: 1rem;
+}
+
+/* Medium sits in the hero next to the page title — the larger glyph is part of the hero
+   weight, and the hit target matches the surrounding H1 scale. */
+.github-link--medium {
+    min-width: 28px;
+    min-height: 28px;
+}
+
+::deep .github-link--medium .github-link__icon {
+    font-size: 1.2rem;
+}

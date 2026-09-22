@@ -3,7 +3,13 @@
    Colours come from the theme tokens in app.css rather than literals — the heatmap in particular
    has to stay legible against both a white and a slate card, and a single hex ramp cannot.
    The intensity ramp is therefore expressed as opacities over the primary hue, so it
-   inherits whatever the theme sets. */
+   inherits whatever the theme sets.
+
+   The .ins-kpi / .ins-empty-icon / .ins-kpi__value / .ins-kpi__label / .ins-kpi__unit /
+   .ins-kpi__delta / .ins-kpi__sub rules are gone: KPI tiles now render through <KpiTile> and
+   the page's empty state through <EmptyState>, both of which carry their own chrome. The two
+   extra abstractions paid for themselves the moment the same tile was wanted on another page —
+   one place to fix the tile, not three. */
 
 ::deep .ins-title.ins-title {
     margin: 0 !important;
@@ -18,72 +24,6 @@
 ::deep .ins-muted.ins-muted {
     margin: 0 !important;
     color: var(--text-muted) !important;
-}
-
-/* ::deep — the class is on <RadzenIcon>, a component, so the unprefixed rule compiled to
-   `.ins-empty-icon[b-insights]` and never matched; the icon rendered at the inherited body size
-   in the default text colour. Reaching it needs a plain ancestor carrying the scope id, which is
-   why the page root had to stop being a <RadzenStack>. */
-::deep .ins-empty-icon {
-    font-size: 2.5rem;
-    color: var(--text-muted);
-}
-
-/* `.ins-card`, `.ins-card__title` and `.ins-empty-inline` are gone: the three cards that used
-   them (Activity, Movers, Language mix) render through <ChartCard>, which owns the surface, the
-   title/description pair and a proper empty state rather than an inline muted sentence. */
-
-/* ─── KPI row ────────────────────────────────────────────────────────────────
-   auto-fit rather than four fixed columns: the tiles reflow 4 → 2 → 1 on their own, and the
-   final row is never left half-empty at an in-between width. Keyed to the content well via
-   the shared container, so collapsing the sidebar genuinely re-lays them out.
-
-   The grid itself is `.app-dashboard app-dashboard--tiles` in the markup now — this was a fourth
-   near-copy of the same auto-fit declaration (alongside `.rp-stat-grid`, `.app-dashboard` and
-   `.app-page`), differing only in the minimum. That minimum is a token there. */
-/* ::deep for the same reason as `.ins-empty-icon` above: the class is on <RadzenCard>. Without it
-   the tiles never became flex columns at all — they fell back to the card's block layout, so the
-   0.2rem gap was actually the RadzenText label's own margin, and the label/value/delta spacing
-   differed from what this file describes. */
-::deep .ins-kpi {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    /* The tiles are four different shapes of text; without this the tallest sets the row height
-       and the rest float at the top of their own box. */
-    justify-content: center;
-}
-
-::deep .ins-kpi__label.ins-kpi__label {
-    margin: 0 !important;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-muted) !important;
-}
-
-.ins-kpi__value {
-    font-size: var(--text-3xl);
-    font-weight: 700;
-    line-height: 1.1;
-    color: var(--text-primary);
-    /* The values reload on refresh; proportional digits make them shift width as they change. */
-    font-variant-numeric: tabular-nums;
-}
-
-.ins-kpi__unit {
-    font-size: var(--text-lg);
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-left: 0.1rem;
-}
-
-.ins-kpi__delta {
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
-}
-
-.ins-kpi__sub {
-    color: var(--text-muted);
 }
 
 /* --status-pos / --status-neg are defined per theme to clear 4.5:1 on the surface each one

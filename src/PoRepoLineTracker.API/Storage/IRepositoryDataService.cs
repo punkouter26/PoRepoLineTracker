@@ -10,6 +10,13 @@ public interface IRepositoryDataService
     Task<GitHubRepository?> FindRepositoryByOwnerAndNameAsync(string owner, string name);
     Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync(UserId userId);
 
+    /// <summary>
+    /// Every repository across all users whose first analysis never completed
+    /// (<see cref="GitHubRepository.LastAnalyzedCommitDate"/> is null). Backs the startup sweep
+    /// that resumes analyses a restart interrupted.
+    /// </summary>
+    Task<IEnumerable<GitHubRepository>> GetUnanalyzedRepositoriesAsync();
+
     Task AddCommitLineCountAsync(CommitLineCount commitLineCount);
     Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(RepositoryId repositoryId);
     Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(RepositoryId repositoryId, int days); // Added for line count history

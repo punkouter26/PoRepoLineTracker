@@ -112,6 +112,22 @@ public class RepositoryDataService : IRepositoryDataService
         return repositories;
     }
 
+    public async Task<IEnumerable<GitHubRepository>> GetUnanalyzedRepositoriesAsync()
+    {
+        await EnsureTablesExistAsync();
+        var repositories = new List<GitHubRepository>();
+        // ponytail: cross-partition scan filtered in memory — the repository table is
+        // portfolio-sized (hundreds of rows). If it ever outgrows that, push an OData filter
+        // (LastAnalyzedCommitDate eq null) into QueryAsync instead.
+        await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>())
+        {
+            if (entity.LastAnalyzedCommitDate is null)
+                repositories.Add(entity.ToDomainModel());
+        }
+        _logger.LogInformation("Found {Count} never-analyzed repositories across all users.", repositories.Count);
+        return repositories;
+    }
+
     public async Task<IReadOnlyList<(GitHubRepository Repository, IReadOnlyList<CommitLineCount> Commits)>> GetAllRepositoriesWithCommitsAsync(UserId userId)
     {
         var repositories = (await GetAllRepositoriesAsync(userId)).ToList();

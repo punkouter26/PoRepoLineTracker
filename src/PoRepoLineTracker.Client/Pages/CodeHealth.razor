@@ -44,88 +44,6 @@
         </Heading>
     </PageHero>
 
-    @* The grid is a snapshot — which repositories are healthy today. This says which are DRIFTING,
-       which no column can show: a repository sitting at 66 and falling matters more than one at 62
-       and flat. Its own button, because on a cold cache it measures every repository at every month
-       boundary; after that it is served from the per-commit memo. *@
-    <ChartCard Title="Health over time"
-               IsLoading="@_isCharting"
-               ErrorMessage="@_trendMessage"
-               OnRetry="@LoadTrendsAsync"
-               IsEmpty="@(_trends is null or { Count: 0 })"
-               EmptyText="@TrendEmptyText">
-        <Toolbar>
-            <RadzenButton Text="@(_trends is null ? "Chart it" : "Refresh")"
-                          Icon="@(_isCharting ? "hourglass_top" : "timeline")"
-                          ButtonStyle="ButtonStyle.Secondary"
-                          Variant="Variant.Outlined"
-                          Size="ButtonSize.Small"
-                          Disabled="@_isCharting"
-                          Click="@LoadTrendsAsync" />
-        </Toolbar>
-
-        <ChildContent>
-            @if (_trends is { Count: > 0 } trends)
-            {
-                <RadzenChart>
-                    @foreach (var trend in trends)
-                    {
-                        var title = $"{trend.Owner}/{trend.Name}";
-                        // Colour keyed to the repository's NAME, not its position, so adding a
-                        // repository does not recolour every series after it. StableIndex rather
-                        // than GetHashCode for the reason documented on it: .NET randomises string
-                        // hashing per process, so the latter reshuffles colours on every reload.
-                        var stroke = SeriesPalette.Color(SeriesPalette.StableIndex(title));
-
-                        <RadzenLineSeries Data="@trend.Points"
-                                          CategoryProperty="Month"
-                                          ValueProperty="Score"
-                                          Title="@title"
-                                          Stroke="@stroke"
-                                          StrokeWidth="2">
-                            <TooltipTemplate Context="point">
-                                @if (point is CodeHealthTrendPointDto p)
-                                {
-                                    <div class="arc-tip">
-                                        <div class="arc-tip__title">@title</div>
-                                        <div class="arc-tip__meta">@p.Month.ToString("MMMM yyyy")</div>
-                                        <div class="arc-tip__value">
-                                            <span class="arc-tip__label">Health:</span> @p.Score @(string.IsNullOrEmpty(p.Grade) ? "" : $"({p.Grade})")
-                                        </div>
-                                    </div>
-                                }
-                            </TooltipTemplate>
-                            <ChildContent>
-                                <RadzenMarkers MarkerType="MarkerType.None" />
-                            </ChildContent>
-                        </RadzenLineSeries>
-                    }
-
-                    <RadzenCategoryAxis FormatString="{0:MMM yy}" LabelAutoRotation="-45">
-                        <RadzenAxisTitle Text="Month" />
-                        <RadzenGridLines Visible="true" />
-                    </RadzenCategoryAxis>
-
-                    @* Fixed 0–100 rather than fitted. An auto-scaled axis turns a two-point wobble
-                       into a cliff, which is exactly how this chart gets misread. *@
-                    <RadzenValueAxis Min="0" Max="100">
-                        <RadzenAxisTitle Text="Health score" />
-                        <RadzenGridLines Visible="true" />
-                    </RadzenValueAxis>
-
-                    <RadzenLegend Position="LegendPosition.Bottom" />
-                    <RadzenChartTooltipOptions Shared="false" />
-                </RadzenChart>
-
-                <RadzenText TextStyle="TextStyle.Caption" class="ch__caveat">
-                    Each point is the last commit on or before that month's 1st. A flat run means nothing was
-                    committed in those months, so the code — and the score — did not change. Repositories with
-                    no measurable month are absent from the chart; the grid below says why.
-                </RadzenText>
-            }
-        </ChildContent>
-    </ChartCard>
-
     <ChartCard Title="Repositories"
                IsLoading="@_isLoading"
                ErrorMessage="@_message"
@@ -149,11 +67,7 @@
                     <RadzenDataGrid Data="@_rows"
                                     TItem="CodeHealthSummaryDto"
                                     AllowSorting="true"
-                                    AllowPaging="true"
-                                    PageSize="10"
-                                    PagerHorizontalAlign="HorizontalAlign.Center"
-                                    ShowPagingSummary="true"
-                                    PagingSummaryFormat="Showing {0} to {1} of {2} repositories"
+                                    AllowPaging="false"
                                     Density="Density.Compact"
                                     Responsive="true"
                                     class="ch-grid">
@@ -258,48 +172,9 @@
     private bool _isLoading;
     private string? _message;
 
-    private List<CodeHealthTrendDto>? _trends;
-    private bool _isCharting;
-    private string? _trendMessage;
-
-    /// <summary>
-    /// Trends are served from the per-commit memo after the first run, so they are cheap enough
-    /// to fetch on every navigation. The grid, in contrast, walks trees and parses C# when the
-    /// memo is cold, which is a wait the user must opt into.
-    /// </summary>
-    protected override Task OnInitializedAsync() => LoadTrendsAsync();
-
-    private async Task LoadTrendsAsync()
-    {
-        _isCharting = true;
-        _trendMessage = null;
-        StateHasChanged();
-
-        try
-        {
-            _trends = await Http.GetFromJsonAsync(
-                "api/code-health/trends",
-                AppJsonSerializerContext.Default.ListCodeHealthTrendDto);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to load the portfolio health trends");
-            _trendMessage = "Could not load the trend chart. Try again in a moment.";
-            _trends = null;
-        }
-        finally
-        {
-            _isCharting = false;
-        }
-    }
-
     private int _measuredCount => _rows?.Count(r => r.Measured) ?? 0;
 
     /// <summary>Empty-state copy: distinguishes "never fetched" from "fetched and genuinely empty".</summary>
-    private string TrendEmptyText => _trends is null
-        ? "Plot every repository's health month by month, for the trailing two years."
-        : "No repository has history spanning a month boundary yet, so there is nothing to plot.";
-
     private string GridEmptyText => _rows is null
         ? "Nothing has been measured yet. Analyzing walks each repository's tree and parses its C#, so it takes a few seconds per repository."
         : "No repositories yet. Add some from the Repositories page and analyze them first.";
@@ -327,15 +202,6 @@
             _isLoading = false;
         }
     }
-
-    /// <summary>Shared banding with the code-health card, so one number is not two colours.</summary>
-    private static string Band(int score) => score switch
-    {
-        >= 80 => "good",
-        >= 60 => "ok",
-        >= 40 => "warn",
-        _ => "bad"
-    };
 
     private static BadgeStyle HealthBadgeStyle(int score) => score switch
     {

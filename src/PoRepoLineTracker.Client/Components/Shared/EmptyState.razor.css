@@ -1,0 +1,44 @@
+/* Scoped styles for EmptyState.
+
+   The RadzenCard surface is overridden with .empty-state__surface here so the styling stays
+   bound to this component: it is the only consumer of the class, and the rules below need to
+   win against Radzen's own block layout just as ChartCard.razor.css's do. .empty-state is a
+   plain host div that gives the scope id a real element to attach to. */
+
+/* Vertical padding that tap-follows the viewport, mirroring .chart-card__surface — both
+   patterns now share a "card whose only content is centred text" rhythm, so they should read
+   the same token rather than restating numbers. */
+::deep .empty-state__surface.empty-state__surface {
+    padding: clamp(1.25rem, 6vw, 3rem) clamp(1rem, 4vw, 2rem) !important;
+    text-align: center;
+}
+
+/* 3rem matches .chart-card__empty-icon: same concept (a single glyph centred in a card), same
+   size. Pulling them in line was the first thing the comments on the call sites complained
+   about — Insights used 2.5rem, Code Health used 3rem, Repositories used the inherited body size. */
+::deep .empty-state__icon.empty-state__icon {
+    font-size: 3rem !important;
+    color: var(--text-muted) !important;
+}
+
+::deep .empty-state__title.empty-state__title {
+    margin: 0 !important;
+    color: var(--text-primary) !important;
+}
+
+::deep .empty-state__description.empty-state__description {
+    margin: 0 !important;
+    color: var(--text-secondary) !important;
+    /* Body2 alone sits tighter against the title than H5/H6 + Caption elsewhere; clamp the
+       width so long sentences wrap rather than stretching the card. */
+    max-width: 36ch;
+    margin-inline: auto !important;
+}
+
+.empty-state__actions {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+}

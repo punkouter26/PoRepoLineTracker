@@ -6,14 +6,24 @@
    panel-menu styling — including its active/hover states and dark-mode colours — is in app.css
    alongside the rest of the shell.
 
-   `.nav-section-label` is a plain <div> in this component's own markup, so it scopes correctly
-   and stays here. */
+   `.nav-section-label` is now an <h2> inside this component's own markup, so it scopes
+   correctly and stays here. Reset the default <h2> margin so the existing padding defines the
+   rhythm. */
 
 .nav-section-label {
     padding: 1rem 1.4rem 0.25rem;
+    margin: 0;
     font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-muted);
+}
+
+/* <ul> reset for the custom nav. The list semantics give screen readers a "list of 6 items"
+   cue; the bullets and padding are visual noise. */
+.app-nav {
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }

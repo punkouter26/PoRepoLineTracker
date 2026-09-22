@@ -3,6 +3,7 @@ using Serilog;
 using Scalar.AspNetCore;
 using Azure.Identity;
 using PoRepoLineTracker.API.Hubs;
+using Microsoft.AspNetCore.Http;
 
 namespace PoRepoLineTracker.API
 {
@@ -133,7 +134,35 @@ namespace PoRepoLineTracker.API
             // browser got a login page instead of the Blazor runtime and rendered the "unhandled
             // error" shell. Serving them first also matches the documented middleware order.
             app.UseBlazorFrameworkFiles();
-            app.UseStaticFiles();
+
+            // In Development, force revalidation on every Blazor framework asset. The Blazor
+            // runtime's SRI hash for `_framework/<dll>` is computed against the bytes the browser
+            // actually receives. When a developer rebuilds the client (the `lna3jt6cyo` content
+            // hash flips to a new value), the browser's HTTP cache can otherwise hold the OLD
+            // `_framework/blazor.boot.json`, which lists the OLD hash but the OLD content body
+            // was already evicted — the integrity check sees an empty body, fails the SRI, and
+            // the page never boots. `Cache-Control: no-cache` (NOT `no-store`) keeps the cache
+            // slot for performance but forces a 304 round-trip on every reload, so the browser
+            // sees fresh hashes that match the freshly-built files.
+            if (app.Environment.IsDevelopment())
+            {
+                app.UseStaticFiles(new StaticFileOptions
+                {
+                    OnPrepareResponse = ctx =>
+                    {
+                        // /_framework/* only — the Blazor runtime assets whose hashes flip on rebuild.
+                        // Leaving app.css / favicon.svg / etc. alone keeps the fast cache path for them.
+                        if (ctx.Context.Request.Path.StartsWithSegments("/_framework"))
+                        {
+                            ctx.Context.Response.Headers["Cache-Control"] = "no-cache, must-revalidate";
+                        }
+                    }
+                });
+            }
+            else
+            {
+                app.UseStaticFiles();
+            }
 
             // Before authentication/authorization on purpose: an /api path that matched no route
             // is a 404 regardless of who is asking, and the authorization FallbackPolicy would

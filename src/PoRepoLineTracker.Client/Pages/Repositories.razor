@@ -47,7 +47,7 @@
                                    ButtonStyle="ButtonStyle.Light"
                                    Variant="Variant.Outlined"
                                    Size="ButtonSize.Medium"
-                                   Click="@(() => Navigation.NavigateTo("/api/repositories/export?format=csv", forceLoad: true))">
+                                   Click="@(args => ExportAsync(args))">
                     <ChildContent>
                         <RadzenSplitButtonItem Text="Export CSV" Value="csv" Icon="download" />
                         <RadzenSplitButtonItem Text="Export JSON" Value="json" Icon="data_object" />
@@ -55,10 +55,6 @@
                     </ChildContent>
                 </RadzenSplitButton>
             }
-            <RadzenButton Text="Add Repository"
-                          Icon="add_circle"
-                          ButtonStyle="ButtonStyle.Primary"
-                          Click="@OpenAddRepositoryDialog" />
         </Actions>
     </PageHero>
 
@@ -109,7 +105,7 @@
     else if (!pageState.Repositories.Any())
     {
         @* Animated onboarding empty state (markup + styles: OnboardingEmptyState.razor) *@
-        <OnboardingEmptyState OnAddClick="OpenAddRepositoryDialog" />
+        <OnboardingEmptyState OnClick="OpenAddRepositoryDialog" />
     }
     else
     {
@@ -342,10 +338,39 @@
         await JS.InvokeVoidAsync("window.print");
     }
 
+    /// <summary>
+    /// Trigger a browser download of the portfolio in the requested format. Navigates with
+    /// <c>forceLoad: true</c> rather than fetching in-process: the response is a file (with a
+    /// Content-Disposition the browser honours), and the in-process path would surface a BLOB
+    /// round-trip where a plain navigation just works.
+    /// </summary>
+    /// <remarks>
+    /// Radzen's SplitButton <c>Click</c> callback's argument type has changed across versions
+    /// (a stringified item-value in older ones, a <see cref="RadzenSplitButtonItem"/> reference
+    /// in newer ones). Accepting <see cref="object"/> and inspecting keeps this resilient against
+    /// either shape: a menu item passes <c>"csv"</c> / <c>"json"</c> / <c>"print"</c>, the main
+    /// button passes <c>null</c>. Defaulting to <c>"csv"</c> makes the main button act as a CSV
+    /// shortcut, and <c>"print"</c> forwards to <see cref="PrintReportAsync"/>.
+    /// </remarks>
+    private Task ExportAsync(object? args)
+    {
+        var format = args switch
+        {
+            string s => s,
+            RadzenSplitButtonItem item => item.Value as string ?? "csv",
+            _ => "csv"
+        };
+        return format switch
+        {
+            "print" => PrintReportAsync(),
+            _ => Task.Run(() => Navigation.NavigateTo($"/api/repositories/export?format={format}", forceLoad: true))
+        };
+    }
+
     private async Task OpenAddRepositoryDialog()
     {
         var result = await DialogService.OpenAsync<AddRepository>(
-            "Add Repositories",
+            "Get All My Repositories",
             new Dictionary<string, object>
             {
                 { "IsInline", false }

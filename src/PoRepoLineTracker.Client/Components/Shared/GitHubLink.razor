@@ -1,0 +1,44 @@
+@* "Open this repository on GitHub in a new tab" icon link.
+
+   The same <a><RadzenIcon Icon="open_in_new"/></a> snippet with the same target=_blank /
+   title / aria-label trio lived on the Repositories grid row and on the RepositoryDetail hero
+   for the only purpose of telling the user "yes, this is the same GitHub URL the rest of the
+   app uses, click here". Two copies of the markup had already drifted: the grid's was wrapped
+   in `<span @onclick:stopPropagation="true">` so the row-click handler would not fire, the
+   detail page's was not (it sits next to the title so there is no row-click). Centralising
+   the markup deletes that drift risk and lets the click-in-row-grid pattern be a single
+   parameter on this component. *@
+
+@using Radzen
+@using Radzen.Blazor
+
+@* `StopRowClickPropagation`: true when the link sits inside a row that handles its own click
+   (the repositories grid) — the click on the link must not bubble into the row handler. False
+   on the detail page where the link sits in the hero beside a heading and there is no row. *@
+<span @onclick:stopPropagation="@StopRowClickPropagation">
+    <a href="@Url"
+       target="_blank"
+       rel="noopener noreferrer"
+       title="@Title"
+       aria-label="@Title"
+       class="github-link @($"github-link--{Size}")">
+        <RadzenIcon Icon="open_in_new" class="github-link__icon" />
+    </a>
+</span>
+
+@code {
+    /// <summary>Absolute GitHub URL — typically <c>https://github.com/{owner}/{name}</c>.</summary>
+    [Parameter, EditorRequired] public string Url { get; set; } = string.Empty;
+
+    /// <summary>Accessible label and hover title; should describe what opens, e.g. <c>Open foo/bar on GitHub in a new tab</c>.</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    /// <summary>True on the grid row — see StopRowClickPropagation comment.</summary>
+    [Parameter] public bool StopRowClickPropagation { get; set; }
+
+    /// <summary>Compact for table rows, Medium for heroes.</summary>
+    [Parameter] public LinkSize Size { get; set; } = LinkSize.Compact;
+
+    /// <summary>Size hint for the link — inline enum so callers don't need a separate using.</summary>
+    public enum LinkSize { Compact, Medium }
+}
