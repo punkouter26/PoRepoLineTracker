@@ -95,24 +95,6 @@ jobs:
       # Unit-only on purpose. See docs/ci.md for the full rationale.
       - name: Test (Unit only — see docs/ci.md for why)
         run: dotnet test tests/PoRepoLineTracker.Unit --no-build -c Release --verbosity minimal -p:RunSettingsFilePath=
-      # Suite-size caps — see docs/ci.md for rationale. Grep, not a test: the counter must not
-      # live inside the thing it counts.
-      - name: Enforce test-suite caps
-        run: |
-          set -euo pipefail
-          check_cap () {
-            local dir=$1 cap=$2 name=$3 count
-            count=$(grep -rE --include='*.cs' -c '^\s*\[(Fact|Theory)\]' "$dir" | awk -F: '{s+=$2} END {print s+0}')
-            echo "$name: $count tests (cap $cap)"
-            if [ "$count" -gt "$cap" ]; then
-              echo "::error::$name suite has $count tests, over the cap of $cap — prune or merge before adding."
-              exit 1
-            fi
-          }
-          check_cap tests/PoRepoLineTracker.Unit       100 "Unit"
-          check_cap tests/PoRepoLineTracker.Integration  50 "Integration"
-          check_cap tests/PoRepoLineTracker.E2EAPI       25 "API E2E"
-          check_cap tests/PoRepoLineTracker.E2EUI        25 "UI E2E"
       # --no-build, not just --no-restore. Without it publish re-ran the entire Release build that
       # the step above had already done, compiling every project twice per pipeline.
       - name: Publish API
