@@ -61,6 +61,14 @@ public static class TelemetryServiceExtensions
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation();
 
+                // Cost cap: drop the noisy ASP.NET HTTP client/hosting pre-aggregated meters
+                // (~60% of this app's Log Analytics ingestion). Reversible via config.
+                if (!configuration.GetValue("ApplicationInsights:EnableAspNetCoreMeters", false))
+                {
+                    metrics.RemoveMeter("Microsoft.AspNetCore.Hosting");
+                    metrics.RemoveMeter("Microsoft.AspNetCore.HttpClient");
+                }
+
                 if (environment.IsDevelopment() &&
                     string.Equals(configuration[ConfigKeys.Telemetry.EnableConsoleExporters], "true", StringComparison.OrdinalIgnoreCase))
                     metrics.AddConsoleExporter();
