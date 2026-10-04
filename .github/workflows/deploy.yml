@@ -213,16 +213,18 @@ jobs:
             sleep 10
           done
 
-          # Each probe gets a few attempts. /health answering 200 does not mean every route is
-          # warm: on the F1 plan the first request to a path after a restart can still answer 5xx,
-          # and a single-shot check failed a good deploy on exactly that ("unknown API route
-          # returned 500"). A wrong status that persists across the retries still fails.
+          # Each probe retries for up to three minutes. /health answering 200 straight after the
+          # deploy step does not mean the NEW build is serving: the old process answers it (and the
+          # first probes) until App Service swaps the container, and for the half-minute or more of
+          # that swap every route answers 5xx. A single-shot check, and then a 25-second retry,
+          # both failed good deploys on exactly that ("unknown API route returned 500") while the
+          # site came up correct moments later. A wrong status that persists still fails.
           expect() {
             local path="$1" want="$2" what="$3" got=000
-            for attempt in 1 2 3 4 5; do
+            for attempt in $(seq 1 18); do
               got=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}$path" || echo 000)
               [ "$got" = "$want" ] && { echo "$what OK ($got)"; return 0; }
-              sleep 5
+              sleep 10
             done
             echo "::error::$what returned $got, expected $want"
             exit 1
