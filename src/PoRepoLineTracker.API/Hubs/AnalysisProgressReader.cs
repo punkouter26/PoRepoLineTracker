@@ -13,15 +13,12 @@ namespace PoRepoLineTracker.API.Hubs;
 /// at the same granularity the old fire-and-forget <c>SendAsync</c> did — one dropped frame per
 /// client, never one dropped analysis.</para>
 ///
-/// <para>Owner resolution: <see cref="IAnalysisProgressService"/> already records the
-/// <see cref="UserId"/> per repository id inside <c>BeginJob</c>. Rather than expand the wire
-/// shape of <see cref="Shared.Models.AnalysisProgressDto"/> to carry the owner (the DTO travels
-/// to the browser), the reader asks the singleton service to resolve it. The reader does not
-/// mutate the service — it only reads.</para>
+/// <para>Owner resolution: the channel item is <c>(UserId, frame)</c>. The owner is not on the
+/// DTO (that travels to the browser) and is not looked up here — by the time a job's last frame
+/// is read, the progress service has already forgotten who owned it.</para>
 /// </summary>
 public sealed class AnalysisProgressReader(
     IHubContext<AnalysisHub> hubContext,
-    IAnalysisProgressService progressService,
     ILogger<AnalysisProgressReader> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -31,9 +28,9 @@ public sealed class AnalysisProgressReader(
         {
             while (await reader.WaitToReadAsync(stoppingToken).ConfigureAwait(false))
             {
-                while (reader.TryRead(out var frame))
+                while (reader.TryRead(out var item))
                 {
-                    await SendAsync(frame, stoppingToken).ConfigureAwait(false);
+                    await SendAsync(item.Owner, item.Frame, stoppingToken).ConfigureAwait(false);
                 }
             }
         }
@@ -43,13 +40,8 @@ public sealed class AnalysisProgressReader(
         }
     }
 
-    private async Task SendAsync(Shared.Models.AnalysisProgressDto frame, CancellationToken stoppingToken)
+    private async Task SendAsync(UserId userId, Shared.Models.AnalysisProgressDto frame, CancellationToken stoppingToken)
     {
-        // The producer (AnalysisProgressService.Publish) already gated on the owner map; if the
-        // owner was removed between the write and the read (ReportComplete / ReportError), the
-        // service has nothing left to broadcast to and the frame is dropped here.
-        if (!progressService.TryGetOwner(frame.RepositoryId, out var userId)) return;
-
         try
         {
             await hubContext.Clients

@@ -72,10 +72,10 @@ public class AddMultipleRepositoriesCommandHandlerTests
 
         var repos = new List<BulkRepositoryDto>
         {
-            new() { Owner = "", RepoName = "repo1", CloneUrl = "https://github.com/x/repo1.git" },
-            new() { Owner = "existing-owner", RepoName = "existing-repo", CloneUrl = "https://github.com/existing-owner/existing-repo.git" },
-            new() { Owner = "fail-owner", RepoName = "fail-repo", CloneUrl = "url1" },
-            new() { Owner = "valid-owner", RepoName = "valid-repo", CloneUrl = "https://github.com/valid-owner/valid-repo.git" }
+            new() { Owner = "", RepoName = "repo1" },
+            new() { Owner = "existing-owner", RepoName = "existing-repo" },
+            new() { Owner = "fail-owner", RepoName = "fail-repo" },
+            new() { Owner = "valid-owner", RepoName = "valid-repo" }
         };
 
         _dataService.GetRepositoryByOwnerAndNameAsync("existing-owner", "existing-repo", userId).Returns(existingRepo);

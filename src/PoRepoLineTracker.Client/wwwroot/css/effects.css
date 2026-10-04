@@ -49,10 +49,24 @@
     /* Motion curves. */
     --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
     --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    /* Spring. This is the fallback — one overshoot, the closest a single bezier gets. Engines
+       with `linear()` get the sampled curve from the @supports block below. */
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
     --dur-fast: 120ms;
     --dur-base: 200ms;
     --dur-slow: 340ms;
+}
+
+/* A damped spring sampled into `linear()` stops: overshoot, one small rebound, settle. A
+   cubic-bezier has two control points and cannot come back past its target twice. */
+@supports (transition-timing-function: linear(0, 1)) {
+    :root {
+        --ease-spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017,
+                              1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%,
+                              1.129 32.8%, 1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%,
+                              0.975 57.1%, 0.997 69.8%, 1.003 76.9%, 1.004 83.8%, 1);
+    }
 }
 
 :root[data-theme="dark"] {
@@ -123,23 +137,9 @@
    2. MOTION PRIMITIVES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Lift on hover. `translate3d` rather than `translateY` to force the layer onto
-   the compositor, and no permanent `will-change` — that on every card in a
-   200-row grid keeps 200 layers alive in GPU memory whether or not anything is
-   moving. */
-.u-lift {
-    transition: transform var(--dur-base) var(--ease-out-quint),
-                box-shadow var(--dur-base) var(--ease-out-quint);
-    transform: translate3d(0, 0, 0);
-}
-
-.u-lift:hover,
-.u-lift:focus-within {
-    transform: translate3d(0, -3px, 0);
-    box-shadow: 0 12px 32px color-mix(in srgb, var(--primary-color) 16%, transparent);
-}
-
-.u-lift:active { transform: translate3d(0, -1px, 0) scale(0.995); }
+/* `.u-lift` (rise on hover) was here. Its only user was ChartCard, which is not clickable: a
+   card that lifts under the pointer and then does nothing is a false affordance. Removed with
+   its last use, per the rule at the top of this file. */
 
 /* Entrance. `both` fill so the element is not visible for one frame before the
    animation's first keyframe applies. */
@@ -168,24 +168,23 @@
     100% { box-shadow: 0 0 0 0 rgba(52, 195, 179, 0); }
 }
 
-/* Off-screen work skipping. `content-visibility: auto` lets the engine skip
-   layout and paint for elements scrolled out of view; `contain-intrinsic-size`
-   supplies a placeholder height so the scrollbar does not lurch as each one is
-   skipped and un-skipped.
+/* Dialog entry. Radzen already animates `.rz-dialog.rz-open` (opacity, and scale from 0.5)
+   on `--rz-dialog-transition`, a duration + easing pair — so the spring is that token, not a
+   second animation fighting the theme's. Scoped to the open state: closing stays the theme's. */
+.rz-dialog.rz-open {
+    --rz-dialog-transition: var(--dur-slow) var(--ease-spring);
+}
 
-   NEVER apply this to a subtree that measures itself in JavaScript. Skipping
-   layout means `getBoundingClientRect()` and `clientWidth` inside it report the
-   contain-intrinsic-size PLACEHOLDER, not real geometry. This was applied to
-   ChartCard and reverted: a RadzenChart sizes its <svg> from its container, so
-   every chart below the fold on the repository detail page drew to the
-   placeholder box — the extension donut rendered no series at all, and the
-   mobile layout gained horizontal overflow.
+/* Button press: dips on :active, springs back on release. `scale`, not `transform`, so it
+   composes with any transform a button already carries. Appended to Radzen's own transition
+   token rather than replacing `transition`, which would drop the theme's hover and ripple
+   timing. The press itself is instant — the theme sets its own transition on :active. */
+.rz-button {
+    --rz-button-transition: var(--rz-transition-all), width 0, height 0, scale var(--dur-base) var(--ease-spring);
+}
 
-   Safe on: long lists of plain content, text blocks, image grids.
-   Unsafe on: charts, virtualised lists, anything with a ResizeObserver. */
-.u-defer-paint {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 320px;
+.rz-button:active:not(:disabled):not(.rz-state-disabled) {
+    scale: 0.97;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -240,12 +239,15 @@
    switched off outright here. */
 @media (prefers-reduced-motion: reduce) {
     .u-pulse-dot,
-    .rz-skeleton {
+    .rz-skeleton,
+    .rz-dialog.rz-open {
         animation: none !important;
     }
 
-    .u-lift:hover,
-    .u-lift:focus-within { transform: none; }
+    /* Near-zero duration still ends on the scaled frame while the button is held. */
+    .rz-button:active {
+        scale: none !important;
+    }
 }
 
 /* Honour the OS "reduce transparency" accessibility setting: blur is exactly

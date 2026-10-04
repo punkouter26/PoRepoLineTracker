@@ -28,10 +28,12 @@ internal static class GitHubEndpoints
                 var user = await userService.GetUserByIdAsync(userId);
 
                 // GitHub OAuth is the only provider, so the stored token is a GitHub token.
-                // Fall back to the server-configured PAT for rows with a missing/empty token.
+                // The server-configured PAT stands in only where fake auth exists (Development and
+                // Test — those users have no token). Anywhere else it would list — and let the caller analyse — the PAT
+                // owner's private repositories for any principal whose row has no token.
                 var accessToken = !string.IsNullOrEmpty(user?.AccessToken)
                     ? user.AccessToken
-                    : config[ConfigKeys.GitHub.Pat];
+                    : env.IsDevelopment() || env.IsEnvironment("Test") ? config[ConfigKeys.GitHub.Pat] : null;
 
                 if (string.IsNullOrEmpty(accessToken))
                 {
@@ -95,7 +97,7 @@ internal static class GitHubEndpoints
             catch (InvalidOperationException ex)
             {
                 Log.Warning("Authentication error: {ErrorMessage}", ex.Message);
-                return Results.BadRequest($"Authentication error: {ex.Message}");
+                return Results.BadRequest($"Authentication error.");
             }
             catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
@@ -108,7 +110,7 @@ internal static class GitHubEndpoints
             catch (Exception ex)
             {
                 Log.Error(ex, "Error fetching user repositories from GitHub API");
-                return Results.Problem($"Error fetching user repositories: {ex.Message}", statusCode: 500);
+                return Results.Problem($"Error fetching user repositories.", statusCode: 500);
             }
         })
         .WithName("GetUserRepositories");

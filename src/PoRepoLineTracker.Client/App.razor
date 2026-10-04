@@ -1,7 +1,10 @@
-﻿<RadzenDialog />
+﻿@* The ONLY copy of the Radzen hosts. MainLayout used to render a second set, so every dialog and
+   toast was drawn twice (two overlays, two focus traps). Living here also covers LoginLayout.
+   RadzenTooltip stays although nothing calls TooltipService directly: RadzenChart renders its
+   series tooltips through it. *@
+<RadzenDialog />
 <RadzenNotification />
 <RadzenTooltip />
-<RadzenContextMenu />
 
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(App).Assembly">

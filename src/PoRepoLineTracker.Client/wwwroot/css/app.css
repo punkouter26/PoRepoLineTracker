@@ -240,6 +240,18 @@
     --primary-on-surface: #D0BCFF;
     /* #c02d76 measured 3.08:1 on the dark card. */
     --accent-secondary: #F48FB1;
+
+    /* The exception to "leave --rz-* alone", checked against that rule: each of these is a LEAF
+       in material-dark.css — read by the card / grid background declarations and by nothing
+       that derives a further token (the frozen-stripe pair only forwards the stripe pair).
+       Radzen resolves them to its neutral greys (#1e1e1e / #121212), so every plain <RadzenCard>
+       and data grid (the Insights KPI tiles, the /diag cards and tables) sat grey beside the
+       navy `.u-glass` cards on the same page. */
+    --rz-card-background-color: var(--bg-secondary);
+    --rz-grid-background-color: var(--bg-secondary);
+    --rz-grid-header-background-color: var(--bg-secondary);
+    --rz-grid-stripe-odd-background-color: var(--bg-secondary);
+    --rz-grid-stripe-background-color: var(--bg-primary);
 }
 
 :root[data-theme="light"] {
@@ -270,6 +282,12 @@
         --primary-on-surface: #D0BCFF;
         /* #c02d76 measured 3.08:1 on the dark card. */
         --accent-secondary: #F48FB1;
+
+        --rz-card-background-color: var(--bg-secondary);
+        --rz-grid-background-color: var(--bg-secondary);
+        --rz-grid-header-background-color: var(--bg-secondary);
+        --rz-grid-stripe-odd-background-color: var(--bg-secondary);
+        --rz-grid-stripe-background-color: var(--bg-primary);
     }
 }
 
@@ -313,6 +331,34 @@ html, body {
     min-height: 100dvh;
     background-color: var(--bg-primary);
     transition: background-color 0.2s ease;
+}
+
+/* Optional animated background (js/backdrop.js; off by default, Settings → Appearance).
+   z-index -1 puts the canvas above <html>'s own background and below everything in flow, so no
+   stacking context in the shell has to change for it. The surfaces between it and the viewport
+   are opaque, though, so they step aside — but only under `data-backdrop`, which the script sets
+   after it has drawn a frame: with WebGL2 missing or reduced motion asked for, nothing here
+   applies and the page is the one it always was. The sidebar, header and cards keep their own
+   backgrounds; only the content well shows it. */
+#backdrop {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    pointer-events: none;
+}
+
+:root[data-backdrop] body,
+:root[data-backdrop] #app,
+:root[data-backdrop] .rz-layout,
+:root[data-backdrop] .rz-body {
+    background-color: transparent;
+}
+
+/* A WebGL canvas prints as a black or empty rectangle on every page. */
+@media print {
+    #backdrop { display: none; }
 }
 
 /* Fluid type: one clamp instead of the two competing breakpoint overrides that
@@ -491,6 +537,12 @@ a:focus-visible {
     border-right: none !important;
     box-shadow: none !important;
     overflow: hidden !important;
+    /* Zero width hides the nav from sight only. Its links kept their padding, so each was still a
+       ~21px focusable, tappable box: Tab walked four invisible stops, and on a phone they sat
+       under the left edge of the page. `visibility` takes them out of both the tab order and
+       hit-testing; the delay lets the close animation finish before they vanish. */
+    visibility: hidden;
+    transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.25s;
 }
 
 /* Collapse the TRACK, not the item's placement.
@@ -679,11 +731,7 @@ a:focus-visible {
     gap: 0.55rem;
 }
 
-/* Active state: either the Radzen .rz-state-active class (legacy) OR aria-current="page" on a
-   <NavLink> (current — see Layout/NavMenu.razor). Both selectors render the same look, so
-   switching the source markup does not break the visual. */
-.rz-navigation-item.rz-state-active .rz-navigation-item-text,
-.rz-panelmenu .rz-panelmenu-header.rz-state-active,
+/* Active state: aria-current="page", which <NavLink> sets (see Layout/NavMenu.razor). */
 .rz-panelmenu .rz-panelmenu-header[aria-current="page"] {
     background: linear-gradient(135deg, var(--rz-primary) 0%, color-mix(in srgb, var(--primary-color) 75%, transparent) 100%) !important;
     color: #fff !important;
@@ -691,8 +739,7 @@ a:focus-visible {
     box-shadow: 0 3px 10px color-mix(in srgb, var(--primary-color) 30%, transparent);
 }
 
-.rz-navigation-item:not(.rz-state-active) .rz-navigation-item-text:hover,
-.rz-panelmenu .rz-panelmenu-header:not(.rz-state-active):not([aria-current="page"]):hover {
+.rz-panelmenu .rz-panelmenu-header:not([aria-current="page"]):hover {
     background: color-mix(in srgb, var(--primary-color) 8%, transparent) !important;
     color: var(--primary-on-surface) !important;
 }
@@ -708,8 +755,7 @@ a:focus-visible {
 }
 
 /* The custom nav in NavMenu.razor uses <NavLink> elements styled with .rz-panelmenu-header.
-   Reset the <a>'s underline, inherit the panel's colour, and remove the default focus ring —
-   the global focus-visible style in the shell covers it. */
+   Reset the <a>'s underline and inherit the panel's colour. */
 .app-nav__link {
     display: flex;
     align-items: center;
@@ -717,7 +763,10 @@ a:focus-visible {
     color: inherit;
     cursor: pointer;
 }
-.app-nav__link:focus { outline: none; }
+/* Mouse focus only. This was a bare `:focus`, which has the same specificity as the global
+   `a:focus-visible` ring and comes later in the file — so it removed the ring for keyboard users
+   too, and Tab moved through the nav with nothing showing where it was. */
+.app-nav__link:focus:not(:focus-visible) { outline: none; }
 
 /* The two-word labels (Global Insights, Code Health) used to wrap onto two lines in a 220px
    sidebar with the original 0.75rem side margin + 20pxpx icon padding. Holding the row to one
@@ -873,14 +922,6 @@ a:focus-visible {
     color: #fff !important;
 }
 
-/* The data grid's current-page number. Radzen paints it --rz-primary, which is the brand purple
-   at full strength — 2.59:1 on the dark card, i.e. the one pager element that tells you where you
-   are was the hardest one to read. */
-.rz-pager .rz-pager-page.rz-state-active,
-.rz-paginator .rz-paginator-page.rz-state-active {
-    color: var(--primary-on-surface) !important;
-}
-
 /* Amber is the exception: it is too light to carry white at AA no matter how far it is darkened
    without ceasing to read as amber (white on #d97706 is 3.19:1). Dark text on it is 5.13:1, which
    is also what Material itself does for this swatch. */
@@ -895,7 +936,6 @@ a:focus-visible {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24) !important;
 }
 
-.rz-datatable,
 .rz-data-grid {
     border-radius: 12px !important;
     overflow: hidden !important;
@@ -906,26 +946,72 @@ a:focus-visible {
     padding-bottom: 10px !important;
 }
 
-.rz-slider .rz-slider-track {
-    height: 6px;
-    border-radius: 3px;
+/* A tab strip wider than its container scrolls instead of clipping. The nav is a no-wrap flex
+   row with nothing to stop it overflowing, so at 390px the third tab of the repository detail
+   page ("Code Health") was simply off-screen and unreachable by touch. */
+.rz-tabview-nav {
+    overflow-x: auto;
+    flex-wrap: nowrap;
 }
 
-.rz-slider .rz-slider-handle {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-    transition: transform 0.1s ease;
+.rz-tabview-nav > li {
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
-
-.rz-slider .rz-slider-handle:hover { transform: scale(1.2); }
 
 /* Touch targets — WCAG 2.5.8 asks for 24x24; 44px is the comfortable target. */
 @media (max-width: 768px) {
     .rz-button { min-height: 44px; }
+    /* Height alone left icon-only buttons 44px tall and as narrow as their glyph. */
+    .rz-button.rz-button-icon-only { min-width: 44px; }
+    /* SelectBar segments are .rz-button too. At 44px tall, with the pill radius above, each one
+       became a circle butted against the next — the range selector read as overlapping blobs.
+       Space them, and let a long bar wrap rather than push its card sideways. */
+    .rz-selectbar {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    .rz-selectbar .rz-button { min-width: 44px; }
     .rz-navigation-item-text { padding: 0.75rem 1rem; }
     .rz-card { margin-bottom: 0.75rem; }
+}
+
+/* ─── Chart tooltip body ──────────────────────────────────────────────────────
+   Global because Radzen renders a tooltip template into its own portal at the end of <body>, and
+   because two components draw it (AllReposComparisonChart, CodeHealthTrendCard). These lived in
+   AllReposComparisonChart.razor.css, scoped to that component's id — so the trend card's tooltip,
+   using the same class names from a different component, rendered completely unstyled. */
+.arc-tip {
+    background: rgba(21, 21, 24, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    color: #fff;
+    padding: 0.4rem 0.55rem;
+    min-width: 170px;
+}
+
+/* The surface is always dark, so the text is white regardless of theme — the previous
+   var(--rz-text-color) rendered dark-on-dark once the dark theme was applied. */
+.arc-tip__title {
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 0.15rem;
+}
+
+.arc-tip__meta {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.arc-tip__value {
+    margin-top: 0.2rem;
+    font-size: 0.85rem;
+    color: #fff;
+}
+
+.arc-tip__label {
+    font-weight: 600;
 }
 
 /* ─── Charts ─────────────────────────────────────────────────────────────────
@@ -1050,33 +1136,6 @@ a:focus-visible {
 /* The page-title strip lives in PageHero.razor.css — that component roots at a plain <div>,
    so it scopes correctly and does not need to be global. */
 
-/* Stat cards */
-.stat-card {
-    border-top: 3px solid var(--stat-accent, var(--rz-primary));
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px color-mix(in srgb, var(--primary-color) 12%, transparent);
-}
-
-.stat-value {
-    font-size: clamp(1.2rem, 3vw, 1.6rem);
-    font-weight: 700;
-    line-height: 1;
-    color: var(--stat-accent, var(--rz-primary));
-}
-
-.stat-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-secondary);
-    margin-top: 0.2rem;
-}
-
 .reanalysis-progress-wrap {
     width: 100%;
     margin-top: 0.35rem;
@@ -1095,8 +1154,11 @@ a:focus-visible {
     animation: fadeSlideUp 0.5s ease both;
 }
 
-.onboarding-step:nth-child(2) { animation-delay: 0.1s; }
-.onboarding-step:nth-child(3) { animation-delay: 0.2s; }
+/* 3 and 5, not 2 and 3: the steps alternate with .onboarding-connector siblings, so the second
+   step is the third child. `:nth-child(2)` matched a connector (never a step), which left step 2
+   with no delay and step 3 with step 2's — the third step animated in before the second. */
+.onboarding-step:nth-child(3) { animation-delay: 0.1s; }
+.onboarding-step:nth-child(5) { animation-delay: 0.2s; }
 
 .onboarding-step-icon {
     width: 52px;
@@ -1288,14 +1350,6 @@ a:focus-visible {
 .login-card .login-tagline,
 .login-card .login-footnote {
     color: var(--text-secondary);
-}
-
-.login-divider {
-    width: 100%;
-    height: 1px;
-    border: none;
-    background: var(--border-light);
-    margin: 0;
 }
 
 .login-logomark {

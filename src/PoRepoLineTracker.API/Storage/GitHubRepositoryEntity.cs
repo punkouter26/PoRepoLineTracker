@@ -22,6 +22,8 @@ public class GitHubRepositoryEntity : ITableEntity
     public string CloneUrl { get; set; } = string.Empty;
     public string LocalPath { get; set; } = string.Empty;
     public DateTime? LastAnalyzedCommitDate { get; set; } // Nullable to avoid Azure Table Storage DateTime.MinValue issue
+    public DateTime? LastAnalysisAttemptUtc { get; set; }
+    public string? LastAnalysisError { get; set; }
 
     public GitHubRepository ToDomainModel()
     {
@@ -33,7 +35,9 @@ public class GitHubRepositoryEntity : ITableEntity
             Name = Name,
             CloneUrl = CloneUrl,
             LocalPath = LocalPath,
-            LastAnalyzedCommitDate = LastAnalyzedCommitDate
+            LastAnalyzedCommitDate = LastAnalyzedCommitDate,
+            LastAnalysisAttemptUtc = LastAnalysisAttemptUtc,
+            LastAnalysisError = LastAnalysisError
         };
     }
 
@@ -51,7 +55,9 @@ public class GitHubRepositoryEntity : ITableEntity
             LocalPath = model.LocalPath,
             LastAnalyzedCommitDate = model.LastAnalyzedCommitDate.HasValue && model.LastAnalyzedCommitDate.Value.Kind == DateTimeKind.Unspecified
                 ? DateTime.SpecifyKind(model.LastAnalyzedCommitDate.Value, DateTimeKind.Utc)
-                : model.LastAnalyzedCommitDate?.ToUniversalTime()
+                : model.LastAnalyzedCommitDate?.ToUniversalTime(),
+            LastAnalysisAttemptUtc = model.LastAnalysisAttemptUtc,
+            LastAnalysisError = model.LastAnalysisError
         };
     }
 }

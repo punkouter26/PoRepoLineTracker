@@ -37,7 +37,7 @@ public class AntiforgeryTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task EveryWriteVerb_Without_Token_Is_Rejected_And_The_Rejection_Names_The_Header()
     {
-        var repo = new[] { new BulkRepositoryDto { Owner = "octocat", RepoName = "hello-world", CloneUrl = "https://github.com/octocat/hello-world.git" } };
+        var repo = new[] { new BulkRepositoryDto { Owner = "octocat", RepoName = "hello-world" } };
         (await UntokenedClient.PostAsJsonAsync("/api/repositories/bulk", repo))
             .StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
@@ -67,7 +67,7 @@ public class AntiforgeryTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Post_With_Token_Is_Accepted()
     {
-        var repo = new[] { new BulkRepositoryDto { Owner = "octocat", RepoName = "tokened", CloneUrl = "https://github.com/octocat/tokened.git" } };
+        var repo = new[] { new BulkRepositoryDto { Owner = "octocat", RepoName = "tokened" } };
 
         var response = await TokenedClient.PostAsJsonAsync("/api/repositories/bulk", repo);
 

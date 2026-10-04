@@ -13,6 +13,10 @@
     // Local alias only. This is a parameter now, not a dictionary lookup per row as it was on the
     // page — the name is kept short because it appears a dozen times in the branches below.
     var progress = Progress;
+
+    // A live frame's error first, then the outcome stored on the row. The frame is gone after a
+    // reload, so without the stored one a repository that failed to clone read "Pending" forever.
+    var error = !string.IsNullOrEmpty(progress?.ErrorMessage) ? progress.ErrorMessage : LastError;
 }
 @* A plain <div> root, not the bare <RadzenStack> this started as.
 
@@ -92,25 +96,31 @@
                 }
             </RadzenStack>
         }
-        else if (progress != null && !string.IsNullOrEmpty(progress.ErrorMessage))
+        else if (!string.IsNullOrEmpty(error))
         {
             <RadzenStack Gap="0.2rem">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
                     <RadzenIcon Icon="error_outline" class="rp-error-icon" />
-                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" title="@error" />
                 </RadzenStack>
-                <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub" title="@progress.ErrorMessage">
-                    @(progress.ErrorMessage.Length > 50 ? progress.ErrorMessage[..50] + "…" : progress.ErrorMessage)
-                </RadzenText>
+                @* The whole message, clipped by CSS rather than cut in code: a string truncated
+                   to 50 characters was all a screen reader ever got. *@
+                <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub rp-error-text" title="@error">@error</RadzenText>
             </RadzenStack>
         }
-        else if (!HasBeenAnalyzed)
+        else if (HasBeenAnalyzed)
         {
-            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Pending" />
+            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Done" />
+        }
+        else if (Attempted)
+        {
+            @* Analysed, and there was nothing to count. "Pending" here promised a result that
+               is never coming. *@
+            <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Empty" title="Analyzed — no commits found" />
         }
         else
         {
-            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Done" />
+            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Pending" />
         }
 </div>
 
@@ -123,6 +133,12 @@
 
     /// <summary>Whether the repository has ever completed an analysis — drives Pending vs Done.</summary>
     [Parameter] public bool HasBeenAnalyzed { get; set; }
+
+    /// <summary>Why the last finished run failed (<c>LastAnalysisError</c>); null when it succeeded or has not run.</summary>
+    [Parameter] public string? LastError { get; set; }
+
+    /// <summary>Whether any run has finished (<c>LastAnalysisAttemptUtc</c>). With no commits and no error, that is an empty repository.</summary>
+    [Parameter] public bool Attempted { get; set; }
 
     /// <summary>When the current re-analysis was requested, for the elapsed caption while no frame has arrived yet.</summary>
     [Parameter] public DateTime? StartedUtc { get; set; }

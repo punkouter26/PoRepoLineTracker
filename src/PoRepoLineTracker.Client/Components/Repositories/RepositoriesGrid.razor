@@ -5,11 +5,17 @@
 @using PoRepoLineTracker.Shared.Domain
 @using Radzen
 @using Radzen.Blazor
+@inject IJSRuntime JS
+@inject PoRepoLineTracker.Client.Services.AssistantClient Assistant
 
 @*
   Repository grid. Extracted from Repositories.razor so the page can stay focused on
   state + plumbing; this component owns the markup and CSS class names for the
-  columns (Repository / Total Lines / Last Analyzed / Status / Actions).
+  columns (Repository / Total Lines / Net 30d / Commits 30d / Cadence / Last commit / Status /
+  Actions).
+
+  The three 30-day columns came from the Insights page's "All repositories" table, which was a
+  second grid of the same rows: two places to look a repository up, sorted differently.
 
   The five-column layout matches Phase 3 pick A7 (single visual seam — tiles above,
   grid below). Phase 3 pick B1 supplies the page hero above the tiles.
@@ -19,17 +25,39 @@
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="rz-mb-2">
         <RadzenText TextStyle="TextStyle.Subtitle1" class="rp-grid-heading">Tracked Repositories</RadzenText>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
-            <RadzenTextBox @bind-Value="_searchQuery"
+            @* The name search stays a box here rather than a filter cell on the Repository
+               column: the page mirrors it into ?q=, and the column filter covers Status, which
+               this never could. One way to do each. *@
+            <RadzenTextBox Value="@Search" ValueChanged="@SearchChanged"
                            Placeholder="Search repositories..."
                            aria-label="Filter repositories by name or owner"
                            class="rp-search-input" />
-            @if (!string.IsNullOrEmpty(_searchQuery))
+            @if (_assistantAvailable)
+            {
+                @* Treats the box's text as a question. A button, never Enter: Enter stays a plain
+                   name search. Not disabled on an empty box — the text is only committed when the
+                   box loses focus, which is this very click, and a control that enables itself
+                   (or moves: see the clear button below) mid-click never receives it. *@
+                <RadzenButton Icon="auto_awesome"
+                              Size="ButtonSize.ExtraSmall"
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Text"
+                              Click="@AskAsync"
+                              Disabled="@_asking"
+                              title="Ask about your repositories"
+                              aria-label="Ask about your repositories" />
+            }
+            @* With the Ask button present the clear button keeps its slot while the box is empty
+               (hidden, so out of the tab order too). This row is right-aligned: a button appearing
+               here as the question is committed slid Ask out from under the pointer mid-click. *@
+            @if (!string.IsNullOrEmpty(Search) || _assistantAvailable)
             {
                 <RadzenButton Icon="close"
                               Size="ButtonSize.ExtraSmall"
                               ButtonStyle="ButtonStyle.Light"
                               Variant="Variant.Text"
-                              Click="@(() => _searchQuery = string.Empty)"
+                              Style="@(string.IsNullOrEmpty(Search) ? "visibility: hidden" : null)"
+                              Click="@(() => SearchChanged.InvokeAsync(string.Empty))"
                               title="Clear search"
                               aria-label="Clear search" />
             }
@@ -41,17 +69,22 @@
     <RadzenDataGrid @ref="Grid"
                     Data="@FilteredItems"
                     TItem="RepositoryGridRow"
-                    AllowFiltering="false"
+                    AllowFiltering="true"
+                    FilterMode="FilterMode.Advanced"
+                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                     AllowSorting="true"
                     AllowPaging="false"
                     AllowColumnResize="true"
+                    AllowColumnPicking="true"
+                    PickedColumnsChanged="@OnPickedColumnsChanged"
+                    Sort="@OnSort"
                     Responsive="true"
                     RowRender="@OnRowRender"
                     RowClick="@OnRowClick"
                     Density="Density.Compact"
                     class="rp-grid">
         <Columns>
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Repository" MinWidth="160px" Width="180px">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="Name" Title="Repository" MinWidth="160px" Width="180px" Sortable="true" Filterable="false" Pickable="false">
                 <Template Context="row">
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
                         <RadzenText class="rp-repo-name" title="@($"{row.Owner}/{row.Name}")">@($"{row.Owner}/{row.Name}")</RadzenText>
@@ -61,14 +94,17 @@
                     </RadzenStack>
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Shown("Total Lines")">
                 <Template Context="row">
                     @if (row.TotalLinesSortValue.HasValue)
                     {
                         <RadzenText class="rp-lines-value">@row.TotalLinesSortValue.Value.ToString("N0")</RadzenText>
                     }
-                    else if (row.LastAnalyzedCommitDate.HasValue)
+                    else if (!TotalsLoaded && row.LastAnalyzedCommitDate.HasValue)
                     {
+                        @* Only while the totals request is in flight. Keyed on "no value" alone
+                           this shimmered forever when the request failed or the repository has
+                           0 counted lines — neither of which is ever going to produce a number. *@
                         <RadzenSkeleton Width="70px" Height="18px" />
                     }
                     else
@@ -77,7 +113,54 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last Analyzed" Width="120px" Sortable="true">
+            @* The 30-day columns. "—" until the page's insights request lands: it is fetched
+               after the grid is on screen, so these never hold up the rows themselves. *@
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="NetChange30Days" Title="Net (30d)" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Shown("Net (30d)")">
+                <Template Context="row">
+                    @if (row.NetChange30Days is { } net)
+                    {
+                        <span class="@(net > 0 ? "rp-delta--pos" : net < 0 ? "rp-delta--neg" : "rp-delta--flat")">@ChartFormat.Delta(net)</span>
+                    }
+                    else
+                    {
+                        <RadzenText class="rp-disabled">—</RadzenText>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="Commits30Days" Title="Commits (30d)" Width="110px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Shown("Commits (30d)")">
+                <Template Context="row">
+                    @if (row.Commits30Days is { } commits)
+                    {
+                        @commits.ToString("N0")
+                    }
+                    else
+                    {
+                        <RadzenText class="rp-disabled">—</RadzenText>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Cadence (12w)" Width="140px" Sortable="false" Filterable="false" Visible="@Shown("Cadence (12w)")">
+                <Template Context="row">
+                    @if (row.Movement is { } movement)
+                    {
+                        var summary = $"Commits per week, last 12 weeks: {string.Join(", ", movement.WeeklyCommits)}";
+                        var max = Math.Max(1, movement.WeeklyCommits.DefaultIfEmpty(0).Max());
+                        <div class="rp-spark" role="img" aria-label="@summary" title="@summary">
+                            @foreach (var week in movement.WeeklyCommits)
+                            {
+                                <span class="rp-spark__bar" style="@($"height:{Math.Max(6, week * 100 / max)}%")"></span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <RadzenText class="rp-disabled">—</RadzenText>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            @* "Last commit", not "Last Analyzed": the value is the newest analysed commit's own
+               date, so a repository analysed a minute ago read "3 months ago" under the old title. *@
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last commit" Width="120px" Sortable="true" Filterable="false" Visible="@Shown("Last commit")">
                 <Template Context="row">
                     @if (row.LastAnalyzedCommitDate.HasValue)
                     {
@@ -92,16 +175,20 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Status" Width="130px" Filterable="false" Sortable="false">
+            @* Sorts and filters on the stored outcome (RepositoryGridRow.Status): type "failed"
+               to find what needs attention. *@
+            <RadzenDataGridColumn @ref="_statusColumn" TItem="RepositoryGridRow" Property="Status" Title="Status" Width="130px" Sortable="true" Filterable="true" FilterOperator="FilterOperator.Contains" Visible="@Shown("Status")">
                 <Template Context="row">
                     <AnalysisStatusCell Progress="@(ProgressMap != null && ProgressMap.TryGetValue(row.Id, out var p) ? p : null)"
                                         IsReanalyzing="@(ReanalyzingId == row.Id)"
                                         HasBeenAnalyzed="@row.LastAnalyzedCommitDate.HasValue"
+                                        LastError="@row.Repository.LastAnalysisError"
+                                        Attempted="@row.Repository.LastAnalysisAttemptUtc.HasValue"
                                         StartedUtc="@(ReanalysisStartTimes != null && ReanalysisStartTimes.TryGetValue(row.Id, out var st) ? st : null)" />
                 </Template>
             </RadzenDataGridColumn>
 
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Actions" Width="80px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Actions" Width="80px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false" Pickable="false">
                 <Template Context="row">
                     <span @onclick:stopPropagation="true">
                         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
@@ -109,7 +196,7 @@
                                           Click="@(() => OnReanalyze.InvokeAsync(row.Repository))"
                                           title="Re-analyze from scratch"
                                           aria-label="@($"Re-analyze {row.Owner}/{row.Name}")"
-                                          Disabled="@(ReanalyzingId == row.Id)" />
+                                          Disabled="@IsBusy(row.Id)" />
                             <RadzenButton Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined"
                                           Click="@(() => OnDelete.InvokeAsync(row.Repository))"
                                           title="Delete repository"
@@ -143,10 +230,187 @@
     /// <summary>Forwarded so the page can call <c>Reload()</c> after a delete.</summary>
     public RadzenDataGrid<RepositoryGridRow>? Grid { get; set; }
 
-    private string _searchQuery = string.Empty;
+    /// <summary>False while the page's first totals request is in flight. Owned by the page.</summary>
+    [Parameter] public bool TotalsLoaded { get; set; }
+
+    /// <summary>The name search. Owned by the page, which mirrors it into the query string.</summary>
+    [Parameter] public string? Search { get; set; }
+    [Parameter] public EventCallback<string> SearchChanged { get; set; }
+
+    // ─── Per-browser grid settings ───────────────────────────────────────────────────────────
+    //
+    // Sort and hidden columns, kept in localStorage as one delimited string:
+    //     "<sort property>|<asc or desc>|<hidden title>,<hidden title>"
+    //
+    // Not Radzen's DataGridSettings through @bind-Settings. That type carries filter values as
+    // `object`, which source-generated JSON cannot describe, and the reflection serializer is
+    // deliberately unreachable from this trimmed client (SPEC §6) — it would work in a Debug
+    // build and fail in the published one. Column widths and order are what that costs.
+
+    private const string SettingsKey = "repoGrid";
+
+    /// <summary>Columns the picker lists, by title — the title is what the picker hands back.</summary>
+    internal static readonly string[] PickableTitles =
+        ["Total Lines", "Net (30d)", "Commits (30d)", "Cadence (12w)", "Last commit", "Status"];
+
+    /// <summary>The 30-day columns: three more than a phone or a narrow laptop well has room for.</summary>
+    private static readonly string[] WideOnlyTitles = ["Net (30d)", "Commits (30d)", "Cadence (12w)"];
+
+    internal static readonly string[] SortableProperties =
+        ["Name", "TotalLinesSortValue", "NetChange30Days", "Commits30Days", "LastAnalyzedCommitDate", "Status"];
+
+    /// <summary>
+    /// Starts with the wide-only columns hidden and reveals them once the viewport is known,
+    /// rather than the reverse: three columns appearing on a desktop is a smaller jolt than a
+    /// phone's grid opening wider than the screen and snapping back.
+    /// </summary>
+    private HashSet<string> _hidden = [.. WideOnlyTitles];
+    private string? _sortProperty;
+    private bool _sortDescending;
+
+    private bool Shown(string title) => !_hidden.Contains(title);
+
+    /// <summary>
+    /// Reads a saved settings string. localStorage is editable and outlives a deploy, so nothing
+    /// in it is trusted: an unknown sort property is dropped (the grid would throw building the
+    /// sort expression) and unknown column titles are ignored.
+    /// </summary>
+    public static (string? SortProperty, bool Descending, HashSet<string> Hidden) ParseSettings(string? saved)
+    {
+        var parts = (saved ?? string.Empty).Split('|');
+        return (
+            SortableProperties.Contains(parts[0]) ? parts[0] : null,
+            parts.Length > 1 && parts[1] == "desc",
+            parts.Length > 2 ? parts[2].Split(',').Intersect(PickableTitles).ToHashSet() : []);
+    }
+
+    public static string FormatSettings(string? sortProperty, bool descending, IEnumerable<string> hidden) =>
+        $"{sortProperty}|{(descending ? "desc" : "asc")}|{string.Join(',', hidden)}";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // Everything here is optional. Storage can be blocked (private mode, policy) and the
+        // interop can fail mid-teardown; the grid has already rendered with its defaults.
+        try
+        {
+            var saved = await JS.InvokeAsync<string?>("localStorage.getItem", SettingsKey);
+            if (saved is null)
+            {
+                if (await JS.GetValueAsync<int>("innerWidth") >= 1200) _hidden = [];
+            }
+            else
+            {
+                (_sortProperty, _sortDescending, _hidden) = ParseSettings(saved);
+                if (_sortProperty is not null && Grid is not null)
+                {
+                    if (_sortDescending) Grid.OrderByDescending(_sortProperty);
+                    else Grid.OrderBy(_sortProperty);
+                }
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception)
+        {
+            // Defaults stand.
+        }
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", SettingsKey,
+                FormatSettings(_sortProperty, _sortDescending, _hidden));
+        }
+        catch (Exception)
+        {
+            // Not saved: the choice still holds for this visit.
+        }
+    }
+
+    // ─── Ask ─────────────────────────────────────────────────────────────────────────────────
+    // The answer is only ever a setting of controls the user already has: the search box, a
+    // column sort, the Status column's own filter. Nothing here filters rows by a second route,
+    // so whatever "Ask" did can be seen and undone where a hand-made filter would be.
+
+    private bool _assistantAvailable;
+    private bool _asking;
+    private RadzenDataGridColumn<RepositoryGridRow>? _statusColumn;
+
+    protected override async Task OnInitializedAsync() => _assistantAvailable = await Assistant.IsAvailableAsync();
+
+    /// <summary>
+    /// The server's sort names are the column titles' meaning, not this grid's property names.
+    /// Anything else is dropped, for the reason <see cref="ParseSettings"/> drops it.
+    /// </summary>
+    public static string? SortProperty(string? sortBy) => sortBy switch
+    {
+        "TotalLines" => "TotalLinesSortValue",
+        "LastCommit" => "LastAnalyzedCommitDate",
+        _ => SortableProperties.Contains(sortBy) ? sortBy : null
+    };
+
+    private async Task AskAsync()
+    {
+        // The server takes 1-200 characters; a longer question is cut rather than refused.
+        var question = Search?.Trim();
+        if (string.IsNullOrEmpty(question) || _asking) return;
+
+        _asking = true;
+        try
+        {
+            var filter = await Assistant.AskAsync(question[..Math.Min(question.Length, 200)]);
+            if (filter is null) return;
+
+            // Replaces the question in the box (and in ?q=) with the name search it meant.
+            await SearchChanged.InvokeAsync(filter.Search ?? string.Empty);
+
+            // Null clears a status filter left by the previous question. Reloads the grid.
+            if (_statusColumn is not null)
+                await _statusColumn.SetFilterValueAsync(filter.Status is "Done" or "Failed" or "Empty" or "Pending" ? filter.Status : null);
+
+            // Same calls the saved-sort restore makes; they raise Sort, so OnSort records it.
+            if (SortProperty(filter.SortBy) is { } property && Grid is not null)
+            {
+                if (filter.Descending) Grid.OrderByDescending(property);
+                else Grid.OrderBy(property);
+            }
+        }
+        finally
+        {
+            _asking = false;
+        }
+    }
+
+    private Task OnSort(DataGridColumnSortEventArgs<RepositoryGridRow> args)
+    {
+        _sortProperty = args.SortOrder is null ? null : args.Column.Property;
+        _sortDescending = args.SortOrder == SortOrder.Descending;
+        return SaveSettingsAsync();
+    }
+
+    private Task OnPickedColumnsChanged(DataGridPickedColumnsChangedEventArgs<RepositoryGridRow> args)
+    {
+        _hidden = PickableTitles.Except(args.Columns.Select(column => column.Title)).ToHashSet();
+        return SaveSettingsAsync();
+    }
+
+    /// <summary>
+    /// Whether a re-analysis is already queued or running for this row. <see cref="ReanalyzingId"/>
+    /// alone is a single slot: with two jobs in flight the second row's button stayed live and a
+    /// click queued the same repository twice. The start-time entry covers the gap between the
+    /// click and the first progress frame.
+    /// </summary>
+    private bool IsBusy(RepositoryId id) =>
+        ReanalyzingId == id
+        || ReanalysisStartTimes?.ContainsKey(id) == true
+        || (ProgressMap is not null && ProgressMap.TryGetValue(id, out var progress) && progress.IsRunning);
 
     private IEnumerable<RepositoryGridRow> FilteredItems =>
-        string.IsNullOrWhiteSpace(_searchQuery)
+        string.IsNullOrWhiteSpace(Search)
             ? Items
-            : Items.Where(r => $"{r.Owner}/{r.Name}".Contains(_searchQuery, StringComparison.OrdinalIgnoreCase));
+            : Items.Where(r => $"{r.Owner}/{r.Name}".Contains(Search, StringComparison.OrdinalIgnoreCase));
 }

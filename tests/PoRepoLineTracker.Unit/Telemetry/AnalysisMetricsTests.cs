@@ -43,6 +43,13 @@ public class AnalysisMetricsTests
         listener.RecordObservableInstruments();
         listener.Dispose();
 
+        // Only this test's repository. The meter is process-wide and the analyze-handler tests
+        // record into it from other threads, so an unfiltered list intermittently held their
+        // samples too ("expected 4242, found 150").
+        var repo = repoId.Value.ToString();
+        seenLongs.RemoveAll(s => !Equals(s.Tags.GetValueOrDefault("repo"), repo));
+        seenDoubles.RemoveAll(s => !Equals(s.Tags.GetValueOrDefault("repo"), repo));
+
         seenLongs.Should().ContainSingle();
         seenLongs[0].Value.Should().Be(4_242L);
         seenLongs[0].Tags.Should().ContainKey("repo").WhoseValue.Should().Be(repoId.Value.ToString());

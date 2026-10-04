@@ -44,8 +44,10 @@
                 <circle cx="@vx.ToString("F1", CultureInfo.InvariantCulture)"
                         cy="@vy.ToString("F1", CultureInfo.InvariantCulture)"
                         r="4.5"
-                        class="radar-data-point"
-                        title="@($"{factor.Name}: {factor.Score}/100")">
+                        class="radar-data-point">
+                    @* A <title> child, not a title attribute: SVG has no such attribute, so the
+                       browser ignored it and the dots had no tooltip. *@
+                    <title>@($"{factor.Name}: {factor.Score}/100")</title>
                 </circle>
             }
         }

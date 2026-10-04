@@ -67,18 +67,11 @@
     min-height: 12px;
     border-radius: 2px;
     background-color: var(--rz-border-color, rgba(128, 128, 128, 0.15));
-    transition: all 0.2s ease;
-    cursor: pointer;
+    /* No pointer cursor and no hover scale: nothing happens on click, and both said otherwise. */
 }
 
 .rhythm-cell--active {
     background-color: color-mix(in srgb, var(--rz-primary, #1976d2) calc(var(--intensity, 0.5) * 100%), var(--rz-border-color, rgba(128, 128, 128, 0.15)));
-}
-
-.rhythm-cell:hover {
-    transform: scale(1.25);
-    z-index: 2;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .rhythm-footer {
@@ -92,7 +85,8 @@
     color: var(--rz-text-secondary-color, #555555);
 }
 
-.rhythm-footer__icon {
+/* ::deep: the glyph is a <RadzenIcon>, which does not carry this file's scope id. */
+.rhythm-footer ::deep .rhythm-footer__icon.rhythm-footer__icon {
     font-size: 1rem;
     color: var(--rz-warning, #f59e0b);
 }

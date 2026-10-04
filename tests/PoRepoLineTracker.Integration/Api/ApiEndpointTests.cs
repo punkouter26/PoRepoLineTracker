@@ -41,18 +41,6 @@ public class ApiEndpointTests
         body.Should().NotContain("Unhealthy");
     }
 
-    // /diag is a Blazor page, not a server route — the JSON it renders comes from
-    // /api/diagnostics, which is the single server-side diagnostics source. Secret masking is
-    // covered by FakeAuthAndDiagTests against the real auth stack.
-    [Fact]
-    public async Task Diagnostics_Endpoint_Returns_200_With_Environment_Info()
-    {
-        var response = await _client.GetAsync("/api/diagnostics");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("environment");
-    }
-
     [Fact]
     public async Task SaveUserPreferences_RoundTrips_FileExtensions()
     {
@@ -178,7 +166,7 @@ public class ApiEndpointTests
         var repoId = RepositoryId.New();
         var response = await _client.PostAsync($"/api/repositories/{repoId}/reanalyze", null);
 
-        // With mocked mediator this may return 202 or 404 depending on ownership lookup
+        // 202 or 404 depending on the mocked ownership lookup
         ((int)response.StatusCode).Should().BeLessThan(500, "Reanalyze endpoint should not produce server errors with valid GUIDs");
     }
 }

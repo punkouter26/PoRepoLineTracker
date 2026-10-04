@@ -1,6 +1,6 @@
 # Tests
 
-Four tiers, matching the layout in `AGENT.MD`:
+Four tiers:
 
 - `PoRepoLineTracker.Unit` — pure logic, no I/O.
 - `PoRepoLineTracker.Integration` — API and storage behaviour through the ASP.NET host (Azurite via Testcontainers).
@@ -8,8 +8,8 @@ Four tiers, matching the layout in `AGENT.MD`:
 - `PoRepoLineTracker.E2EUI` — Playwright browser flows (mobile + desktop).
 
 Coverage is configured in [coverlet.runsettings](coverlet.runsettings) (wired into the Unit
-tier only). The threshold there is evaluated only when tests run with
-`--collect:"XPlat Code Coverage"` — CI does not currently enforce it.
+tier only) and collected when tests run with `--collect:"XPlat Code Coverage"`. There is no
+threshold: it is informational, and CI does not collect it.
 
 Authenticating in Integration/E2E: send `X-Fake-User` (and optionally `X-Fake-Roles`) and
 `FakeAuthHandler` authenticates the request. It refuses to start in Production.

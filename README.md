@@ -13,8 +13,8 @@ PoRepoLineTracker is a self-hosted GitHub repository analytics app built with Bl
 
 | Document | Purpose |
 | --- | --- |
-| [CLAUDE.md](CLAUDE.md) | Working notes: build/run/test, the traps worth knowing, domain rules |
-| [NET_RULES.md](NET_RULES.md) | Numbered house rules (1.1–3.4) |
+| [SPEC.md](SPEC.md) | What the app does and must keep doing: journeys, boundaries, edge cases, build/run/test |
+| [AGENTS.md](AGENTS.md) | The writing ruleset for anyone (or anything) changing the code |
 | [tests/README.md](tests/README.md) | Test scopes and local execution commands |
 
 ## Runtime summary
@@ -46,10 +46,34 @@ dotnet run --project src/PoRepoLineTracker.API --launch-profile https
 
 ### Authenticating without GitHub (Development/Test only)
 
-There is no dev-login route. Tools and tests authenticate by sending an `X-Fake-User`
-header (a GUID verbatim; any other string hashes to a stable GUID) — see
+Tools and tests authenticate by sending an `X-Fake-User` header (a GUID verbatim; any other
+string hashes to a stable GUID) — see
 [src/PoRepoLineTracker.API/api-tests.http](src/PoRepoLineTracker.API/api-tests.http) for
 worked examples including the antiforgery pair required by writes.
+
+In a browser, Development also has a sign-in bypass: `/auth/login` signs you in as a fixed
+"DevUser" when no GitHub OAuth app is configured, or when called with `?dev=true`.
+
+### Optional: Claude features
+
+The digest summary and the "Ask" button on the repositories grid appear only when an Anthropic API
+key is configured: `Anthropic:ApiKey` in `appsettings.Development.local.json`
+locally, the Key Vault secret `PoRepoLineTracker--Anthropic--ApiKey` when deployed. Without it
+nothing is sent anywhere and no assistant UI is rendered. See SPEC.md for exactly what is sent.
+
+## CI
+
+The pipeline's `build` job runs **`tests/PoRepoLineTracker.Unit` only**. Integration needs
+Testcontainers/Azurite and the E2E tiers need a running app plus Playwright browsers; on a hosted
+runner those fail for reasons unrelated to the change, so they run locally
+(`docker compose up -d`, then the commands in [tests/README.md](tests/README.md)).
+
+Unit tests passing is not enough before a push: composition-root changes (`Program.cs`,
+`AddInfrastructure`, `AddAuth`, middleware order) only show up in the Integration tier. Run
+Unit + Integration locally.
+
+Tier sizes are kept small by convention, not by a gate: Unit ~100, Integration ~50, E2E ~25 each.
+The `lint-infra` job compiles every `infra/*.bicep` on every run.
 
 ## Azure deployment
 

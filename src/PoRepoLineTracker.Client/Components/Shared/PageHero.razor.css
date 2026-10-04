@@ -62,9 +62,18 @@
         justify-content: stretch;
     }
 
-    .page-hero__actions ::deep .rz-button {
+    /* Direct children only. As a descendant selector this also reached the buttons INSIDE a
+       composite control — the two halves of the Export split button and every segment of the
+       range selector — and `flex: 1 1 0` shrank those below their label: "Export" clipped to
+       "Expo" at 390px and the range pills squeezed into each other. */
+    .page-hero__actions ::deep > .rz-button {
         flex: 1 1 0;
         justify-content: center;
+    }
+
+    /* The split button is one control; it keeps its content width rather than being squeezed. */
+    .page-hero__actions ::deep > .rz-splitbutton {
+        flex: 0 0 auto;
     }
 }
 

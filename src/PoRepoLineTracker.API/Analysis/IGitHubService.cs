@@ -4,22 +4,9 @@ namespace PoRepoLineTracker.API.Analysis;
 public interface IGitHubService
 {
     /// <summary>
-    /// Base directory local repository clones live under — Azure App Service ephemeral storage
-    /// when running there, otherwise the configured or default local path. The single source for
-    /// resolving a repo's on-disk location; do not re-derive this from the HOME environment
-    /// variable elsewhere.
-    /// </summary>
-    string LocalReposBasePath { get; }
-
-    /// <summary>
-    /// Turns a stored <c>LocalPath</c> (relative to <see cref="LocalReposBasePath"/>) into the
-    /// absolute path the read operations below take.
-    ///
-    /// <para>This exists so there is ONE place a repository's location is decided. Every read
-    /// method used to come in two versions — one taking a relative path and one taking an
-    /// absolute one, for uploaded repositories whose <c>LocalPath</c> is already absolute — which
-    /// pushed a three-way branch on "which kind of repository is this" into every caller and
-    /// doubled the interface. Callers now resolve once and pass an absolute path.</para>
+    /// Turns a stored <c>LocalPath</c> (relative to the clone base directory) into the absolute
+    /// path the read operations below take. The ONE place a repository's on-disk location is
+    /// decided: callers resolve once and pass an absolute path.
     /// </summary>
     string ResolveRepositoryPath(string localPath);
 
@@ -27,7 +14,8 @@ public interface IGitHubService
     Task<string> PullRepositoryAsync(string localPath, string? accessToken = null);
 
     /// <summary>
-    /// Deletes the local repository directory so it can be re-cloned from scratch.
+    /// Deletes the local repository directory — before a re-clone, or because the repository is
+    /// no longer tracked.
     /// </summary>
     Task DeleteLocalRepositoryAsync(string localPath);
 
@@ -36,7 +24,20 @@ public interface IGitHubService
     /// <summary>Whether an absolute path holds a valid git repository.</summary>
     Task<bool> IsRepositoryValidAsync(string repositoryPath);
 
-    Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(string repositoryPath, DateTime? sinceDate = null);
+    /// <summary>
+    /// Lines added and removed per commit, newest first.
+    /// </summary>
+    /// <param name="fileExtensions">
+    /// When given, only files of these types are diffed, so "lines added" covers the same files
+    /// "total lines" does — and lock files, bundles and other uncounted files, usually the
+    /// largest diffs in a repository, are not diffed at all.
+    /// </param>
+    /// <param name="onProgress">Called with (commits diffed, total) as the walk proceeds.</param>
+    Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(
+        string repositoryPath,
+        DateTime? sinceDate = null,
+        IEnumerable<string>? fileExtensions = null,
+        Action<int, int>? onProgress = null);
     Task<Dictionary<string, int>> CountLinesInCommitAsync(string repositoryPath, string commitSha, IEnumerable<string> fileExtensionsToCount);
 
     /// <summary>
@@ -54,6 +55,5 @@ public interface IGitHubService
     /// </summary>
     IEnumerable<SourceFile> EnumerateSourceFiles(string repositoryPath, string commitSha, IEnumerable<string> fileExtensionsToCount);
 
-    Task CheckConnectionAsync();
     Task<IEnumerable<GitHubUserRepositoryDto>> GetUserRepositoriesAsync(string accessToken);
 }

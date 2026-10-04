@@ -34,7 +34,7 @@ public sealed class GitHubServiceCountingTests : IDisposable
             configuration,
             Substitute.For<ILogger<GitHubService>>(),
             SourceLineCounter.DefaultSet(),
-            new GitClient(configuration, Substitute.For<ILogger<GitClient>>()),
+            new GitClient(Substitute.For<ILogger<GitClient>>()),
             new FileIgnoreFilter(Substitute.For<ILogger<FileIgnoreFilter>>()));
     }
 
@@ -73,6 +73,27 @@ public sealed class GitHubServiceCountingTests : IDisposable
 
         var unknownCounts = await CountAsync(new string('a', 40));
         unknownCounts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CommitStats_DiffOnlyTheCountedFileTypes_AndReportProgress()
+    {
+        Commit(("src/a.cs", "var x = 1;\nvar y = 2;\n"), ("package-lock.json", "{\n\"a\": 1,\n\"b\": 2,\n\"c\": 3\n}\n"));
+        Commit(("src/deep/b.cs", "var z = 3;\n"), ("package-lock.json", "{}\n"));
+
+        // Unfiltered, the lock file dominates: 2 + 5 lines in the first commit.
+        var all = (await _sut.GetCommitStatsAsync(_repoPath)).ToList();
+        all.Sum(c => c.LinesAdded).Should().BeGreaterThan(3);
+
+        var reports = new List<(int Done, int Total)>();
+        var csOnly = (await _sut.GetCommitStatsAsync(_repoPath, null, [".cs"], (done, total) => reports.Add((done, total)))).ToList();
+
+        // Only the .cs lines, at any depth: 2 in the first commit, 1 in the second, none removed.
+        csOnly.Should().HaveCount(2);
+        csOnly.Sum(c => c.LinesAdded).Should().Be(3);
+        csOnly.Sum(c => c.LinesRemoved).Should().Be(0);
+        reports.Should().NotBeEmpty();
+        reports[0].Should().Be((0, 2));
     }
 
     [Fact]
@@ -124,7 +145,7 @@ public sealed class GitHubServiceCountingTests : IDisposable
             configuration,
             Substitute.For<ILogger<GitHubService>>(),
             [counter, new SourceLineCounter("*")],
-            new GitClient(configuration, Substitute.For<ILogger<GitClient>>()),
+            new GitClient(Substitute.For<ILogger<GitClient>>()),
             new FileIgnoreFilter(Substitute.For<ILogger<FileIgnoreFilter>>()));
 
         var shas = new List<string>

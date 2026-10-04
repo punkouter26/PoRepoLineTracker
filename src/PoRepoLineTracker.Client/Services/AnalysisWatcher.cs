@@ -81,8 +81,11 @@ public sealed class AnalysisWatcher(
     /// <para>The hub reports every step of every job the user owns, so polling on top of it would
     /// fetch the same data twice. This exists for the cases the hub cannot cover: a proxy that
     /// blocks WebSockets, or a failed handshake.</para>
+    ///
+    /// <para>Public so the owner can hook it to <see cref="AnalysisFeedClient.StateChanged"/>: a
+    /// hub that drops after the wait was registered has to restart the poll too.</para>
     /// </summary>
-    private void StartIfNeeded()
+    public void StartIfNeeded()
     {
         if (_running) return;
         if (feed.IsConnected) return;

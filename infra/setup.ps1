@@ -54,10 +54,11 @@ if (-not (Test-Command "az")) {
 # ── 2. Docker + Azurite ───────────────────────────────────────────────────
 Write-Host "`nStarting Docker services..." -ForegroundColor Cyan
 
-# Ensure Docker is running
-try {
-    docker info 2>$null | Out-Null
-} catch {
+# Ensure Docker is running. $LASTEXITCODE, not try/catch: a native command that exits non-zero
+# does not throw, so the catch this used to rely on never ran and the script carried on to a
+# confusing `docker compose` failure.
+docker info 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
     Write-Host "Docker is not running. Please start Docker Desktop first." -ForegroundColor Red
     exit 1
 }

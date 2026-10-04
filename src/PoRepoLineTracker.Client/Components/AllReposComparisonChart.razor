@@ -1,6 +1,3 @@
-@inject HttpClient Http
-@inject ILogger<AllReposComparisonChart> Logger
-@implements IAsyncDisposable
 @using PoRepoLineTracker.Shared.Models.Dtos
 @using PoRepoLineTracker.Shared.Domain
 @using Radzen
@@ -8,15 +5,15 @@
 
 <ChartCard Title="All Repositories — Growth Overview"
            Description="@ChartDescription"
-           IsLoading="@_isLoading"
-           ErrorMessage="@_errorMessage"
-           OnRetry="@(() => LoadData(_days))"
-           IsEmpty="@(_historyData is null || !_historyData.Any(r => r.DailyLineCounts.Any()))"
+           IsLoading="@IsLoading"
+           ErrorMessage="@ErrorMessage"
+           OnRetry="@OnRetry"
+           IsEmpty="@(!GetDisplayedHistoryData().Any(r => r.DailyLineCounts.Any()))"
            EmptyIcon="show_chart"
            EmptyText="No history data yet"
            EmptyHint="Analysis is needed for at least one repository.">
     <Toolbar>
-        <ChartRangeSelector Days="@_days" DaysChanged="@OnRangeChanged" />
+        <ChartRangeSelector Days="@Days" DaysChanged="@DaysChanged" />
     </Toolbar>
     <ChildContent>
         @{
@@ -119,18 +116,21 @@
 </ChartCard>
 
 @code {
-    private int _days = 90;
-    private bool _isLoading = false;
-    private string? _errorMessage;
-    private List<RepositoryLineCountHistoryDto>? _historyData;
     /// <summary>
-    /// True after <see cref="DisposeAsync"/> has run. The Radzen <c>Change</c> callback captured
-    /// by the toolbar select-bars holds a <c>DotNetObjectReference</c> the JS module can still
-    /// call into for a frame or two after disposal, which surfaced in the console as
-    /// *"There is no tracked object with id '6'"*. Every async continuation early-exits on this
-    /// flag instead of touching torn-down state.
+    /// The page's full history, one entry per repository. The chart no longer fetches: it used
+    /// to request <c>allcharts/90</c> itself while the page had already loaded the history
+    /// for the totals, so every visit paid for the same aggregation twice. The range selector
+    /// now just narrows this in <see cref="GetDisplayedHistoryData"/>.
     /// </summary>
-    private bool _disposed;
+    [Parameter] public IReadOnlyList<RepositoryLineCountHistoryDto>? History { get; set; }
+
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
+
+    /// <summary>The plotted range. Owned by the page, which keeps it in the query string.</summary>
+    [Parameter] public int Days { get; set; } = ChartFormat.DefaultRangeDays;
+    [Parameter] public EventCallback<int> DaysChanged { get; set; }
 
     /// <summary>
     /// Deselected repositories, rather than selected ones. Tracking the exclusions means a
@@ -138,26 +138,6 @@
     /// selection set that predates it.
     /// </summary>
     private readonly HashSet<RepositoryId> _hidden = [];
-
-    protected override async Task OnInitializedAsync()
-    {
-        // Lazy-load on first range click rather than every page load.
-        // With 1 repo the chart fetches ~140 commits; with 50+ repos this
-        // would dominate the page-render network budget. The default 90d
-        // range renders only when the user actively opts into it.
-    }
-
-    private async Task OnRangeChanged(int days)
-    {
-        _days = days;
-        await LoadData(days);
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        _disposed = true;
-        return ValueTask.CompletedTask;
-    }
 
     private bool IsSelected(RepositoryId id) => !_hidden.Contains(id);
 
@@ -170,7 +150,7 @@
     {
         if (_hidden.Count == 0)
         {
-            foreach (var repo in _historyData ?? []) _hidden.Add(repo.RepositoryId);
+            foreach (var repo in History ?? []) _hidden.Add(repo.RepositoryId);
         }
         else
         {
@@ -178,50 +158,26 @@
         }
     }
 
-    /// <summary>Triggers the default 90d load on first paint. Called once by the
-    /// parent after the page has rendered so the user sees a chart without a
-    /// blocking request during initial component initialization.</summary>
-    public Task PrimeAsync() => LoadData(_days);
-
-    /// <summary>
-    /// Reloads the chart for the current range. Called by the parent page when a
-    /// repository finishes analyzing so the growth overview refreshes automatically.
-    /// </summary>
-    public Task ReloadAsync() => LoadData(_days);
-
-    private async Task LoadData(int days)
-    {
-        if (_disposed) return;
-
-        _isLoading = true;
-        _errorMessage = null;
-        StateHasChanged();
-        try
-        {
-            var result = await Http.GetAppJsonAsync($"/api/repositories/allcharts/{days}", AppJsonSerializerContext.Default.ListRepositoryLineCountHistoryDto);
-            _historyData = result ?? [];
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "AllReposComparisonChart: failed to load data for {Days} days", days);
-            _errorMessage = "Could not load chart data. Please try again.";
-        }
-        finally
-        {
-            // Guarded rather than an early `return`: control cannot leave a finally block
-            // (CS0157). Same intent — do not touch component state after disposal.
-            if (!_disposed)
-            {
-                _isLoading = false;
-                StateHasChanged();
-            }
-        }
-    }
-
     private const string ChartDescription = "Lines of code over time across every tracked repo";
     private const string TooltipValueLabel = "Lines";
 
-    private List<RepositoryLineCountHistoryDto> GetDisplayedHistoryData() => _historyData ?? [];
+    /// <summary>
+    /// <see cref="History"/> narrowed to the selected range. Whole days from midnight UTC, which
+    /// is the bucket the server puts a commit in — so the boundary day is kept rather than cut
+    /// at the current time of day.
+    /// </summary>
+    private List<RepositoryLineCountHistoryDto> GetDisplayedHistoryData()
+    {
+        var cutoff = DateTime.UtcNow.Date.AddDays(-Days);
+        return (History ?? []).Select(r => new RepositoryLineCountHistoryDto
+        {
+            RepositoryId = r.RepositoryId,
+            RepositoryName = r.RepositoryName,
+            Owner = r.Owner,
+            TotalLines = r.TotalLines,
+            DailyLineCounts = r.DailyLineCounts.Where(d => d.Date >= cutoff).ToList()
+        }).ToList();
+    }
 
     /// <summary>Position in the full repo list, so a series keeps its colour when others are hidden.</summary>
     private static int PaletteIndex(List<RepositoryLineCountHistoryDto> all, RepositoryId id) =>

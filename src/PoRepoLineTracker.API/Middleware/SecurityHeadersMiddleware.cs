@@ -14,11 +14,13 @@ public class SecurityHeadersMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<SecurityHeadersMiddleware> _logger;
+    private readonly bool _isDevelopment;
 
-    public SecurityHeadersMiddleware(RequestDelegate next, ILogger<SecurityHeadersMiddleware> logger)
+    public SecurityHeadersMiddleware(RequestDelegate next, ILogger<SecurityHeadersMiddleware> logger, IHostEnvironment environment)
     {
         _next = next;
         _logger = logger;
+        _isDevelopment = environment.IsDevelopment();
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -41,18 +43,26 @@ public class SecurityHeadersMiddleware
         context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
 
         // Content-Security-Policy (CSP): Restricts sources of content that can be loaded
-        // NOTE: Blazor WASM requires 'unsafe-eval' to compile WebAssembly at runtime
-        // This is safe because the code is not executed from user input
+        //
+        // script-src used to be "'self' 'unsafe-inline' 'unsafe-eval' https:" — any script from
+        // any HTTPS host, plus eval, which is no XSS protection at all. Blazor WASM needs only
+        // 'wasm-unsafe-eval' (compile WebAssembly, not eval strings). 'unsafe-inline' stays for
+        // the boot scripts in index.html; ponytail: move those to a .js file and drop it.
+        // Development keeps the loose form: the debugger/hot-reload use eval and the Scalar API
+        // reference loads from a CDN.
+        var scriptSrc = _isDevelopment
+            ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; "
+            : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; ";
         var cspHeader = "default-src 'self'; " +
-                        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; " +  // unsafe-eval allows Blazor WASM compilation
-                        "style-src 'self' 'unsafe-inline' https:; " +    // Allow inline styles
-                        "img-src 'self' data: https:; " +
-                        "font-src 'self' https:; " +
+                        scriptSrc +
+                        "style-src 'self' 'unsafe-inline'; " +    // Radzen sets inline styles
+                        "img-src 'self' data: https:; " +    // GitHub avatars
+                        "font-src 'self'; " +    // fonts ship with Radzen under _content/
                         // wss: is listed explicitly for the /hubs/analysis WebSocket. CSP 3 treats
                         // 'self' as covering a same-origin ws/wss upgrade, but that was clarified
                         // late and engines disagreed for years — an omitted scheme here fails as a
                         // silently blocked connection, so it is named rather than assumed.
-                        "connect-src 'self' https: wss:; " +
+                        "connect-src 'self' wss:; " +
                         // Both named rather than left to fall back, for the same reason wss: is.
                         // worker-src falls back through child-src to script-src, and manifest-src
                         // falls back to default-src — so the app is installable today by accident

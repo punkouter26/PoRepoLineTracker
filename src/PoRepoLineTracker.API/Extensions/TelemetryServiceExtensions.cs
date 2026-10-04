@@ -61,12 +61,19 @@ public static class TelemetryServiceExtensions
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation();
 
-                // Cost cap: drop the noisy ASP.NET HTTP client/hosting pre-aggregated meters
+                // Cost cap: drop the noisy ASP.NET hosting / HTTP client pre-aggregated meters
                 // (~60% of this app's Log Analytics ingestion). Reversible via config.
-                if (!configuration.GetValue("ApplicationInsights:EnableAspNetCoreMeters", false))
+                //
+                // A Drop view, not a "remove meter" call: MeterProviderBuilder has no RemoveMeter
+                // (the first attempt at this did not compile), and simply not calling the
+                // Add*Instrumentation methods would not be enough either — UseAzureMonitor below
+                // subscribes to the same meters on its own. A view applies to the whole provider.
+                if (!configuration.GetValue(ConfigKeys.Telemetry.EnableAspNetCoreMeters, false))
                 {
-                    metrics.RemoveMeter("Microsoft.AspNetCore.Hosting");
-                    metrics.RemoveMeter("Microsoft.AspNetCore.HttpClient");
+                    metrics.AddView(instrument =>
+                        instrument.Meter.Name is "Microsoft.AspNetCore.Hosting" or "System.Net.Http"
+                            ? MetricStreamConfiguration.Drop
+                            : null);
                 }
 
                 if (environment.IsDevelopment() &&

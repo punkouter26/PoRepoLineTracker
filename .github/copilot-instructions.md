@@ -30,3 +30,19 @@ Rules:
 Not lazy about: understanding the problem (read it fully and trace the real flow before picking a rung, a small diff you don't understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs (the platform is never the spec ideal, a clock drifts, a sensor reads off), anything explicitly requested. Lazy code without its check is unfinished: non-trivial logic leaves ONE runnable check behind, the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
 
 (Yes, this file also applies to agents working on the ponytail repo itself. Especially to them.)
+
+# Project rules (NET_AGENTS)
+
+These are the owner's standing rules for this repository. Where one conflicts with the ponytail text above, the rule here wins.
+
+- Only use the `master` branch for all work. Use another branch only when specifically asked to.
+- Always restart the app after a code change and verify it restarted successfully.
+- Check for a `DOCS` folder in the repository root for an overall summary of the project.
+- Do not use dotnet user-secrets to store data locally. Put it in appsettings or Azure Key Vault (if one exists).
+- When asked to "git sync": create a git commit with a short message in casual American slang, not technical, so it reads like a human wrote it, and push the code.
+- At the end of any answer longer than 100 words, add a TL;DR of about 20 words.
+- Do not run all tests after code changes. Run only the tests related to the change, or none at all if the change is simple.
+- Avoid making the owner type commands into a CLI or click through a web GUI by hand when it can be done for them automatically.
+- Treat compile warnings as errors and make sure they are fixed.
+- If more than 100 lines of code are removed overall in one prompt, mention it.
+- When the UI changes, take an annotated screenshot showing the old and new UI with the changes marked. Place the image in the `SCREENSHOTS` folder inside an HTML file and give its valid full path.

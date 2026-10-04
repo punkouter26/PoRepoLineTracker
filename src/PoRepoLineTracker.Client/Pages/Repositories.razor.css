@@ -2,8 +2,8 @@
    Grid-specific rules (rp-grid, column cell content) live in
    Components/Repositories/RepositoriesGrid.razor.css alongside the markup that targets them.
    See AddRepository.razor.css for the ::deep / doubled-class / !important pattern.
-   Shared visuals that other pages also use (.stat-card, .onboarding-step, the fadeSlideUp
-   keyframes) stay in app.css; only what used to sit on a style= attribute here lives below. */
+   Shared visuals that other pages also use (.onboarding-step, the fadeSlideUp keyframes) stay
+   in app.css; only what used to sit on a style= attribute here lives below. */
 
 ::deep .rp-title.rp-title {
     margin: 0 !important;
@@ -20,64 +20,6 @@
 
 ::deep .rp-disabled.rp-disabled {
     color: var(--rz-text-disabled-color) !important;
-}
-
-/* ─── Inline add-repository panel ─────────────────────────────────────────── */
-
-::deep .rp-inline-card.rp-inline-card {
-    border-left: 3px solid var(--rz-primary) !important;
-    animation: fadeSlideUp 0.25s ease both !important;
-}
-
-/* ─── Onboarding empty state ──────────────────────────────────────────────── */
-
-::deep .rp-onboarding-card.rp-onboarding-card {
-    padding: 1.75rem 1.5rem !important;
-}
-
-::deep .rp-onboarding-icon.rp-onboarding-icon {
-    font-size: 2rem !important;
-    color: var(--primary-on-surface) !important;
-    animation: fadeSlideUp 0.4s ease both !important;
-}
-
-::deep .rp-onboarding-title.rp-onboarding-title {
-    margin: 0 !important;
-    animation: fadeSlideUp 0.4s ease 0.05s both !important;
-}
-
-::deep .rp-onboarding-lede.rp-onboarding-lede {
-    color: var(--rz-text-secondary-color) !important;
-    text-align: center !important;
-    max-width: 380px !important;
-    animation: fadeSlideUp 0.4s ease 0.1s both !important;
-}
-
-::deep .rp-step-title.rp-step-title {
-    margin: 0 !important;
-    text-align: center !important;
-}
-
-::deep .rp-step-caption.rp-step-caption {
-    color: var(--rz-text-secondary-color) !important;
-    text-align: center !important;
-}
-
-::deep .rp-onboarding-cta.rp-onboarding-cta {
-    padding: 0.75rem 2rem !important;
-    font-size: 1rem !important;
-    font-weight: 600 !important;
-    border-radius: 12px !important;
-}
-
-.rp-onboarding-steps {
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 0;
-    flex-wrap: wrap;
-    width: 100%;
-    max-width: 520px;
 }
 
 /* ─── Danger zone ─────────────────────────────────────────────────────────── */
@@ -103,8 +45,7 @@
     ::deep .rp-danger-zone,
     ::deep .rz-button,
     ::deep .page-hero__actions,
-    ::deep .rz-paginator,
-    ::deep .rp-inline-card {
+    ::deep .rz-paginator {
         display: none !important;
     }
 

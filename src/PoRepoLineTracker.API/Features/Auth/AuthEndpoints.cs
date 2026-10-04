@@ -41,6 +41,15 @@ internal static class AuthEndpoints
                 : config[ConfigKeys.GitHub.ClientSecret];
 
             var isOAuthConfigured = !string.IsNullOrEmpty(ghClientId) && !string.IsNullOrEmpty(ghClientSecret);
+
+            // Local paths only. The value arrives in the query string, so without this a link to
+            // /auth/login?returnUrl=https://evil.example signs the user in with GitHub and then
+            // forwards them — still on a trusted-looking flow — to the attacker's page. The dev
+            // bypass below always checked; the real OAuth path did not.
+            returnUrl = !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/')
+                        && !returnUrl.StartsWith("//") && !returnUrl.StartsWith("/\\")
+                ? returnUrl
+                : "/";
             var isDevBypass = env.IsDevelopment() && (!isOAuthConfigured || dev == true);
 
             if (isDevBypass)
@@ -88,20 +97,16 @@ internal static class AuthEndpoints
                     new AuthenticationProperties
                     {
                         IsPersistent = true,
-                        RedirectUri = returnUrl ?? "/"
+                        RedirectUri = returnUrl
                     });
 
-                var target = !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//")
-                    ? returnUrl
-                    : "/";
-
-                return Results.Redirect(target);
+                return Results.Redirect(returnUrl);
             }
 
             if (isOAuthConfigured)
             {
                 return Results.Challenge(
-                    new AuthenticationProperties { RedirectUri = returnUrl ?? "/" },
+                    new AuthenticationProperties { RedirectUri = returnUrl },
                     [GitHubAuthenticationDefaults.AuthenticationScheme]);
             }
 

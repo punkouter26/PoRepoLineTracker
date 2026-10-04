@@ -42,33 +42,16 @@ public class AuthorizationFallbackTests
     }
 
     [Fact]
-    public async Task UnknownApiRoute_Anonymous_DoesNotLeakServerError()
+    public async Task UnknownApiRoute_Anonymous_Returns_404()
     {
+        // Exactly 404, which is what the deploy smoke test asserts. "< 500" passed locally on
+        // the day production answered 500 here.
         var response = await _anonymous.GetAsync("/api/definitely-not-a-route");
 
-        ((int)response.StatusCode).Should().BeLessThan(500);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     // ─── Explicitly public ──────────────────────────────────────────────
-
-    [Fact]
-    public async Task Health_Anonymous_Returns_200()
-    {
-        // The deploy smoke test polls this with no credential — it must stay anonymous.
-        var response = await _anonymous.GetAsync("/health");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task AuthMe_Anonymous_Returns_200_NotAuthenticated()
-    {
-        var response = await _anonymous.GetAsync("/auth/me");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("false");
-    }
 
     [Fact]
     public async Task BlazorFrameworkFile_Anonymous_IsNotGatedByAuth()

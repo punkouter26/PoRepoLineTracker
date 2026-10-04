@@ -25,20 +25,6 @@ internal static class CodeHealthEndpoints
         .WithName("GetPortfolioCodeHealth")
         .WithSummary("Every owned repository scored, worst first, so they can be ranked against each other");
 
-        // Every repository's trend, for the combined chart. A literal segment, so it is matched
-        // ahead of the {repositoryId} route below rather than being parsed as an id — and it is
-        // plural to keep it distinct from the per-repository "/{id}/trend".
-        health.MapGet("/trends", async (HttpContext ctx, GetPortfolioCodeHealthTrendQueryHandler trendsHandler) =>
-        {
-            if (!ctx.User.TryGetUserId(out var userId))
-                return Results.Unauthorized();
-
-            var trends = await trendsHandler.Handle(new GetPortfolioCodeHealthTrendQuery(userId));
-            return Results.Ok(trends);
-        })
-        .WithName("GetPortfolioCodeHealthTrends")
-        .WithSummary("Monthly health for every owned repository, one series each");
-
         // Unlike the portfolio routes, this one takes a repository id from the URL — so it needs
         // the ownership guard. Without it any signed-in caller could read a report (paths,
         // hotspots, file sizes) for someone else's private repository.
@@ -70,7 +56,7 @@ internal static class CodeHealthEndpoints
             catch (Exception ex)
             {
                 Log.Error(ex, "Error building code health for repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error building code health: {ex.Message}",
+                return Results.Problem($"Error building code health.",
                     statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })

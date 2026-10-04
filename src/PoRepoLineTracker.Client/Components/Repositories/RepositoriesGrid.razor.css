@@ -33,6 +33,13 @@
 
 ::deep .rp-repo-name.rp-repo-name {
     font-weight: 600 !important;
+    /* Capped: the grid sizes to its content (width: max-content above), so one long repository
+       name widened the whole table and pushed Status and Actions off-screen at 1440px. The full
+       name is in the title attribute. */
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 ::deep .rp-lines-value.rp-lines-value {
@@ -44,26 +51,32 @@
     font-weight: 500 !important;
 }
 
-/* The icon glyph alone measured ~15px, below the WCAG 2.2 AA 2.5.8 minimum of 24x24. */
-::deep .rp-github-link {
-    color: var(--text-muted);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    min-width: 24px;
-    min-height: 24px;
-    border-radius: 6px;
-    flex: 0 0 auto;
+/* --status-pos / --status-neg are defined per theme to clear 4.5:1 on the surface each one
+   actually paints; a single green/red pair cannot. The sign is in the text too ("+1,234"). */
+.rp-delta--pos { color: var(--status-pos); font-weight: 600; }
+.rp-delta--neg { color: var(--status-neg); font-weight: 600; }
+.rp-delta--flat { color: var(--text-muted); }
+
+/* Cadence sparkline — moved here from Insights.razor.css with the column it draws.
+   Bars, not a line: 12 values is too few points for a trend line to read as anything but jagged,
+   and a reader compares one repo's cadence against its own history, not against pixel-precise
+   values. Each bar's height is relative to that row's own busiest week (inline style, set from
+   the model), not a portfolio-wide max, so a quiet repo's pattern is still visible rather than
+   flattened to a sliver next to a busy one. */
+.rp-spark {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 28px;
 }
 
-::deep .rp-github-link:hover {
-    color: var(--primary-on-surface);
-    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-}
-
-::deep .rp-github-link__icon {
-    font-size: 0.95rem;
+.rp-spark__bar {
+    flex: 1 0 auto;
+    width: 6px;
+    min-height: 6px;
+    border-radius: 1px;
+    background: var(--primary-color);
+    opacity: 0.75;
 }
 
 /* ─── Sticky table header & compact grid ──────────────────────────────────── */
@@ -80,12 +93,15 @@
     font-size: 0.85rem !important;
 }
 
-.rp-grid-heading {
-    margin: 0;
-    font-weight: 600;
+/* ::deep, under the plain .rp-grid-toolbar <div>: both classes sit on Radzen components
+   (RadzenText / RadzenTextBox), which never carry this file's scope id, so the bare selectors
+   these used to be compiled and matched nothing. */
+.rp-grid-toolbar ::deep .rp-grid-heading.rp-grid-heading {
+    margin: 0 !important;
+    font-weight: 600 !important;
 }
 
-.rp-search-input {
+.rp-grid-toolbar ::deep .rp-search-input.rp-search-input {
     width: 220px;
     max-width: 100%;
 }

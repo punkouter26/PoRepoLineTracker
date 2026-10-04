@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -8,123 +7,69 @@ namespace PoRepoLineTracker.Unit;
 
 /// <summary>
 /// The most destructive handler in the codebase: it drops every repository row for a user AND
-/// deletes a directory tree recursively. It had no test.
+/// deletes their clones from disk.
 ///
-/// <para>Two properties matter more than the happy path. It must delete only the configured
-/// repositories directory — an integration run once pointed this at the system temp root and it
-/// removed the test host's own scratch files. And local cleanup must stay best-effort: a locked
-/// Git file on Windows is routine, and letting it propagate would fail a request whose storage
-/// work has already succeeded, leaving the user with an error and no way to retry cleanly.</para>
-///
-/// <para>Each test gets its own directory under the session scratch root, so a bug in the handler
-/// cannot reach anything shared.</para>
+/// <para>The property that matters most is the blast radius. This handler used to delete the
+/// configured clone ROOT recursively — a directory every user of the deployment shares — so one
+/// user's "remove all" destroyed everyone's clones. It must touch only the caller's own
+/// repositories. And the cleanup must stay best-effort: a locked Git file is routine, and letting
+/// it propagate would fail a request whose storage work has already succeeded.</para>
 /// </summary>
-public sealed class RemoveAllRepositoriesCommandHandlerTests : IDisposable
+public sealed class RemoveAllRepositoriesCommandHandlerTests
 {
     private readonly IRepositoryDataService _dataService = Substitute.For<IRepositoryDataService>();
+    private readonly IGitHubService _gitHub = Substitute.For<IGitHubService>();
+    private readonly ICodeHealthSnapshotStore _snapshots = Substitute.For<ICodeHealthSnapshotStore>();
     private readonly UserId _userId = UserId.New();
-    private readonly string _sandbox;
+    private readonly GitHubRepository _first = new() { Id = RepositoryId.New(), Owner = "acme", Name = "api" };
+    private readonly GitHubRepository _second = new() { Id = RepositoryId.New(), Owner = "acme", Name = "web" };
 
     public RemoveAllRepositoriesCommandHandlerTests()
     {
-        _sandbox = Path.Combine(Path.GetTempPath(), $"PoRepoLineTracker.RemoveAllTests-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_sandbox);
+        _dataService.GetAllRepositoriesAsync(_userId).Returns([_first, _second]);
     }
 
-    public void Dispose()
-    {
-        try { if (Directory.Exists(_sandbox)) Directory.Delete(_sandbox, recursive: true); }
-        catch { /* best-effort teardown; the OS reclaims temp anyway */ }
-    }
-
-    private RemoveAllRepositoriesCommandHandler HandlerFor(string? localReposPath)
-    {
-        var settings = new Dictionary<string, string?>();
-        if (localReposPath is not null) settings[ConfigKeys.GitHub.LocalReposPath] = localReposPath;
-
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-
-        return new RemoveAllRepositoriesCommandHandler(
-            _dataService, configuration, Substitute.For<ILogger<RemoveAllRepositoriesCommandHandler>>());
-    }
-
-    private Task WhenRemovingAll(RemoveAllRepositoriesCommandHandler handler) =>
-        handler.Handle(new RemoveAllRepositoriesCommand(_userId), CancellationToken.None);
-
-    private string GivenRepositoryTree()
-    {
-        var repos = Path.Combine(_sandbox, "repos");
-        var nested = Path.Combine(repos, "acme", "api", ".git", "objects");
-        Directory.CreateDirectory(nested);
-        File.WriteAllText(Path.Combine(repos, "acme", "api", "README.md"), "# api");
-        File.WriteAllText(Path.Combine(nested, "pack-01.idx"), "binary-ish");
-        return repos;
-    }
-
-    // ─── Storage ─────────────────────────────────────────────────────────────
+    private Task WhenRemovingAll() =>
+        new RemoveAllRepositoriesCommandHandler(
+                _dataService, _gitHub, _snapshots, Substitute.For<ILogger<RemoveAllRepositoriesCommandHandler>>())
+            .Handle(new RemoveAllRepositoriesCommand(_userId), CancellationToken.None);
 
     [Fact]
-    public async Task RemovesTheUsersStorageRowsAndTheConfiguredRepositoriesTree()
+    public async Task RemovesTheUsersRows_AndOnlyTheirOwnClonesAndSnapshots()
     {
-        var repos = GivenRepositoryTree();
-        var handler = HandlerFor(repos);
-
-        await WhenRemovingAll(handler);
+        await WhenRemovingAll();
 
         await _dataService.Received(1).RemoveAllRepositoriesAsync(_userId);
         await _dataService.DidNotReceive().RemoveAllRepositoriesAsync(Arg.Is<UserId>(id => id != _userId));
-        Directory.Exists(repos).Should().BeFalse();
+
+        // Exactly the two clone directories derived from this user's repository ids — nothing
+        // broader, and in particular never the shared root.
+        await _gitHub.Received(1).DeleteLocalRepositoryAsync($"repo_{_first.Id}");
+        await _gitHub.Received(1).DeleteLocalRepositoryAsync($"repo_{_second.Id}");
+        await _gitHub.Received(2).DeleteLocalRepositoryAsync(Arg.Any<string>());
+        await _snapshots.Received(1).DeleteForRepositoryAsync(_first.Id);
+        await _snapshots.Received(1).DeleteForRepositoryAsync(_second.Id);
     }
 
     [Fact]
-    public async Task WhenStorageFails_TheFailurePropagates()
+    public async Task WhenStorageFails_TheFailurePropagates_AndNothingOnDiskIsTouched()
     {
         _dataService.RemoveAllRepositoriesAsync(_userId).ThrowsAsync(new InvalidOperationException("Table unavailable"));
-        var handler = HandlerFor(GivenRepositoryTree());
 
-        var act = async () => await WhenRemovingAll(handler);
+        var act = WhenRemovingAll;
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Table unavailable");
-    }
-
-    // ─── Local file system ───────────────────────────────────────────────────
-
-    [Fact]
-    public async Task LocalFileSystem_DeletesOnlyConfiguredPathAndSurvivesLockedFiles()
-    {
-        var repos = GivenRepositoryTree();
-        var sibling = Path.Combine(_sandbox, "not-repos");
-        Directory.CreateDirectory(sibling);
-        var bystander = Path.Combine(sibling, "important.txt");
-        File.WriteAllText(bystander, "do not delete");
-
-        var locked = Path.Combine(repos, "acme", "api", ".git", "objects", "pack-01.idx");
-        using (var hold = new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
-        {
-            var act = async () => await WhenRemovingAll(HandlerFor(repos));
-            await act.Should().NotThrowAsync();
-        }
-
-        File.Exists(bystander).Should().BeTrue();
-        Directory.Exists(_sandbox).Should().BeTrue();
-        await _dataService.Received(1).RemoveAllRepositoriesAsync(_userId);
+        await _gitHub.DidNotReceive().DeleteLocalRepositoryAsync(Arg.Any<string>());
     }
 
     [Fact]
-    public async Task LocalFileSystem_MissingOrUnconfiguredPath_SkipsCleanupWithoutError()
+    public async Task LocalCleanupFailure_IsSwallowed_AndTheRemainingRepositoriesAreStillCleaned()
     {
-        var missingHandler = HandlerFor(Path.Combine(_sandbox, "never-created"));
-        var actMissing = async () => await WhenRemovingAll(missingHandler);
-        await actMissing.Should().NotThrowAsync();
+        _gitHub.DeleteLocalRepositoryAsync($"repo_{_first.Id}").ThrowsAsync(new IOException("pack file locked"));
 
-        var nullHandler = HandlerFor(null);
-        var actNull = async () => await WhenRemovingAll(nullHandler);
-        await actNull.Should().NotThrowAsync();
+        var act = WhenRemovingAll;
 
-        var emptyHandler = HandlerFor("");
-        var actEmpty = async () => await WhenRemovingAll(emptyHandler);
-        await actEmpty.Should().NotThrowAsync();
-
-        await _dataService.Received(3).RemoveAllRepositoriesAsync(_userId);
+        await act.Should().NotThrowAsync();
+        await _gitHub.Received(1).DeleteLocalRepositoryAsync($"repo_{_second.Id}");
     }
 }

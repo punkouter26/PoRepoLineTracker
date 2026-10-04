@@ -25,8 +25,20 @@
 
 /* ─── Radzen-rendered children of our own elements (these ::deep rules DO apply) ─ */
 
-::deep .brand-link.brand-link {
-    cursor: pointer !important;
+/* A plain <a> in this file's own markup now, so no ::deep. The flex row is what the RadzenStack
+   it replaced provided; min-width: 0 is what lets the wordmark inside it ellipsise. */
+.brand-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    text-decoration: none;
+}
+
+/* The global link ring is the brand purple — invisible on the purple header. */
+.brand-link:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
 }
 
 ::deep .brand-icon-main.brand-icon-main {

@@ -2,46 +2,8 @@
 
    The card, toolbar, title, description, empty-state and chart-height rules that used to live
    here moved into ChartCard / app.css when this component adopted <ChartCard>. What is left is
-   the tooltip body and the custom legend, both of which are this component's own markup.
-
-   Tooltip note: these are deliberately NOT `::deep`. Radzen renders the tooltip into its own
-   portal at the end of <body>, so the template's markup has no ancestor left inside this
-   component — `::deep .arc-tip` compiles to `[b-scope] .arc-tip` and matched nothing once the
-   node was reparented. The `.arc-tip` div is our own markup and carries the scope id itself, so
-   a plain selector reaches it wherever Radzen puts it. */
-
-.arc-tip {
-    background: rgba(21, 21, 24, 0.96);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-    color: #fff;
-    padding: 0.4rem 0.55rem;
-    min-width: 170px;
-}
-
-/* The surface is always dark, so the text is white regardless of theme — the previous
-   var(--rz-text-color) rendered dark-on-dark once the dark theme was applied. */
-.arc-tip__title {
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 0.15rem;
-}
-
-.arc-tip__meta {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.65);
-}
-
-.arc-tip__value {
-    margin-top: 0.2rem;
-    font-size: 0.85rem;
-    color: #fff;
-}
-
-.arc-tip__label {
-    font-weight: 600;
-}
+   the custom legend, which is this component's own markup. The tooltip body (`.arc-tip*`) is in
+   app.css: CodeHealthTrendCard draws the same tooltip and could not see rules scoped to here. */
 
 /* ─── Legend ──────────────────────────────────────────────────────────────── */
 

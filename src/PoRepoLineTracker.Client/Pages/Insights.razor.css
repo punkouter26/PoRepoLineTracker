@@ -26,12 +26,6 @@
     color: var(--text-muted) !important;
 }
 
-/* --status-pos / --status-neg are defined per theme to clear 4.5:1 on the surface each one
-   actually paints; a single green/red pair cannot (see the same note in ContributorChart). */
-.ins-delta--pos { color: var(--status-pos); font-weight: 600; }
-.ins-delta--neg { color: var(--status-neg); font-weight: 600; }
-.ins-delta--flat { color: var(--text-muted); }
-
 /* ─── Activity heatmap ───────────────────────────────────────────────────────
    Column-flow over seven rows: cells are emitted in date order and the browser fills each
    week down before starting the next, which is what turns a flat list into a calendar without
@@ -40,22 +34,38 @@
     padding-bottom: 0.25rem;
 }
 
+/* Columns flex between 11px and 1.25rem. A fixed 11px left the 90-day calendar a ~180px strip
+   in a wide card; letting them reach 2.5rem overcorrected — cells are square, so the card grew
+   to ~300px tall to show thirteen weeks. The 11px floor is below what a year needs on a phone,
+   so the tracks overflow there and .u-scroll-x on the wrapper scrolls them instead of
+   compressing cells into a smear. */
 .ins-heat {
     display: grid;
-    grid-template-rows: repeat(7, 1fr);
+    grid-template-rows: repeat(7, auto);
     grid-auto-flow: column;
-    grid-auto-columns: 11px;
+    grid-auto-columns: minmax(11px, 1.25rem);
     gap: 3px;
-    /* Below this the grid would compress cells into an unreadable smear; .u-scroll-x on the
-       wrapper lets it scroll sideways instead. */
-    min-width: max-content;
 }
 
+/* "All": years of weeks. At the 11px floor a 2.6-year history is twice the card's width, and
+   what scrolls off the right is the most recent activity. Smaller cells keep the whole history
+   on screen at desktop widths; a longer one still scrolls. */
+.ins-heat--dense {
+    grid-auto-columns: minmax(4px, 1.25rem);
+    gap: 2px;
+}
+
+/* 11px square by default — that is the legend swatch. */
 .ins-heat__cell {
     width: 11px;
-    height: 11px;
+    aspect-ratio: 1;
     border-radius: 2px;
     display: block;
+}
+
+/* Inside the calendar the cell fills its column and stays square. */
+.ins-heat > .ins-heat__cell {
+    width: auto;
 }
 
 .ins-heat--blank {
@@ -79,8 +89,10 @@
 
 ::deep .ins-zoom-bar.ins-zoom-bar {
     border-radius: 6px;
-    background: var(--surface-sunken);
-    border: 1px solid var(--border-subtle);
+    /* --bg-tertiary / --border-light. These read --surface-sunken and --border-subtle, which no
+       stylesheet defines: both declarations were invalid and the bar had no surface or border. */
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-light);
 }
 
 ::deep .ins-zoom-bar .rz-selectbar-item {
@@ -92,79 +104,54 @@
     margin-inline: 0.25rem;
 }
 
-/* ─── All repositories grid ──────────────────────────────────────────────────
-   Replaces the old button-list Movers panel. No `.ins-repo-grid` rules of its own: sort chrome,
-   row hover/borders and the pointer cursor (set via OnRepoRowRender, same as the Repositories
-   grid) all come from Radzen's own grid styles, so there is nothing left to override here. */
-
-/* Bars, not a line: 12 values is too few points for a trend line to read as anything but jagged,
-   and a reader compares one repo's cadence against its own history, not against pixel-precise
-   values — a bar's relative height carries that at a glance. Each bar's height is relative to
-   that row's own busiest week (inline style, set from the model), not a portfolio-wide max, so a
-   quiet repo's pattern is still visible rather than flattened to a sliver next to a busy one. */
-.ins-spark {
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 28px;
-}
-
-.ins-spark__bar {
-    flex: 1 0 auto;
-    width: 6px;
-    min-height: 6px;
-    border-radius: 1px;
-    background: var(--primary-color);
-    opacity: 0.75;
-}
-
-/* ─── Language mix ───────────────────────────────────────────────────────────*/
-.ins-langs {
+/* ─── Outliers ───────────────────────────────────────────────────────────────
+   A wrapping row per commit rather than a table: four short facts, and on a phone they stack
+   instead of scrolling sideways. */
+.ins-outliers {
+    list-style: none;
+    margin: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    margin-top: 0.75rem;
 }
 
-.ins-lang {
+.ins-outlier {
     display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.6rem;
 }
 
+.ins-outlier a {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.ins-outlier__size {
+    margin-inline-start: auto;
+    font-variant-numeric: tabular-nums;
+}
+
+.ins-outliers__hint {
+    margin: 0.75rem 0 0;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+
+.ins-all-link {
+    align-self: flex-start;
+    font-weight: 600;
+}
+
+/* Inline code chip: extensions in the drift list, SHAs in the outliers. The language-mix bar
+   list that used to follow it renders through ExtensionBreakdownCard now. */
 .ins-lang__code {
     font-size: var(--text-xs);
     background: var(--bg-tertiary);
     padding: 0.1rem 0.35rem;
     border-radius: 3px;
     color: var(--text-primary);
-}
-
-/* Native <progress>: the percentage rides in the value attribute, so the bar needs no inline
-   width and is announced by assistive tech. */
-.ins-lang__bar {
-    display: block;
-    width: 100%;
-    height: 6px;
-    border: none;
-    border-radius: 3px;
-    background: var(--border-light);
-    appearance: none;
-}
-
-.ins-lang__bar::-webkit-progress-bar {
-    border-radius: 3px;
-    background: var(--border-light);
-}
-
-.ins-lang__bar::-webkit-progress-value {
-    border-radius: 3px;
-    background: var(--primary-color);
-}
-
-.ins-lang__bar::-moz-progress-bar {
-    border-radius: 3px;
-    background: var(--primary-color);
 }
 
 /* ─── Language drift ─────────────────────────────────────────────────────────

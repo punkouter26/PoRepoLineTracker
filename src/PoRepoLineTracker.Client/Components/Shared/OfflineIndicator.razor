@@ -45,6 +45,17 @@
 
     public void Dispose()
     {
+        try
+        {
+            // Fire-and-forget, as InstallAppButton does: Dispose cannot await, and leaving the
+            // page forwarding online/offline events to a disposed reference throws in the browser.
+            _ = JS.InvokeVoidAsync("unregisterNetworkStatusListener");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The JS side is already gone; there is nothing left to unregister.
+        }
+
         _selfRef?.Dispose();
     }
 }

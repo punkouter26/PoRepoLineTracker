@@ -33,6 +33,16 @@ public static class ConfigKeys
         public const string TablesConnectionString = "ConnectionStrings:tables";
     }
 
+    /// <summary>
+    /// The optional Claude integration (digest narrative, natural-language grid filter). With no
+    /// API key configured both features are simply absent — nothing is sent anywhere.
+    /// </summary>
+    public static class Anthropic
+    {
+        public const string ApiKey = "Anthropic:ApiKey";
+        public const string Model = "Anthropic:Model";
+    }
+
     /// <summary>GitHub OAuth credentials and API access.</summary>
     public static class GitHub
     {
@@ -54,7 +64,7 @@ public static class ConfigKeys
     }
 
     // The Microsoft / Entra ID key group was removed with the Microsoft OAuth provider — a
-    // recorded deviation, see AGENT.MD. GitHub is the only provider.
+    // recorded deviation, see SPEC.md §9. GitHub is the only provider.
 
     /// <summary>Telemetry export targets.</summary>
     public static class Telemetry
@@ -65,6 +75,7 @@ public static class ConfigKeys
         public const string AppInsightsInstrumentationKeySection = "ApplicationInsights:InstrumentationKey";
         public const string OtlpEndpoint = "OpenTelemetry:OtlpEndpoint";
         public const string EnableConsoleExporters = "EnableConsoleExporters";
+        public const string EnableAspNetCoreMeters = "ApplicationInsights:EnableAspNetCoreMeters";
     }
 
     /// <summary>Cookie and transport hardening.</summary>

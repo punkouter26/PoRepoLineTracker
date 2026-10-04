@@ -14,6 +14,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     private readonly IUserPreferencesService _prefsService = Substitute.For<IUserPreferencesService>();
     private readonly IAnalysisProgressService _progressService = Substitute.For<IAnalysisProgressService>();
     private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
+    private readonly Microsoft.Extensions.Hosting.IHostEnvironment _environment = Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>();
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger = Substitute.For<ILogger<AnalyzeRepositoryCommitsCommandHandler>>();
     private readonly AnalyzeRepositoryCommitsCommandHandler _sut;
 
@@ -22,7 +23,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _sut = new AnalyzeRepositoryCommitsCommandHandler(
             _gitHubService, _dataService,
             _userService, _prefsService, _progressService,
-            _configuration, _logger);
+            _configuration, _environment, _logger);
     }
 
     /// <summary>
@@ -65,14 +66,22 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         };
         _dataService.GetRepositoryByIdAsync(newRepoId).Returns(newRepo);
         _gitHubService.CloneRepositoryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>()).Returns("cloned-path");
-        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(Enumerable.Empty<CommitStatsDto>());
+        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<Action<int, int>?>()).Returns(Enumerable.Empty<CommitStatsDto>());
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(newRepoId), CancellationToken.None);
-        await _gitHubService.Received(1).CloneRepositoryAsync(newRepo.CloneUrl, $"repo_{newRepoId}", Arg.Any<string?>());
+        // The URL is derived from Owner/Name, never taken from the stored (once caller-supplied) field.
+        await _gitHubService.Received(1).CloneRepositoryAsync("https://github.com/testowner/testrepo.git", $"repo_{newRepoId}", Arg.Any<string?>());
+
+        // A stored name that could redirect the clone is refused before git is ever invoked.
+        var hostileId = RepositoryId.New();
+        _dataService.GetRepositoryByIdAsync(hostileId).Returns(new GitHubRepository { Id = hostileId, Owner = "evil.example/x", Name = "repo" });
+        var act = async () => await _sut.Handle(new AnalyzeRepositoryCommitsCommand(hostileId), CancellationToken.None);
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        await _gitHubService.Received(1).CloneRepositoryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>());
     }
 
     [Fact]
-    public async Task Handle_ExistingLocalPath_PullsWithTokenOrServerPat()
+    public async Task Handle_ExistingLocalPath_PullsWithUserToken_AndServerPatOnlyInDevelopment()
     {
         var repoId = RepositoryId.New();
         var userId = UserId.New();
@@ -96,13 +105,13 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         });
         _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("pulled");
-        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(Enumerable.Empty<CommitStatsDto>());
-        _prefsService.GetFileExtensionsAsync(userId).Returns(new List<string> { ".cs", ".ts" });
+        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<Action<int, int>?>()).Returns(Enumerable.Empty<CommitStatsDto>());
+        _prefsService.GetPreferencesAsync(userId).Returns(new UserPreferences { UserId = userId, FileExtensions = [".cs", ".ts"] });
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
-        await _gitHubService.Received(1).PullRepositoryAsync("/existing/path", "ghp_test_token");
+        await _gitHubService.Received(1).PullRepositoryAsync($"repo_{repoId}", "ghp_test_token");
 
-        // Fallback to configured GitHub PAT when user has empty token
+        // A user with an empty token: the server PAT stands in, but only in Development
         _userService.GetUserByIdAsync(userId).Returns(new User
         {
             Id = userId,
@@ -112,8 +121,13 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         });
         _configuration["GitHub:PAT"].Returns("ghp_server_side_pat");
 
+        _environment.EnvironmentName.Returns("Production");
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
-        await _gitHubService.Received(1).PullRepositoryAsync("/existing/path", "ghp_server_side_pat");
+        await _gitHubService.Received(1).PullRepositoryAsync($"repo_{repoId}", null);
+
+        _environment.EnvironmentName.Returns("Development");
+        await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
+        await _gitHubService.Received(1).PullRepositoryAsync($"repo_{repoId}", "ghp_server_side_pat");
     }
 
     [Fact]
@@ -133,12 +147,23 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
         _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
-        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(Enumerable.Empty<CommitStatsDto>());
+        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<Action<int, int>?>()).Returns(Enumerable.Empty<CommitStatsDto>());
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId, ClearExistingData: true), CancellationToken.None);
 
         await _dataService.Received(1).DeleteCommitLineCountsForRepositoryAsync(repoId);
         await _dataService.Received().UpdateRepositoryAsync(Arg.Is<GitHubRepository>(r => r.LastAnalyzedCommitDate == null));
+
+        // ...but not when the repository cannot be fetched: the stored history must survive a
+        // revoked token or a repository that is gone from GitHub.
+        _dataService.ClearReceivedCalls();
+        _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).ThrowsAsync(new InvalidOperationException("auth"));
+        _gitHubService.CloneRepositoryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>()).ThrowsAsync(new InvalidOperationException("auth"));
+
+        var act = async () => await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId, ClearExistingData: true), CancellationToken.None);
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        await _dataService.DidNotReceive().DeleteCommitLineCountsForRepositoryAsync(repoId);
+        await _dataService.Received().UpdateRepositoryAsync(Arg.Is<GitHubRepository>(r => r.LastAnalysisError == "auth"));
     }
 
     [Fact]
@@ -163,7 +188,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
         _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("ok");
-        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>()).Returns(commitStats);
+        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<Action<int, int>?>()).Returns(commitStats);
         GivenStoredCommits(repoId, StoredCommit("existing-sha", linesAdded: 10, linesRemoved: 5));
 
         _gitHubService.CountLinesInCommitAsync(Arg.Any<string>(), "new-sha", Arg.Any<IEnumerable<string>>())

@@ -31,6 +31,11 @@ internal static class AppHttpJsonExtensions
         this HttpContent content, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken = default)
         => content.ReadFromJsonAsync(typeInfo, cancellationToken);
 
+    /// <summary>POST a body serialized with source-generated metadata.</summary>
+    public static Task<HttpResponseMessage> PostAppJsonAsync<T>(
+        this HttpClient client, string requestUri, T value, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken = default)
+        => client.PostAsJsonAsync(requestUri, value, typeInfo, cancellationToken);
+
     /// <summary>PUT a body serialized with source-generated metadata.</summary>
     public static Task<HttpResponseMessage> PutAppJsonAsync<T>(
         this HttpClient client, string requestUri, T value, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken = default)

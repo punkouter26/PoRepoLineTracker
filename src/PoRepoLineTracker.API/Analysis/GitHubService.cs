@@ -81,8 +81,6 @@ public class GitHubService : IGitHubService
         _lineCounterMap = lineCounters.ToDictionary(lc => lc.FileExtension, lc => lc); // Initialize map
     }
 
-    public string LocalReposBasePath => _localReposPath;
-
     public async Task<string> CloneRepositoryAsync(string repoUrl, string localPath, string? accessToken = null)
     {
         return await Task.Run(() =>
@@ -118,12 +116,11 @@ public class GitHubService : IGitHubService
     }
 
     /// <summary>
-    /// An absolute path is returned unchanged; a relative one is resolved against the base
-    /// directory. Uploaded repositories store an absolute <c>LocalPath</c> and cloned ones store a
-    /// relative one, and this is the single place that difference is handled — see the interface.
+    /// Resolves a stored (relative) <c>LocalPath</c> against the clone base directory. The
+    /// "absolute path is returned unchanged" branch this used to have served ZIP-uploaded
+    /// repositories, a feature that no longer exists.
     /// </summary>
-    public string ResolveRepositoryPath(string localPath) =>
-        Path.IsPathRooted(localPath) ? localPath : Path.Combine(_localReposPath, localPath);
+    public string ResolveRepositoryPath(string localPath) => Path.Combine(_localReposPath, localPath);
 
     public Task<bool> IsRepositoryValidAsync(string repositoryPath) =>
         Task.FromResult(Repository.IsValid(repositoryPath));
@@ -133,7 +130,13 @@ public class GitHubService : IGitHubService
         var fullLocalPath = Path.Combine(_localReposPath, localPath);
         if (Directory.Exists(fullLocalPath))
         {
-            _logger.LogInformation("Deleting local repository directory {LocalPath} for re-clone", fullLocalPath);
+            _logger.LogInformation("Deleting local repository directory {LocalPath}", fullLocalPath);
+
+            // git marks object and pack files read-only, and on Windows Directory.Delete refuses
+            // a read-only file — so without this the delete of any real clone fails there.
+            foreach (var file in Directory.EnumerateFiles(fullLocalPath, "*", SearchOption.AllDirectories))
+                File.SetAttributes(file, FileAttributes.Normal);
+
             Directory.Delete(fullLocalPath, recursive: true);
         }
         return Task.CompletedTask;
@@ -311,7 +314,7 @@ public class GitHubService : IGitHubService
     /// </summary>
     private async Task<Dictionary<string, int>> CountTreeAsync(Tree tree, string currentPath, HashSet<string> fileExtensionsToCount)
     {
-        var cacheKey = $"{tree.Sha} {currentPath}";
+        var cacheKey = $"{tree.Sha}\0{currentPath}";
         if (_treeLineCounts.TryGetValue(cacheKey, out var memoised))
         {
             return memoised;
@@ -381,7 +384,7 @@ public class GitHubService : IGitHubService
     /// </summary>
     private async Task<int> CountBlobLinesAsync(Blob blob, string fileExtension)
     {
-        var cacheKey = $"{blob.Sha} {fileExtension}";
+        var cacheKey = $"{blob.Sha}\0{fileExtension}";
         if (_blobLineCounts.TryGetValue(cacheKey, out var memoised))
         {
             return memoised;
@@ -434,10 +437,16 @@ public class GitHubService : IGitHubService
     /// here (a scope belongs to one caller), but a re-analysis triggered after a settings change
     /// legitimately asks for different numbers over the same trees, and returning the previous
     /// answer would make the new setting appear to have done nothing.</para>
+    ///
+    /// <para>The signature includes the custom ignore globs for the same reason: they change
+    /// which files are counted, and the startup resume sweep runs every user's pending
+    /// repositories through ONE scope — so without them a second user's analysis reused counts
+    /// made under the first user's globs.</para>
     /// </summary>
     private void InvalidateCachesIfExtensionsChanged(HashSet<string> extensionsToCount)
     {
-        var signature = string.Join(',', extensionsToCount.OrderBy(e => e, StringComparer.OrdinalIgnoreCase));
+        var signature = string.Join(',', extensionsToCount.OrderBy(e => e, StringComparer.OrdinalIgnoreCase))
+                        + '|' + string.Join(';', _fileIgnoreFilter.CustomIgnoreGlobs);
         if (signature == _memoExtensionSignature) return;
 
         _treeLineCounts.Clear();
@@ -445,16 +454,38 @@ public class GitHubService : IGitHubService
         _memoExtensionSignature = signature;
     }
 
-    public async Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(string repositoryPath, DateTime? sinceDate = null)
+    public async Task<IEnumerable<CommitStatsDto>> GetCommitStatsAsync(
+        string repositoryPath,
+        DateTime? sinceDate = null,
+        IEnumerable<string>? fileExtensions = null,
+        Action<int, int>? onProgress = null)
     {
         // Off the request thread: the walk below is synchronous LibGit2Sharp work over the whole
         // history, and it is called from a background analysis job that must not block on it.
-        return await Task.Run(() => GetCommitStatsCore(repositoryPath, sinceDate));
+        return await Task.Run(() => GetCommitStatsCore(repositoryPath, sinceDate, fileExtensions, onProgress));
     }
 
+    /// <summary>How many commits are diffed between progress reports.</summary>
+    private const int StatsProgressInterval = 25;
+
     /// <summary>Synchronous history walk, kept separate so the public method owns the threading.</summary>
-    private IEnumerable<CommitStatsDto> GetCommitStatsCore(string fullRepoPath, DateTime? sinceDate)
+    private IEnumerable<CommitStatsDto> GetCommitStatsCore(
+        string fullRepoPath, DateTime? sinceDate, IEnumerable<string>? fileExtensions, Action<int, int>? onProgress)
     {
+        // Pathspecs limiting each diff to the counted file types. Without them every commit was
+        // diffed across ALL its files — package lock files, minified bundles, vendored code —
+        // which is where nearly all of this step's time went, to produce a "lines added" figure
+        // that then disagreed with a "total lines" figure that never counted those files.
+        // An entry is either an extension (".cs" → "*.cs", matched at any depth) or already a
+        // glob. ponytail: pathspecs match case-sensitively, so "Foo.CS" is not diffed though the
+        // line counter would count it; add both casings if that ever matters.
+        var pathspecs = fileExtensions?
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Select(e => e.StartsWith('.') ? "*" + e : e)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (pathspecs is { Count: 0 }) pathspecs = null;
+
         _logger.LogInformation("Getting commit stats for repository at {RepoPath} since {SinceDate}", fullRepoPath, sinceDate);
 
         if (!Repository.IsValid(fullRepoPath))
@@ -485,29 +516,49 @@ public class GitHubService : IGitHubService
             var commitsList = commits.ToList();
             _logger.LogInformation("Processing {CommitCount} commits after date filtering", commitsList.Count);
 
+            var diffed = 0;
             foreach (var commit in commitsList)
             {
+                // This loop is the whole of "Step 2", and for a long history it runs for minutes.
+                // It used to say nothing until it finished, which read as a hang.
+                if (diffed % StatsProgressInterval == 0) onProgress?.Invoke(diffed, commitsList.Count);
+                diffed++;
+
                 int linesAdded;
                 int linesRemoved;
 
-                if (commit.Parents.Any())
+                // PatchStats, disposed: only the two totals are needed. This used to build a full
+                // Patch — the whole diff as text — for every commit in history and never
+                // disposed it, so a long history held every diff's native memory until the
+                // repository handle closed.
+                var parentCount = commit.Parents.Count();
+                if (parentCount > 1)
                 {
-                    var patch = repo.Diff.Compare<Patch>(commit.Parents.First().Tree, commit.Tree);
-                    linesAdded = patch.LinesAdded;
-                    linesRemoved = patch.LinesDeleted;
+                    // A merge. Diffing it against its first parent re-reports every line the
+                    // merged branch's own commits already reported, so a merged feature branch
+                    // was counted twice in "lines added" and in contributor share.
+                    linesAdded = 0;
+                    linesRemoved = 0;
                 }
                 else
                 {
-                    // Initial commit, count all lines as added
-                    var patch = repo.Diff.Compare<Patch>(null, commit.Tree);
-                    linesAdded = patch.LinesAdded;
-                    linesRemoved = 0;
+                    // parentCount == 0 is the initial commit: diff against the empty tree, so
+                    // every line counts as added.
+                    var parentTree = parentCount == 1 ? commit.Parents.First().Tree : null;
+                    using var stats = pathspecs is null
+                        ? repo.Diff.Compare<PatchStats>(parentTree, commit.Tree)
+                        : repo.Diff.Compare<PatchStats>(parentTree, commit.Tree, pathspecs);
+                    linesAdded = stats.TotalLinesAdded;
+                    linesRemoved = stats.TotalLinesDeleted;
                 }
 
                 commitStatsList.Add(new CommitStatsDto
                 {
                     Sha = commit.Sha,
-                    CommitDate = commit.Author.When.DateTime,
+                    // UtcDateTime, not DateTime: the latter is the author's local wall-clock time
+                    // with Kind Unspecified, which storage then labelled UTC — shifting every
+                    // commit by its author's offset, across day boundaries in the charts.
+                    CommitDate = commit.Author.When.UtcDateTime,
                     LinesAdded = linesAdded,
                     LinesRemoved = linesRemoved,
                     AuthorName = commit.Author.Name,
@@ -517,15 +568,6 @@ public class GitHubService : IGitHubService
         }
         _logger.LogInformation("Found {CommitCount} commit stats for repository at {RepoPath}", commitStatsList.Count, fullRepoPath);
         return commitStatsList;
-    }
-
-    public async Task CheckConnectionAsync()
-    {
-        _logger.LogInformation("Checking GitHub API connection.");
-        // Make a simple unauthenticated request to the GitHub API root to check connectivity
-        var response = await _httpClient.GetAsync("/");
-        response.EnsureSuccessStatusCode(); // Throws an exception if the HTTP response status code is not 2xx
-        _logger.LogInformation("GitHub API connection successful.");
     }
 
     public async Task<IEnumerable<GitHubUserRepositoryDto>> GetUserRepositoriesAsync(string accessToken)
@@ -540,18 +582,29 @@ public class GitHubService : IGitHubService
 
         try
         {
-            // Create a new request with the user's access token
-            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user/repos?type=owner&sort=name&direction=asc&per_page=100");
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-            request.Headers.UserAgent.ParseAdd("PoRepoLineTracker");
+            // Every page, not just the first. This asked for one page of 100 and stopped, so an
+            // account with more repositories than that simply could not see — or track — the rest.
+            // ponytail: capped at 10 pages (1,000 repositories); follow the Link header instead
+            // if anyone has more.
+            const int pageSize = 100;
+            var repoData = new List<GitHubApiRepository>();
+            for (var page = 1; page <= 10; page++)
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get,
+                    $"https://api.github.com/user/repos?type=owner&sort=name&direction=asc&per_page={pageSize}&page={page}");
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                request.Headers.UserAgent.ParseAdd("PoRepoLineTracker");
 
-            var response = await _httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
+                var response = await _httpClient.SendAsync(request);
+                response.EnsureSuccessStatusCode();
 
-            var jsonContent = await response.Content.ReadAsStringAsync();
-            var repoData = System.Text.Json.JsonSerializer.Deserialize<List<GitHubApiRepository>>(jsonContent);
+                var jsonContent = await response.Content.ReadAsStringAsync();
+                var pageData = System.Text.Json.JsonSerializer.Deserialize<List<GitHubApiRepository>>(jsonContent) ?? [];
+                repoData.AddRange(pageData);
+                if (pageData.Count < pageSize) break;
+            }
 
-            var userRepositories = repoData?.Select(repo =>
+            var userRepositories = repoData.Select(repo =>
             {
                 var fullName = repo.full_name ?? string.Empty;
                 var slashIndex = fullName.IndexOf('/');
@@ -566,9 +619,9 @@ public class GitHubService : IGitHubService
                     IsPrivate = repo.@private,
                     Language = repo.language ?? string.Empty
                 };
-            }) ?? Enumerable.Empty<GitHubUserRepositoryDto>();
+            }).ToList();
 
-            _logger.LogInformation("Successfully fetched {RepositoryCount} user repositories from GitHub API.", userRepositories.Count());
+            _logger.LogInformation("Successfully fetched {RepositoryCount} user repositories from GitHub API.", userRepositories.Count);
             return userRepositories;
         }
         catch (Exception ex)

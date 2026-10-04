@@ -128,7 +128,9 @@ jobs:
   deploy:
     name: Deploy to Azure
     runs-on: ubuntu-latest
-    needs: build
+    # lint-infra as well as build: this job applies infra/ when it changed, and without the
+    # dependency a template the lint job had just rejected could still be applied.
+    needs: [build, lint-infra]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     timeout-minutes: 15
     # Records the deploy in GitHub's Environments view and gives the URL a home. Add a required
@@ -158,7 +160,8 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      # Infra is applied only when the templates actually changed, or when asked for by hand.
+      # Infra is applied only when the templates actually changed. (Applying it by hand is the
+      # separate apply-infra job below; this job never runs on workflow_dispatch.)
       #
       # It used to run on every push. That was added because the App Service had gone missing and
       # nothing in the pipeline could recreate it — a real problem, fixed the blunt way. The cost
@@ -168,9 +171,7 @@ jobs:
       - name: Did infra change?
         id: infra
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet ${{ github.event.before }} ${{ github.sha }} -- infra/ 2>/dev/null; then
+          if git diff --quiet ${{ github.event.before }} ${{ github.sha }} -- infra/ 2>/dev/null; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -212,19 +213,31 @@ jobs:
             sleep 10
           done
 
+          # Each probe gets a few attempts. /health answering 200 does not mean every route is
+          # warm: on the F1 plan the first request to a path after a restart can still answer 5xx,
+          # and a single-shot check failed a good deploy on exactly that ("unknown API route
+          # returned 500"). A wrong status that persists across the retries still fails.
+          expect() {
+            local path="$1" want="$2" what="$3" got=000
+            for attempt in 1 2 3 4 5; do
+              got=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}$path" || echo 000)
+              [ "$got" = "$want" ] && { echo "$what OK ($got)"; return 0; }
+              sleep 5
+            done
+            echo "::error::$what returned $got, expected $want"
+            exit 1
+          }
+
           # The shell must be reachable without signing in, or the sign-in page cannot load.
-          login=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/login")
-          [ "$login" = "200" ] || { echo "::error::/login returned $login, expected 200"; exit 1; }
+          expect /login 200 "/login"
 
           # A protected API route must say 401, not redirect an XHR off-origin.
-          api=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/api/repositories")
-          [ "$api" = "401" ] || { echo "::error::/api/repositories returned $api, expected 401"; exit 1; }
+          expect /api/repositories 401 "/api/repositories"
 
           # An unknown API route must say 404 — not 401, and above all not 200 carrying the HTML
           # shell, which is what a JSON caller used to receive for a typo. GET only: see the known
           # limit documented on ApiNotFoundMiddleware.
-          missing=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/api/no-such-route-smoke-test")
-          [ "$missing" = "404" ] || { echo "::error::unknown API route returned $missing, expected 404"; exit 1; }
+          expect /api/no-such-route-smoke-test 404 "unknown API route"
 
           # An unauthenticated page must land on THIS origin's login page, not at the OAuth
           # provider — the installed PWA starts at "/" and would otherwise leave its own scope.

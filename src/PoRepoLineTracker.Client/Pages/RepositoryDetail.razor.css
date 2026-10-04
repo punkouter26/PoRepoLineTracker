@@ -16,6 +16,28 @@
     overflow-wrap: anywhere !important;
 }
 
+/* ─── Hero actions ───────────────────────────────────────────────────────── */
+
+/* A plain <div> from this page's markup, so it carries this file's scope id even though it
+   renders inside PageHero. */
+.rd-hero-buttons {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+/* Once the well is phone-width the pair takes a full row of its own under the range selector
+   and splits it. Same container PageHero keys its own wrap to. */
+@container appwell (max-width: 640px) {
+    .rd-hero-buttons {
+        flex: 1 1 100%;
+    }
+
+    .rd-hero-buttons ::deep .rz-button {
+        flex: 1 1 0;
+        justify-content: center;
+    }
+}
+
 /* ─── Re-analysis banner ─────────────────────────────────────────────────── */
 
 ::deep .rd-progress-card.rd-progress-card {
@@ -39,39 +61,6 @@
     flex: 1 !important;
     height: 4px !important;
     min-width: 6rem !important;
-}
-
-/* ─── Plain markup owned by this page ─────────────────────────────────────── */
-
-/* Padded to the WCAG 2.2 AA 2.5.8 minimum target of 24x24 — the glyph alone falls short. */
-.rd-github-link {
-    color: var(--text-secondary);
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 24px;
-    min-height: 24px;
-    border-radius: 6px;
-    flex: 0 0 auto;
-}
-
-.rd-github-link:hover {
-    color: var(--primary-on-surface);
-    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-}
-
-/* ::deep because the glyph is now rendered by <RadzenIcon>: the element Radzen emits does not
-   carry this file's scope id, but the enclosing <a class="rd-github-link"> does, so the rule
-   still reaches it. A plain selector here would silently stop matching. */
-::deep .rd-github-link__icon {
-    font-size: 1.1rem;
-}
-
-.rd-health-stack {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-stack, 1.25rem);
 }
 
 ::deep .rd-tabs.rd-tabs {

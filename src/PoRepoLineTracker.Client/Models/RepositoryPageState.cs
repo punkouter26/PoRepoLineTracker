@@ -21,7 +21,6 @@ public class RepositoryPageState
     public int? ProgressPercentage { get; set; } = 0;
     public List<GitHubRepository> Repositories { get; set; } = new();
     public List<GitHubUserRepositoryDto> GitHubUserRepositories { get; set; } = new();
-    public bool ShowRepositorySelector { get; set; } = false;
 
     public void ClearMessages()
     {

@@ -1,197 +1,31 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using System.IO;
-using System.Threading.Tasks;
-using System.Threading;
-
 namespace PoRepoLineTracker.API.Features.Repositories;
 
-/// <summary>
-/// Command Pattern: Command to remove all repositories for a user, their commit data, and local file system data.
-/// This is a destructive operation that cleans up all repository-related data for the specified user.
-/// </summary>
+/// <summary>Removes every repository a user tracks: table rows, clones on disk, snapshots.</summary>
 public record RemoveAllRepositoriesCommand(UserId UserId);
 
-/// <summary>
-/// Command Pattern: Handler for RemoveAllRepositoriesCommand.
-/// Implements comprehensive cleanup of all repository data including Azure Table Storage and local file system.
-/// Uses Repository Pattern via IRepositoryDataService for storage operations.
-/// </summary>
-public class RemoveAllRepositoriesCommandHandler
+public class RemoveAllRepositoriesCommandHandler(
+    IRepositoryDataService repositoryDataService,
+    IGitHubService gitHubService,
+    ICodeHealthSnapshotStore snapshotStore,
+    ILogger<RemoveAllRepositoriesCommandHandler> logger)
 {
-    private readonly IRepositoryDataService _repositoryDataService;
-    private readonly IConfiguration _configuration;
-    private readonly ILogger<RemoveAllRepositoriesCommandHandler> _logger;
-
-    public RemoveAllRepositoriesCommandHandler(
-        IRepositoryDataService repositoryDataService,
-        IConfiguration configuration,
-        ILogger<RemoveAllRepositoriesCommandHandler> logger)
-    {
-        _repositoryDataService = repositoryDataService;
-        _configuration = configuration;
-        _logger = logger;
-    }
-
     public async Task Handle(RemoveAllRepositoriesCommand request, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting removal of all repositories and associated data for user {UserId}.", request.UserId);
+        // Read the ids first: once the rows are gone there is nothing left to say which clone
+        // directories were this user's.
+        var repositories = (await repositoryDataService.GetAllRepositoriesAsync(request.UserId)).ToList();
 
-        try
+        await repositoryDataService.RemoveAllRepositoriesAsync(request.UserId);
+
+        // Only this user's clones. This used to delete the configured LocalReposPath root, which
+        // is shared by every user of the deployment.
+        foreach (var repository in repositories)
         {
-            // Step 1: Remove all data from Azure Table Storage for this user
-            await _repositoryDataService.RemoveAllRepositoriesAsync(request.UserId);
-            _logger.LogInformation("All repository data for user {UserId} removed from Azure Table Storage successfully.", request.UserId);
-
-            // Step 2: Remove all local repository directories (best effort - don't fail if this doesn't work)
-            try
-            {
-                await RemoveAllLocalRepositoriesAsync();
-                _logger.LogInformation("All local repository directories removed successfully.");
-            }
-            catch (Exception localEx)
-            {
-                // Log but don't fail - local cleanup is secondary to data cleanup
-                _logger.LogWarning(localEx, "Failed to clean up local repository directories. This is non-critical: {ErrorMessage}", localEx.Message);
-            }
-
-            _logger.LogInformation("Successfully completed removal of all repositories and associated data for user {UserId}.", request.UserId);
-            return;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error occurred while removing all repositories for user {UserId}: {ErrorMessage}", request.UserId, ex.Message);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Strategy Pattern: Implements file system cleanup strategy.
-    /// Removes the entire local repositories directory tree.
-    /// Uses retries to handle locked Git repository files.
-    /// </summary>
-    private async Task RemoveAllLocalRepositoriesAsync()
-    {
-        var localReposPath = _configuration[ConfigKeys.GitHub.LocalReposPath];
-
-        if (string.IsNullOrEmpty(localReposPath))
-        {
-            _logger.LogWarning("GitHub:LocalReposPath not configured. Skipping local repository cleanup.");
-            return;
+            await DeleteRepositoryCommandHandler.DeleteDerivedDataAsync(
+                repository.Id, gitHubService, snapshotStore, logger);
         }
 
-        if (!Directory.Exists(localReposPath))
-        {
-            _logger.LogInformation("Local repositories directory does not exist: {Path}. No cleanup needed.", localReposPath);
-            return;
-        }
-
-        _logger.LogInformation("Removing local repositories directory: {Path}", localReposPath);
-
-        // #5 fix: removed Task.Run wrapper + GC.Collect() - run retry loop directly as async
-        const int maxRetries = 3;
-        const int delayBetweenRetriesMs = 500;
-
-        for (int attempt = 1; attempt <= maxRetries; attempt++)
-        {
-            try
-            {
-                _logger.LogInformation("Attempting to delete local repositories directory (attempt {Attempt}/{MaxRetries})", attempt, maxRetries);
-
-                // Force delete the entire directory tree
-                Directory.Delete(localReposPath, recursive: true);
-                _logger.LogInformation("Local repositories directory removed successfully: {Path}", localReposPath);
-                return; // Success - exit
-            }
-            catch (IOException ex) when (attempt < maxRetries)
-            {
-                _logger.LogWarning(ex, "Attempt {Attempt} failed. Some files may be locked. Retrying in {DelayMs}ms...", attempt, delayBetweenRetriesMs);
-                // #5 fix: was Thread.Sleep — await Task.Delay yields the thread back to the pool
-                await Task.Delay(delayBetweenRetriesMs);
-            }
-            catch (IOException ex) when (attempt == maxRetries)
-            {
-                _logger.LogWarning(ex, "All retry attempts exhausted. Attempting individual file cleanup for: {Path}", localReposPath);
-
-                // Attempt to delete individual files if directory deletion fails
-                await ForceDeleteDirectoryAsync(localReposPath);
-                return;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Strategy Pattern: Implements aggressive file deletion strategy for locked files.
-    /// Uses recursive approach to handle file system locks and read-only attributes.
-    /// </summary>
-    private async Task ForceDeleteDirectoryAsync(string directoryPath)
-    {
-        try
-        {
-            if (!Directory.Exists(directoryPath))
-                return;
-
-            _logger.LogInformation("Force deleting directory: {Path}", directoryPath);
-
-            // Remove read-only attributes and delete files
-            foreach (var file in Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories))
-            {
-                try
-                {
-                    File.SetAttributes(file, FileAttributes.Normal);
-
-                    // Retry file deletion
-                    for (int retry = 0; retry < 3; retry++)
-                    {
-                        try
-                        {
-                            File.Delete(file);
-                            break; // Success
-                        }
-                        catch (IOException) when (retry < 2)
-                        {
-                            // #5 fix: was Thread.Sleep(100) + GC.Collect() — yield thread back to pool
-                            await Task.Delay(100);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to delete file: {FilePath}", file);
-                }
-            }
-
-            // Delete directories bottom-up
-            var directories = Directory.GetDirectories(directoryPath, "*", SearchOption.AllDirectories)
-                .OrderByDescending(d => d.Length); // Delete deepest first
-
-            foreach (var directory in directories)
-            {
-                try
-                {
-                    Directory.Delete(directory, false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to delete directory: {DirectoryPath}", directory);
-                }
-            }
-
-            // Finally delete the root directory
-            try
-            {
-                Directory.Delete(directoryPath, false);
-                _logger.LogInformation("Successfully force-deleted directory: {Path}", directoryPath);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to delete root directory: {DirectoryPath}", directoryPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to force delete directory: {DirectoryPath}", directoryPath);
-            throw;
-        }
+        logger.LogInformation("Removed {Count} repositories and their data for user {UserId}.",
+            repositories.Count, request.UserId);
     }
 }

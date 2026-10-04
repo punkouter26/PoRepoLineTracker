@@ -1,11 +1,15 @@
 @* The "Composition" tab of the repository detail page: extension donut + per-extension bar list.
    Extracted from RepositoryDetail.razor along with the top-eight/Other donut-slice logic, so the
-   page keeps only fetch and lifecycle code. The ChartCard supplies the loading/empty chrome. *@
-<ChartCard Title="By Extension"
-           Description="Share of tracked lines per file type"
+   page keeps only fetch and lifecycle code. The ChartCard supplies the loading/empty chrome.
+
+   Also the Insights page's "Language mix": that was this card written out a second time against
+   LanguageShareDto, with its own copy of the bar list and its CSS. The page maps its rows instead. *@
+<ChartCard Title="@Title"
+           Description="@Description"
            IsEmpty="@(Extensions is null || Extensions.Count == 0)"
            EmptyIcon="donut_large"
-           EmptyText="No extension data yet.">
+           EmptyText="No extension data yet."
+           EmptyHint="@EmptyHint">
     <RadzenChart>
         <RadzenDonutSeries Data="@ExtensionSlices"
                            CategoryProperty="Label"
@@ -22,7 +26,7 @@
             <div class="rd-ext-row">
                 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="0.5rem">
                     <code class="rd-ext-code">@ext.FileExtension</code>
-                    <RadzenText TextStyle="TextStyle.Caption" class="rd-ext-pct">@ext.Percentage.ToString("F1")%</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" class="rd-ext-pct">@(ext.LineCount > 0 ? $"{ext.LineCount:N0} · " : "")@ext.Percentage.ToString("F1")%</RadzenText>
                 </RadzenStack>
                 <progress class="rd-ext-bar"
                           max="100"
@@ -35,6 +39,10 @@
 
 @code {
     [Parameter] public IReadOnlyList<FileExtensionPercentageDto>? Extensions { get; set; }
+
+    [Parameter] public string Title { get; set; } = "By Extension";
+    [Parameter] public string Description { get; set; } = "Share of tracked lines per file type";
+    [Parameter] public string? EmptyHint { get; set; }
 
     /// <summary>
     /// Donut slices for the extension breakdown. A repository can report dozens of extensions and

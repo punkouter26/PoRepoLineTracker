@@ -1,5 +1,7 @@
 using Azure;
 using Azure.Data.Tables;
+using Microsoft.AspNetCore.DataProtection;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -14,9 +16,17 @@ public class UserService : IUserService
     private readonly ILogger<UserService> _logger;
     private bool _tableInitialized = false;
 
-    public UserService(TableServiceClient tableServiceClient, IConfiguration configuration, ILogger<UserService> logger)
+    /// <summary>
+    /// Encrypts the GitHub access token at rest. It is a live `repo`-scope credential — read
+    /// access to every private repository the user has — and was stored in plaintext, so anyone
+    /// who could read the Users table (a leaked storage key, a support export) held all of them.
+    /// </summary>
+    private readonly IDataProtector _tokenProtector;
+
+    public UserService(TableServiceClient tableServiceClient, IConfiguration configuration, IDataProtectionProvider dataProtection, ILogger<UserService> logger)
     {
         _logger = logger;
+        _tokenProtector = dataProtection.CreateProtector("PoRepoLineTracker.GitHubAccessToken");
         var tableName = configuration[ConfigKeys.AzureTableStorage.UserTableName] ?? "PoRepoLineTrackerUsers";
         _userTableClient = tableServiceClient.GetTableClient(tableName);
     }
@@ -48,7 +58,7 @@ public class UserService : IUserService
             var query = _userTableClient.QueryAsync<UserEntity>(e => e.Id == userId.Value);
             await foreach (var entity in query)
             {
-                return entity.ToDomainModel();
+                return ToUser(entity);
             }
             return null;
         }
@@ -68,7 +78,7 @@ public class UserService : IUserService
             var response = await _userTableClient.GetEntityIfExistsAsync<UserEntity>("USER", gitHubId);
             if (response.HasValue && response.Value is not null)
             {
-                return response.Value.ToDomainModel();
+                return ToUser(response.Value);
             }
             return null;
         }
@@ -106,6 +116,8 @@ public class UserService : IUserService
             }
 
             var entity = UserEntity.FromDomainModel(user);
+            if (!string.IsNullOrEmpty(entity.AccessToken))
+                entity.AccessToken = _tokenProtector.Protect(entity.AccessToken);
             await _userTableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
 
             _logger.LogInformation("Upserted user {Username} (GitHub ID: {GitHubId})", user.Username, user.GitHubId);
@@ -118,4 +130,24 @@ public class UserService : IUserService
         }
     }
 
+    private User ToUser(UserEntity entity)
+    {
+        var user = entity.ToDomainModel();
+        if (string.IsNullOrEmpty(user.AccessToken)) return user;
+
+        try
+        {
+            user.AccessToken = _tokenProtector.Unprotect(user.AccessToken);
+        }
+        catch (CryptographicException)
+        {
+            // A row written before tokens were encrypted (or under a rotated-away key). GitHub
+            // tokens are recognisable, so a legacy plaintext one is used as-is and re-encrypted
+            // at the user's next sign-in; anything else is unusable and treated as "no token".
+            if (!user.AccessToken.StartsWith("gh", StringComparison.Ordinal))
+                user.AccessToken = string.Empty;
+        }
+
+        return user;
+    }
 }

@@ -29,7 +29,12 @@ const offlineAssetsExclude = [/^service-worker\.js$/];
 // the caller happens to parse it, rather than the 401 the caller knows how to handle.
 const serverRoutePrefixes = ['/api/', '/auth/', '/hubs/', '/health', '/signin-', '/signout-'];
 const apiCacheName = 'porepolinetracker-api-cache';
-const offlineApiEndpoints = ['/api/repositories', '/api/insights/portfolio'];
+// /auth/me is in the list because the app asks it "who am I?" before rendering anything. With no
+// cached answer an offline cold start failed that request, the app concluded "signed out" and
+// redirected to /login — so the cached repositories and insights behind it were unreachable.
+// Network-first like the rest: a live 401 is returned as-is, never replaced by a stale 200.
+// The whole cache is per-user and is deleted on logout (LoginDisplay.razor).
+const offlineApiEndpoints = ['/api/repositories', '/api/insights/portfolio', '/auth/me'];
 
 async function onInstall() {
     const assetsRequests = self.assetsManifest.assets

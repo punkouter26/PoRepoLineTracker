@@ -13,12 +13,12 @@ PoRepoLineTracker is a self-hosted **GitHub repository analytics** app. A user s
 
 The single primary journey optimises every page:
 
-1. **Sign in** — `/auth/login` → GitHub OAuth → application cookie. In Dev/Test, tools authenticate by sending `X-Fake-User`; no dev-login route.
+1. **Sign in** — `/auth/login` → GitHub OAuth → application cookie. In Dev/Test, tools authenticate by sending `X-Fake-User`. Development also has a browser bypass: `/auth/login` signs in a fixed "DevUser" when no OAuth app is configured or with `?dev=true`.
 2. **Bulk-add owned repositories** — `/api/repositories/bulk` is the only write path. Single-add was removed because it did not dedupe.
 3. **Watch analysis** — background clone/pull + line counting pushes progress over `/hubs/analysis` (SignalR); a fallback poll synthesises the same frames when the hub is unreachable. UI shows live tallies (`LinesCounted`, throughput, ETA), never a percentage alone.
 4. **Read the dashboard** — `Repositories` page lists the portfolio with totals. Drill into `RepositoryDetail` for line history, extension percentages, contributor stats, **code health (radar + cards)**, **activity-rhythm punchcard**, recent activity.
 5. **Export the portfolio** *(added 2026-09-20)* — `GET /api/repositories/export` returns JSON by default; `?format=csv` returns `text/csv`. Discoverable endpoint, no client affordance in the danger zone yet (see §13.7).
-6. **See what changed since last visit** — `Insights` page shows the digest banner (12h–90d window; trailing-7d fallback outside that), the recap (calendar-year edges), and language drift measured in **share, not lines**.
+6. **See what changed since last visit** — the digest banner (12h–90d window; trailing-7d fallback outside that) and the `Insights` page, with language mix measured in **share, not lines**.
 7. **Survive a network drop** *(added 2026-09-20)* — The PWA shell is cached; the `OfflineIndicator` shows network status when the connection is gone; on reconnect, the indicator clears and the next server fetch resumes. Read-only when offline.
 
 *(The webhook-driven auto re-analysis journey added 2026-09-20 was removed 2026-09-21 — see §D.1 note. Repositories are added via the Add Repository dialog only.)*
@@ -75,28 +75,25 @@ src/
     Middleware/                   ← ApiNotFound, Antiforgery, ProductionAuthEnforcement, SecurityHeaders, ExceptionHandling, LogEnrichment
     Storage/                      ← Azure Data Tables repositories (RepositoryDataService, UserService, UserPreferencesService, CodeHealthSnapshotStore)
     Analysis/                     ← GitHubService (git CLI clone/pull), FileIgnoreFilter, SourceLineCounter
-    Services/                     ← cross-slice helpers (TelemetrySettings resolver, etc.)
     Extensions/                   ← AddInfrastructure, AddAuth, AddTelemetry
     Platform/                     ← shared Po liveness, config keys
-    Features/                     ← vertical slices, one folder per slice
-      Antiforgery/                ← /api/antiforgery/token + middleware
+    Features/                     ← vertical slices; a folder per multi-file slice, single-file slices loose
+      AntiforgeryEndpoints.cs     ← /api/antiforgery/token
       Auth/                       ← /auth/login, /auth/me, /signin-*, /signout-*
       CodeHealth/                 ← /api/code-health/{id} (six line-oriented factors; markup band separate)
       Contributors/               ← contributor stats weighted by lines added
-      Webhooks/                   ← /api/webhooks/github (HMAC-verified push receiver; added 2026-09-20)
-      Dev/                        ← /api/dev/seed/repository (Development only)
+      SeedEndpoints.cs            ← /api/dev/seed/repository (Development only)
       Diagnostics/                ← /diag, /api/diagnostics
-      GitHub/                     ← /api/github/user-repositories
+      GitHubEndpoints.cs          ← /api/github/user-repositories
       Insights/                   ← /api/insights/portfolio, /api/insights/digest, /api/insights/digest/seen
-      Recap/                      ← /api/recap/{year} (calendar edges; language drift in share)
       Repositories/               ← bulk add, list, charts, linehistory, extension %, contributors, analysis, re-analyse, delete, delete-all
-      Settings/                   ← /api/settings/user-preferences
+      SettingsEndpoints.cs        ← /api/settings/user-preferences
     Telemetry/                    ← OpenTelemetry wiring + Application Insights
 
   PoRepoLineTracker.Client/       ← Blazor WASM (Radzen + scoped .razor.css)
     App.razor                     ← Router + CascadingAuthenticationState
     Layout/                       ← MainLayout (skip link via JS FocusAsync, not fragment nav)
-    Pages/                        ← Login, Repositories, RepositoryDetail, CodeHealth, ExtensionsCounted, ExternalConnections, Insights
+    Pages/                        ← Login, Repositories, RepositoryDetail, CodeHealth, ExtensionsCounted, Diagnostics, Insights
     Components/                   ← AllReposComparisonChart, AnalysisActivityFeed, ContributorChart, Repositories/* (incl. CodeHealthRadar, CommitActivityHeatmap, RepositoriesGrid), Shared/* (incl. OfflineIndicator)
     Services/                     ← ApiAuthenticationStateProvider, RepositoryCommandClient, UserPreferencesClient, AntiforgeryHandler, AnalysisFeedClient, AnalysisWatcher, AppHttpJsonExtensions
     wwwroot/                      ← service-worker.js (dev no-op), service-worker.published.js (real cache, server-route prefix exceptions)
@@ -113,7 +110,6 @@ tests/
   PoRepoLineTracker.E2EUI/        ← Playwright (mobile + desktop)
 
 infra/                            ← Bicep: main.bicep, resources.bicep, availability-test.bicep, keyvault-access.bicep, storage-role.bicep
-SCRIPTS/                          ← (consolidated into infra/ as setup.ps1, verify-deploy.ps1, SCRIPTS-README.md)
 .github/workflows/deploy.yml      ← lint + build → package → webapp deploy; manual `deploy_infra` input applies Bicep
 ```
 
@@ -157,7 +153,7 @@ These are referenced from production paths; a lazy cleanup must keep them.
 
 - **Security** — HTTPS-only cookies outside Development; `__Host-` antiforgery cookie gated by `Security:RequireSecureCookies`. `SecurityHeadersMiddleware` is non-negotiable. `ApiNotFoundMiddleware` answers 404 for unmatched `/api` GETs (middleware, not a route — a catch-all `/api/{**rest}` would win precedence against real routes and break authorization).
 - **Auth in Production** — `ProductionAuthEnforcementMiddleware` redirects unauthenticated requests to the app's own `/login` (same origin, PWA `start_url: "/"`) and is unit-tested against a substituted `IWebHostEnvironment` (the only place its branch runs).
-- **Validation at trust boundaries** — FluentValidation on every write slice; `Authorization` and `RepositoryOwnership` checked before any storage call.
+- **Validation at trust boundaries** — plain checks in `Shared/RepositoryValidators.cs` on the bulk-add slice (owner/name restricted to GitHub's character set — the server builds the clone URL from them and never accepts one from a caller); `Authorization` and `RepositoryOwnership` checked before any storage call.
 - **Trim-safe JSON** — every wire type has a `[JsonSerializable]` entry; the reflection resolver is unreachable from the client.
 - **Single source of truth** for "Total Lines" (`Shared/Domain/RepositoryTotals`), commit streaks (`Shared/Domain/CommitStreaks`), extension snapshots (`RepositoryTotals.LinesByFileTypeAsOf`), and progress frames (`Shared/Models/AnalysisProgressDto`). Three pages can show a streak; one home avoids three numbers that drift.
 - **Progress frames are immutable in transit** — the loop hands the hub a fresh list each tick; appending to a shared list mid-serialize throws.
@@ -173,7 +169,7 @@ These are referenced from production paths; a lazy cleanup must keep them.
 
 ### Never
 
-- **Microsoft/Entra sign-in, WebGL backdrop, Web Audio feedback, commit tagging, single-add `POST /api/repositories`, SmartAlerts, Failed Operations, AI model selector** — each was removed for a stated reason (see "Deliberately removed" in `AGENTS.MD`'s sibling notes; if reinstated, treat it as a new feature with its own SPEC delta).
+- **Microsoft/Entra sign-in, WebGL backdrop, Web Audio feedback, commit tagging, single-add `POST /api/repositories`, SmartAlerts, Failed Operations, AI model selector** — each was removed for a stated reason (see §9; if reinstated, treat it as a new feature with its own SPEC delta).
 - **AI/ML analytics** — sentiment, AI-share detection, ML on commits. Out of scope unless explicitly added.
 - **Catch-all endpoint under `/api`** — `MapFallback("/api/{**rest}", ...)` was tried and reverted (caught real routes, passed authorization anonymously, came back 400 from the antiforgery gate).
 - **Per-item storage lookup inside a loop** — `CommitExistsAsync` was removed for this; pre-load the set the loop needs (`GetCommitLineCountsByRepositoryIdAsync`) and look SHAs up in memory.
@@ -204,8 +200,7 @@ These are referenced from production paths; a lazy cleanup must keep them.
 - **Contributor share is weighted by lines added**, not averaged per commit. (A one-line commit and a 2,000-line refactor are not the same event.)
 - **Analysis progress has one path.** The SignalR hub pushes frames; the fallback poll exists *only* for hub-unreachable and synthesises the same frames rather than handling completion itself. Do not add a second completion path — there used to be three and they had drifted.
 - **The digest's read and its "mark seen" write are separate calls.** `GET /api/insights/digest` never records the visit; `POST /api/insights/digest/seen` does, and the banner only calls it once it has actually rendered. Merging them makes a page opened and closed without looking consume the window. The write is read-modify-write because `SavePreferencesAsync` upserts with `TableUpdateMode.Replace` — a partial preferences payload would blank the counted-extensions list.
-- **A last visit is only used when it is between 12 hours and 90 days old.** More recent → trailing 7 days. Older → trailing 7 days too. Reporting a year under "since you were last here" is the recap's job.
-- **The recap's windows are calendar edges.** `/api/recap/{year}` is 1 Jan – 31 Dec, fixed. Peak hour, weekday rhythm, language drift (in **share**), biggest single commit — figures that appear nowhere else.
+- **A last visit is only used when it is between 12 hours and 90 days old.** More recent → trailing 7 days. Older → trailing 7 days too. A year is not "since you were last here".
 - **Language drift is measured in share, not lines.** A file type's share can grow while the type shrinks — everything else shrank faster. A line-count delta cannot show it.
 - **Cookie hardening is keyed on HTTPS, not the environment name.** `Security:RequireSecureCookies` decides `__Host-` + `Secure` for the antiforgery cookie. Integration runs as `"Test"` over plain HTTP and opts out explicitly.
 - **Registration-time config cannot come from `ConfigureAppConfiguration`.** Those delegates run *after* top-level statements in `Program.cs`; anything read during `AddInfrastructure(builder.Configuration, …)` won't see them. `CustomWebApplicationFactory` uses `builder.UseSetting(...)` for exactly this.
@@ -235,18 +230,18 @@ These are referenced from production paths; a lazy cleanup must keep them.
 6. **Analysis completes end-to-end on a real GitHub repository** with a known seed (e.g. a 30-day synthetic history from `/api/dev/seed/repository`) without skipping the per-commit count step.
 7. **No Critical or Important `/security-review` or `/code-review` findings** at every release commit.
 8. **Mock fallbacks work without keys** — app boots without `GitHub:ClientId`, `KeyVault:Uri`, or `ApplicationInsights:ConnectionString`; `/diag` reflects absence, doesn't crash.
-9. **`AGENTS.md` + `.github/copilot-instructions.md` carry v4.10.0 ruleset** verbatim (validated by `ponytail`'s `check-rule-copies.js` equivalent — the two files share the same ruleset text).
+9. **`AGENTS.md` + `.github/copilot-instructions.md` carry v4.10.0 ruleset** verbatim — the two files share the same ruleset text.
 10. **Repository ownership check is single-sourced** — `Auth/RepositoryOwnership` is the only place that decides "is this repo the caller's"; a grep for `RepositoryId` in `Features/` finds it referenced but never re-implemented.
 11. **Coverage gate is informational, not a hard rule** (per agreement — the bar is "zero skips, no Critical/Important findings" not "X% line coverage").
 
 ## 13. Open questions
 
-1. Should the recap gain a "compare to previous year" view? Currently it's a single year only — calendar edges are deliberate (see §10) but a delta view is a clean extension.
+1. ~~Should the recap gain a "compare to previous year" view?~~ No recap exists in the code (no `/api/recap`, no page); a year-in-review would be a new feature with its own SPEC delta.
 2. ~~Is there a desire for an offline read mode (PWA cached shell + cached API responses)?~~ **Resolved 2026-09-20**: shipped via `wwwroot/service-worker.published.js` (cached shell, server-route prefix exceptions) and `Components/Shared/OfflineIndicator.razor` (online/offline badge wired through `index.html`'s `registerNetworkStatusListener`).
 3. Should the `POST /api/dev/seed/repository` endpoint move under an env flag (e.g. `Hosting:EnableDevSeed`) instead of relying on `IsDevelopment()` — for cases where a non-Development environment needs synthetic data (e.g. a staging slot)?
 4. Code health weights are frozen. If a band needs tuning later, the change must be additive (a new factor) — not a re-weight of existing ones, or stored scores become incomparable. **Note 2026-09-20**: a sixth visualisation, `Components/Repositories/CodeHealthRadar.razor`, was added; weights are unchanged.
 5. MinVer is at 6.0.0; bumping to 7.x is on the table for .NET 10 SDK compat but is a one-line change with no current need.
-6. **New 2026-09-20** — Should the GitHub webhook receiver at `/api/webhooks/github` gain a per-repo allowlist or rate-limit? Currently any push to a tracked repo's default branch re-queues analysis. For a 500-repo portfolio, a flurry of pushes would saturate the analyzer.
+6. ~~Webhook allowlist / rate-limit~~ — moot; the webhook receiver was removed 2026-09-21 (§D.1).
 7. **New 2026-09-20** — The portfolio export currently lives only at `/api/repositories/export`. Should the client expose a one-click "Export" affordance in `Repositories.razor`'s danger zone or hero, or keep it as a discoverable endpoint for tools?
 
 ---
@@ -293,15 +288,48 @@ These features landed on `origin/master` after this SPEC's initial freeze. They 
 
 ### D.2 — SPEC sections updated to acknowledge the delta
 
-- **§2 User Journeys** — Add: "Webhook-driven auto re-analysis" (server-side, not a user journey per se but a primary trigger for the read journey); "Read the punchcard" and "Read the code health radar" on `RepositoryDetail`; "Export the portfolio" as a discoverable read-side action.
-- **§5 Project Structure** — Add `Features/Webhooks/`, `Components/Repositories/CommitActivityHeatmap.razor`, `Components/Repositories/CodeHealthRadar.razor`, `Components/Shared/OfflineIndicator.razor`. Add `Models/Dtos/GitHubWebhookPayload.cs`, `PortfolioExportRowDto.cs`, `PunchcardItemDto.cs`.
-- **§6 Code-style** — Note: `JsonSerializerContext` registration of the three new DTOs is the source of truth for trim (SPEC §8). Commit the `RepositoryGridRow` lift to `Models/` was a no-architecture-change refactor.
-- **§8 Boundaries — Always** — Add: webhook signature verification uses `CryptographicOperations.FixedTimeEquals`. Add: `JsonSerializerContext` registration for every wire type that crosses the trim boundary (the three new DTOs are registered in `AppJsonSerializerContext.cs`).
-- **§8 Boundaries — Ask first** — Add: changes to the webhook allowlist / rate-limit posture. Add: changes to the radar/heatmap visuals.
+- The webhook-related additions to §2, §5, §8, §11 and §12 recorded here on 2026-09-20 were withdrawn with the receiver (D.1 #1).
+- **§5 Project Structure** — `Components/Repositories/CommitActivityHeatmap.razor`, `Components/Repositories/CodeHealthRadar.razor`, `Components/Shared/OfflineIndicator.razor`; `Models/Dtos/PortfolioExportRowDto.cs`, `PunchcardItemDto.cs`.
+- **§8 Boundaries — Always** — `JsonSerializerContext` registration for every wire type that crosses the trim boundary.
 - **§8 Boundaries — Never** — Unchanged. The mock-data banner stays retired. Offline indicator ≠ mock-data banner (see §D.1 #4).
-- **§9 Out of scope** — Unchanged. All seven new features are in-scope per §D.1. AI/ML, Microsoft/Entra, SmartAlerts, etc. are still out.
-- **§11 Error states** — Add: webhook 401 (signature), 400 (malformed), 200-ignored (non-default branch / untracked repo), 202 (queued). Add: export 401 (unauthenticated).
+- **§11 Error states** — export 401 (unauthenticated).
 - **§12 Success criteria** — Add:
-  12. **Webhook round-trips end-to-end.** A signed push payload to `/api/webhooks/github` against a tracked repo returns `202 Accepted` and re-queues analysis; a tampered signature returns `401` and queues nothing.
   13. **Portfolio export serves both formats.** `/api/repositories/export` returns JSON for the default and `text/csv` for `?format=csv`; both pin `RepositoryTotals.LatestTotalLines` as the totals source.
   14. **PWA offline indicator survives a network drop.** A browser session that goes offline renders the indicator within the next paint cycle and recovers when the network returns.
+
+---
+
+## Delta: audit fixes 2026-10-03
+
+Security and correctness changes that alter contracts stated above.
+
+- **The clone URL is never caller-supplied.** `BulkRepositoryDto` has no `CloneUrl`; the server builds `https://github.com/{owner}/{name}.git` at clone time. The user's token is embedded in whatever URL git is handed, so an accepted URL was a way to send that token to any host.
+- **Deleting is per repository and complete.** Delete and "remove all" remove the rows, the code-health snapshots and the `repo_{id}` clone directory — only the caller's. "Remove all" used to delete the shared clone root; single delete used to leave the clone on disk.
+- **A full re-analysis clears stored commits only after the clone/pull succeeds.**
+- **`LastAnalysisAttemptUtc` / `LastAnalysisError`** on the repository row record the last run's outcome. The startup resume sweep takes only rows with no analysed commit *and* no attempt, so an empty or unreachable repository is not re-cloned on every restart.
+- **Re-analyse and delete answer 409** (`analysis_in_progress`) while an analysis holds the repository's lock.
+- **GitHub access tokens are encrypted at rest** (`IDataProtector`, in `UserService`); rows written before this are read as-is and re-encrypted at the next sign-in. `SaveTokens` is off.
+- **The server PAT (`GitHub:PAT`) is used only in Development and Test.** `FakeAuthHandler` is registered only in Development and Test (an allow-list, not "anything but Production").
+- **`returnUrl` on `/auth/login` must be a local path.**
+- **CSP outside Development**: `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'`; styles and fonts same-origin only (the Google Fonts links were redundant with the fonts Radzen ships and are gone); `connect-src 'self' wss:`.
+- **Rate limits**: 30/min per user on bulk-add and re-analyse, 60/min per address on `/health`; bulk-add takes at most 200 repositories.
+- **Merge commits record 0 added / 0 removed** (their lines were already reported by the branch's own commits) and **commit dates are stored in UTC** (they were the author's local wall-clock time labelled UTC). Both apply to newly analysed commits; stored rows change on re-analysis.
+- **The final progress frame carries its owner** through the channel; it used to be dropped.
+
+---
+
+## Delta: owner-approved reversals 2026-10-04
+
+Three items listed under §8 "Never" / §9 were reinstated at the owner's explicit request. Each is off unless switched on, and the app behaves exactly as before when it is.
+
+- **Claude integration (replaces "no AI/ML model API").** `Analysis/ClaudeAssistant` is the only caller. It is active only when `Anthropic:ApiKey` is configured (Key Vault secret `PoRepoLineTracker--Anthropic--ApiKey`, or `appsettings.Development.local.json` locally); otherwise no client is built and nothing is sent. `Anthropic:Model` overrides the default model.
+  - `GET /api/insights/assistant` — whether it is configured; the client renders no assistant UI when false.
+  - `GET /api/insights/digest/narrative` — one or two sentences reading the digest. **Only numeric aggregates are sent**; the busiest repositories go as `R1..R3` and their names are substituted after the reply.
+  - `POST /api/repositories/ask` — a question (≤200 characters) mapped to the grid's existing search / status / sort. Only the question is sent; the reply is schema-constrained and each field is re-validated against its allowed values.
+  - Never sent: repository names, author names, commit messages, source code. That text is attacker-writable and is the prompt-injection route.
+  - Rate limit: 10/min per user on both calling routes. A failed or declined call shows nothing; it is never an error on the page.
+- **Web Audio cue.** A synthesised completion/failure tone, off by default, toggled in the header and stored in `localStorage["sound"]`.
+- **WebGL backdrop.** On by default with no settings switch (owner's choice, 2026-10-04); `localStorage["backdrop"] = "off"` disables it. Never runs under `prefers-reduced-motion` or without WebGL2.
+- **Settings page.** The custom ignore-patterns editor was removed from the UI; stored patterns are still honoured by analysis and preserved on save. The Diagnostics page has no sidebar link (still at `/diag`).
+
+Still out of scope: sentiment, AI-share detection, ML over commit content, an AI model selector in the UI.

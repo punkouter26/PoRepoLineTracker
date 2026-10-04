@@ -33,16 +33,7 @@ public class AddMultipleRepositoriesCommandHandler
         using var activity = AppTelemetry.ActivitySource.StartActivity("AddRepositories");
         var stopwatch = Stopwatch.StartNew();
 
-        _logger.LogInformation("=== START AddMultipleRepositoriesCommandHandler ===");
-        _logger.LogInformation("Received request to add {Count} repositories", request.Repositories.Count());
-
         var repoList = request.Repositories.ToList();
-        for (int i = 0; i < repoList.Count; i++)
-        {
-            var repo = repoList[i];
-            _logger.LogInformation("Repository [{Index}]: Owner='{Owner}', Name='{RepoName}', CloneUrl='{CloneUrl}'",
-                i, repo.Owner ?? "NULL", repo.RepoName ?? "NULL", repo.CloneUrl ?? "NULL");
-        }
 
         var added = new List<GitHubRepository>();
         var alreadyTracked = new List<GitHubRepository>();
@@ -52,8 +43,6 @@ public class AddMultipleRepositoriesCommandHandler
         {
             try
             {
-                _logger.LogInformation("Processing repository: {Owner}/{Name}", repo.Owner, repo.RepoName);
-
                 if (string.IsNullOrWhiteSpace(repo.Owner))
                 {
                     _logger.LogWarning("Skipping repository with empty Owner. RepoName={RepoName}", repo.RepoName ?? "NULL");
@@ -66,7 +55,6 @@ public class AddMultipleRepositoriesCommandHandler
                     continue;
                 }
 
-                _logger.LogInformation("Checking if repository {Owner}/{Name} already exists for user {UserId}...", repo.Owner, repo.RepoName, request.UserId);
                 var existingRepo = await _repositoryDataService.GetRepositoryByOwnerAndNameAsync(repo.Owner, repo.RepoName, request.UserId);
                 if (existingRepo != null)
                 {
@@ -76,21 +64,18 @@ public class AddMultipleRepositoriesCommandHandler
                     continue;
                 }
 
-                _logger.LogInformation("Creating new repository entity for {Owner}/{Name}", repo.Owner, repo.RepoName);
                 var newRepo = new GitHubRepository
                 {
                     Id = RepositoryId.New(),
                     UserId = request.UserId,
                     Owner = repo.Owner,
                     Name = repo.RepoName,
-                    CloneUrl = repo.CloneUrl,
+                    // Derived, never taken from the request — see BulkRepositoryDto.
+                    CloneUrl = $"https://github.com/{repo.Owner}/{repo.RepoName}.git",
                     LastAnalyzedCommitDate = null // null until first analysis completes
                 };
 
-                _logger.LogInformation("Saving repository {Owner}/{Name} to database with ID {Id}", newRepo.Owner, newRepo.Name, newRepo.Id);
                 await _repositoryDataService.AddRepositoryAsync(newRepo);
-
-                _logger.LogInformation("Successfully saved repository {Owner}/{Name}.", newRepo.Owner, newRepo.Name);
                 added.Add(newRepo);
 
                 AppTelemetry.RepositoriesAdded.Add(1,
@@ -120,7 +105,7 @@ public class AddMultipleRepositoriesCommandHandler
         activity?.SetTag("repositories.already_tracked", alreadyTracked.Count);
         activity?.SetStatus(ActivityStatusCode.Ok);
 
-        _logger.LogInformation("=== COMPLETED AddMultipleRepositoriesCommandHandler === Added={Added}, AlreadyTracked={AlreadyTracked} in {ElapsedMs}ms",
+        _logger.LogInformation("Bulk add for user {UserId}: Added={Added}, AlreadyTracked={AlreadyTracked} in {ElapsedMs}ms", request.UserId,
             added.Count, alreadyTracked.Count, stopwatch.ElapsedMilliseconds);
 
         return new BulkAddResult
@@ -138,6 +123,8 @@ public class AddMultipleRepositoriesCommandHandler
         Name = repo.Name,
         CloneUrl = repo.CloneUrl,
         LastAnalyzedCommitDate = repo.LastAnalyzedCommitDate,
-        LocalPath = repo.LocalPath
+        LocalPath = repo.LocalPath,
+        LastAnalysisAttemptUtc = repo.LastAnalysisAttemptUtc,
+        LastAnalysisError = repo.LastAnalysisError
     };
 }

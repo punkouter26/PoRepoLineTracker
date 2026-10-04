@@ -23,7 +23,7 @@ public sealed class ChartAndShellUiTests
     /// <summary>Waits for the repositories page to finish its initial data load.</summary>
     private static async Task WaitForRepositoriesAsync(IPage page)
     {
-        await page.WaitForSelectorAsync(".rp-grid, .chart-card, .rp-onboarding-card",
+        await page.WaitForSelectorAsync(".rp-grid, .chart-card, .onboarding__card",
             new PageWaitForSelectorOptions { Timeout = 25000 });
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle,
             new PageWaitForLoadStateOptions { Timeout = 25000 });
@@ -90,7 +90,7 @@ public sealed class ChartAndShellUiTests
         cardTitles.Should().Contain("Line Count History");
 
         var tabTitles = await desktopPage.EvaluateAsync<string[]>(
-            "() => [...document.querySelectorAll('.rz-tab')].map(t => t.textContent.trim())");
+            "() => [...document.querySelectorAll('.rz-tabview-title')].map(t => t.textContent.trim())");
         tabTitles.Should().Contain("Activity & Authorship");
         tabTitles.Should().Contain("Composition");
         tabTitles.Should().Contain("Code Health");

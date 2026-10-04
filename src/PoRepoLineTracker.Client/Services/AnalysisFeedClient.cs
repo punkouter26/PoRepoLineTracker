@@ -30,6 +30,14 @@ public sealed class AnalysisFeedClient(NavigationManager navigation, ILogger<Ana
     /// <summary>Raised for every progress frame. Handlers run on the hub's callback context.</summary>
     public event Func<AnalysisProgressDto, Task>? ProgressReceived;
 
+    /// <summary>
+    /// Raised when the hub starts reconnecting, comes back, or closes for good.
+    /// <see cref="IsConnected"/> is a property nobody is told about: without this the feed's
+    /// "Streaming / Reconnecting…" label only caught up when the next frame happened to arrive,
+    /// and the fallback poll never learned the hub had gone. Runs on the hub's callback context.
+    /// </summary>
+    public event Action? StateChanged;
+
     /// <summary>True once the hub is connected — the UI uses this to decide whether to poll.</summary>
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -42,14 +50,34 @@ public sealed class AnalysisFeedClient(NavigationManager navigation, ILogger<Ana
     ///
     /// <para>Returns false rather than throwing when the hub is unreachable. The caller's fallback
     /// is to poll, which is a normal degraded mode — not an error worth surfacing to the user.</para>
+    ///
+    /// <para>A failed attempt is forgotten once its callers have their answer. <c>_starting</c>
+    /// used to keep the completed <c>false</c> task for the lifetime of the app, so one failed
+    /// handshake (server restarting, a blip at sign-in) meant polling until a full reload.</para>
     /// </summary>
-    public Task<bool> EnsureConnectedAsync() => _starting ??= ConnectAsync();
+    public async Task<bool> EnsureConnectedAsync()
+    {
+        var attempt = _starting ??= ConnectAsync();
+        var connected = await attempt;
+
+        // Only clear the attempt that was awaited — a later caller may already have started the retry.
+        if (!connected && _starting == attempt) _starting = null;
+        return connected;
+    }
 
     private async Task<bool> ConnectAsync()
     {
         try
         {
-            _connection = new HubConnectionBuilder()
+            // A retry replaces the connection; the dead one still holds its handlers and timers.
+            // Detached first so its Closed handler below no longer counts as "the" connection.
+            if (_connection is { } dead)
+            {
+                _connection = null;
+                await dead.DisposeAsync();
+            }
+
+            var connection = _connection = new HubConnectionBuilder()
                 .WithUrl(navigation.ToAbsoluteUri("/hubs/analysis"))
                 // Analysis runs for minutes; a dropped connection has to come back on its own or
                 // the feed silently stops mid-job. The default policy retries at 0s/2s/10s/30s and
@@ -65,13 +93,24 @@ public sealed class AnalysisFeedClient(NavigationManager navigation, ILogger<Ana
                 })
                 .Build();
 
-            _connection.On<AnalysisProgressDto>(ProgressMethod, async progress =>
+            connection.On<AnalysisProgressDto>(ProgressMethod, async progress =>
             {
                 if (ProgressReceived is not null)
                     await ProgressReceived.Invoke(progress);
             });
 
-            await _connection.StartAsync();
+            connection.Reconnecting += _ => RaiseStateChanged();
+            connection.Reconnected += _ => RaiseStateChanged();
+            // Closed means automatic reconnect gave up. Forget the attempt so the next
+            // EnsureConnectedAsync builds a fresh connection instead of answering "connected"
+            // from a task that completed before the drop.
+            connection.Closed += _ =>
+            {
+                if (_connection == connection) _starting = null;
+                return RaiseStateChanged();
+            };
+
+            await connection.StartAsync();
             logger.LogInformation("Analysis feed connected");
             return true;
         }
@@ -82,6 +121,12 @@ public sealed class AnalysisFeedClient(NavigationManager navigation, ILogger<Ana
             logger.LogWarning(ex, "Analysis feed unavailable — falling back to polling");
             return false;
         }
+    }
+
+    private Task RaiseStateChanged()
+    {
+        StateChanged?.Invoke();
+        return Task.CompletedTask;
     }
 
     /// <summary>Must match <c>AnalysisHub.ProgressMethod</c>. Not shared: the hub lives in the API assembly.</summary>

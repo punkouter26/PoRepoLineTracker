@@ -55,8 +55,8 @@ public sealed class AnalysisHub : Hub
     /// <see cref="Services.AnalysisProgressService"/>) and the consumer
     /// (<see cref="AnalysisProgressReader"/>) share one path.
     /// </summary>
-    public static Channel<AnalysisProgressDto> ProgressChannel { get; } =
-        Channel.CreateBounded<AnalysisProgressDto>(ProgressChannelOptions);
+    public static Channel<(UserId Owner, AnalysisProgressDto Frame)> ProgressChannel { get; } =
+        Channel.CreateBounded<(UserId Owner, AnalysisProgressDto Frame)>(ProgressChannelOptions);
 
     public override async Task OnConnectedAsync()
     {

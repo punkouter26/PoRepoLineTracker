@@ -14,10 +14,7 @@
 @* The wrapper <div> is this component's CSS-isolation anchor for ::deep rules. *@
 <div class="add-repo">
 <RadzenStack Gap="1rem">
-    @if (!IsInline)
-    {
-        <RadzenText TextStyle="TextStyle.H4" class="add-repo-title">Add Repositories</RadzenText>
-    }
+    <RadzenText TextStyle="TextStyle.H4" class="add-repo-title">Add Repositories</RadzenText>
 
     @if (!string.IsNullOrEmpty(pageState.ErrorMessage))
     {
@@ -71,9 +68,6 @@
 </RadzenStack>
 </div>
 @code {
-    [Parameter] public bool IsInline { get; set; } = false;
-    [Parameter] public EventCallback OnInlineCompleted { get; set; }
-
     private RepositoryPageState pageState = new();
     private CancellationTokenSource? _addCts;
 
@@ -199,8 +193,7 @@
             for (int i = 0; i < selectedList.Count; i++)
             {
                 var repo = selectedList[i];
-                Logger.LogInformation("Selected Repo [{Index}]: FullName='{FullName}', CloneUrl='{CloneUrl}'",
-                    i, repo.FullName, repo.CloneUrl);
+                Logger.LogInformation("Selected Repo [{Index}]: FullName='{FullName}'", i, repo.FullName);
             }
 
             var repositoriesToAdd = _selected.Select(repo =>
@@ -209,7 +202,7 @@
                 if (fullNameParts.Length < 2)
                 {
                     Logger.LogWarning("Unexpected FullName format '{FullName}' — expected 'owner/repo'", repo.FullName);
-                    return new BulkRepositoryDto { Owner = repo.FullName, RepoName = repo.Name, CloneUrl = repo.CloneUrl };
+                    return new BulkRepositoryDto { Owner = repo.FullName, RepoName = repo.Name };
                 }
                 Logger.LogInformation("Splitting FullName '{FullName}' into Owner='{Owner}' and RepoName='{RepoName}'",
                     repo.FullName, fullNameParts[0], fullNameParts[1]);
@@ -217,8 +210,7 @@
                 return new BulkRepositoryDto
                 {
                     Owner = fullNameParts[0],
-                    RepoName = fullNameParts[1],
-                    CloneUrl = repo.CloneUrl
+                    RepoName = fullNameParts[1]
                 };
             }).ToList();
 
@@ -227,8 +219,8 @@
             for (int i = 0; i < repositoriesToAdd.Count; i++)
             {
                 var repo = repositoriesToAdd[i];
-                Logger.LogInformation("Sending Repo [{Index}]: Owner='{Owner}', RepoName='{RepoName}', CloneUrl='{CloneUrl}'",
-                    i, repo.Owner, repo.RepoName, repo.CloneUrl);
+                Logger.LogInformation("Sending Repo [{Index}]: Owner='{Owner}', RepoName='{RepoName}'",
+                    i, repo.Owner, repo.RepoName);
             }
 
             Logger.LogInformation("Making POST request to /api/repositories/bulk with {Count} repositories", repositoriesToAdd.Count);
@@ -282,19 +274,13 @@
                 await Task.Delay(1200);
 
                 _selected = Enumerable.Empty<GitHubUserRepositoryDto>();
-                if (IsInline)
-                {
-                    await OnInlineCompleted.InvokeAsync();
-                }
-                else
-                {
-                    // Close with `true` so the parent page reloads the repository list and
-                    // prime-polls the analysis feed. Don't `Navigation.NavigateTo("/repositories")`
-                    // here — the modal is opened FROM /repositories, and a hard navigate tears down
-                    // the analysis feed's SignalR subscription mid-handshake, which is what was
-                    // surfacing as "no live progress after bulk-add" before.
-                    DialogService.Close(true);
-                }
+
+                // Close with `true` so the parent page reloads the repository list and
+                // prime-polls the analysis feed. Don't `Navigation.NavigateTo("/repositories")`
+                // here — the modal is opened FROM /repositories, and a hard navigate tears down
+                // the analysis feed's SignalR subscription mid-handshake, which is what was
+                // surfacing as "no live progress after bulk-add" before.
+                DialogService.Close(true);
             }
             else
             {
@@ -303,12 +289,19 @@
 
                 var errorContent = await response.Content.ReadAsStringAsync();
                 Logger.LogError("Bulk repository add failed: Status={StatusCode}, Content={ErrorContent}", response.StatusCode, errorContent);
-                pageState.ErrorMessage = $"Error adding repositories: {(int)response.StatusCode} {response.ReasonPhrase}";
+                // Bulk add is rate-limited per user. "429 Too Many Requests, check the logs" sends
+                // the user looking for a fault that is not there.
+                var rateLimited = response.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
+                pageState.ErrorMessage = rateLimited
+                    ? "Too many requests, try again in a minute."
+                    : $"Error adding repositories: {(int)response.StatusCode} {response.ReasonPhrase}";
                 NotificationService.Notify(new NotificationMessage
                 {
-                    Severity = NotificationSeverity.Error,
+                    Severity = rateLimited ? NotificationSeverity.Warning : NotificationSeverity.Error,
                     Summary = "Couldn't add repositories",
-                    Detail = $"Server returned {(int)response.StatusCode} {response.ReasonPhrase}. Please try again or check the logs.",
+                    Detail = rateLimited
+                        ? "Too many requests, try again in a minute."
+                        : $"Server returned {(int)response.StatusCode} {response.ReasonPhrase}. Please try again or check the logs.",
                     Duration = 6000
                 });
             }

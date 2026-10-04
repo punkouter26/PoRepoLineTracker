@@ -37,14 +37,13 @@
     line-height: 1.5;
 }
 
-/* Faithful extraction of the previous inline style, including its reference to
-   --rz-border-disabled-color. NOTE: that token is not defined by the Radzen theme in use, so the
-   declaration is invalid at computed-value time and the divider has always rendered with no
-   border. Left as-is because this change is an extraction, not a restyle — but it is a real
-   dead style worth fixing deliberately. */
+/* --border-light, not --rz-border-disabled-color: that token is not defined by either Radzen
+   theme in use, so the declaration was invalid at computed-value time and this rule drew nothing.
+   The line that did show came from a second `.login-divider` in app.css, now deleted — one rule,
+   here, beside the markup it styles. */
 .login-divider {
     border: none;
-    border-top: 1px solid var(--rz-border-disabled-color);
+    border-top: 1px solid var(--border-light);
     width: 100%;
     margin: 0;
 }
@@ -57,14 +56,6 @@
     font-size: 1rem !important;
     padding: 0.8rem 1.5rem !important;
     font-weight: 600 !important;
-}
-
-/* Secondary provider: same footprint, quieter surface so GitHub stays the primary action. */
-.login-canvas ::deep .login-cta-btn--secondary.login-cta-btn--secondary {
-    background: transparent !important;
-    border: 1px solid var(--rz-base-300) !important;
-    color: var(--rz-text-color) !important;
-    margin-top: -0.75rem;
 }
 
 .login-canvas ::deep .login-footnote.login-footnote {

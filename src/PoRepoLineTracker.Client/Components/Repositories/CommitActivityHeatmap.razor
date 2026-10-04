@@ -34,11 +34,15 @@
             </div>
 
             <!-- 7-day grid -->
-            <div class="rhythm-grid" role="grid" aria-label="Commit activity punchcard by weekday and hour">
+            @* role="img" with one summary, not role="grid". A grid promises cell-by-cell keyboard
+               navigation; this had 168 gridcells and not one of them focusable, so a screen
+               reader announced an interactive table that could not be entered. The per-cell
+               detail stays on `title` for the pointer. *@
+            <div class="rhythm-grid" role="img" aria-label="@Summary">
                 @for (int d = 0; d < 7; d++)
                 {
                     var dayIndex = d;
-                    <div class="rhythm-row" role="row">
+                    <div class="rhythm-row">
                         <span class="rhythm-day-label">@DayNames[dayIndex]</span>
                         <div class="rhythm-cells">
                             @for (int h = 0; h < 24; h++)
@@ -52,9 +56,7 @@
 
                                 <div class="rhythm-cell @(intensity > 0 ? "rhythm-cell--active" : "")"
                                      style="@($"--intensity: {intensity:F2}")"
-                                     title="@tooltip"
-                                     role="gridcell"
-                                     aria-label="@tooltip">
+                                     title="@tooltip">
                                 </div>
                             }
                         </div>
@@ -77,7 +79,7 @@
 
 @code {
     [Parameter] public RepositoryId RepositoryId { get; set; }
-    [Parameter] public int Days { get; set; } = 90;
+    [Parameter] public int Days { get; set; } = ChartFormat.DefaultRangeDays;
 
     private static readonly string[] DayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -128,6 +130,11 @@
             }
         }
     }
+
+    private string Summary =>
+        "Commit activity by weekday and hour" + (_peakSlot is { CommitCount: > 0 } peak
+            ? $". Busiest: {DayNames[peak.DayOfWeek]}s around {FormatHour(peak.HourOfDay)}, {peak.CommitCount} commits."
+            : ".");
 
     private PunchcardItemDto? GetCell(int day, int hour) =>
         _items?.FirstOrDefault(i => i.DayOfWeek == day && i.HourOfDay == hour);

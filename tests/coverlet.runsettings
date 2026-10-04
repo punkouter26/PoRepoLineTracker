@@ -2,9 +2,10 @@
 <!--
   coverlet.runsettings
   Coverage configuration for the Unit tier (the only project wired to this file — see
-  PoRepoLineTracker.Unit.csproj RunSettingsFilePath). Coverage is COLLECTED whenever the
-  collector runs; the threshold below is only evaluated when `dotnet test` is invoked with
-  `-collect:"XPlat Code Coverage"`, which CI currently does not do.
+  PoRepoLineTracker.Unit.csproj RunSettingsFilePath). Coverage is collected when `dotnet test`
+  is invoked with `-collect:"XPlat Code Coverage"`, which CI does not do. No threshold is set:
+  the collector does not honour one (that is a coverlet.msbuild feature), so the three lines
+  that used to sit here gated nothing.
 -->
 <RunSettings>
   <DataCollectionRunSettings>
@@ -23,10 +24,6 @@
           <ExcludeByFile>**/*.g.cs,**/*.Designer.cs,**/Program.cs</ExcludeByFile>
           <ExcludeByAttribute>GeneratedCode,CompilerGenerated,ExcludeFromCodeCoverage</ExcludeByAttribute>
 
-          <!-- Gates: fail if coverage drops below these thresholds -->
-          <Threshold>70</Threshold>
-          <ThresholdType>line,branch,method</ThresholdType>
-          <ThresholdStat>minimum</ThresholdStat>
         </Configuration>
       </DataCollector>
     </DataCollectors>

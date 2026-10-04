@@ -37,6 +37,7 @@ builder.Services.AddScoped<AnalysisFeedClient>();
 // Registered after DialogService/NotificationService below purely for readability — DI resolves
 // by type, not by registration order.
 builder.Services.AddScoped<RepositoryCommandClient>();
+builder.Services.AddScoped<AssistantClient>();
 
 // Add authentication services
 builder.Services.AddScoped<ApiAuthenticationStateProvider>(sp =>
@@ -47,8 +48,8 @@ builder.Services.AddAuthorizationCore();
 // Add Radzen services with Material3 theme
 builder.Services.AddScoped<DialogService>();
 builder.Services.AddScoped<NotificationService>();
+// Not opened by app code, but RadzenChart injects it to draw series tooltips.
 builder.Services.AddScoped<TooltipService>();
-builder.Services.AddScoped<ContextMenuService>();
 
 await builder.Build().RunAsync();
 

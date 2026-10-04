@@ -1,6 +1,8 @@
 ﻿@using Microsoft.AspNetCore.Components.Routing
 @using Radzen
 @using Radzen.Blazor
+@inject NavigationManager Navigation
+@implements IDisposable
 
 @* The app's navigable destinations — every one of them, and the only place they are listed.
    A mobile bottom-nav bar used to carry a second copy; it was deleted rather than kept in sync.
@@ -12,7 +14,12 @@
    classes in app.css are still applied so the visual is identical to the previous render. *@
 <ul class="rz-panelmenu app-nav">
     <li>
-        <NavLink href="/" Match="NavLinkMatch.All" class="rz-panelmenu-header app-nav__link">
+        @* /repositories with a prefix match, so the item stays lit on /repositories/{id}. It was
+           href="/" with Match.All, which matches the home URL and nothing else — on a repository's
+           detail page no nav item was highlighted at all. "/" is the same page under its other
+           @page route and a prefix of every URL, so it cannot be the href; IsHome marks it. *@
+        <NavLink href="/repositories" Match="NavLinkMatch.Prefix" class="rz-panelmenu-header app-nav__link"
+                 aria-current="@(IsHome ? "page" : null)">
             <RadzenIcon Icon="storage" class="rz-menuitem-icon" />
             <span class="rz-navigation-item-text">Repositories</span>
         </NavLink>
@@ -30,10 +37,11 @@
         </NavLink>
     </li>
 
-    @* <h2> rather than a <div>. The Config group is a section in the document outline, not a
-       decorative label — a screen reader announcing a list of links immediately after a
-       bold-face "Config" needs to know those links are configuration, not just "things". *@
-    <li><h2 class="nav-section-label">Config</h2></li>
+    @* A list item, not a heading. It was an <h2>, but the sidebar precedes <main> in the
+       document, so that put an h2 ahead of every page's h1 — a heading outline that starts at
+       level 2 (AccessibilityUiTests pins "first heading is the h1"). As plain list-item text it
+       is still read out, in order, immediately before the links it labels. *@
+    <li><span class="nav-section-label">Config</span></li>
 
     <li>
         <NavLink href="/settings" Match="NavLinkMatch.All" class="rz-panelmenu-header app-nav__link">
@@ -41,4 +49,19 @@
             <span class="rz-navigation-item-text">Settings</span>
         </NavLink>
     </li>
+    @* No Diagnostics link, by the owner's choice: the page is an operator's tool, reachable at
+       /diag, and not something to offer every signed-in user from the sidebar. *@
 </ul>
+
+@code {
+    /// <summary>True at the app root, with or without a query string or fragment.</summary>
+    private bool IsHome => Navigation.ToBaseRelativePath(Navigation.Uri) is "" or ['?' or '#', ..];
+
+    // NavLink re-renders itself on navigation; the aria-current handed to it above is this
+    // component's output, so this component has to re-render too.
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => StateHasChanged();
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

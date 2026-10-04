@@ -34,19 +34,9 @@ public abstract record LoadingState<T>
     /// <summary>True when the page is waiting for a fetch to complete.</summary>
     public bool IsLoading => this is Loading;
 
-    /// <summary>The user-facing error, or <c>null</c> if no error is currently set.</summary>
-    public string? Error => this is Failed f ? f.Message : null;
-
     /// <summary>The loaded data, or <c>null</c> if the page is loading, errored, or empty.</summary>
     public T? Data => this is Loaded l ? l.Value : default;
 
     /// <summary>True when the fetch has finished and there is something to render.</summary>
     public bool HasData => this is Loaded;
-
-    /// <summary>True when the fetch returned zero rows.</summary>
-    public bool IsEmpty => this is Empty;
-
-    /// <summary>Factory: wrap a fetched value, choosing <see cref="Empty"/> when the result is null/empty.</summary>
-    public static LoadingState<T> FromResult(T? data, bool isEmptyWhen = false) =>
-        data is null || isEmptyWhen ? new Empty() : new Loaded(data);
 }

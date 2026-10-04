@@ -59,7 +59,10 @@ public sealed class PortfolioInsightsDto
     /// <summary>Extension whose share shrank most.</summary>
     public string? FadingLanguage { get; set; }
 
-    /// <summary>One entry per day for the last year, including zero-commit days — the heatmap needs the gaps.</summary>
+    /// <summary>
+    /// One entry per day from the portfolio's first commit (at least the last year, at most ten),
+    /// including zero-commit days — the heatmap needs the gaps.
+    /// </summary>
     public List<ActivityDayDto> Activity { get; set; } = [];
 
     /// <summary>
@@ -69,6 +72,27 @@ public sealed class PortfolioInsightsDto
     /// deltas.
     /// </summary>
     public List<PortfolioTrendPointDto> TrendLine { get; set; } = [];
+
+    /// <summary>
+    /// Recent commits that added far more lines than is normal for their repository — usually a
+    /// vendored library, a generated file or a data dump that the ignore rules should cover.
+    /// Largest first; empty when nothing stands out.
+    /// </summary>
+    public List<CommitOutlierDto> Outliers { get; set; } = [];
+}
+
+/// <summary>One commit whose size is out of character for its repository.</summary>
+public sealed class CommitOutlierDto
+{
+    public RepositoryId RepositoryId { get; set; }
+    public string Owner { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string CommitSha { get; set; } = string.Empty;
+    public DateTime CommitDate { get; set; }
+    public int LinesAdded { get; set; }
+
+    /// <summary>The repository's median lines added per commit — what "normal" means here.</summary>
+    public int TypicalLinesAdded { get; set; }
 }
 
 /// <summary>How one repository moved over the window, for the ranking table.</summary>

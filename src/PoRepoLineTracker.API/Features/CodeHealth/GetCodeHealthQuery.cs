@@ -64,6 +64,12 @@ public sealed class GetCodeHealthQueryHandler(
 
         var repositoryPath = gitHubService.ResolveRepositoryPath(repository.LocalPath);
 
+        // No clone on disk (a recycled host, a deleted directory): the walk below yields no files
+        // and the report correctly says "nothing to measure" (HasData false, no grade). What it
+        // must not do is get memoised: saved under the newest SHA, that empty report was then
+        // served from the memo forever, even after the clone came back.
+        var hasClone = await gitHubService.IsRepositoryValidAsync(repositoryPath);
+
         // One Task.Run around the whole walk, not one per file. The enumeration is synchronous
         // LibGit2Sharp work plus regex matching — CPU-bound from end to end — and it holds the git
         // repository open for its duration, so it has to run as a single unit.
@@ -78,7 +84,8 @@ public sealed class GetCodeHealthQueryHandler(
         report.CommitSha = newest.CommitSha.Length > 7 ? newest.CommitSha[..7] : newest.CommitSha;
         report.CommitDate = newest.CommitDate;
 
-        await snapshotStore.SaveAsync(CodeHealthSnapshotSerializer.ToEntity(request.RepositoryId, newest.CommitSha, report));
+        if (hasClone)
+            await snapshotStore.SaveAsync(CodeHealthSnapshotSerializer.ToEntity(request.RepositoryId, newest.CommitSha, report));
 
         logger.LogInformation(
             "Code health for {Owner}/{Name}: {Score} ({Grade}) over {Files} files, "

@@ -26,12 +26,15 @@ public sealed class CodeHealthUiTests
             $"Could not seed a repository at {E2EUiFixture.BaseUrl} — is the app running in Development?");
 
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/");
-        await page.WaitForSelectorAsync(".rp-grid, .rz-datatable, .rp-onboarding-card",
+        await page.WaitForSelectorAsync(".rp-grid, .rz-datatable, .onboarding__card",
             new PageWaitForSelectorOptions { Timeout = 25000 });
 
         // Straight to the seeded repository's detail page via its link in the grid.
         var link = page.Locator($"a[href^='/repositories/']").First;
         await link.ClickAsync();
+
+        // The card lives in the third tab; a hidden panel never satisfies a visibility wait.
+        await page.Locator(".rz-tabview-nav li", new PageLocatorOptions { HasText = "Code Health" }).ClickAsync();
         await page.WaitForSelectorAsync(".health", new PageWaitForSelectorOptions { Timeout = 25000 });
         return page;
     }

@@ -157,7 +157,7 @@
     private string _chartError = string.Empty;
 
     /// <summary>Window in days, owned by the page so every chart on it agrees.</summary>
-    [Parameter] public int Days { get; set; } = 90;
+    [Parameter] public int Days { get; set; } = ChartFormat.DefaultRangeDays;
 
     /// <summary>Last value actually fetched — see OnParametersSetAsync.</summary>
     private int _loadedDays = -1;

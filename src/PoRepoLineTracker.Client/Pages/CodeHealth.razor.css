@@ -13,7 +13,9 @@
     text-decoration: underline;
 }
 
-.ch-unmeasured-reason {
+/* ::deep on this one, .ch-score-badge and .ch__caveat: each sits on a Radzen component
+   (RadzenText / RadzenBadge), which is exactly the case the note above describes. */
+::deep .ch-unmeasured-reason.ch-unmeasured-reason {
     color: var(--text-muted) !important;
     font-size: 0.8rem !important;
 }
@@ -28,15 +30,15 @@
     font-size: 0.85rem;
 }
 
-.ch-score-badge {
+::deep .ch-score-badge.ch-score-badge {
     font-weight: 700 !important;
     min-width: 2.2rem;
     text-align: center;
 }
 
-.ch__caveat {
+::deep .ch__caveat.ch__caveat {
     display: block;
-    margin-top: 1rem;
+    margin-top: 1rem !important;
     opacity: 0.8;
 }
 

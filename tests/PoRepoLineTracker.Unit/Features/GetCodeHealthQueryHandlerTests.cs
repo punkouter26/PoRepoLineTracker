@@ -54,6 +54,7 @@ public class GetCodeHealthQueryHandlerTests
 
         _preferences.GetFileExtensionsAsync(OwnerId).Returns(UserPreferences.DefaultFileExtensions);
         _gitHub.ResolveRepositoryPath(Arg.Any<string>()).Returns("/repo");
+        _gitHub.IsRepositoryValidAsync("/repo").Returns(true);
         _gitHub.EnumerateSourceFiles(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IEnumerable<string>>())
             .Returns(files);
 

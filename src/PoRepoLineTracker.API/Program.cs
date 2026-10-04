@@ -55,7 +55,7 @@ namespace PoRepoLineTracker.API
             }
             else
             {
-                Log.Warning("KeyVault:Url not configured — secrets must come from user-secrets or environment variables");
+                Log.Warning("KeyVault:Uri not configured — secrets must come from user-secrets or environment variables");
             }
 
             // Local developer override (not committed).
@@ -86,12 +86,6 @@ namespace PoRepoLineTracker.API
                         outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
                 }
 
-            });
-
-            // Raise Kestrel body-size limit to 600 MB to allow large ZIP uploads
-            builder.WebHost.ConfigureKestrel(options =>
-            {
-                options.Limits.MaxRequestBodySize = 600 * 1024 * 1024; // 600 MB
             });
 
             // Service registrations via extension methods
@@ -172,7 +166,21 @@ namespace PoRepoLineTracker.API
             app.UseMiddleware<ApiNotFoundMiddleware>();
 
             app.UseAuthentication();
+
+            // After authentication, not in LogEnrichmentMiddleware at the top of the pipeline:
+            // there the principal has not been established yet, so every log line of every
+            // request was tagged UserId "anonymous".
+            app.Use(async (context, next) =>
+            {
+                using (Serilog.Context.LogContext.PushProperty("UserId",
+                    context.User.FindFirst(ClaimsPrincipalExtensions.UserIdClaim)?.Value ?? "anonymous"))
+                {
+                    await next(context);
+                }
+            });
+
             app.UseAuthorization();
+            app.UseRateLimiter();
 
             // Production Auth Enforcement: require Microsoft/GitHub OAuth in Production.
             // In Development this is a no-op (GUEST mode and local testing still work).
@@ -198,7 +206,7 @@ namespace PoRepoLineTracker.API
             // Both must opt out of the FallbackPolicy: /health is polled by the
             // deploy smoke test and Azure's probe with no credential, and the fallback file is
             // the Blazor shell itself — gating it would make the login page unreachable.
-            app.MapHealthChecks("/health").AllowAnonymous();
+            app.MapHealthChecks("/health").AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Health);
             // Uniform cross-app liveness probe (see PoPlatform). Same shape in every Po app, which
             // is what lets the portfolio dashboard poll them all and render one uptime grid.
             app.MapPoLiveness();

@@ -290,10 +290,16 @@ public class GetPortfolioInsightsQueryHandlerTests
             Commit(daysAgo: 1, totalLines: 235, linesAdded: 60)));
 
         var activity = await WhenQueried();
-        activity.Activity.Should().HaveCount(365);
+        // From the first commit (400 days ago) through today, so the heatmap's "All" range has the
+        // whole history; a portfolio younger than a year still gets the full year of cells.
+        activity.Activity.Should().HaveCount(401);
+        streaks.Activity.Should().HaveCount(365);
         activity.Activity.Select(a => a.Date).Should().BeInAscendingOrder();
         activity.Activity.Should().OnlyHaveUniqueItems(a => a.Date);
-        activity.Activity.Count(a => a.Commits > 0).Should().Be(3);
+        activity.Activity.Count(a => a.Commits > 0).Should().Be(4);
+        // The streak figures still read only the trailing year: the 400-day-old commit is drawn
+        // on the heatmap but is not an "active day" for them.
+        activity.LongestStreakDays.Should().Be(1);
         activity.Activity.Single(a => a.Date == Today.AddDays(-1)).LinesAdded.Should().Be(60);
         activity.Commits30Days.Should().Be(3);
         activity.ActiveDays30.Should().Be(2);

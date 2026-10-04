@@ -15,4 +15,6 @@ public sealed class GitHubRepositoryDto
     public string CloneUrl { get; set; } = string.Empty;
     public DateTime? LastAnalyzedCommitDate { get; set; }
     public string LocalPath { get; set; } = string.Empty;
+    public DateTime? LastAnalysisAttemptUtc { get; set; }
+    public string? LastAnalysisError { get; set; }
 }

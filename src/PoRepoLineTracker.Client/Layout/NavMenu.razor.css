@@ -6,11 +6,11 @@
    panel-menu styling — including its active/hover states and dark-mode colours — is in app.css
    alongside the rest of the shell.
 
-   `.nav-section-label` is now an <h2> inside this component's own markup, so it scopes
-   correctly and stays here. Reset the default <h2> margin so the existing padding defines the
-   rhythm. */
+   `.nav-section-label` is a <span> inside this component's own markup, so it scopes
+   correctly and stays here. */
 
 .nav-section-label {
+    display: block;
     padding: 1rem 1.4rem 0.25rem;
     margin: 0;
     font-size: 0.68rem;

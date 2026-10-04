@@ -14,11 +14,9 @@ namespace PoRepoLineTracker.API.Features.Repositories;
 /// Command to analyze commits for a repository.
 /// </summary>
 /// <param name="RepositoryId">The repository to analyze</param>
-/// <param name="ForceReanalysis">If true, re-analyze commits that have missing diff data</param>
 /// <param name="ClearExistingData">If true, delete all existing commit data and re-analyze from scratch</param>
 public record AnalyzeRepositoryCommitsCommand(
     RepositoryId RepositoryId,
-    bool ForceReanalysis = false,
     bool ClearExistingData = false);
 
 public class AnalyzeRepositoryCommitsCommandHandler
@@ -29,6 +27,7 @@ public class AnalyzeRepositoryCommitsCommandHandler
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly IAnalysisProgressService _progressService;
     private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
     private readonly PoRepoLineTracker.API.Analysis.FileIgnoreFilter? _fileIgnoreFilter;
 
@@ -49,6 +48,7 @@ public class AnalyzeRepositoryCommitsCommandHandler
         IUserPreferencesService userPreferencesService,
         IAnalysisProgressService progressService,
         IConfiguration configuration,
+        IHostEnvironment environment,
         ILogger<AnalyzeRepositoryCommitsCommandHandler> logger,
         PoRepoLineTracker.API.Analysis.FileIgnoreFilter? fileIgnoreFilter = null)
     {
@@ -58,9 +58,19 @@ public class AnalyzeRepositoryCommitsCommandHandler
         _userPreferencesService = userPreferencesService;
         _progressService = progressService;
         _configuration = configuration;
+        _environment = environment;
         _logger = logger;
         _fileIgnoreFilter = fileIgnoreFilter;
     }
+
+    /// <summary>
+    /// Whether an analysis currently holds this repository's lock. The re-analyse and delete
+    /// endpoints answer 409 on it: a second run would be silently skipped below while the caller
+    /// was told "started", and a delete would leave the running loop upserting commit rows for a
+    /// repository that no longer exists.
+    /// </summary>
+    public static bool IsRunning(RepositoryId repositoryId) =>
+        _repoLocks.TryGetValue(repositoryId, out var semaphore) && semaphore.CurrentCount == 0;
 
     public async Task Handle(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken = default)
     {
@@ -84,8 +94,8 @@ public class AnalyzeRepositoryCommitsCommandHandler
 
     private async Task HandleInternalAsync(AnalyzeRepositoryCommitsCommand request, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Analyzing commits for repository ID: {RepositoryId} (ForceReanalysis: {ForceReanalysis}, ClearExistingData: {ClearExistingData})",
-            request.RepositoryId, request.ForceReanalysis, request.ClearExistingData);
+        _logger.LogInformation("Analyzing commits for repository ID: {RepositoryId} (ClearExistingData: {ClearExistingData})",
+            request.RepositoryId, request.ClearExistingData);
 
         // Get the repository to analyze
         var repository = await _repositoryDataService.GetRepositoryByIdAsync(request.RepositoryId);
@@ -102,17 +112,6 @@ public class AnalyzeRepositoryCommitsCommandHandler
         // command because this is where the repository (and so its UserId) is actually loaded.
         _progressService.BeginJob(request.RepositoryId, repository.UserId, repository.Owner, repository.Name);
 
-        // Clear existing commit data if requested (for full re-analysis with new extensions)
-        if (request.ClearExistingData)
-        {
-            _logger.LogInformation("Clearing existing commit data for repository {RepositoryId} for full re-analysis", request.RepositoryId);
-            await _repositoryDataService.DeleteCommitLineCountsForRepositoryAsync(request.RepositoryId);
-
-            // Reset the last analyzed date so all commits are processed
-            repository.LastAnalyzedCommitDate = null;
-            await _repositoryDataService.UpdateRepositoryAsync(repository);
-        }
-
         // Resolve the GitHub access token for the clone/pull. GitHub OAuth is the only
         // provider, so a stored token is always a GitHub token; the server-configured
         // GitHub:PAT covers rows with a missing/empty token and user-less legacy rows.
@@ -121,8 +120,21 @@ public class AnalyzeRepositoryCommitsCommandHandler
         try
         {
             // ── Step 1: Clone/pull OR validate local repository ───────────────────────
-            var repositoryPath = await EnsureRepositoryOnDiskAsync(repository, accessToken, request.RepositoryId, cancellationToken);
-            if (repositoryPath is null) return;
+            var repositoryPath = await EnsureRepositoryOnDiskAsync(repository, accessToken, request.RepositoryId);
+
+            // Clear existing commit data for a full re-analysis — only now that the repository is
+            // known to be fetchable. This used to run before the clone/pull, so a revoked token, a
+            // repository deleted on GitHub or a network failure wiped the user's whole history and
+            // then failed, leaving nothing.
+            if (request.ClearExistingData)
+            {
+                _logger.LogInformation("Clearing existing commit data for repository {RepositoryId} for full re-analysis", request.RepositoryId);
+                await _repositoryDataService.DeleteCommitLineCountsForRepositoryAsync(request.RepositoryId);
+
+                // Reset the last analyzed date so all commits are processed
+                repository.LastAnalyzedCommitDate = null;
+                await _repositoryDataService.UpdateRepositoryAsync(repository);
+            }
 
             // Get user-specific file extensions to count (falls back to defaults if not configured)
             List<string> fileExtensionsToCount = UserPreferences.DefaultFileExtensions;
@@ -137,14 +149,10 @@ public class AnalyzeRepositoryCommitsCommandHandler
                         _fileIgnoreFilter.CustomIgnoreGlobs = userPrefs.CustomIgnoreGlobs;
                     }
                 }
-                else
-                {
-                    fileExtensionsToCount = (await _userPreferencesService.GetFileExtensionsAsync(repository.UserId)).ToList();
-                }
             }
 
             // ── Step 2: Fetch commit stats (incremental where possible) ──────────────
-            var commitStatsList = await FetchAllCommitStatsAsync(repository, repositoryPath, request, cancellationToken);
+            var commitStatsList = await FetchAllCommitStatsAsync(repository, repositoryPath, request, fileExtensionsToCount, cancellationToken);
 
             // Pre-load existing commits once, before the loop. See the rationale on the method.
             var existingCommitsBySha = await PreloadExistingCommitsAsync(request.RepositoryId, cancellationToken);
@@ -161,14 +169,17 @@ public class AnalyzeRepositoryCommitsCommandHandler
         {
             _logger.LogError(ex, "Error analyzing repository {RepositoryId}", request.RepositoryId);
             _progressService.ReportError(request.RepositoryId, ex.Message);
+            await RecordAttemptAsync(repository, ex.Message);
             throw; // Re-throw to let the API handle the error
         }
     }
 
     /// <summary>
-    /// The user's own OAuth token, falling back to the server-configured PAT for legacy rows
-    /// with no UserId. Returns null only when neither is set, in which case cloning a remote
-    /// repository will fail and the caller reports that as the analysis error.
+    /// The user's own OAuth token. In Development and Test only — where fake auth exists and its
+    /// users have no GitHub token — falls back to the server-configured PAT. Anywhere else the fallback is a confused
+    /// deputy: any principal whose row lacks a token would clone with the server's credential.
+    /// Returns null when neither applies; a private clone then fails and that is reported as
+    /// the analysis error.
     /// </summary>
     private async Task<string?> ResolveAccessTokenAsync(GitHubRepository repository, CancellationToken cancellationToken)
     {
@@ -181,54 +192,54 @@ public class AnalyzeRepositoryCommitsCommandHandler
             }
         }
 
-        return _configuration[ConfigKeys.GitHub.Pat];
+        return _environment.IsDevelopment() || _environment.IsEnvironment("Test")
+            ? _configuration[ConfigKeys.GitHub.Pat]
+            : null;
     }
 
     /// <summary>
-    /// Step 1: bring the working tree on disk up to date. For a local upload, that means a
-    /// path-exists check; for a cloned repository, that means pull-or-clone. Returns the
-    /// absolute working path on success, or null when the upload's local path is missing
-    /// (the progress service is told and the job ends).
-    ///
-    /// <para>The single path variable is deliberate: an upload stores an absolute
-    /// <c>LocalPath</c> and a clone stores a relative one, and <c>ResolveRepositoryPath</c>
-    /// reconciles both — so every read below takes the same argument regardless of where the
-    /// repository came from.</para>
+    /// Stamps the outcome of a finished run on the repository row. The startup resume sweep keys
+    /// on the attempt time: a repository that was tried and failed (deleted on GitHub, token
+    /// revoked) or has no commits used to stay "pending" forever and was re-cloned on every
+    /// restart. Best-effort — a storage failure here must not mask the error being recorded.
     /// </summary>
-    private async Task<string?> EnsureRepositoryOnDiskAsync(
+    private async Task RecordAttemptAsync(GitHubRepository repository, string? error)
+    {
+        repository.LastAnalysisAttemptUtc = DateTime.UtcNow;
+        repository.LastAnalysisError = error;
+        try
+        {
+            await _repositoryDataService.UpdateRepositoryAsync(repository);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not record analysis outcome for repository {RepositoryId}", repository.Id);
+        }
+    }
+
+    /// <summary>
+    /// Step 1: bring the clone on disk up to date (pull-or-clone) and return its absolute path.
+    ///
+    /// <para>The clone URL is built here from Owner/Name, never read from the stored row or the
+    /// request: the user's GitHub token is embedded in whatever URL git is handed, so a
+    /// caller-controlled URL sent that token to a caller-controlled host.</para>
+    /// </summary>
+    private async Task<string> EnsureRepositoryOnDiskAsync(
         GitHubRepository repository,
         string? accessToken,
-        RepositoryId repositoryId,
-        CancellationToken cancellationToken)
+        RepositoryId repositoryId)
     {
-        bool isLocalUpload = string.IsNullOrWhiteSpace(repository.CloneUrl);
+        if (!RepositoryValidators.IsGitHubName(repository.Owner) || !RepositoryValidators.IsGitHubName(repository.Name))
+            throw new InvalidOperationException($"'{repository.Owner}/{repository.Name}' is not a valid GitHub repository name.");
+        var cloneUrl = $"https://github.com/{repository.Owner}/{repository.Name}.git";
 
         _progressService.ReportStep(repositoryId, 1, "Cloning",
-            isLocalUpload
-                ? $"Step 1/4 — Validating local repository {repository.Owner}/{repository.Name}"
-                : $"Step 1/4 — Cloning/pulling {repository.Owner}/{repository.Name}");
-        _logger.LogInformation("[Step 1/4] {Status} for repository {RepositoryId}",
-            isLocalUpload ? "Validating local repo" : "Clone/pull", repositoryId);
-
-        if (isLocalUpload)
-        {
-            var repositoryPath = _gitHubService.ResolveRepositoryPath(repository.LocalPath);
-            if (!await _gitHubService.IsRepositoryValidAsync(repositoryPath))
-            {
-                _logger.LogError("Local repository at {RepoPath} is not valid or does not exist", repositoryPath);
-                _progressService.ReportError(repositoryId, "Local repository is not valid or does not exist.");
-                return null;
-            }
-
-            _logger.LogInformation("Local repository validated at {RepoPath}", repositoryPath);
-            return repositoryPath;
-        }
+            $"Step 1/4 — Cloning/pulling {repository.Owner}/{repository.Name}");
+        _logger.LogInformation("[Step 1/4] Clone/pull for repository {RepositoryId}", repositoryId);
 
         // Always derive a stable local path from the repo ID so we can re-clone safely after an
         // Azure App Service container restart (ephemeral filesystem).
-        var localPath = string.IsNullOrEmpty(repository.LocalPath)
-            ? $"repo_{repositoryId}"
-            : repository.LocalPath;
+        var localPath = $"repo_{repositoryId}";
         var absolutePath = _gitHubService.ResolveRepositoryPath(localPath);
 
         if (await _gitHubService.IsRepositoryValidAsync(absolutePath))
@@ -245,14 +256,14 @@ public class AnalyzeRepositoryCommitsCommandHandler
                     "Pull failed for repository {RepositoryId} at {LocalPath} — deleting local copy and re-cloning",
                     repositoryId, localPath);
                 await _gitHubService.DeleteLocalRepositoryAsync(localPath);
-                await _gitHubService.CloneRepositoryAsync(repository.CloneUrl, localPath, accessToken);
+                await _gitHubService.CloneRepositoryAsync(cloneUrl, localPath, accessToken);
             }
         }
         else
         {
             _logger.LogInformation("Local path missing or invalid — cloning repository {Owner}/{Name} to {LocalPath}",
                 repository.Owner, repository.Name, localPath);
-            await _gitHubService.CloneRepositoryAsync(repository.CloneUrl, localPath, accessToken);
+            await _gitHubService.CloneRepositoryAsync(cloneUrl, localPath, accessToken);
         }
 
         // Clone and pull take the RELATIVE path: they own the base-directory convention, and
@@ -267,8 +278,8 @@ public class AnalyzeRepositoryCommitsCommandHandler
     /// repository has been analysed (<see cref="GitHubRepository.LastAnalyzedCommitDate"/> set),
     /// only commits newer than that date — minus a day of overlap for moved author dates
     /// (rebases, cherry-picks) — are walked and diffed. The wide 50-year window stays for
-    /// <paramref name="request"/>'s ForceReanalysis (it must revisit stored rows anywhere in
-    /// history) and for never-analysed repositories, which have no window to narrow to.
+    /// never-analysed repositories (and a full re-analysis, which resets the date), which have
+    /// no window to narrow to.
     ///
     /// <para>ponytail: the overlap is author-date based, so a cherry-pick carrying a much older
     /// author date than the last analysis can slip through until a full re-analysis; the SHA
@@ -278,6 +289,7 @@ public class AnalyzeRepositoryCommitsCommandHandler
         GitHubRepository repository,
         string repositoryPath,
         AnalyzeRepositoryCommitsCommand request,
+        IEnumerable<string> fileExtensionsToCount,
         CancellationToken cancellationToken)
     {
         var repositoryId = request.RepositoryId;
@@ -285,10 +297,17 @@ public class AnalyzeRepositoryCommitsCommandHandler
             $"Step 2/4 — Fetching commit history for {repository.Owner}/{repository.Name}");
         _logger.LogInformation("[Step 2/4] Fetching commit stats for repository {RepositoryId}", repositoryId);
 
-        var sinceDate = !request.ForceReanalysis && repository.LastAnalyzedCommitDate is { } lastAnalyzed
+        var sinceDate = repository.LastAnalyzedCommitDate is { } lastAnalyzed
             ? lastAnalyzed.AddDays(-1)
             : DateTime.UtcNow.AddYears(-50);
-        var commitStatsList = (await _gitHubService.GetCommitStatsAsync(repositoryPath, sinceDate)).ToList();
+        var commitStatsList = (await _gitHubService.GetCommitStatsAsync(
+            repositoryPath,
+            sinceDate,
+            fileExtensionsToCount,
+            // Same step, new description: the live view shows the count moving instead of a
+            // bar that sits still for the length of the walk.
+            (done, total) => _progressService.ReportStep(repositoryId, 2, "Fetching",
+                $"Step 2/4 — Reading commit history ({done:N0} of {total:N0})"))).ToList();
         _logger.LogInformation("Found {CommitCount} commits to analyze for repository {RepositoryId} (since {Since:u})",
             commitStatsList.Count, repositoryId, sinceDate);
         _progressService.ReportCommitsFound(repositoryId, commitStatsList.Count);
@@ -354,8 +373,9 @@ public class AnalyzeRepositoryCommitsCommandHandler
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!ShouldProcessCommit(commitStat, existingCommitsBySha, request.ForceReanalysis, _logger))
+            if (existingCommitsBySha.ContainsKey(commitStat.Sha))
             {
+                _logger.CommitAlreadyProcessed(commitStat.Sha);
                 continue;
             }
 
@@ -425,38 +445,6 @@ public class AnalyzeRepositoryCommitsCommandHandler
     }
 
     /// <summary>
-    /// Decide whether this commit needs recounting. Skipped when already analysed (unless
-    /// <paramref name="forceReanalysis"/> is set AND the stored row is the empty-diff shape of
-    /// an early analysis).
-    /// </summary>
-    private static bool ShouldProcessCommit(
-        CommitStatsDto commitStat,
-        Dictionary<string, CommitLineCount> existingCommitsBySha,
-        bool forceReanalysis,
-        ILogger logger)
-    {
-        if (!existingCommitsBySha.TryGetValue(commitStat.Sha, out var existingCommit))
-        {
-            return true;
-        }
-
-        if (!forceReanalysis)
-        {
-            logger.CommitAlreadyProcessed(commitStat.Sha);
-            return false;
-        }
-
-        if (existingCommit.LinesAdded == 0 && existingCommit.LinesRemoved == 0)
-        {
-            logger.ForceReanalyzingCommit(commitStat.Sha);
-            return true;
-        }
-
-        logger.CommitAlreadyHasDiff(commitStat.Sha);
-        return false;
-    }
-
-    /// <summary>
     /// Step 4: bump the repository's "last analysed" timestamp to the newest commit processed,
     /// then signal completion. Without this update the UI keeps showing "Never analyzed" on a
     /// repository that has just been fully counted.
@@ -478,6 +466,7 @@ public class AnalyzeRepositoryCommitsCommandHandler
                 latestCommitDate, repositoryId);
         }
 
+        await RecordAttemptAsync(repository, error: null);
         _progressService.ReportComplete(repositoryId);
         _logger.LogInformation("Completed analysis for repository ID: {RepositoryId}", repositoryId);
     }

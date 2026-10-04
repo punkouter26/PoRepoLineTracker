@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using PoRepoLineTracker.API.Features.CodeHealth;
 using PoRepoLineTracker.API.Features.Contributors;
 using PoRepoLineTracker.API.Features.Insights;
@@ -160,6 +162,7 @@ public static class InfrastructureServiceExtensions
         // ever substituted the interfaces they used to hide behind. The line-counter catalog
         // lives in SourceLineCounter.DefaultSet (one counter per tracked extension plus the "*"
         // fallback — see the type remarks for why every extension gets the same treatment).
+        services.AddSingleton<ClaudeAssistant>();
         services.AddScoped<GitClient>();
         services.AddScoped<FileIgnoreFilter>();
 
@@ -208,7 +211,6 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetCodeHealthQueryHandler>();
         services.AddScoped<GetCodeHealthTrendQueryHandler>();
         services.AddScoped<GetPortfolioCodeHealthQueryHandler>();
-        services.AddScoped<GetPortfolioCodeHealthTrendQueryHandler>();
 
         // Health checks — all three dependencies share the same registry so /health and
         // /api/diagnostics agree (SPEC §11.3). Names use hyphens to match the documented contract and
@@ -217,6 +219,23 @@ public static class InfrastructureServiceExtensions
             .AddCheck<AzureTableStorageHealthCheck>("azure-table-storage")
             .AddCheck<KeyVaultHealthCheck>("key-vault")
             .AddCheck<GitHubApiHealthCheck>("github-api");
+
+        // Rate limits. Nothing was limited before: the two endpoints that queue a clone and a
+        // full history walk could be called in a loop, and the anonymous /health (a Table query
+        // and a GitHub call per hit) by anyone.
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddPolicy(RateLimitPolicies.Analysis, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirst(ClaimsPrincipalExtensions.UserIdClaim)?.Value ?? "anonymous",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
+            options.AddPolicy(RateLimitPolicies.Assistant, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirst(ClaimsPrincipalExtensions.UserIdClaim)?.Value ?? "anonymous",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+            options.AddPolicy(RateLimitPolicies.Health, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1) }));
+        });
 
         // Forwarded headers for Azure Container Apps reverse proxy
         services.Configure<ForwardedHeadersOptions>(options =>
@@ -228,4 +247,17 @@ public static class InfrastructureServiceExtensions
 
         return services;
     }
+}
+
+/// <summary>Names of the rate-limit policies registered in <c>AddInfrastructure</c>.</summary>
+internal static class RateLimitPolicies
+{
+    /// <summary>Per user: the endpoints that queue a clone + history walk.</summary>
+    public const string Analysis = "analysis";
+
+    /// <summary>Per user: the endpoints that make a paid Claude API call.</summary>
+    public const string Assistant = "assistant";
+
+    /// <summary>Per client address: the anonymous health probe.</summary>
+    public const string Health = "health";
 }

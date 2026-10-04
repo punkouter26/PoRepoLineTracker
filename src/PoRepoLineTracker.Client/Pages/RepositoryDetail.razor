@@ -6,6 +6,8 @@
 @inject NavigationManager Navigation
 @inject Radzen.DialogService DialogService
 @inject Radzen.NotificationService NotificationService
+@inject RepositoryCommandClient Commands
+@inject IJSRuntime JS
 @using PoRepoLineTracker.Client.Components.Shared
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Shared.Domain
@@ -25,8 +27,7 @@
         <Heading>
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
                 <RadzenButton Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
-                              Click="@(() => Navigation.NavigateTo("/"))" title="Back to Repositories"
-                              aria-label="Back to Repositories" />
+                              Click="@GoBackAsync" title="Back" aria-label="Back" />
                 @if (_repo != null)
                 {
                     <RadzenStack Gap="0.15rem">
@@ -39,7 +40,9 @@
                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem">
                             @if (_repo.LastAnalyzedCommitDate.HasValue)
                             {
-                                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@($"Analyzed {ChartFormat.RelativeTime(_repo.LastAnalyzedCommitDate)}")" />
+                                @* "Last commit", not "Analyzed": LastAnalyzedCommitDate is the newest
+                                   commit's own date, not when the analysis ran. *@
+                                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@($"Last commit {ChartFormat.RelativeTime(_repo.LastAnalyzedCommitDate)}")" />
                                 @if (_repoLatestLines > 0)
                                 {
                                     <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="@($"{_repoLatestLines:N0} lines")" />
@@ -63,26 +66,31 @@
             </RadzenStack>
         </Heading>
         <Actions>
-            @* One range for the whole page. Every chart below reads _chartDays.
+            @* One range for the whole page. Every chart below reads ChartDays.
 
                There used to be three independent selectors — this card's, ContributorChart's, and
                one on the since-deleted AI-mix card — defaulting to 365, 90 and 90. The page
                therefore opened showing a year of line history above two 90-day authorship charts,
                and moving any one of them left the other two where they were. Whatever else that
                is, it is not a comparison. *@
-            <ChartRangeSelector Days="@_chartDays" DaysChanged="@OnChartRangeChanged" />
-            <RadzenButton Text="Re-analyze" Icon="refresh"
-                          ButtonStyle="ButtonStyle.Warning"
-                          Variant="Variant.Outlined"
-                          Size="ButtonSize.Small"
-                          Click="@ConfirmReanalyze"
-                          Disabled="@(_repo == null || _isReanalyzing)" />
-            <RadzenButton Text="Delete" Icon="delete"
-                          ButtonStyle="ButtonStyle.Danger"
-                          Variant="Variant.Outlined"
-                          Size="ButtonSize.Small"
-                          Click="@ConfirmDelete"
-                          Disabled="@(_repo == null || _isReanalyzing)" />
+            <ChartRangeSelector Days="@ChartDays" DaysChanged="@OnChartRangeChanged" />
+            @* Their own flex item, so on a phone the two buttons wrap to a row together under the
+               range pills. As three siblings they shared one row with the selector and
+               "Re-analyze" was squeezed to "Re anal". *@
+            <div class="rd-hero-buttons">
+                <RadzenButton Text="Re-analyze" Icon="refresh"
+                              ButtonStyle="ButtonStyle.Warning"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Small"
+                              Click="@ConfirmReanalyze"
+                              Disabled="@(_repo == null || _isReanalyzing)" />
+                <RadzenButton Text="Delete" Icon="delete"
+                              ButtonStyle="ButtonStyle.Danger"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Small"
+                              Click="@ConfirmDelete"
+                              Disabled="@(_repo == null || _isReanalyzing)" />
+            </div>
         </Actions>
     </PageHero>
 
@@ -134,11 +142,11 @@
                    Description="@ChartDescription"
                    IsLoading="@_isLoadingChart"
                    ErrorMessage="@_chartError"
-                   OnRetry="@(() => LoadLineHistory(_chartDays))"
+                   OnRetry="@(() => LoadLineHistory(ChartDays))"
                    IsEmpty="@(_lineHistory is null || !_lineHistory.Any())"
                    EmptyIcon="bar_chart"
-                   EmptyText="No history data yet."
-                   EmptyHint="Click Re-analyze to start scanning this repository.">
+                   EmptyText="@(_repo.LastAnalyzedCommitDate is null ? "No history data yet." : $"No commits in the last {ChartDays} days.")"
+                   EmptyHint="@(_repo.LastAnalyzedCommitDate is null ? "Click Re-analyze to start scanning this repository." : "Pick a longer range above to look back further.")">
             <ChildContent>
                 <RadzenChart>
                     <RadzenAreaSeries Data="@DisplayedLineHistory"
@@ -168,12 +176,13 @@
         </ChartCard>
 
         @* ─── Composition + Authorship + Health consolidated into RadzenTabs ─────── *@
-        <RadzenTabs RenderMode="TabRenderMode.Client" class="rd-tabs">
+        <RadzenTabs RenderMode="TabRenderMode.Client" class="rd-tabs"
+                    SelectedIndex="@TabIndex" SelectedIndexChanged="@OnTabChanged">
             <Tabs>
                 <RadzenTabsItem Text="Activity & Authorship" Icon="group">
                     <div class="app-dashboard app-dashboard--panels">
-                        <ContributorChart RepositoryId="@RepositoryId" Days="@_chartDays" />
-                        <CommitActivityHeatmap RepositoryId="@RepositoryId" Days="@_chartDays" />
+                        <ContributorChart RepositoryId="@RepositoryId" Days="@ChartDays" />
+                        <CommitActivityHeatmap RepositoryId="@RepositoryId" Days="@ChartDays" />
                     </div>
                 </RadzenTabsItem>
                 <RadzenTabsItem Text="Composition" Icon="donut_large">
@@ -210,11 +219,29 @@
     private bool _isLoadingChart = false;
     private bool _isReanalyzing = false;
     /// <summary>
-    /// The one range for the page. 90 rather than the 365 this used to hold: the two authorship
-    /// charts have always defaulted to 90, and ChartRangeSelector's own default is 90, so 365 was
-    /// the odd value out — and the one that made the page's three charts disagree on open.
+    /// The one range for the page, so its three charts cannot disagree on open. The choices and
+    /// the default (180 days) are ChartRangeSelector's — see <see cref="ChartFormat.RangeDays"/>.
+    ///
+    /// <para>Held in the URL (<c>?days=</c>, omitted at the default), with the active tab beside
+    /// it (<c>?tab=</c>): a reload or Back used to drop both. Written with replace: true so
+    /// picking a range does not stack history entries.</para>
     /// </summary>
-    private int _chartDays = 90;
+    [SupplyParameterFromQuery(Name = "days")] public string? Days { get; set; }
+    [SupplyParameterFromQuery(Name = "tab")] public string? Tab { get; set; }
+
+    private int ChartDays => ChartFormat.RangeDays(Days);
+
+    /// <summary>Tab order as rendered; the first is the default and stays out of the URL.</summary>
+    private static readonly string[] TabNames = ["activity", "composition", "health"];
+
+    /// <summary>An unknown name falls back to the first tab rather than selecting none.</summary>
+    private int TabIndex => Math.Max(0, Array.IndexOf(TabNames, Tab));
+
+    private void OnTabChanged(int index) =>
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("tab", index > 0 && index < TabNames.Length ? TabNames[index] : null), replace: true);
+
+    /// <summary>The range the line history on screen was fetched for; -1 before the first fetch.</summary>
+    private int _loadedDays = -1;
     private int _repoLatestLines = 0;
     private string _errorMessage = string.Empty;
     private string _chartError = string.Empty;
@@ -237,7 +264,7 @@
             {
                 _priorAnalyzedDate = _repo.LastAnalyzedCommitDate;
                 await Task.WhenAll(
-                    LoadLineHistory(_chartDays),
+                    LoadLineHistory(ChartDays),
                     LoadExtensions()
                 );
             }
@@ -253,28 +280,47 @@
         }
     }
 
-    private async Task OnChartRangeChanged(int days)
+    /// <summary>
+    /// Back to where the user came from. This page is linked from Repositories, Insights, Code
+    /// Health and the digest banner; a hard-coded NavigateTo("/") sent all of them to
+    /// Repositories and dropped their scroll position. A deep link or a new tab has nothing
+    /// behind it, so that case still goes home.
+    /// </summary>
+    private async Task GoBackAsync()
     {
-        _chartDays = days;
-        await LoadLineHistory(days);
+        if (await JS.GetValueAsync<int>("history.length") > 1) await JS.InvokeVoidAsync("history.back");
+        else Navigation.NavigateTo("/");
     }
+
+    private void OnChartRangeChanged(int days) =>
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days)), replace: true);
+
+    /// <summary>
+    /// The range changes by navigation — the selector, Back, Forward — so the reload hangs off
+    /// the parameter rather than the click. Skipped until the first load has run: on the way in
+    /// OnInitializedAsync fetches for whatever the URL already says.
+    /// </summary>
+    protected override Task OnParametersSetAsync() =>
+        _repo is not null && _loadedDays != -1 && _loadedDays != ChartDays
+            ? LoadLineHistory(ChartDays)
+            : Task.CompletedTask;
 
     private async Task LoadLineHistory(int days)
     {
         if (_disposed) return;
 
+        _loadedDays = days;
         _isLoadingChart = true;
         _chartError = string.Empty;
         StateHasChanged();
         try
         {
             _lineHistory = await Http.GetAppJsonAsync($"/api/repositories/{RepositoryId}/linehistory/{days}", AppJsonSerializerContext.Default.ListDailyLineCountDto);
+            // "No data" is not an error and must not go in _chartError: ChartCard renders that as
+            // a warning with a Retry button, and retrying an empty range returns the same nothing.
+            // An empty list falls through to the card's EmptyText / EmptyHint.
             if (_lineHistory?.Any() == true)
                 _repoLatestLines = _lineHistory.OrderByDescending(d => d.Date).First().TotalLines;
-            else if (_repo?.LastAnalyzedCommitDate == null)
-                _chartError = "This repository has not been analyzed yet. Click Re-analyze to start.";
-            else
-                _chartError = $"No history data for the last {days} days.";
         }
         catch (Exception ex)
         {
@@ -320,48 +366,15 @@
     private async Task StartReanalyze()
     {
         if (_repo == null) return;
-        bool queued = false;
-        try
-        {
-            _isReanalyzing = true;
-            StateHasChanged();
-            var response = await Http.PostAsync($"/api/repositories/{RepositoryId}/reanalyze", null);
-            if (response.IsSuccessStatusCode)
-            {
-                queued = true;
-                NotificationService.Notify(new NotificationMessage
-                {
-                    Severity = NotificationSeverity.Success,
-                    Summary = "Re-analysis Started",
-                    Detail = "This page will refresh automatically when analysis is complete.",
-                    Duration = 5000
-                });
-                _ = PollForCompletionAsync(_priorAnalyzedDate);
-            }
-            else
-            {
-                NotificationService.Notify(new NotificationMessage
-                {
-                    Severity = NotificationSeverity.Error,
-                    Summary = "Error",
-                    Detail = $"Could not start re-analysis: {response.StatusCode}",
-                    Duration = 5000
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "RepositoryDetail: error starting reanalysis for {Id}", RepositoryId);
-            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Error", Detail = ex.Message, Duration = 5000 });
-        }
-        finally
-        {
-            if (!queued)
-            {
-                _isReanalyzing = false;
-                StateHasChanged();
-            }
-        }
+
+        _isReanalyzing = true;
+        StateHasChanged();
+
+        // Toast, logging and the failure path all live on the command client (it never throws).
+        if (await Commands.QueueReanalysisAsync(RepositoryId, $"{_repo.Owner}/{_repo.Name}"))
+            _ = PollForCompletionAsync(_priorAnalyzedDate);
+        else
+            _isReanalyzing = false;
     }
 
     private async Task PollForCompletionAsync(DateTime? priorDate)
@@ -383,7 +396,7 @@
                         _repo = updated;
                         _priorAnalyzedDate = updated.LastAnalyzedCommitDate;
                         _isReanalyzing = false;
-                        await Task.WhenAll(LoadLineHistory(_chartDays), LoadExtensions());
+                        await Task.WhenAll(LoadLineHistory(ChartDays), LoadExtensions());
                         NotificationService.Notify(new NotificationMessage
                         {
                             Severity = NotificationSeverity.Success,
@@ -417,33 +430,11 @@
             "Delete Repository",
             new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
 
-        if (confirmed == true)
-        {
-            try
-            {
-                var response = await Http.DeleteAsync($"/api/repositories/{RepositoryId}");
-                if (response.IsSuccessStatusCode)
-                {
-                    NotificationService.Notify(new NotificationMessage
-                    {
-                        Severity = NotificationSeverity.Success,
-                        Summary = "Deleted",
-                        Detail = $"'{_repo.Owner}/{_repo.Name}' deleted.",
-                        Duration = 4000
-                    });
-                    Navigation.NavigateTo("/");
-                }
-                else
-                {
-                    _errorMessage = $"Delete failed: {response.StatusCode}";
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "RepositoryDetail: error deleting {Id}", RepositoryId);
-                _errorMessage = $"Error deleting repository: {ex.Message}";
-            }
-        }
+        // Through the command client, like the grid's delete. This page sent the request itself
+        // and so had none of that client's handling: a delete refused because an analysis is
+        // running (409) surfaced as "Delete failed: Conflict".
+        if (confirmed == true && await Commands.DeleteAsync(RepositoryId, $"{_repo.Owner}/{_repo.Name}"))
+            Navigation.NavigateTo("/");
     }
 
     public async ValueTask DisposeAsync()

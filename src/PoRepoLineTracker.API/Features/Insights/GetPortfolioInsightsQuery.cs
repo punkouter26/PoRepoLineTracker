@@ -111,6 +111,8 @@ public sealed class GetPortfolioInsightsQueryHandler(
             foreach (var (extension, lines) in RepositoryTotals.LinesByFileTypeAsOf(commits, activityCutoff))
                 languageBaseline[extension] = languageBaseline.GetValueOrDefault(extension) + lines;
 
+            insights.Outliers.AddRange(CommitOutliers.Find(repo, commits, recentCutoff));
+
             var recent = commits.Where(c => c.CommitDate >= recentCutoff).ToList();
             recentCommits += recent.Count;
             recentLinesAdded += recent.Sum(c => (long)c.LinesAdded);
@@ -126,7 +128,9 @@ public sealed class GetPortfolioInsightsQueryHandler(
                 WeeklyCommits = WeeklyCadence(commits, today)
             });
 
-            foreach (var commit in commits.Where(c => c.CommitDate.Date >= activityCutoff))
+            // Every commit, not just the last year's: the heatmap's "All" range draws the whole
+            // history. The streak figures below still read only the year (see activeDates).
+            foreach (var commit in commits)
             {
                 var day = commit.CommitDate.Date;
                 var existing = commitsByDay.GetValueOrDefault(day);
@@ -142,12 +146,19 @@ public sealed class GetPortfolioInsightsQueryHandler(
         insights.LanguageDrift = BuildDrift(languageBaseline, languageTotals);
         insights.RisingLanguage = insights.LanguageDrift.FirstOrDefault(d => d.PercentDelta > 0)?.Extension;
         insights.FadingLanguage = insights.LanguageDrift.LastOrDefault(d => d.PercentDelta < 0)?.Extension;
-        insights.Activity = BuildActivity(commitsByDay, activityCutoff, today);
+        // From the first commit, or a year back when the history is shorter than that — the
+        // year is the least the heatmap has always shown. ponytail: capped at ten years so one
+        // commit with a bogus 1970 author date cannot produce twenty thousand empty cells; raise
+        // the cap if a portfolio really is older.
+        var firstCommitDay = commitsByDay.Count > 0 ? commitsByDay.Keys.Min() : activityCutoff;
+        var activityStart = new[] { activityCutoff, firstCommitDay }.Min();
+        if (activityStart < today.AddYears(-10)) activityStart = today.AddYears(-10);
+        insights.Activity = BuildActivity(commitsByDay, activityStart, today);
         insights.TrendLine = trendDates
             .Select((date, i) => new PortfolioTrendPointDto { Date = date, TotalLines = (int)Math.Min(trendTotals[i], int.MaxValue) })
             .ToList();
 
-        var activeDates = commitsByDay.Keys.ToHashSet();
+        var activeDates = commitsByDay.Keys.Where(d => d >= activityCutoff).ToHashSet();
         insights.ActiveDays30 = activeDates.Count(d => d >= recentCutoff);
         insights.CurrentStreakDays = CommitStreaks.Current(activeDates, today);
         insights.LongestStreakDays = CommitStreaks.Longest(activeDates);
@@ -277,5 +288,52 @@ public sealed class GetPortfolioInsightsQueryHandler(
             days.Add(new ActivityDayDto { Date = date, Commits = entry.Commits, LinesAdded = entry.LinesAdded });
         }
         return days;
+    }
+}
+
+/// <summary>
+/// Flags commits that are far larger than their repository's own norm.
+///
+/// <para>Statistics, not a model: a commit is an outlier when its lines-added sits more than
+/// three standard deviations above the repository's mean on a log scale (commit sizes are
+/// roughly log-normal — on a linear scale one big commit drags the mean up and hides itself).
+/// Two floors keep it quiet: a repository needs enough history for "normal" to mean anything,
+/// and a commit must be large in absolute terms, so a 40-line commit in a repository of 3-line
+/// commits is not reported.</para>
+/// </summary>
+internal static class CommitOutliers
+{
+    private const int MinimumHistory = 20;
+    private const int MinimumLinesAdded = 1_000;
+    private const double Sigmas = 3;
+
+    internal static IEnumerable<CommitOutlierDto> Find(
+        GitHubRepository repository, IReadOnlyList<CommitLineCount> commits, DateTime since)
+    {
+        if (commits.Count < MinimumHistory) return [];
+
+        var logs = commits.Select(c => Math.Log(1 + Math.Max(0, c.LinesAdded))).ToList();
+        var mean = logs.Average();
+        var deviation = Math.Sqrt(logs.Sum(l => (l - mean) * (l - mean)) / logs.Count);
+        var threshold = mean + Sigmas * deviation;
+
+        var sorted = commits.Select(c => c.LinesAdded).Order().ToList();
+        var median = sorted[sorted.Count / 2];
+
+        return commits
+            .Where(c => c.CommitDate >= since
+                        && c.LinesAdded >= MinimumLinesAdded
+                        && Math.Log(1 + c.LinesAdded) > threshold)
+            .OrderByDescending(c => c.LinesAdded)
+            .Select(c => new CommitOutlierDto
+            {
+                RepositoryId = repository.Id,
+                Owner = repository.Owner,
+                Name = repository.Name,
+                CommitSha = c.CommitSha.Length > 7 ? c.CommitSha[..7] : c.CommitSha,
+                CommitDate = c.CommitDate,
+                LinesAdded = c.LinesAdded,
+                TypicalLinesAdded = median
+            });
     }
 }

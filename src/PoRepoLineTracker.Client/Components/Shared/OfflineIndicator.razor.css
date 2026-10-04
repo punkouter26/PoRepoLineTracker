@@ -13,7 +13,8 @@
     animation: fadeIn 0.3s ease-in-out;
 }
 
-.offline-badge__icon {
+/* ::deep: the glyph is a <RadzenIcon>, which does not carry this file's scope id. */
+.offline-badge ::deep .offline-badge__icon.offline-badge__icon {
     font-size: 0.95rem;
 }
 

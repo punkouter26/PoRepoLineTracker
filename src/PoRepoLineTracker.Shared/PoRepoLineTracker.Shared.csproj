@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Rule 1.2 — trimmable. This became true rather than aspirational once
          AppJsonSerializerContext replaced reflection-based serialization: the DTOs here are

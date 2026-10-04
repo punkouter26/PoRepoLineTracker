@@ -21,14 +21,18 @@ public static class AzuriteState
 /// </summary>
 public sealed class AzuriteFixture : IAsyncLifetime
 {
-    private readonly AzuriteContainer _container = new AzuriteBuilder()
-        .WithImage("mcr.microsoft.com/azure-storage/azurite:latest")
-        .Build();
+    // Built inside the try below, not in a field initializer: Build() itself throws when no
+    // Docker endpoint is reachable, which failed every test in the tier from the constructor —
+    // before the "degrades gracefully" catch could run.
+    private AzuriteContainer? _container;
 
     public async Task InitializeAsync()
     {
         try
         {
+            _container = new AzuriteBuilder()
+                .WithImage("mcr.microsoft.com/azure-storage/azurite:latest")
+                .Build();
             await _container.StartAsync();
             AzuriteState.ConnectionString = _container.GetConnectionString();
         }
@@ -44,7 +48,7 @@ public sealed class AzuriteFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         AzuriteState.ConnectionString = null;
-        try { await _container.DisposeAsync(); }
+        try { if (_container is not null) await _container.DisposeAsync(); }
         catch { /* best-effort teardown */ }
     }
 }

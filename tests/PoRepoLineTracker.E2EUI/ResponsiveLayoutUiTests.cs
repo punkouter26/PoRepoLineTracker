@@ -67,9 +67,12 @@ public sealed class ResponsiveLayoutUiTests
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 25000 });
         await page.WaitForTimeoutAsync(2500);
 
+        // "Visible" has to include visibility. On a phone the collapsed drawer is 0px wide and
+        // visibility:hidden, but its links still have a layout box (their own padding) and a
+        // non-null offsetParent, so they were measured as ~21px controls nobody can see or tap.
         var undersized = await page.EvaluateAsync<string[]>(@"() =>
             [...document.querySelectorAll('button, a, [role=button]')]
-                .filter(el => el.offsetParent !== null)
+                .filter(el => el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden')
                 .filter(el => { const r = el.getBoundingClientRect();
                     return r.width > 0 && r.height > 0 && (r.width < 24 || r.height < 24); })
                 .map(el => (el.className || el.tagName) + ' :: ' + (el.textContent || '').trim().slice(0, 20))");

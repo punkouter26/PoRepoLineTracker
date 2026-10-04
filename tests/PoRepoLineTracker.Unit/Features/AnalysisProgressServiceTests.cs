@@ -113,17 +113,26 @@ public class AnalysisProgressServiceTests
         resetProgress.IsRunning.Should().BeTrue();
         resetProgress.CommitsProcessed.Should().Be(0);
 
-        // The hub push was on this service in the previous design; in the current design the
-        // push goes through the bounded channel, drained by AnalysisProgressReader. Asserting
-        // "no broadcast without owner" at the channel level is AnalysisHubChannelTests' job;
-        // here we pin the in-memory invariant that ReportStep on an unowned repo still records
-        // no owner (TryGetOwner returns false) and TryGetOwner on a begun repo returns true.
-        var unownedRepoId = RepositoryId.New();
-        _sut.TryGetOwner(unownedRepoId, out _).Should().BeFalse();
-        _sut.ReportStep(unownedRepoId, 1, "Cloning", "Cloning...");
-        _sut.TryGetOwner(unownedRepoId, out _).Should().BeFalse();
-        _sut.ReportError(unownedRepoId, "boom");
+        // Frames go to the bounded channel with their owner attached. Two properties: a job
+        // nobody began is never published (there is no one to address it to), and the FINAL
+        // frame of a job still carries its owner — the reader used to look the owner up after
+        // ReportComplete had already forgotten it, so "done" was the one frame never delivered.
+        var channel = PoRepoLineTracker.API.Hubs.AnalysisHub.ProgressChannel.Reader;
+        while (channel.TryRead(out _)) { }
 
-        _sut.TryGetOwner(repoId, out var ownerOfBegun).Should().BeTrue();
+        var unownedRepoId = RepositoryId.New();
+        _sut.ReportStep(unownedRepoId, 1, "Cloning", "Cloning...");
+        _sut.ReportError(unownedRepoId, "boom");
+        channel.TryRead(out _).Should().BeFalse();
+
+        var owner = UserId.New();
+        var ownedRepoId = RepositoryId.New();
+        _sut.BeginJob(ownedRepoId, owner, "octocat", "hello-world");
+        _sut.ReportComplete(ownedRepoId);
+
+        (UserId Owner, AnalysisProgressDto Frame) last = default;
+        while (channel.TryRead(out var item)) last = item;
+        last.Owner.Should().Be(owner);
+        last.Frame!.IsRunning.Should().BeFalse();
     }
 }

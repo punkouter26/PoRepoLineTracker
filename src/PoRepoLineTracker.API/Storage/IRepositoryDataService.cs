@@ -7,12 +7,11 @@ public interface IRepositoryDataService
     Task UpdateRepositoryAsync(GitHubRepository repository);
     Task<GitHubRepository?> GetRepositoryByIdAsync(RepositoryId id);
     Task<GitHubRepository?> GetRepositoryByOwnerAndNameAsync(string owner, string name, UserId userId);
-    Task<GitHubRepository?> FindRepositoryByOwnerAndNameAsync(string owner, string name);
     Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync(UserId userId);
 
     /// <summary>
-    /// Every repository across all users whose first analysis never completed
-    /// (<see cref="GitHubRepository.LastAnalyzedCommitDate"/> is null). Backs the startup sweep
+    /// Every repository across all users whose analysis has never run to a conclusion
+    /// (no analysed commit and no recorded attempt). Backs the startup sweep
     /// that resumes analyses a restart interrupted.
     /// </summary>
     Task<IEnumerable<GitHubRepository>> GetUnanalyzedRepositoriesAsync();

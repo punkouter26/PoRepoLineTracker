@@ -42,7 +42,6 @@ public sealed class StaticAssetsApiTests
         ("add-repo-title", "AddRepository.razor.css"),
         ("brand-wordmark", "MainLayout.razor.css"),
         ("ext-code", "ExtensionsCounted.razor.css"),
-        ("ghsel-list", "GitHubRepositorySelector.razor.css"),
         // MobileRepoCard.razor(.css) was deleted: no page ever referenced the component, and the
         // `.mobile-only` / `.desktop-only` classes written to switch it in were unused too.
         // Radzen's own responsive DataGrid covers the case it was built for.
@@ -53,7 +52,7 @@ public sealed class StaticAssetsApiTests
         ("cc-bar", "ContributorChart.razor.css"),
         ("rd-ext-bar", "RepositoryDetail.razor.css"),
         ("rp-lines-value", "Repositories.razor.css"),
-        ("rp-stat-icon", "PortfolioStatTiles.razor.css"),
+        ("rp-stat-spark", "PortfolioStatTiles.razor.css"),
         ("status-cell", "AnalysisStatusCell.razor.css"),
         ("feed__stage-dot", "AnalysisActivityFeed.razor.css"),
         ("digest__stat-value", "DigestBanner.razor.css"),

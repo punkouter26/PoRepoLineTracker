@@ -11,66 +11,77 @@
    the onboarding state, the comparison chart, these tiles, a search bar, a six-column grid and all
    of the progress plumbing. Everything here is presentational — it takes numbers and draws them. *@
 
-<div class="app-dashboard app-dashboard--tiles rp-stat-grid">
-    <RadzenCard class="stat-card rp-stat rp-stat--repos u-glass">
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenIcon Icon="folder" class="rp-stat-icon" />
-            <div class="rp-stat-body">
-                <div class="stat-value"><AnimatedNumber Value="@RepositoryCount" /></div>
-                <div class="stat-label">Repositories</div>
+@* Through <KpiTile>, like the Insights row. These were a second tile design (`.stat-card`: icon,
+   accent stripe, its own type scale) for the same "label + big number" job, so the two
+   dashboards disagreed about what a tile looks like. *@
+<div class="app-dashboard app-dashboard--tiles">
+    <KpiTile Label="Repositories">
+        @if (Loading)
+        {
+            <RadzenSkeleton Width="3ch" Height="1em" />
+        }
+        else
+        {
+            <AnimatedNumber Value="@RepositoryCount" />
+        }
+    </KpiTile>
+    <KpiTile Label="Total Lines">
+        @* Three states, not one number: a 0 while the request is still in flight read
+           as "you have no code" for several seconds on every page load. *@
+        @if (Loading || !TotalsLoaded)
+        {
+            <RadzenSkeleton Width="5ch" Height="1em" />
+        }
+        else if (TotalLines is { } totalLines)
+        {
+            <AnimatedNumber Value="@totalLines" />
+        }
+        else
+        {
+            <span>—</span>
+        }
+        @* The 365-day history is already in hand from LoadLatestLineCounts, so the
+           trend costs no extra request. *@
+        @if (Trend.Count > 1)
+        {
+            <div class="rp-stat-spark">
+                <RadzenSparkline Data="@Trend"
+                                 CategoryProperty="Date"
+                                 ValueProperty="TotalLines"
+                                 Stroke="var(--status-info)"
+                                 Fill="color-mix(in srgb, var(--status-info) 16%, transparent)" />
             </div>
-        </RadzenStack>
-    </RadzenCard>
-    <RadzenCard class="stat-card rp-stat rp-stat--lines u-glass">
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenIcon Icon="code" class="rp-stat-icon" />
-            <div class="rp-stat-body">
-                <div class="stat-value"><AnimatedNumber Value="@TotalLines" /></div>
-                <div class="stat-label">Total Lines</div>
-            </div>
-            @* The 365-day history is already in hand from LoadLatestLineCounts, so the
-               trend costs no extra request. *@
-            @if (Trend.Count > 1)
-            {
-                <div class="rp-stat-spark">
-                    <RadzenSparkline Data="@Trend"
-                                     CategoryProperty="Date"
-                                     ValueProperty="TotalLines"
-                                     Stroke="var(--status-info)"
-                                     Fill="color-mix(in srgb, var(--status-info) 16%, transparent)" />
-                </div>
-            }
-        </RadzenStack>
-    </RadzenCard>
-    <RadzenCard class="stat-card rp-stat rp-stat--analyzed u-glass">
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenIcon Icon="check_circle" class="rp-stat-icon" />
-            <div class="rp-stat-body">
-                <div class="stat-value"><AnimatedNumber Value="@AnalyzedCount" /></div>
-                <div class="stat-label">Analyzed</div>
-            </div>
-            @* Completion at a glance — a gauge reads faster than "7" next to a count of 9. *@
-            @if (RepositoryCount > 0)
-            {
-                <div class="rp-stat-gauge">
-                    <RadzenArcGauge>
-                        <RadzenArcGaugeScale Min="0" Max="@RepositoryCount"
-                                             Step="@Math.Max(1, RepositoryCount / 4d)"
-                                             ShowTickLabels="false" TickPosition="GaugeTickPosition.None">
-                            <RadzenArcGaugeScaleValue Value="@AnalyzedCount" ShowValue="false" Fill="var(--status-pos)" />
-                        </RadzenArcGaugeScale>
-                    </RadzenArcGauge>
-                </div>
-            }
-        </RadzenStack>
-    </RadzenCard>
+        }
+    </KpiTile>
+    <KpiTile Label="Analyzed">
+        @if (Loading)
+        {
+            <RadzenSkeleton Width="3ch" Height="1em" />
+        }
+        else
+        {
+            <AnimatedNumber Value="@AnalyzedCount" />
+        }
+    </KpiTile>
 </div>
 
 @code {
+    /// <summary>
+    /// True while the repository list itself is loading. The page renders these tiles as its
+    /// skeleton, so the row is already the right shape when the numbers arrive.
+    /// </summary>
+    [Parameter] public bool Loading { get; set; }
+
     [Parameter] public int RepositoryCount { get; set; }
 
-    /// <summary>Sum of every tracked repository's current size. See RepositoryTotals for the definition.</summary>
-    [Parameter] public int TotalLines { get; set; }
+    /// <summary>
+    /// Sum of every tracked repository's current size. See RepositoryTotals for the definition.
+    /// Null when the totals could not be loaded — rendered as a dash, never as 0.
+    /// </summary>
+    [Parameter] public int? TotalLines { get; set; }
+
+    /// <summary>False while the first totals request is in flight; the tile shows a skeleton.</summary>
+    [Parameter] public bool TotalsLoaded { get; set; }
 
     [Parameter] public int AnalyzedCount { get; set; }
 

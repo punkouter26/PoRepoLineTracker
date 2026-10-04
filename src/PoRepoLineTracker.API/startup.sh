@@ -6,8 +6,7 @@
 # its native network stack SIGABRTs in this container). Without git, every analysis fails with
 # "git is not installed or not in PATH".
 #
-# This script only takes effect once it is the App Service startup command:
-#   az webapp config set -n <app> -g <rg> --startup-file "/home/site/wwwroot/startup.sh"
+# It is the App Service startup command; infra/resources.bicep sets that (appCommandLine).
 
 # NOTE: deliberately NOT `set -e`. A failed apt-get must not stop the site from booting —
 # a running site with broken analysis beats a container that never starts.
@@ -30,14 +29,9 @@ fi
 # Avoids 'dubious ownership' when a clone is owned by a different uid than the app process.
 git config --global --add safe.directory '*' 2>/dev/null || true
 
-# Resolve the entry assembly by discovery rather than a hard-coded name: the project was
-# renamed .Api -> .API, and pinning either spelling breaks whichever build is deployed.
-DLL=""
-for candidate in "$WWWROOT/PoRepoLineTracker.API.dll" "$WWWROOT/PoRepoLineTracker.Api.dll"; do
-    [ -f "$candidate" ] && { DLL="$candidate"; break; }
-done
+DLL="$WWWROOT/PoRepoLineTracker.API.dll"
 
-if [ -z "$DLL" ]; then
+if [ ! -f "$DLL" ]; then
     echo "[startup] FATAL: no PoRepoLineTracker entry assembly found in $WWWROOT" >&2
     ls -1 "$WWWROOT"/*.dll 2>/dev/null | head -20 >&2
     exit 1

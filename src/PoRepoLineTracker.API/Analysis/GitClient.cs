@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using LibGit2Sharp;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.API.Analysis;
@@ -17,7 +16,17 @@ public class GitClient
 {
     private readonly ILogger<GitClient> _logger;
 
-    public GitClient(IConfiguration configuration, ILogger<GitClient> logger)
+    /// <summary>
+    /// Longest any one git invocation may run. There was no limit: a stalled clone (a dead
+    /// connection git never notices) blocked its thread forever and held the per-repository
+    /// analysis lock, so every later analysis of that repository was silently skipped until the
+    /// process restarted.
+    /// ponytail: one fixed ceiling for clone and fetch alike; make it per-operation or
+    /// configurable if a legitimately huge repository ever needs longer.
+    /// </summary>
+    private static readonly TimeSpan GitTimeout = TimeSpan.FromMinutes(30);
+
+    public GitClient(ILogger<GitClient> logger)
     {
         _logger = logger;
     }
@@ -255,7 +264,13 @@ public class GitClient
             // Read both streams concurrently to avoid deadlock on full buffers
             var stdoutTask = process.StandardOutput.ReadToEndAsync();
             var stderrTask = process.StandardError.ReadToEndAsync();
-            process.WaitForExit();
+            if (!process.WaitForExit(GitTimeout))
+            {
+                // The whole tree: git spawns helpers (git-remote-https) that hold the connection.
+                process.Kill(entireProcessTree: true);
+                _logger.LogError("git {Operation} exceeded {Timeout} and was killed.", operationLabel, GitTimeout);
+                throw new TimeoutException($"git {operationLabel} did not finish within {GitTimeout.TotalMinutes:0} minutes.");
+            }
 
             output = stdoutTask.Result;
             var stderr = stderrTask.Result;

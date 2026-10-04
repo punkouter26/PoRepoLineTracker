@@ -10,12 +10,6 @@ namespace PoRepoLineTracker.API.Telemetry;
 /// </summary>
 public static partial class AnalysisLog
 {
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Force re-analyzing commit {CommitSha} with missing diff data")]
-    public static partial void ForceReanalyzingCommit(this ILogger logger, string commitSha);
-
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Commit {CommitSha} already has diff data, skipping")]
-    public static partial void CommitAlreadyHasDiff(this ILogger logger, string commitSha);
-
     [LoggerMessage(Level = LogLevel.Debug, Message = "Commit {CommitSha} already processed, skipping")]
     public static partial void CommitAlreadyProcessed(this ILogger logger, string commitSha);
 

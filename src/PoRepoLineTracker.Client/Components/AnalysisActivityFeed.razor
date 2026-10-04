@@ -168,9 +168,13 @@
     protected override async Task OnInitializedAsync()
     {
         Feed.ProgressReceived += OnProgressAsync;
+        Feed.StateChanged += OnFeedStateChanged;
         await Feed.EnsureConnectedAsync();
         StateHasChanged();
     }
+
+    /// <summary>Repaints the "Streaming / Reconnecting…" label; raised off the renderer's context.</summary>
+    private void OnFeedStateChanged() => _ = InvokeAsync(StateHasChanged);
 
     private async Task OnProgressAsync(AnalysisProgressDto progress)
     {
@@ -327,6 +331,7 @@
     public ValueTask DisposeAsync()
     {
         Feed.ProgressReceived -= OnProgressAsync;
+        Feed.StateChanged -= OnFeedStateChanged;
         return ValueTask.CompletedTask;
     }
 }

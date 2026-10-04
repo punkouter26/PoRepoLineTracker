@@ -2,6 +2,7 @@
 @using PoRepoLineTracker.Client.Services
 @inject ApiAuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 @* The wrapper <div> anchors CSS isolation for the Radzen markup below. *@
 <div class="login-display">
@@ -47,9 +48,15 @@
         Navigation.NavigateTo("auth/login", forceLoad: true);
     }
 
-    private void HandleLogout()
+    private async Task HandleLogout()
     {
-        // Navigate to logout endpoint
+        // The service worker keeps this user's /auth/me, repositories and insights for offline
+        // reads (apiCacheName in service-worker.published.js — keep the name in step). Left
+        // behind, the next person on this browser would get them served back while offline.
+        // Best-effort: no Cache API (insecure context, old browser) means there is nothing cached.
+        try { await JS.InvokeVoidAsync("caches.delete", "porepolinetracker-api-cache"); }
+        catch (JSException) { }
+
         Navigation.NavigateTo("auth/logout", forceLoad: true);
     }
 }

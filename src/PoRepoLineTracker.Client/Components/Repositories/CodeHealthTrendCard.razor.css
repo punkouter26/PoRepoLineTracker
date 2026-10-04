@@ -15,22 +15,25 @@
     gap: 0.6rem;
 }
 
-.trend__icon {
+/* ::deep from here down: these classes sit on <RadzenIcon> / <RadzenText>, and the elements
+   Radzen renders for them do not carry this file's scope id. As bare selectors they compiled to
+   `.trend__title[b-xxx]` and matched nothing. */
+.trend ::deep .trend__icon {
     opacity: 0.75;
 }
 
-.trend__title {
-    margin: 0;
+.trend ::deep .trend__title.trend__title {
+    margin: 0 !important;
 }
 
-.trend__sub {
+.trend ::deep .trend__sub {
     opacity: 0.75;
 }
 
-.trend__message,
-.trend__note,
-.trend__caveat {
+.trend ::deep .trend__message.trend__message,
+.trend ::deep .trend__note.trend__note,
+.trend ::deep .trend__caveat.trend__caveat {
     display: block;
-    margin-top: 0.75rem;
+    margin-top: 0.75rem !important;
     opacity: 0.8;
 }

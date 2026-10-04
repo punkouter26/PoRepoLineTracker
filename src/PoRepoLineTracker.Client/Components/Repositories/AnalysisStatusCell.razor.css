@@ -51,3 +51,12 @@
     font-size: 0.9rem !important;
     color: var(--status-neg) !important;
 }
+
+/* The stored error can be a paragraph of git stderr: one clipped line, full text in the title. */
+::deep .rp-error-text.rp-error-text {
+    display: block !important;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

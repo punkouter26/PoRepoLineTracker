@@ -52,11 +52,15 @@ public static class AuthServiceExtensions
             ? GitHubAuthenticationDefaults.AuthenticationScheme
             : CookieAuthenticationDefaults.AuthenticationScheme;
 
-        // Outside Production the default scheme is a policy scheme that forwards to
+        // In Development and Test the default scheme is a policy scheme that forwards to
         // FakeAuthHandler when X-Fake-User is present and to the cookie otherwise. Selecting here
         // (rather than naming schemes on the authorization policies) leaves FallbackPolicy
         // scheme-agnostic, so it keeps working under any DefaultScheme.
-        var useFakeAuth = !environment.IsProduction();
+        //
+        // An allow-list, not "anything but Production": header-driven auth is a complete bypass,
+        // and under the old test a deployment named "Staging" (or a typo of "Production") had it
+        // switched on.
+        var useFakeAuth = environment.IsDevelopment() || environment.IsEnvironment("Test");
         services.AddAuthentication(options =>
         {
             options.DefaultScheme = useFakeAuth
@@ -142,7 +146,9 @@ public static class AuthServiceExtensions
                 options.Scope.Add("user:email");
                 options.Scope.Add("read:user");
                 options.Scope.Add("repo");
-                options.SaveTokens = true;
+                // No SaveTokens: nothing reads the token back out of the cookie (analysis uses
+                // the copy in the Users table), so saving it only put a second copy of a live
+                // credential in every browser.
 
                 options.Events.OnRemoteFailure = context =>
                 {
@@ -195,14 +201,14 @@ public static class AuthServiceExtensions
                         }
                         catch (Exception ex)
                         {
-                            // Storage not available (e.g. no Azurite locally).
-                            // Log the error but don't fail the OAuth flow — user can still
-                            // log in with basic claims and a temporary UserId for this session.
+                            // Storage not available. Fail the sign-in (OnRemoteFailure sends the
+                            // browser back with ?error=auth_failed) rather than what this used to
+                            // do: mint a random UserId. That session owned no user row and no
+                            // token, could see none of the user's data, and every later sign-in
+                            // got a different identity.
                             var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                            logger.LogWarning(ex, "Failed to upsert user during GitHub OAuth callback — storage may not be available. User {GitHubId}/{Username} will use in-memory claims.", gitHubId, username);
-                            // Add a temporary UserId claim so /api/auth/me recognizes the authenticated user
-                            (context.Principal?.Identity as ClaimsIdentity)?.AddClaim(
-                                new Claim("UserId", Guid.NewGuid().ToString()));
+                            logger.LogError(ex, "Failed to upsert user {GitHubId}/{Username} during GitHub OAuth callback — sign-in refused.", gitHubId, username);
+                            throw;
                         }
                     }
                 };
@@ -210,7 +216,7 @@ public static class AuthServiceExtensions
         }
 
         // Microsoft/Entra OAuth was removed here. It is a deliberate, recorded deviation from
-        // the house rules — see AGENT.MD.
+        // the house rules — see SPEC.md §9.
         //
         // The short version: this app's entire purpose is reading GitHub repositories, and a
         // Microsoft-authenticated principal has no GitHub credential. The handler used to store

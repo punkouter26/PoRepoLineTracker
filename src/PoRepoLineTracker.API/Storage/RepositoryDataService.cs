@@ -73,26 +73,25 @@ public class RepositoryDataService : IRepositoryDataService
         await EnsureTablesExistAsync();
         _logger.LogInformation("Updating repository {RepoName} in Table Storage.", repository.Name);
 
-        // Use UserId as partition key and Owner_Name as row key
-        var partitionKey = repository.UserId.ToString();
-        var rowKey = $"{repository.Owner}_{repository.Name}";
-
-        // Retrieve the existing entity to get its ETag for optimistic concurrency
-        var existingEntity = await _repositoryTableClient.GetEntityAsync<GitHubRepositoryEntity>(partitionKey, rowKey);
+        // ETag.All: last write wins. This used to read the row first "for optimistic
+        // concurrency" and pass back the ETag it had just fetched — a second round-trip that
+        // protected nothing, since the caller's copy was never compared. UpdateEntity (not
+        // Upsert) so updating a repository deleted mid-analysis still fails with 404.
         var entityToUpdate = GitHubRepositoryEntity.FromDomainModel(repository);
-        entityToUpdate.ETag = existingEntity.Value.ETag; // Assign the ETag from the retrieved entity
-
-        await _repositoryTableClient.UpdateEntityAsync(entityToUpdate, entityToUpdate.ETag, TableUpdateMode.Replace);
+        await _repositoryTableClient.UpdateEntityAsync(entityToUpdate, ETag.All, TableUpdateMode.Replace);
         _logger.LogInformation("Repository {RepoName} updated successfully.", repository.Name);
     }
 
     public async Task<GitHubRepository?> GetRepositoryByIdAsync(RepositoryId id)
     {
         await EnsureTablesExistAsync();
-        _logger.LogInformation("Getting repository by Id: {RepositoryId} from Table Storage.", id);
+        // ponytail: filters on a non-key property, so this is a table scan. Fine at portfolio
+        // size (hundreds of rows); if it grows, take the UserId and query by PartitionKey.
+        // Debug, not Information: every ownership check calls this, and two lines per request
+        // were a measurable share of log ingestion.
+        _logger.LogDebug("Getting repository by Id: {RepositoryId} from Table Storage.", id);
         await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(e => e.Id == id.Value))
         {
-            _logger.LogInformation("Found repository {RepoName} by Id {RepositoryId}.", entity.Name, id);
             return entity.ToDomainModel();
         }
         _logger.LogWarning("Repository with Id {RepositoryId} not found.", id);
@@ -121,7 +120,9 @@ public class RepositoryDataService : IRepositoryDataService
         // (LastAnalyzedCommitDate eq null) into QueryAsync instead.
         await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>())
         {
-            if (entity.LastAnalyzedCommitDate is null)
+            // Never attempted, not merely "no commits yet": a repository whose analysis ran and
+            // failed (or found an empty repo) has an attempt stamp and is the user's to retry.
+            if (entity.LastAnalyzedCommitDate is null && entity.LastAnalysisAttemptUtc is null)
                 repositories.Add(entity.ToDomainModel());
         }
         _logger.LogInformation("Found {Count} never-analyzed repositories across all users.", repositories.Count);
@@ -150,11 +151,11 @@ public class RepositoryDataService : IRepositoryDataService
     public async Task AddCommitLineCountAsync(CommitLineCount commitLineCount)
     {
         await EnsureTablesExistAsync();
-        _logger.LogInformation("Upserting commit line count for commit {CommitSha} of repository {RepositoryId}.", commitLineCount.CommitSha, commitLineCount.RepositoryId);
         var entity = CommitLineCountEntity.FromDomainModel(commitLineCount);
         // Use UpsertEntityAsync to add or replace the entity
+        // No per-commit log lines here: two Information entries per commit, per analysis, was
+        // thousands of lines for one repository. The handler logs each processed commit once.
         await _commitLineCountTableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
-        _logger.LogInformation("Commit line count for commit {CommitSha} upserted successfully.", commitLineCount.CommitSha);
     }
 
     public async Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(RepositoryId repositoryId)
@@ -201,8 +202,14 @@ public class RepositoryDataService : IRepositoryDataService
 
         if (entitiesToDelete.Any())
         {
-            var deleteTasks = entitiesToDelete.Select(entity => _commitLineCountTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, ETag.All));
-            await Task.WhenAll(deleteTasks);
+            // 100-row transactions (the service's limit; all rows share the repository's
+            // partition), sequentially. This was one unbatched DeleteEntityAsync per commit, all
+            // started at once — thousands of concurrent requests for a large repository.
+            foreach (var batch in entitiesToDelete.Chunk(100))
+            {
+                await _commitLineCountTableClient.SubmitTransactionAsync(
+                    batch.Select(entity => new TableTransactionAction(TableTransactionActionType.Delete, entity, ETag.All)));
+            }
             _logger.LogInformation("Deleted {Count} commit line counts for repository {RepositoryId}.", entitiesToDelete.Count, repositoryId);
         }
         else
@@ -255,25 +262,6 @@ public class RepositoryDataService : IRepositoryDataService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting repository by Owner {Owner} and Name {Name} for user {UserId}. Error: {ErrorMessage}", owner, name, userId, ex.Message);
-            throw;
-        }
-    }
-
-    public async Task<GitHubRepository?> FindRepositoryByOwnerAndNameAsync(string owner, string name)
-    {
-        await EnsureTablesExistAsync();
-        _logger.LogInformation("Finding repository by Owner: {Owner} and Name: {Name} from Table Storage.", owner, name);
-        try
-        {
-            await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(r => r.Owner == owner && r.Name == name))
-            {
-                return entity.ToDomainModel();
-            }
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error finding repository by Owner {Owner} and Name {Name}. Error: {ErrorMessage}", owner, name, ex.Message);
             throw;
         }
     }

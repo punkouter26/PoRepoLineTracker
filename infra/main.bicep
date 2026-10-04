@@ -19,7 +19,7 @@ var webAppName = 'app-porepolinetracker'  // App Service in PoRepoLineTracker RG
 var appServicePlanName = 'asp-porepolinetracker-f1'
 var keyVaultName = 'kv-poshared'  // Existing Key Vault in PoShared RG
 
-// Reference the app resource group (must already exist or be created separately)
+// The app resource group — created here if it does not exist.
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   name: resourceGroupName
   location: location

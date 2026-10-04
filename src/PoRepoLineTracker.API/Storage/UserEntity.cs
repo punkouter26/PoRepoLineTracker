@@ -21,7 +21,7 @@ public class UserEntity : ITableEntity
     public string DisplayName { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string AvatarUrl { get; set; } = string.Empty;
-    public string AccessToken { get; set; } = string.Empty; // Should be encrypted
+    public string AccessToken { get; set; } = string.Empty; // Encrypted by UserService (IDataProtector)
     public DateTime CreatedAt { get; set; }
     public DateTime LastLoginAt { get; set; }
     public DateTime? TokenExpiresAt { get; set; }

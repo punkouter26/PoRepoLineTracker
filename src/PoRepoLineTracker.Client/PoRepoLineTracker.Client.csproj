@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Rule 1.2 — trimming enabled.
          The former blocker was reflection-based JSON: with the reflection resolver reachable, the

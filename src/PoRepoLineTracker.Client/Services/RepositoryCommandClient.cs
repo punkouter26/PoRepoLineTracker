@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.Shared.Domain;
 using Radzen;
@@ -58,10 +59,12 @@ public sealed class RepositoryCommandClient(
             failureVerb: "remove all repositories",
             context: "all");
 
-    public Task<bool> QueueReanalysisAsync(RepositoryId repositoryId, string label) =>
+    /// <param name="announce">False where the live activity feed is on screen and streaming: it
+    /// shows the job starting, so a toast saying the same thing is noise.</param>
+    public Task<bool> QueueReanalysisAsync(RepositoryId repositoryId, string label, bool announce = true) =>
         SendAsync(() => http.PostAsync($"/api/repositories/{repositoryId}/reanalyze", content: null),
-            successSummary: "Re-analysis started",
-            successDetail: $"'{label}' is being re-analyzed. Progress will appear in the grid.",
+            successSummary: announce ? "Re-analysis started" : null,
+            successDetail: $"'{label}' is being re-analyzed with your current file extension settings. This page updates when it finishes.",
             failureVerb: "start re-analysis",
             context: repositoryId.ToString());
 
@@ -75,7 +78,7 @@ public sealed class RepositoryCommandClient(
     /// </summary>
     private async Task<bool> SendAsync(
         Func<Task<HttpResponseMessage>> send,
-        string successSummary,
+        string? successSummary,
         string successDetail,
         string failureVerb,
         string context)
@@ -86,9 +89,23 @@ public sealed class RepositoryCommandClient(
 
             if (response.IsSuccessStatusCode)
             {
-                Notify(NotificationSeverity.Success, successSummary, successDetail, 4000);
+                if (successSummary is not null) Notify(NotificationSeverity.Success, successSummary, successDetail, 4000);
                 logger.LogInformation("{Verb} succeeded for {Context}", failureVerb, context);
                 return true;
+            }
+
+            // Not a failure of the command, so not the red "Failed to ...: Conflict" toast. The
+            // server refuses re-analyse and delete while an analysis holds the repository (409)
+            // and rate-limits re-analyse (429); both clear by waiting.
+            if (response.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.TooManyRequests)
+            {
+                var busy = response.StatusCode is HttpStatusCode.Conflict;
+                Notify(NotificationSeverity.Warning,
+                    busy ? "Analysis is still running" : "Too many requests",
+                    busy ? $"Could not {failureVerb} yet — try again when the analysis finishes." : "Try again in a minute.",
+                    6000);
+                logger.LogWarning("{Verb} refused for {Context}. Status: {StatusCode}", failureVerb, context, response.StatusCode);
+                return false;
             }
 
             Notify(NotificationSeverity.Error, "Error", $"Failed to {failureVerb}: {response.StatusCode}", 6000);

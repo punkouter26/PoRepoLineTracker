@@ -71,8 +71,10 @@
             break;
 
         case LoadingState<PortfolioInsightsDto>.Failed f:
+            @* Closing retries. It used to set the state to Loading without starting a load, which
+               swapped the alert for a skeleton that nothing would ever replace. *@
             <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true"
-                         Close="@(() => _state = new LoadingState<PortfolioInsightsDto>.Loading())">
+                         Close="@LoadAsync">
                 @f.Message
             </RadzenAlert>
             break;
@@ -105,9 +107,9 @@
                would be no more useful than the one already on the Repositories page. *@
             <div class="app-dashboard app-dashboard--tiles">
                 <KpiTile Label="Total lines"
-                         Delta="@($"{DeltaText(data.NetLines30Days)} in 30d")"
-                         Sub="@($"{DeltaText(data.NetLines7Days)} in 7d")"
-                         DeltaClass="@DeltaClass(data.NetLines30Days)">
+                         Delta="@($"{ChartFormat.Delta(data.NetLines30Days)} in 30d")"
+                         Sub="@($"{ChartFormat.Delta(data.NetLines7Days)} in 7d")"
+                         DeltaClass="@KpiDeltaClass(data.NetLines30Days)">
                     @data.TotalLines.ToString("N0")
                 </KpiTile>
 
@@ -131,17 +133,17 @@
         @* Through <ChartCard> as well — the heading/caption pair and the surface were a third copy,
            and the intensity key is exactly what its <Toolbar> slot is for. *@
         <ChartCard Title="Activity"
-                   Description="@($"Commits per day across every tracked repository, last {(_heatmapDays >= 365 ? "12 months" : $"{_heatmapDays} days")}")"
+                   Description="@($"Commits per day across every tracked repository, {HeatmapDays switch { ChartFormat.AllDays => "all time", 365 => "last 12 months", _ => $"last {HeatmapDays} days" }}")"
                    IsEmpty="@(data.Activity.Count == 0)"
                    EmptyIcon="calendar_month"
                    EmptyText="No commit activity recorded yet.">
             <Toolbar>
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem" Wrap="FlexWrap.Wrap">
-                    <RadzenSelectBar @bind-Value="_heatmapDays" TValue="int" Size="ButtonSize.ExtraSmall" class="ins-zoom-bar">
+                    <RadzenSelectBar Value="@HeatmapDays" Change="@OnHeatmapDaysChanged" TValue="int" Size="ButtonSize.ExtraSmall" class="ins-zoom-bar">
                         <Items>
-                            <RadzenSelectBarItem Value="30" Text="30d" />
-                            <RadzenSelectBarItem Value="90" Text="90d" />
-                            <RadzenSelectBarItem Value="365" Text="1y" />
+                            <RadzenSelectBarItem Value="@ChartFormat.DefaultRangeDays" Text="180d" />
+                            <RadzenSelectBarItem Value="365" Text="1yr" />
+                            <RadzenSelectBarItem Value="@ChartFormat.AllDays" Text="All" />
                         </Items>
                     </RadzenSelectBar>
 
@@ -158,7 +160,7 @@
             </Toolbar>
             <ChildContent>
                 <div class="u-scroll-x ins-heat__scroll">
-                    <div class="ins-heat" role="img" aria-label="@HeatmapSummary">
+                    <div class="@(HeatmapDays == ChartFormat.AllDays ? "ins-heat ins-heat--dense" : "ins-heat")" role="img" aria-label="@HeatmapSummary">
                         @* Leading blanks so the first real cell lands on its own weekday row and every
                            column below is a genuine Sunday-to-Saturday week. *@
                         @for (var i = 0; i < LeadingBlanks; i++)
@@ -175,7 +177,7 @@
             </ChildContent>
         </ChartCard>
 
-        @* ─── Portfolio growth & All repositories ────────────────────────────── *@
+        @* ─── Portfolio growth & outliers ────────────────────────────────────── *@
         <div class="app-dashboard app-dashboard--panels">
             <ChartCard Title="Portfolio growth"
                        Description="Total lines across every repository, sampled monthly over the last year"
@@ -206,88 +208,42 @@
                 </RadzenChart>
             </ChartCard>
 
-            <ChartCard Title="All repositories"
-                       Description="Every tracked repository — click a header to sort, a row to open it"
-                       IsEmpty="@(data.Movers.Count == 0)"
-                       EmptyIcon="storage"
-                       EmptyText="No repositories analyzed yet.">
-                <div class="u-scroll-x">
-                    <RadzenDataGrid Data="@data.Movers"
-                                    TItem="RepositoryMovementDto"
-                                    AllowSorting="true"
-                                    Responsive="true"
-                                    RowRender="@OnRepoRowRender"
-                                    RowClick="@OnRepoRowClick"
-                                    Density="Density.Default"
-                                    class="ins-repo-grid">
-                        <Columns>
-                            <RadzenDataGridColumn TItem="RepositoryMovementDto" Property="Name" Title="Repository" MinWidth="160px" Width="200px">
-                                <Template Context="row">
-                                    <span title="@($"{row.Owner}/{row.Name}")">@row.Owner/@row.Name</span>
-                                </Template>
-                            </RadzenDataGridColumn>
-                            <RadzenDataGridColumn TItem="RepositoryMovementDto" Property="TotalLines" Title="Total Lines" Width="110px" TextAlign="TextAlign.Right" Sortable="true">
-                                <Template Context="row">@row.TotalLines.ToString("N0")</Template>
-                            </RadzenDataGridColumn>
-                            <RadzenDataGridColumn TItem="RepositoryMovementDto" Property="NetChange30Days" Title="Net (30d)" Width="100px" TextAlign="TextAlign.Right" Sortable="true">
-                                <Template Context="row">
-                                    <span class="@DeltaClass(row.NetChange30Days)">@DeltaText(row.NetChange30Days)</span>
-                                </Template>
-                            </RadzenDataGridColumn>
-                            <RadzenDataGridColumn TItem="RepositoryMovementDto" Property="Commits30Days" Title="Commits (30d)" Width="110px" TextAlign="TextAlign.Right" Sortable="true" />
-                            <RadzenDataGridColumn TItem="RepositoryMovementDto" Title="Cadence (12w)" Width="140px" Sortable="false" Filterable="false">
-                                <Template Context="row">
-                                    <div class="ins-spark" role="img" aria-label="@SparklineSummary(row)" title="@SparklineSummary(row)">
-                                        @{ var max = Math.Max(1, row.WeeklyCommits.DefaultIfEmpty(0).Max()); }
-                                        @foreach (var week in row.WeeklyCommits)
-                                        {
-                                            <span class="ins-spark__bar" style="@($"height:{Math.Max(6, week * 100 / max)}%")"></span>
-                                        }
-                                    </div>
-                                </Template>
-                            </RadzenDataGridColumn>
-                        </Columns>
-                    </RadzenDataGrid>
-                </div>
-            </ChartCard>
+            @* Commits far outside their repository's norm. Nearly always a vendored library or a
+               generated file inflating the totals above, which is why the fix is offered with it.
+               No card at all when nothing stands out. *@
+            @if (data.Outliers.Count > 0)
+            {
+                <ChartCard Title="Unusually large commits (last 30 days)"
+                           Description="Far more lines added than is normal for the repository">
+                    <ul class="ins-outliers">
+                        @foreach (var outlier in data.Outliers)
+                        {
+                            <li class="ins-outlier">
+                                <a href="@($"/repositories/{outlier.RepositoryId}")">@outlier.Owner/@outlier.Name</a>
+                                <code class="ins-lang__code">@outlier.CommitSha</code>
+                                <span class="ins-muted">@outlier.CommitDate.ToString("MMM d")</span>
+                                <span class="ins-outlier__size">+@outlier.LinesAdded.ToString("N0") lines (typical ~@outlier.TypicalLinesAdded.ToString("N0"))</span>
+                            </li>
+                        }
+                    </ul>
+                    <p class="ins-outliers__hint">
+                        These are usually vendored or generated files. To leave them out of your totals,
+                        add an ignore pattern under <a href="/settings">Settings → ignore patterns</a> and re-analyze.
+                    </p>
+                </ChartCard>
+            }
         </div>
+
+        @* The "All repositories" table that sat here was the Repositories grid a second time —
+           same rows, fewer columns. Its 30-day columns moved into that grid. *@
+        <a class="ins-all-link" href="/repositories">View all repositories →</a>
 
         @* ─── Language mix & Language drift ──────────────────────────────────── *@
         <div class="app-dashboard app-dashboard--panels">
-            <ChartCard Title="Language mix"
-                       Description="Share of current lines by file type"
-                       IsEmpty="@(data.LanguageMix.Count == 0)"
-                       EmptyIcon="donut_large"
-                       EmptyText="No per-extension data yet."
-                       EmptyHint="Re-analyze a repository to populate it.">
-                <RadzenChart>
-                    <RadzenDonutSeries Data="@data.LanguageMix"
-                                       CategoryProperty="Extension"
-                                       ValueProperty="Percentage"
-                                       Title="Share of lines">
-                        <RadzenSeriesDataLabels Visible="false" />
-                    </RadzenDonutSeries>
-                    <RadzenLegend Position="LegendPosition.Bottom" />
-                </RadzenChart>
-
-                <div class="ins-langs">
-                    @foreach (var language in data.LanguageMix)
-                    {
-                        <div class="ins-lang">
-                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                                         AlignItems="AlignItems.Center" Gap="0.5rem">
-                                <code class="ins-lang__code">@language.Extension</code>
-                                <RadzenText TextStyle="TextStyle.Caption" class="ins-muted">
-                                    @language.Lines.ToString("N0") · @language.Percentage.ToString("F1")%
-                                </RadzenText>
-                            </RadzenStack>
-                            <progress class="ins-lang__bar" max="100"
-                                      value="@Math.Min(language.Percentage, 100)"
-                                      aria-label="@($"{language.Extension}: {language.Percentage:F1}% of lines")"></progress>
-                        </div>
-                    }
-                </div>
-            </ChartCard>
+            <ExtensionBreakdownCard Title="Language mix"
+                                    Description="Share of current lines by file type"
+                                    EmptyHint="Re-analyze a repository to populate it."
+                                    Extensions="@(data.LanguageMix.Select(l => new FileExtensionPercentageDto { FileExtension = l.Extension, Percentage = l.Percentage, LineCount = l.Lines }).ToList())" />
 
             <ChartCard Title="Language drift"
                        Description="How the mix moved over the last year, in share"
@@ -335,30 +291,25 @@
 
 @code {
     private LoadingState<PortfolioInsightsDto> _state = new LoadingState<PortfolioInsightsDto>.Loading();
-    private int _heatmapDays = 90;
 
-    private void OnRepoRowClick(DataGridRowMouseEventArgs<RepositoryMovementDto> args) =>
-        Navigation.NavigateTo($"/repositories/{args.Data.RepositoryId}");
+    /// <summary>
+    /// Heatmap zoom, in the URL so Back and a reload keep it. Replaced, not pushed, and omitted
+    /// at the default. A string for the reason given on <see cref="ChartFormat.RangeDays"/>.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "days")] public string? Days { get; set; }
 
-    /// <summary>Mirrors the Repositories grid: keyboard-reachable, Enter/Space-activatable rows.</summary>
-    private static void OnRepoRowRender(RowRenderEventArgs<RepositoryMovementDto> args)
-    {
-        args.Attributes["style"] = "cursor: pointer;";
-        args.Attributes["tabindex"] = "0";
-        args.Attributes["role"] = "button";
-        args.Attributes["aria-label"] = $"Open repository {args.Data.Owner}/{args.Data.Name}";
-        args.Attributes["onkeydown"] = "if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}";
-    }
+    private int HeatmapDays => ChartFormat.RangeDays(Days);
 
-    private static string SparklineSummary(RepositoryMovementDto row) =>
-        $"Commits per week, last 12 weeks: {string.Join(", ", row.WeeklyCommits)}";
+    private void OnHeatmapDaysChanged(int days) =>
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days)), replace: true);
 
     private IReadOnlyList<ActivityDayDto> DisplayedActivity
     {
         get
         {
             var activity = _state.HasData ? _state.Data!.Activity : [];
-            return _heatmapDays >= 365 ? activity : activity.TakeLast(_heatmapDays).ToList();
+            // The server sends the whole history; "All" shows it, the others take its tail.
+            return HeatmapDays == ChartFormat.AllDays ? activity : activity.TakeLast(HeatmapDays).ToList();
         }
     }
 
@@ -426,18 +377,16 @@
         _ => "ins-heat--4"
     };
 
-    private static string DeltaText(int value) => value switch
+    /// <summary>
+    /// The delta's sign in KpiTile's own class names. The tile's delta row is KpiTile's markup
+    /// and carries KpiTile's scope id, so a class styled by this page can never match it — the
+    /// 30-day delta was always grey.
+    /// </summary>
+    private static string? KpiDeltaClass(int value) => value switch
     {
-        > 0 => $"+{value:N0}",
-        < 0 => value.ToString("N0"),
-        _ => "no change"
-    };
-
-    private static string DeltaClass(int value) => value switch
-    {
-        > 0 => "ins-delta--pos",
-        < 0 => "ins-delta--neg",
-        _ => "ins-delta--flat"
+        > 0 => "kpi__delta--pos",
+        < 0 => "kpi__delta--neg",
+        _ => null
     };
 
     protected override Task OnInitializedAsync() => LoadAsync();

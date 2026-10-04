@@ -121,15 +121,6 @@ public sealed class AnalysisProgressService : IAnalysisProgressService
         _progress.TryGetValue(repositoryId, out var dto) ? dto : null;
 
     /// <summary>
-    /// Resolves the owning user for a job, if any. Used by <see cref="Hubs.AnalysisProgressReader"/>
-    /// to look up the SignalR group for a frame it pulled off the bounded channel. The producer
-    /// side (<c>Publish</c>) already gates on the owner map; this is the read-side mirror so the
-    /// reader does not need to take a wire-shape dependency on <see cref="AnalysisProgressDto"/>.
-    /// </summary>
-    public bool TryGetOwner(RepositoryId repositoryId, out UserId userId) =>
-        _jobOwners.TryGetValue(repositoryId, out userId);
-
-    /// <summary>
     /// Hands a snapshot to the bounded channel that <see cref="AnalysisProgressReader"/> drains.
     ///
     /// <para>The channel is the backpressure boundary named in SPEC §10: a slow SignalR client
@@ -150,6 +141,10 @@ public sealed class AnalysisProgressService : IAnalysisProgressService
         // thing we are protecting from backpressure. With DropOldest, TryWrite always succeeds
         // and the channel drops an older frame on its own; with Wait it would block, which is
         // the failure mode the channel exists to prevent.
-        AnalysisHub.ProgressChannel.Writer.TryWrite(dto);
+        //
+        // The owner rides along with the frame. The reader used to resolve it at read time, but
+        // ReportComplete/ReportError remove the owner immediately after publishing — so the
+        // final frame, the one that says "done", usually found no owner and was dropped.
+        AnalysisHub.ProgressChannel.Writer.TryWrite((userId, dto));
     }
 }

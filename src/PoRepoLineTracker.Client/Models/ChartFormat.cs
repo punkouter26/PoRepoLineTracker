@@ -26,6 +26,44 @@ public static class ChartFormat
         return value.ToString("N0");
     }
 
+    /// <summary>
+    /// A <c>?days=</c> query value as one of the ranges the selectors offer, else
+    /// <paramref name="fallback"/>. Taken as a string and matched, not bound as an int: the router
+    /// throws on a query value it cannot parse, so a hand-edited URL would take the page down, and
+    /// the number goes straight into an API path.
+    /// </summary>
+    public static int RangeDays(string? query) => query switch
+    {
+        "365" => 365,
+        "all" => AllDays,
+        _ => DefaultRangeDays
+    };
+
+    /// <summary>The range a chart opens on, and the one left out of the URL.</summary>
+    public const int DefaultRangeDays = 180;
+
+    /// <summary>
+    /// "All": a window longer than any repository's history. The endpoints take a day count, so
+    /// "everything" is simply a count nothing can exceed (100 years).
+    /// </summary>
+    public const int AllDays = 36_500;
+
+    /// <summary>The <c>?days=</c> value for a range; null (omitted) at the default.</summary>
+    public static string? RangeQuery(int days) => days switch
+    {
+        365 => "365",
+        AllDays => "all",
+        _ => null
+    };
+
+    /// <summary>A signed line-count change: "+1,234", "-56", "no change". One copy for Insights and the grid.</summary>
+    public static string Delta(int value) => value switch
+    {
+        > 0 => $"+{value:N0}",
+        < 0 => value.ToString("N0"),
+        _ => "no change"
+    };
+
     /// <summary>Coarse "time ago" label. Empty string for a null date.</summary>
     public static string RelativeTime(DateTime? value)
     {

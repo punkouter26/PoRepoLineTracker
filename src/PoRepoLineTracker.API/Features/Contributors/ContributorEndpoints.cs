@@ -30,7 +30,7 @@ internal static class ContributorEndpoints
             catch (Exception ex)
             {
                 Log.Error(ex, "Error retrieving contributor stats for repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error retrieving contributor stats: {ex.Message}", statusCode: (int)HttpStatusCode.InternalServerError);
+                return Results.Problem($"Error retrieving contributor stats.", statusCode: (int)HttpStatusCode.InternalServerError);
             }
         })
         .WithName("GetContributorStats");

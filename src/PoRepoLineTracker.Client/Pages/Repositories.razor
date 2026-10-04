@@ -42,6 +42,15 @@
         <Actions>
             @if (pageState.Repositories.Count > 0)
             {
+                @* The only way to add repositories once the first batch exists. The dialog used to be
+                   reachable from the onboarding empty state alone, which stops rendering as soon as
+                   one repository is tracked — so a repo created on GitHub later could never be
+                   imported without removing everything first. *@
+                <RadzenButton Text="Add repositories"
+                              Icon="add"
+                              ButtonStyle="ButtonStyle.Primary"
+                              Size="ButtonSize.Medium"
+                              Click="@OpenAddRepositoryDialog" />
                 <RadzenSplitButton Text="Export"
                                    Icon="download"
                                    ButtonStyle="ButtonStyle.Light"
@@ -58,13 +67,6 @@
         </Actions>
     </PageHero>
 
-    @* Notification Messages *@
-    @if (!string.IsNullOrEmpty(pageState.AddRepoMessage))
-    {
-        <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true" AllowClose="true" Close="@(() => pageState.AddRepoMessage = string.Empty)">
-            @pageState.AddRepoMessage
-        </RadzenAlert>
-    }
     @if (!string.IsNullOrEmpty(pageState.ErrorMessage))
     {
         <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true" Close="@(() => pageState.ErrorMessage = string.Empty)">
@@ -72,91 +74,136 @@
         </RadzenAlert>
     }
 
-    @* "What happened while you were away". Renders nothing when there is nothing to report, and
-       is the only place in the app that shows it — a second copy on Insights would race this one
-       to record the visit and collapse the other's window. *@
-    <DigestBanner />
-
-    @* Live analysis feed. Renders nothing while idle, so it costs no vertical space until a job
-       actually starts. *@
-    <AnalysisActivityFeed />
-
-    @* Repository Data Grid *@
-    @if (pageState.IsLoadingRepositories)
-    {
-        <RadzenCard>
-            <RadzenStack Gap="1rem">
-                <RadzenSkeleton Width="200px" Height="24px" />
-                <RadzenStack Gap="0.5rem">
-                    @for (int i = 0; i < 5; i++)
-                    {
-                        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
-                            <RadzenSkeleton Circle="true" Width="40px" Height="40px" />
-                            <RadzenSkeleton Width="150px" />
-                            <RadzenSkeleton Width="200px" />
-                            <RadzenSkeleton Width="120px" />
-                            <RadzenSkeleton Width="80px" />
-                        </RadzenStack>
-                    }
-                </RadzenStack>
-            </RadzenStack>
-        </RadzenCard>
-    }
-    else if (!pageState.Repositories.Any())
+    @* One ladder for loading and loaded, so the skeleton IS the layout: the same three tiles, the
+       same card where the grid goes. The generic five-row block this replaces was a different
+       shape from the page it stood in for, and everything snapped when the data arrived. *@
+    @if (!pageState.IsLoadingRepositories && !pageState.Repositories.Any())
     {
         @* Animated onboarding empty state (markup + styles: OnboardingEmptyState.razor) *@
         <OnboardingEmptyState OnClick="OpenAddRepositoryDialog" />
     }
     else
     {
-        @* ─── Multi-repo comparison chart & KPI tiles ───────────────────────── *@
-        <PortfolioStatTiles RepositoryCount="@pageState.Repositories.Count"
-                            TotalLines="@_repoLatestLineCounts.Values.Sum()"
+        <PortfolioStatTiles Loading="@pageState.IsLoadingRepositories"
+                            RepositoryCount="@pageState.Repositories.Count"
+                            TotalLines="@(_history is null ? null : _repoLatestLineCounts.Values.Sum())"
+                            TotalsLoaded="@_totalsLoaded"
                             AnalyzedCount="@AnalyzedCount"
                             Trend="@TotalLinesTrend" />
 
-        <AllReposComparisonChart @ref="_comparisonChart" />
+        @* Live analysis feed. Renders nothing while idle. Directly above the grid it reports on,
+           and below the tiles, so its arrival moves one thing instead of the whole page. *@
+        <AnalysisActivityFeed />
 
-        @* ─── Repository Data Grid (extracted; see Components/Repositories/RepositoriesGrid.razor) ─── *@
+        @* The grid sits directly under the tiles: it is what the page is for. The growth chart
+           used to be between them and pushed the list below the fold on a laptop. *@
         <RadzenCard>
-            <RepositoriesGrid @ref="_grid"
-                              Items="@RepositoryRows"
-                              ProgressMap="@_analysisProgress"
-                              ReanalysisStartTimes="@_reanalysisStartTimes"
-                              ReanalyzingId="@reanalyzingRepositoryId"
-                              OnReanalyze="@ConfirmReanalyze"
-                              OnDelete="@ConfirmDeleteRepository"
-                              OnRowClick="@OnRowClick"
-                              OnRowRender="@OnRowRender" />
+            @if (pageState.IsLoadingRepositories)
+            {
+                <RadzenStack Gap="0.5rem" aria-busy="true">
+                    <RadzenSkeleton Width="180px" Height="24px" />
+                    <RadzenSkeleton Width="100%" Height="36px" />
+                    @for (var i = 0; i < 5; i++)
+                    {
+                        <RadzenSkeleton Width="100%" Height="44px" />
+                    }
+                </RadzenStack>
+            }
+            else
+            {
+                @* See Components/Repositories/RepositoriesGrid.razor *@
+                <RepositoriesGrid @ref="_grid"
+                                  Items="@RepositoryRows"
+                                  TotalsLoaded="@_totalsLoaded"
+                                  ProgressMap="@_analysisProgress"
+                                  ReanalysisStartTimes="@_reanalysisStartTimes"
+                                  ReanalyzingId="@reanalyzingRepositoryId"
+                                  Search="@Q"
+                                  SearchChanged="@OnSearchChanged"
+                                  OnReanalyze="@ConfirmReanalyze"
+                                  OnDelete="@ConfirmDeleteRepository"
+                                  OnRowClick="@OnRowClick"
+                                  OnRowRender="@OnRowRender" />
 
-            @* Danger Zone — separated from primary actions *@
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
-                         class="rp-danger-zone">
-                <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-zone__label">Danger Zone</RadzenText>
-                <RadzenButton Text="Remove All Repositories"
-                              Icon="delete_forever"
-                              ButtonStyle="ButtonStyle.Danger"
-                              Variant="Variant.Outlined"
-                              Size="ButtonSize.Small"
-                              Click="@ConfirmRemoveAll"
-                              IsBusy="@isRemovingAll"
-                              BusyText="Removing..." />
-            </RadzenStack>
+                @* Danger Zone — separated from primary actions *@
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
+                             class="rp-danger-zone">
+                    <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-zone__label">Danger Zone</RadzenText>
+                    <RadzenButton Text="Remove All Repositories"
+                                  Icon="delete_forever"
+                                  ButtonStyle="ButtonStyle.Danger"
+                                  Variant="Variant.Outlined"
+                                  Size="ButtonSize.Small"
+                                  Click="@ConfirmRemoveAll"
+                                  IsBusy="@isRemovingAll"
+                                  BusyText="Removing..." />
+                </RadzenStack>
+            }
         </RadzenCard>
+
+        <AllReposComparisonChart History="@_history"
+                                 IsLoading="@(!_totalsLoaded)"
+                                 ErrorMessage="@_historyError"
+                                 OnRetry="@LoadLatestLineCounts"
+                                 Days="@ChartFormat.RangeDays(Days)"
+                                 DaysChanged="@OnChartDaysChanged" />
     }
+
+    @* "What happened while you were away". Renders nothing when there is nothing to report, and
+       is the only place in the app that shows it — a second copy on Insights would race this one
+       to record the visit and collapse the other's window. Last on the page: it appears after its
+       own fetch, and above the grid that pushed every row down a banner's height mid-read. *@
+    <DigestBanner />
 </div>
 
 @code {
+    // ─── Route state ─────────────────────────────────────────────────────────────────────────
+    // The search and the chart range live in the URL, so a reload, a shared link and Back all
+    // land on the same view. Written with replace: true — a history entry per keystroke would
+    // turn Back into an undo stack. Defaults are omitted (null removes the parameter).
+
+    /// <summary>Grid search text.</summary>
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    /// <summary>Growth chart range; see <see cref="ChartFormat.RangeDays"/> for why a string.</summary>
+    [SupplyParameterFromQuery(Name = "days")] public string? Days { get; set; }
+
+    private void OnSearchChanged(string value) =>
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(value) ? null : value), replace: true);
+
+    private void OnChartDaysChanged(int days) =>
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days)), replace: true);
+
     private RepositoryPageState pageState = new();
     private RepositoriesGrid? _grid;
-    private AllReposComparisonChart? _comparisonChart;
-    private bool _chartPrimed;
     private RepositoryId? reanalyzingRepositoryId;
     private bool isRemovingAll = false;
     private Dictionary<RepositoryId, DateTime> _reanalysisStartTimes = new();
     private Dictionary<RepositoryId, int> _repoLatestLineCounts = new();
     private Dictionary<RepositoryId, AnalysisProgressDto> _analysisProgress = new();
-    private readonly CancellationTokenSource _disposeCts = new();
+
+    /// <summary>
+    /// Each repository's 30-day figures, for the grid's Net / Commits / Cadence columns. Empty
+    /// until <see cref="LoadMovementsAsync"/> lands; the columns show a dash meanwhile.
+    /// </summary>
+    private Dictionary<RepositoryId, RepositoryMovementDto> _movements = new();
+
+    /// <summary>
+    /// The one <c>allcharts</c> response, shared by the totals, the sparkline and the growth
+    /// chart. The chart used to fetch <c>allcharts/90</c> for itself, so the page asked the same
+    /// endpoint twice on every load; it now slices this client-side. Null until the first fetch
+    /// succeeds.
+    /// </summary>
+    private List<RepositoryLineCountHistoryDto>? _history;
+    private string? _historyError;
+
+    /// <summary>
+    /// True once the first totals fetch has finished, successfully or not. Without it "not loaded
+    /// yet" and "loaded, nothing to show" were the same state: the Total Lines tile read 0 for
+    /// the seconds the request took, and a grid cell whose total never arrived (failed request,
+    /// or a repository with 0 counted lines) shimmered forever.
+    /// </summary>
+    private bool _totalsLoaded;
     /// <summary>
     /// True after <see cref="DisposeAsync"/> has run. Radzen charts and grids capture
     /// <c>DotNetObjectReference</c>s the JS module can still call into for a frame or two after
@@ -168,7 +215,8 @@
 
     private IEnumerable<RepositoryGridRow> RepositoryRows => pageState.Repositories.Select(repository => new RepositoryGridRow(
         repository,
-        _repoLatestLineCounts.TryGetValue(repository.Id, out var totalLines) ? totalLines : null));
+        _repoLatestLineCounts.TryGetValue(repository.Id, out var totalLines) ? totalLines : null,
+        _movements.GetValueOrDefault(repository.Id)));
 
     private int AnalyzedCount => pageState.Repositories.Count(r => r.LastAnalyzedCommitDate.HasValue);
 
@@ -191,6 +239,14 @@
     {
         _watcher = new AnalysisWatcher(Http, Feed, WatcherLogger) { FrameReady = OnAnalysisProgressAsync };
         Feed.ProgressReceived += OnAnalysisProgressAsync;
+        // The watcher only checks the hub when a wait is registered. A hub that drops mid-job
+        // registered nothing new, so without this nobody was polling and the badge spun forever.
+        Feed.StateChanged += _watcher.StartIfNeeded;
+
+        // Set here, not in LoadRepositories. That method also runs on every completed analysis,
+        // and flipping this flag there swapped the grid and chart out for the skeleton and back —
+        // remounting them, which threw away the search text and the chart's range and selection.
+        pageState.IsLoadingRepositories = true;
 
         await Task.WhenAll(
             LoadRepositories(),
@@ -198,7 +254,57 @@
             Feed.EnsureConnectedAsync());
 
         _watcher.WatchPending(pageState.Repositories);
+
+        // Not awaited, and only now: the grid is already on screen. The portfolio aggregation is
+        // the slowest request this page makes and feeds three optional columns.
+        _ = LoadMovementsAsync();
     }
+
+    /// <summary>
+    /// The same <c>/api/insights/portfolio</c> response the Insights page renders; only its
+    /// per-repository rows are used here. Never throws — it is started without an await.
+    ///
+    /// <para>Coalesced: this is re-run after every completed analysis, and a bulk import
+    /// completes repositories seconds apart. A call that arrives while one is in flight only
+    /// marks the result stale, so a burst costs one extra request, not one per repository.</para>
+    /// </summary>
+    private async Task LoadMovementsAsync()
+    {
+        if (_movementsLoading)
+        {
+            _movementsStale = true;
+            return;
+        }
+
+        _movementsLoading = true;
+        try
+        {
+            do
+            {
+                _movementsStale = false;
+                var insights = await Http.GetAppJsonAsync("/api/insights/portfolio", AppJsonSerializerContext.Default.PortfolioInsightsDto);
+                if (_disposed || insights is null) return;
+
+                // Last one wins rather than ToDictionary: a duplicate id must not throw away the lot.
+                var movements = new Dictionary<RepositoryId, RepositoryMovementDto>();
+                foreach (var mover in insights.Movers) movements[mover.RepositoryId] = mover;
+                _movements = movements;
+
+                await InvokeAsync(StateHasChanged);
+            } while (_movementsStale);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load 30-day movements — those grid columns will show dashes");
+        }
+        finally
+        {
+            _movementsLoading = false;
+        }
+    }
+
+    private bool _movementsLoading;
+    private bool _movementsStale;
 
     /// <summary>
     /// Applies a pushed progress frame to the grid.
@@ -235,45 +341,37 @@
         _reanalysisStartTimes.Remove(progress.RepositoryId);
         _watcher.StopWatching(progress.RepositoryId);
 
+        // The audible half of the transition, for a job left running in a background tab. Silent
+        // unless the header's sound toggle is on — playCue in index.html checks, and never throws
+        // for its own reasons; the catch is for interop during teardown.
+        try { await JS.InvokeVoidAsync("playCue", progress.ErrorMessage is null ? "done" : "failed"); }
+        catch (Exception) { }
+
         if (progress.ErrorMessage is null)
         {
             _analysisProgress.Remove(progress.RepositoryId);
 
             await LoadRepositories();
             await LoadLatestLineCounts();
-            await ReloadComparisonChartAsync();
+            _ = LoadMovementsAsync();
 
-            NotificationService.Notify(new NotificationMessage
+            // Only when the hub is down. While it streams, the activity feed and the row's own
+            // status badge both show the job finishing; a toast per repository on top of them
+            // was fifty toasts for a fifty-repository import.
+            if (!Feed.IsConnected)
             {
-                Severity = NotificationSeverity.Success,
-                Summary = "Analysis Complete",
-                Detail = $"'{progress.Owner}/{progress.Name}' has been analyzed.",
-                Duration = 5000
-            });
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Success,
+                    Summary = "Analysis Complete",
+                    Detail = $"'{progress.Owner}/{progress.Name}' has been analyzed.",
+                    Duration = 5000
+                });
+            }
         }
 
         await InvokeAsync(StateHasChanged);
         if (_grid is not null && _grid.Grid is not null) await InvokeAsync(_grid.Grid.Reload);
-    }
-
-    /// <summary>
-    /// Kicks off the growth chart's first fetch once the page has painted.
-    /// <para>
-    /// AllReposComparisonChart deliberately does not load in OnInitializedAsync so the request
-    /// stays off the initial render path, and documents that the parent primes it afterwards —
-    /// but no parent ever did. The card therefore always rendered its "No history data yet"
-    /// empty state until the user happened to click a range button, even with repositories
-    /// analysed and the very same endpoint already supplying the Total Lines figure above it.
-    /// </para>
-    /// </summary>
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        // Not gated on firstRender: the chart lives inside the "repositories loaded" branch, so
-        // on the very first pass the page is still showing its skeleton and @ref is null. Prime
-        // on the first render where the ref actually exists, and only once.
-        if (_chartPrimed || _comparisonChart is null) return;
-        _chartPrimed = true;
-        await _comparisonChart.PrimeAsync();
     }
 
     private async Task LoadLatestLineCounts()
@@ -281,9 +379,14 @@
         if (_disposed) return;
         try
         {
-            var all = await Http.GetAppJsonAsync("/api/repositories/allcharts/365", AppJsonSerializerContext.Default.ListRepositoryLineCountHistoryDto);
+            // The whole history, once: the growth chart's "All" range needs it, and the 180d and
+            // 1yr ranges are slices of the same response.
+            var all = await Http.GetAppJsonAsync($"/api/repositories/allcharts/{ChartFormat.AllDays}", AppJsonSerializerContext.Default.ListRepositoryLineCountHistoryDto);
             if (all != null)
             {
+                _history = all;
+                _historyError = null;
+
                 // r.TotalLines, NOT the last point of the windowed series. The server computes it
                 // from every commit the repository has (see RepositoryTotals), so a repository
                 // untouched for longer than the 365-day window still reports its real size here.
@@ -308,6 +411,18 @@
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not load latest line counts — Total Lines column will show dashes");
+            _historyError = "Could not load chart data. Please try again.";
+        }
+        finally
+        {
+            // Guarded rather than an early `return`: control cannot leave a finally block
+            // (CS0157). Rendered from here rather than left to the caller, because on first load
+            // the caller is also awaiting the hub handshake and the totals should not wait for it.
+            if (!_disposed)
+            {
+                _totalsLoaded = true;
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 
@@ -371,11 +486,7 @@
     {
         var result = await DialogService.OpenAsync<AddRepository>(
             "Get All My Repositories",
-            new Dictionary<string, object>
-            {
-                { "IsInline", false }
-            },
-            new DialogOptions
+            options: new DialogOptions
             {
                 Width = "min(680px, 95vw)",
                 CloseDialogOnOverlayClick = true,
@@ -392,23 +503,14 @@
     {
         await LoadRepositories();
         await LoadLatestLineCounts();
-        await ReloadComparisonChartAsync();
         _watcher.WatchPending(pageState.Repositories);
         StateHasChanged();
     }
-
-    /// <summary>
-    /// Reloads the "All Repositories — Growth Overview" chart on the UI context.
-    /// No-op until the chart is rendered (it only exists once repositories load).
-    /// </summary>
-    private Task ReloadComparisonChartAsync() =>
-        _comparisonChart is null ? Task.CompletedTask : InvokeAsync(_comparisonChart.ReloadAsync);
 
     private async Task LoadRepositories()
     {
         if (_disposed) return;
 
-        pageState.IsLoadingRepositories = true;
         pageState.ClearMessages();
 
         try
@@ -457,48 +559,13 @@
             _reanalysisStartTimes[repo.Id] = DateTime.UtcNow;
             StateHasChanged();
 
-            Logger.LogInformation("Re-analyzing repository {RepositoryId}", repo.Id);
-            var response = await Http.PostAsync($"/api/repositories/{repo.Id}/reanalyze", null);
+            // Toast, logging and the failure path all live on the command client (it never throws).
+            // No "started" toast while the feed is streaming: it shows the job starting.
+            successfullyQueued = await Commands.QueueReanalysisAsync(repo.Id, $"{repo.Owner}/{repo.Name}", announce: !Feed.IsConnected);
 
-            if (response.IsSuccessStatusCode)
-            {
-                successfullyQueued = true;
-                NotificationService.Notify(new NotificationMessage
-                {
-                    Severity = NotificationSeverity.Success,
-                    Summary = "Re-analysis Started",
-                    Detail = $"Re-analyzing '{repo.Owner}/{repo.Name}' with your current file extension settings. The badge will clear automatically when complete.",
-                    Duration = 6000
-                });
-                Logger.LogInformation("Re-analysis queued for repository {RepositoryId}", repo.Id);
-
-                // Register the wait and let the one fallback loop cover it. It no-ops while the
-                // hub is connected, and the hub's frames clear the entry through the same handler.
-                _watcher.Watch(repo.Id, priorDate);
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                NotificationService.Notify(new NotificationMessage
-                {
-                    Severity = NotificationSeverity.Error,
-                    Summary = "Error",
-                    Detail = $"Failed to start re-analysis: {response.StatusCode}",
-                    Duration = 6000
-                });
-                Logger.LogError("Failed to re-analyze repository {RepositoryId}. Status: {StatusCode}", repo.Id, response.StatusCode);
-            }
-        }
-        catch (Exception ex)
-        {
-            NotificationService.Notify(new NotificationMessage
-            {
-                Severity = NotificationSeverity.Error,
-                Summary = "Error",
-                Detail = $"Error starting re-analysis: {ex.Message}",
-                Duration = 6000
-            });
-            Logger.LogError(ex, "Error re-analyzing repository {RepositoryId}", repo.Id);
+            // Register the wait and let the one fallback loop cover it. It no-ops while the
+            // hub is connected, and the hub's frames clear the entry through the same handler.
+            if (successfullyQueued) _watcher.Watch(repo.Id, priorDate);
         }
         finally
         {
@@ -520,10 +587,9 @@
         // Unsubscribe only. AnalysisFeedClient is container-owned and shared with the activity
         // feed, so disposing it here would take the feed's connection down with the page.
         Feed.ProgressReceived -= OnAnalysisProgressAsync;
+        Feed.StateChanged -= _watcher.StartIfNeeded;
 
         await _watcher.DisposeAsync();
-        await _disposeCts.CancelAsync();
-        _disposeCts.Dispose();
     }
 
     private async Task DeleteRepository(RepositoryId repositoryId)
@@ -537,6 +603,10 @@
         // about the screen, not about the command.
         if (repo is not null) pageState.Repositories.Remove(repo);
         if (_grid is not null && _grid.Grid is not null) await _grid.Grid.Reload();
+
+        // The totals, sparkline and growth chart are all built from the per-repository history,
+        // so without this they kept counting the repository that was just deleted until reload.
+        await LoadLatestLineCounts();
     }
 
     private async Task ConfirmRemoveAll()
