@@ -1,12 +1,16 @@
 @* Range picker shared by every time-series card.
 
    This markup was previously byte-identical in three places: AllReposComparisonChart,
-   ContributorChart and RepositoryDetail. Supports @bind-Days. *@
+   ContributorChart and RepositoryDetail, with a fourth, smaller copy on the Insights heatmap.
+   Supports @bind-Days. *@
 
 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-    <RadzenText TextStyle="TextStyle.Caption" class="crs-label">Range:</RadzenText>
-    <RadzenSelectBar Value="@Days" TValue="int" Change="@HandleChange" Size="ButtonSize.Small"
-                     aria-label="Chart time range">
+    @if (Label is not null)
+    {
+        <RadzenText TextStyle="TextStyle.Caption" class="crs-label">@Label</RadzenText>
+    }
+    <RadzenSelectBar Value="@Days" TValue="int" Change="@HandleChange" Size="@Size"
+                     aria-label="Chart time range" @attributes="AdditionalAttributes">
         <Items>
             <RadzenSelectBarItem Text="180d" Value="@ChartFormat.DefaultRangeDays" />
             <RadzenSelectBarItem Text="1yr" Value="365" />
@@ -20,6 +24,14 @@
 
     /// <summary>Fires after <see cref="Days"/> changes, so `@bind-Days` works.</summary>
     [Parameter] public EventCallback<int> DaysChanged { get; set; }
+
+    /// <summary>The caption before the pills; null for none (the Insights heatmap toolbar has no room for it).</summary>
+    [Parameter] public string? Label { get; set; } = "Range:";
+
+    [Parameter] public ButtonSize Size { get; set; } = ButtonSize.Small;
+
+    /// <summary>Onto the select bar, so a page can style it through its own <c>::deep</c> class.</summary>
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
 
     private async Task HandleChange(int days)
     {

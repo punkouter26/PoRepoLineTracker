@@ -102,13 +102,18 @@ public class RepositoryDataService : IRepositoryDataService
     {
         await EnsureTablesExistAsync();
         _logger.LogInformation("Getting all repositories for user {UserId} from Table Storage.", userId);
-        var repositories = new List<GitHubRepository>();
-        await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(e => e.PartitionKey == userId.ToString()))
-        {
-            repositories.Add(entity.ToDomainModel());
-        }
+        var repositories = (await QueryUserEntitiesAsync(userId)).Select(e => e.ToDomainModel()).ToList();
         _logger.LogInformation("Found {Count} repositories for user {UserId}.", repositories.Count, userId);
         return repositories;
+    }
+
+    /// <summary>The one "every repository row of this user" query, shared by read and remove-all.</summary>
+    private async Task<List<GitHubRepositoryEntity>> QueryUserEntitiesAsync(UserId userId)
+    {
+        var entities = new List<GitHubRepositoryEntity>();
+        await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(e => e.PartitionKey == userId.ToString()))
+            entities.Add(entity);
+        return entities;
     }
 
     public async Task<IEnumerable<GitHubRepository>> GetUnanalyzedRepositoriesAsync()
@@ -308,29 +313,28 @@ public class RepositoryDataService : IRepositoryDataService
     }
 
     /// <summary>
-    /// Repository Pattern: Implements comprehensive data removal strategy for all repositories belonging to a user.
-    /// Removes all data from both repository and commit line count tables in Azure Table Storage.
-    /// Uses batch operations for optimal performance.
+    /// Removes all repository rows of a user and their commit rows, from ONE read of the user's
+    /// partition — it used to be read three times (the handler, here, and the entity purge).
     /// </summary>
-    public async Task RemoveAllRepositoriesAsync(UserId userId)
+    public async Task<IReadOnlyList<GitHubRepository>> RemoveAllRepositoriesAsync(UserId userId)
     {
+        await EnsureTablesExistAsync();
         _logger.LogInformation("Starting removal of all repositories and commit data for user {UserId} from Azure Table Storage.", userId);
 
         try
         {
-            // Step 1: Get all repositories for this user
-            var repositories = await GetAllRepositoriesAsync(userId);
+            var entities = await QueryUserEntitiesAsync(userId);
+            var repositories = entities.Select(e => e.ToDomainModel()).ToList();
 
-            // Step 2: Remove commit line counts for each repository
             foreach (var repo in repositories)
             {
                 await DeleteCommitLineCountsForRepositoryAsync(repo.Id);
             }
 
-            // Step 3: Remove all repository entities for this user
-            await RemoveAllRepositoryEntitiesForUserAsync(userId);
+            await RemoveRepositoryEntitiesAsync(entities, userId);
 
             _logger.LogInformation("Successfully removed all repositories and commit data for user {UserId} from Azure Table Storage.", userId);
+            return repositories;
         }
         catch (Exception ex)
         {
@@ -342,26 +346,8 @@ public class RepositoryDataService : IRepositoryDataService
     /// <summary>
     /// Strategy Pattern: Implements batch deletion strategy for repository entities for a specific user.
     /// </summary>
-    private async Task RemoveAllRepositoryEntitiesForUserAsync(UserId userId)
+    private async Task RemoveRepositoryEntitiesAsync(List<GitHubRepositoryEntity> entitiesToDelete, UserId userId)
     {
-        _logger.LogInformation("Removing all repository entities for user {UserId} from Table Storage.", userId);
-
-        var entitiesToDelete = new List<GitHubRepositoryEntity>();
-
-        try
-        {
-            // Query all entities for this user
-            await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>(e => e.PartitionKey == userId.ToString()))
-            {
-                entitiesToDelete.Add(entity);
-            }
-        }
-        catch (Azure.RequestFailedException ex) when (ex.Status == 404)
-        {
-            _logger.LogInformation("Repository table does not exist. Nothing to delete.");
-            return;
-        }
-
         if (entitiesToDelete.Any())
         {
             _logger.LogInformation("Found {Count} repository entities to delete for user {UserId}.", entitiesToDelete.Count, userId);
@@ -376,7 +362,7 @@ public class RepositoryDataService : IRepositoryDataService
             foreach (var batch in batches)
             {
                 // ETag.All, not entity.ETag: this is an unconditional purge, so a write that
-                // lands between the query above and the delete below must not abort it. Passing
+                // lands between the partition read and this delete must not abort it. Passing
                 // the stale ETag made any concurrent update fail the whole call with a 412
                 // ("The update condition specified in the request was not satisfied") — surfacing
                 // as an intermittent 500 from DELETE /api/repositories/all.

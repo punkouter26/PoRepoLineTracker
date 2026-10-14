@@ -4,9 +4,10 @@
 @inject HttpClient Http
 @inject ILogger<RepositoryDetail> Logger
 @inject NavigationManager Navigation
-@inject Radzen.DialogService DialogService
 @inject Radzen.NotificationService NotificationService
 @inject RepositoryCommandClient Commands
+@inject AnalysisFeedClient Feed
+@inject ILogger<AnalysisWatcher> WatcherLogger
 @inject IJSRuntime JS
 @using PoRepoLineTracker.Client.Components.Shared
 @using PoRepoLineTracker.Client.Models
@@ -245,8 +246,13 @@
     private int _repoLatestLines = 0;
     private string _errorMessage = string.Empty;
     private string _chartError = string.Empty;
-    private DateTime? _priorAnalyzedDate;
-    private readonly CancellationTokenSource _disposeCts = new();
+
+    /// <summary>
+    /// Completion of a re-analysis started here comes through the same two sources as the grid's:
+    /// hub frames, and the watcher's fallback poll when the hub is down. This page used to run its
+    /// own five-second poll of <c>/api/repositories</c> — a third path (SPEC §10).
+    /// </summary>
+    private AnalysisWatcher _watcher = null!;
 
     private IReadOnlyList<DailyLineCountDto> DisplayedLineHistory =>
         (_lineHistory ?? []).OrderBy(d => d.Date).ToList();
@@ -256,13 +262,20 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _watcher = new AnalysisWatcher(Http, Feed, WatcherLogger) { FrameReady = OnAnalysisProgressAsync };
+        Feed.ProgressReceived += OnAnalysisProgressAsync;
+        // A hub that drops mid-job has to restart the fallback poll; see Repositories.razor.
+        Feed.StateChanged += _watcher.StartIfNeeded;
+        // Not awaited: the page does not need the hub to render, and a failed handshake just
+        // means the watcher polls.
+        _ = Feed.EnsureConnectedAsync();
+
         try
         {
             var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository);
             _repo = repos?.FirstOrDefault(r => r.Id == RepositoryId);
             if (_repo != null)
             {
-                _priorAnalyzedDate = _repo.LastAnalyzedCommitDate;
                 await Task.WhenAll(
                     LoadLineHistory(ChartDays),
                     LoadExtensions()
@@ -353,13 +366,7 @@
 
     private async Task ConfirmReanalyze()
     {
-        if (_repo == null) return;
-        var confirmed = await DialogService.Confirm(
-            $"Re-analyze '{_repo.Owner}/{_repo.Name}' from scratch? All existing commit data will be replaced.",
-            "Re-analyze Repository",
-            new ConfirmOptions { OkButtonText = "Re-analyze", CancelButtonText = "Cancel" });
-
-        if (confirmed == true)
+        if (_repo != null && await Commands.ConfirmReanalyzeAsync(_repo))
             await StartReanalyze();
     }
 
@@ -367,80 +374,72 @@
     {
         if (_repo == null) return;
 
+        var priorAttempt = _repo.LastAnalysisAttemptUtc; // baseline for the fallback poll
         _isReanalyzing = true;
         StateHasChanged();
 
         // Toast, logging and the failure path all live on the command client (it never throws).
         if (await Commands.QueueReanalysisAsync(RepositoryId, $"{_repo.Owner}/{_repo.Name}"))
-            _ = PollForCompletionAsync(_priorAnalyzedDate);
+            _watcher.Watch(RepositoryId, priorAttempt);
         else
             _isReanalyzing = false;
     }
 
-    private async Task PollForCompletionAsync(DateTime? priorDate)
+    /// <summary>
+    /// Hub and fallback-poll frames alike. Only this repository's terminal frame, and only while
+    /// this page is waiting on a re-analysis it queued — the server refuses a second job on a
+    /// repository while one runs (409), so that frame is this job's. No running-frame guard: the
+    /// poll can report a fast failure without ever having seen it run.
+    /// </summary>
+    private async Task OnAnalysisProgressAsync(AnalysisProgressDto progress)
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
-        cts.CancelAfter(TimeSpan.FromMinutes(30));
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-        try
+        if (_disposed || !_isReanalyzing || progress.IsRunning || progress.RepositoryId != RepositoryId) return;
+
+        _isReanalyzing = false;
+        _watcher.StopWatching(RepositoryId);
+
+        if (progress.ErrorMessage is null)
         {
-            while (await timer.WaitForNextTickAsync(cts.Token))
+            try
             {
-                if (_disposed) return;
-                try
-                {
-                    var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository, cts.Token);
-                    var updated = repos?.FirstOrDefault(r => r.Id == RepositoryId);
-                    if (updated?.LastAnalyzedCommitDate != null && updated.LastAnalyzedCommitDate != priorDate)
-                    {
-                        _repo = updated;
-                        _priorAnalyzedDate = updated.LastAnalyzedCommitDate;
-                        _isReanalyzing = false;
-                        await Task.WhenAll(LoadLineHistory(ChartDays), LoadExtensions());
-                        NotificationService.Notify(new NotificationMessage
-                        {
-                            Severity = NotificationSeverity.Success,
-                            Summary = "Analysis Complete",
-                            Detail = $"'{updated.Owner}/{updated.Name}' has been re-analyzed.",
-                            Duration = 5000
-                        });
-                        if (_disposed) return;
-                        await InvokeAsync(StateHasChanged);
-                        return;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning(ex, "RepositoryDetail: poll tick failed for {Id}", RepositoryId);
-                }
+                var repos = await Http.GetAppJsonAsync("/api/repositories", AppJsonSerializerContext.Default.ListGitHubRepository);
+                _repo = repos?.FirstOrDefault(r => r.Id == RepositoryId) ?? _repo;
             }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "RepositoryDetail: could not refresh repo {Id} after analysis", RepositoryId);
+            }
+            if (_disposed) return;
+
+            await Task.WhenAll(LoadLineHistory(ChartDays), LoadExtensions());
         }
-        catch (OperationCanceledException) { }
 
         if (_disposed) return;
-        _isReanalyzing = false;
+        NotificationService.Notify(progress.ErrorMessage is null
+            ? new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Analysis Complete", Detail = $"'{progress.Owner}/{progress.Name}' has been re-analyzed.", Duration = 5000 }
+            : new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Analysis Failed", Detail = progress.ErrorMessage, Duration = 6000 });
         await InvokeAsync(StateHasChanged);
     }
 
     private async Task ConfirmDelete()
     {
-        if (_repo == null) return;
-        var confirmed = await DialogService.Confirm(
-            $"Delete '{_repo.Owner}/{_repo.Name}'? All associated data will be permanently removed.",
-            "Delete Repository",
-            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
-
         // Through the command client, like the grid's delete. This page sent the request itself
         // and so had none of that client's handling: a delete refused because an analysis is
         // running (409) surfaced as "Delete failed: Conflict".
-        if (confirmed == true && await Commands.DeleteAsync(RepositoryId, $"{_repo.Owner}/{_repo.Name}"))
+        if (_repo != null && await Commands.ConfirmDeleteAsync(_repo)
+            && await Commands.DeleteAsync(RepositoryId, $"{_repo.Owner}/{_repo.Name}"))
             Navigation.NavigateTo("/");
     }
 
     public async ValueTask DisposeAsync()
     {
-        await _disposeCts.CancelAsync();
-        _disposeCts.Dispose();
+        _disposed = true;
+
+        // Unsubscribe only: the feed client is app-scoped and shared.
+        Feed.ProgressReceived -= OnAnalysisProgressAsync;
+        Feed.StateChanged -= _watcher.StartIfNeeded;
+
+        await _watcher.DisposeAsync();
     }
 
     /// <summary>
@@ -450,5 +449,5 @@
     /// id '6'"* on navigation in. Every async path below early-exits on this flag rather than
     /// touching torn-down state.
     /// </summary>
-    private bool _disposed => _disposeCts.IsCancellationRequested;
+    private bool _disposed;
 }

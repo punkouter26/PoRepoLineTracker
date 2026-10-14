@@ -1,11 +1,9 @@
 @page "/settings"
 @attribute [Authorize]
-@inject HttpClient Http
 @inject Radzen.NotificationService NotificationService
 @inject Radzen.DialogService DialogService
 @inject ILogger<ExtensionsCounted> Logger
 @inject UserPreferencesClient PreferencesClient
-@inject IJSRuntime JS
 @using Microsoft.AspNetCore.Authorization
 @using PoRepoLineTracker.Shared.Domain
 @using Radzen
@@ -160,16 +158,14 @@
     private RadzenDataGrid<ExtensionItem>? extensionGrid;
     private List<ExtensionItem>? extensionItems;
     private List<ExtensionItem>? originalExtensionItems;
-    // No editor for these any more (the card was removed), but a user who saved patterns earlier
-    // still has them applied by the analysis. They are loaded and written back untouched, because
-    // saving preferences replaces the whole row — dropping the field here would silently delete them.
-    private List<string> customGlobs = [];
-    private List<string> originalCustomGlobs = [];
     private string? errorMessage;
     private bool isLoading = true;
     private bool isSaving = false;
     private bool hasChanges = false;
     private UserPreferences? preferences;
+    // Set by Reset to Defaults when the user has stored ignore patterns. There is no editor for
+    // them any more, so Reset is the only way left to clear patterns the user can no longer see.
+    private bool clearGlobs;
     private string newExtensionValue = string.Empty;
     private static readonly Dictionary<string, string[]> categoryMap = new()
     {
@@ -198,8 +194,6 @@
             var extensions = preferences?.FileExtensions?.ToList() ?? [];
             extensionItems = extensions.Select(ext => new ExtensionItem { Extension = ext, Category = GetCategory(ext) }).ToList();
             originalExtensionItems = extensionItems.Select(e => new ExtensionItem { Extension = e.Extension, Category = e.Category }).ToList();
-            customGlobs = preferences?.CustomIgnoreGlobs?.ToList() ?? [];
-            originalCustomGlobs = customGlobs.ToList();
             hasChanges = false;
         }
         catch (Exception ex)
@@ -248,23 +242,8 @@
             </RadzenStack>,
             new DialogOptions { Width = "350px", Height = "180px" });
 
-        if (!string.IsNullOrEmpty(result as string))
+        if (result is string { Length: > 0 } typed && ValidateExtension(typed) is { } ext)
         {
-            var ext = NormalizeExtension((string)result);
-            if (string.IsNullOrEmpty(ext))
-            {
-                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Warning, Summary = "Invalid Extension", Detail = "Must contain only letters/numbers after dot.", Duration = 3000 });
-                newExtensionValue = string.Empty;
-                return;
-            }
-
-            if (extensionItems?.Any(e => e.Extension.Equals(ext, StringComparison.OrdinalIgnoreCase)) == true)
-            {
-                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Warning, Summary = "Duplicate", Detail = $"'{ext}' already exists.", Duration = 3000 });
-                newExtensionValue = string.Empty;
-                return;
-            }
-
             extensionItems ??= [];
             extensionItems.Add(new ExtensionItem { Extension = ext, Category = GetCategory(ext) });
             CheckForChanges();
@@ -294,21 +273,10 @@
 
     private async Task SaveRow(ExtensionItem item)
     {
-        // Same two checks as AddNewExtension, and the row stays in edit mode when either fails.
-        // This used to assign NormalizeExtension's result unconditionally — which is "" for
-        // invalid input — so an empty extension went into the list and on to the server.
-        var ext = NormalizeExtension(item.Extension ?? string.Empty);
-        if (string.IsNullOrEmpty(ext))
-        {
-            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Warning, Summary = "Invalid Extension", Detail = "Must contain only letters/numbers after dot.", Duration = 3000 });
-            return;
-        }
-
-        if (extensionItems?.Any(e => e != item && e.Extension.Equals(ext, StringComparison.OrdinalIgnoreCase)) == true)
-        {
-            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Warning, Summary = "Duplicate", Detail = $"'{ext}' already exists.", Duration = 3000 });
-            return;
-        }
+        // The row stays in edit mode when the check fails. This used to assign
+        // NormalizeExtension's result unconditionally — which is "" for invalid input — so an
+        // empty extension went into the list and on to the server.
+        if (ValidateExtension(item.Extension, self: item) is not { } ext) return;
 
         item.Extension = ext;
         item.Category = GetCategory(ext);
@@ -351,9 +319,9 @@
     private void ResetToDefaults()
     {
         extensionItems = UserPreferences.DefaultFileExtensions.Select(ext => new ExtensionItem { Extension = ext, Category = GetCategory(ext) }).ToList();
-        customGlobs = [];
+        clearGlobs = preferences?.CustomIgnoreGlobs is { Count: > 0 };
         CheckForChanges();
-        NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Info, Summary = "Reset", Detail = "Preferences reset. Save to apply.", Duration = 3000 });
+        NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Info, Summary = "Reset", Detail = clearGlobs ? "Preferences and saved ignore patterns reset. Save to apply." : "Preferences reset. Save to apply.", Duration = 3000 });
     }
 
     private void CheckForChanges()
@@ -361,9 +329,7 @@
         if (originalExtensionItems == null || extensionItems == null) { hasChanges = false; return; }
         var currentSet = extensionItems.Select(e => e.Extension.ToLowerInvariant()).OrderBy(x => x).ToList();
         var originalSet = originalExtensionItems.Select(e => e.Extension.ToLowerInvariant()).OrderBy(x => x).ToList();
-        var currentGlobs = customGlobs.OrderBy(x => x).ToList();
-        var origGlobs = originalCustomGlobs.OrderBy(x => x).ToList();
-        hasChanges = !currentSet.SequenceEqual(originalSet) || !currentGlobs.SequenceEqual(origGlobs);
+        hasChanges = !currentSet.SequenceEqual(originalSet) || clearGlobs;
     }
 
     private async Task SavePreferences()
@@ -378,15 +344,19 @@
             {
                 UserId = preferences?.UserId ?? UserId.Empty,
                 FileExtensions = extensionItems.Select(e => e.Extension).ToList(),
-                CustomIgnoreGlobs = customGlobs.ToList(),
+                // No editor for these any more (the card was removed), but a user who saved patterns
+                // earlier still has them applied by the analysis. Written back untouched unless Reset
+                // to Defaults asked to clear them: saving replaces the whole row, so dropping them
+                // anywhere else would silently delete patterns the user can no longer see.
+                CustomIgnoreGlobs = clearGlobs ? [] : preferences?.CustomIgnoreGlobs ?? [],
                 LastSeenUtc = preferences?.LastSeenUtc,
                 LastUpdated = DateTime.UtcNow
             };
             preferences = await PreferencesClient.SaveAsync(updatedPrefs);
             originalExtensionItems = extensionItems.Select(e => new ExtensionItem { Extension = e.Extension, Category = e.Category }).ToList();
-            originalCustomGlobs = customGlobs.ToList();
+            clearGlobs = false;
             hasChanges = false;
-            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Saved", Detail = "Preferences saved. Re-analyze repositories only if you changed extensions or globs.", Duration = 4000 });
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Saved", Detail = "Preferences saved. Re-analyze repositories only if you changed extensions.", Duration = 4000 });
         }
         catch (Exception ex)
         {
@@ -397,6 +367,26 @@
         finally
         {
             isSaving = false;
+        }
+    }
+
+    /// <summary>
+    /// The typed extension, normalised, or null after a warning toast when it is invalid or
+    /// already listed. <paramref name="self"/> is the row being edited, which may keep its own value.
+    /// One copy for Add and for an in-place edit, which had drifted apart once already.
+    /// </summary>
+    private string? ValidateExtension(string? typed, ExtensionItem? self = null)
+    {
+        var ext = NormalizeExtension(typed ?? string.Empty);
+        if (string.IsNullOrEmpty(ext)) return Warn("Invalid Extension", "Must contain only letters/numbers after dot.");
+        if (extensionItems?.Any(e => e != self && e.Extension.Equals(ext, StringComparison.OrdinalIgnoreCase)) == true)
+            return Warn("Duplicate", $"'{ext}' already exists.");
+        return ext;
+
+        string? Warn(string summary, string detail)
+        {
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Warning, Summary = summary, Detail = detail, Duration = 3000 });
+            return null;
         }
     }
 

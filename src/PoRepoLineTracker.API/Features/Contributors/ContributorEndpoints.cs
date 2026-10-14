@@ -1,6 +1,3 @@
-using System.Net;
-using Serilog;
-
 namespace PoRepoLineTracker.API.Features.Contributors;
 
 internal static class ContributorEndpoints
@@ -22,16 +19,8 @@ internal static class ContributorEndpoints
             var (_, error) = await RepositoryOwnership.AuthorizeAsync(repoDataService, repositoryId, userId, "read contributors for");
             if (error != null) return error;
 
-            try
-            {
-                var contributorStats = await contributorsHandler.Handle(new GetContributorStatsQuery(repositoryId, days, topN > 0 ? topN : 10));
-                return Results.Ok(contributorStats);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error retrieving contributor stats for repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error retrieving contributor stats.", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            var contributorStats = await contributorsHandler.Handle(new GetContributorStatsQuery(repositoryId, days, topN > 0 ? topN : 10));
+            return Results.Ok(contributorStats);
         })
         .WithName("GetContributorStats");
     }

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using AspNet.Security.OAuth.GitHub;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Serilog;
 
 namespace PoRepoLineTracker.API.Features.Auth;
@@ -46,10 +47,9 @@ internal static class AuthEndpoints
             // /auth/login?returnUrl=https://evil.example signs the user in with GitHub and then
             // forwards them — still on a trusted-looking flow — to the attacker's page. The dev
             // bypass below always checked; the real OAuth path did not.
-            returnUrl = !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/')
-                        && !returnUrl.StartsWith("//") && !returnUrl.StartsWith("/\\")
-                ? returnUrl
-                : "/";
+            // IsLocalUrl also accepts app-relative "~/x", which neither Redirect nor RedirectUri
+            // resolves — the browser would land on /auth/~/x — so require a leading '/'.
+            returnUrl = RedirectHttpResult.IsLocalUrl(returnUrl) && returnUrl![0] == '/' ? returnUrl : "/";
             var isDevBypass = env.IsDevelopment() && (!isOAuthConfigured || dev == true);
 
             if (isDevBypass)

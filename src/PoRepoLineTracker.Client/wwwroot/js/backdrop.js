@@ -1,13 +1,13 @@
 // Animated background: one fixed WebGL2 canvas behind the app shell.
 //
 // ON by default (the owner's choice; there is no settings switch). localStorage 'backdrop' = 'off'
-// — set via window.setBackdrop(false) — is the only way to disable it. It does not start under
+// — set by hand in devtools — is the only way to disable it. It does not start under
 // prefers-reduced-motion or without WebGL2 — the app's ordinary CSS background stays exactly as
 // it is, because the rules that let the canvas show through (app.css, `data-backdrop`) only apply
 // once a first frame has actually been drawn. Nothing here is required by anything else: every
 // entry point is wrapped, and a failure leaves the page as if this file had not loaded.
 (function () {
-    var canvas = null, gl = null, uniforms = null, observer = null, raf = 0, last = 0;
+    var canvas = null, gl = null, uniforms = null, observer = null, timer = 0, last = 0;
 
     // One triangle covering the viewport, generated from gl_VertexID — no buffers to manage.
     var VERTEX = '#version 300 es\n' +
@@ -58,14 +58,17 @@
         draw(last); // sizing clears the canvas; repaint now rather than show a blank frame
     }
 
-    function frame(now) {
-        raf = requestAnimationFrame(frame);
-        if (now - last >= 33) draw(now); // ~30fps: the motion is too slow to need more
+    // ~10fps on a timer, not a requestAnimationFrame loop. The tint is at most 8% and cycles over
+    // a minute or more, so a frame moves it well under one colour level; rAF woke the page at the
+    // display's refresh rate (60-144 times a second) only to skip most of those frames.
+    function frame() {
+        draw(performance.now());
+        timer = setTimeout(frame, 100);
     }
 
     function onVisibility() {
-        cancelAnimationFrame(raf);
-        if (!document.hidden) raf = requestAnimationFrame(frame);
+        clearTimeout(timer);
+        if (!document.hidden) frame();
     }
 
     function compile(type, source) {
@@ -76,14 +79,11 @@
     }
 
     function stop() {
-        cancelAnimationFrame(raf);
+        clearTimeout(timer);
         window.removeEventListener('resize', resize);
         document.removeEventListener('visibilitychange', onVisibility);
         if (observer) observer.disconnect();
         document.documentElement.removeAttribute('data-backdrop');
-        // Before losing the context on purpose: that raises the event too, later, and by then a
-        // quick off-and-on would have it tear down the new canvas.
-        if (canvas) canvas.removeEventListener('webglcontextlost', stop);
         if (gl) {
             // Browsers cap live WebGL contexts per page; dropping the canvas alone leaves this
             // one counted until garbage collection gets round to it.
@@ -95,9 +95,9 @@
     }
 
     function start() {
-        if (canvas) return;
-        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         try {
+            // index.html's global, defined by the inline boot script before this deferred file runs.
+            if (prefersReducedMotion()) return;
             canvas = document.createElement('canvas');
             canvas.id = 'backdrop';
             canvas.setAttribute('aria-hidden', 'true');
@@ -135,12 +135,6 @@
             stop();
         }
     }
-
-    // Explicit choice (devtools / a future switch): apply it and remember it, like setTheme.
-    window.setBackdrop = function (on) {
-        try { localStorage.setItem('backdrop', on ? 'on' : 'off'); } catch (e) { }
-        if (on) start(); else stop();
-    };
 
     var off = false;
     try { off = localStorage.getItem('backdrop') === 'off'; } catch (e) { }

@@ -28,7 +28,7 @@ public static class ChartFormat
 
     /// <summary>
     /// A <c>?days=</c> query value as one of the ranges the selectors offer, else
-    /// <paramref name="fallback"/>. Taken as a string and matched, not bound as an int: the router
+    /// <see cref="DefaultRangeDays"/>. Taken as a string and matched, not bound as an int: the router
     /// throws on a query value it cannot parse, so a hand-edited URL would take the page down, and
     /// the number goes straight into an API path.
     /// </summary>

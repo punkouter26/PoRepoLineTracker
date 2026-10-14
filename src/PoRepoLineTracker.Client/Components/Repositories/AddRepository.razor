@@ -224,13 +224,8 @@
             }
 
             Logger.LogInformation("Making POST request to /api/repositories/bulk with {Count} repositories", repositoriesToAdd.Count);
-            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/repositories/bulk")
-            {
-                // JsonContent.Create's options-taking overload is RequiresUnreferencedCode; the
-                // JsonTypeInfo one is the trim-safe form.
-                Content = JsonContent.Create(repositoriesToAdd, AppJsonSerializerContext.Default.ListBulkRepositoryDto)
-            };
-            var response = await Http.SendAsync(request, _addCts!.Token);
+            var response = await Http.PostAppJsonAsync("/api/repositories/bulk", repositoriesToAdd,
+                AppJsonSerializerContext.Default.ListBulkRepositoryDto, _addCts!.Token);
 
             Logger.LogInformation("Bulk repository add response: Status={StatusCode}", response.StatusCode);
 

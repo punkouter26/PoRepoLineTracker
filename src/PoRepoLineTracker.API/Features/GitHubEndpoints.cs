@@ -15,7 +15,6 @@ internal static class GitHubEndpoints
             HttpContext ctx,
             IGitHubService githubService,
             IUserService userService,
-            IConfiguration config,
             HybridCache cache,
             IWebHostEnvironment env,
             CancellationToken cancellationToken) =>
@@ -25,15 +24,7 @@ internal static class GitHubEndpoints
                 if (!ctx.User.TryGetUserId(out var userId))
                     return Results.Unauthorized();
 
-                var user = await userService.GetUserByIdAsync(userId);
-
-                // GitHub OAuth is the only provider, so the stored token is a GitHub token.
-                // The server-configured PAT stands in only where fake auth exists (Development and
-                // Test — those users have no token). Anywhere else it would list — and let the caller analyse — the PAT
-                // owner's private repositories for any principal whose row has no token.
-                var accessToken = !string.IsNullOrEmpty(user?.AccessToken)
-                    ? user.AccessToken
-                    : env.IsDevelopment() || env.IsEnvironment("Test") ? config[ConfigKeys.GitHub.Pat] : null;
+                var accessToken = await userService.ResolveGitHubTokenAsync(userId);
 
                 if (string.IsNullOrEmpty(accessToken))
                 {
@@ -106,11 +97,6 @@ internal static class GitHubEndpoints
                 return Results.Problem(
                     "GitHub rejected the credential (401). The configured GitHub PAT may be expired or missing 'repo' scope — update GitHub:PAT in Key Vault, or sign in with GitHub.",
                     statusCode: StatusCodes.Status502BadGateway);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error fetching user repositories from GitHub API");
-                return Results.Problem($"Error fetching user repositories.", statusCode: 500);
             }
         })
         .WithName("GetUserRepositories");

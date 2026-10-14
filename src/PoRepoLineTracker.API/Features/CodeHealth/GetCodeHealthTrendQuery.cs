@@ -197,7 +197,7 @@ public sealed class GetCodeHealthTrendQueryHandler(
 
         CyclomaticComplexity = snapshot.CyclomaticComplexity,
         LinesOfSourceCode = snapshot.LinesOfSourceCode,
-        CommitSha = snapshot.CommitSha.Length > 7 ? snapshot.CommitSha[..7] : snapshot.CommitSha,
+        CommitSha = GitClient.ShortSha(snapshot.CommitSha),
         CommitDate = snapshot.CommitDate
     };
 }

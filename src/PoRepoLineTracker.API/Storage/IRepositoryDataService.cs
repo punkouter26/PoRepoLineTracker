@@ -37,6 +37,10 @@ public interface IRepositoryDataService
 
     Task DeleteCommitLineCountsForRepositoryAsync(RepositoryId repositoryId); // Added for temporary endpoint
     Task DeleteRepositoryAsync(RepositoryId repositoryId);
-    Task RemoveAllRepositoriesAsync(UserId userId); // Removes all repositories for a specific user
+    /// <summary>
+    /// Removes every repository a user tracks (and their commit rows) and returns what was
+    /// removed — once the rows are gone, nothing else records which clones were this user's.
+    /// </summary>
+    Task<IReadOnlyList<GitHubRepository>> RemoveAllRepositoriesAsync(UserId userId);
     Task CheckConnectionAsync();
 }

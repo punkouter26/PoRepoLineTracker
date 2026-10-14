@@ -117,7 +117,6 @@
                                   TotalsLoaded="@_totalsLoaded"
                                   ProgressMap="@_analysisProgress"
                                   ReanalysisStartTimes="@_reanalysisStartTimes"
-                                  ReanalyzingId="@reanalyzingRepositoryId"
                                   Search="@Q"
                                   SearchChanged="@OnSearchChanged"
                                   OnReanalyze="@ConfirmReanalyze"
@@ -176,7 +175,6 @@
 
     private RepositoryPageState pageState = new();
     private RepositoriesGrid? _grid;
-    private RepositoryId? reanalyzingRepositoryId;
     private bool isRemovingAll = false;
     private Dictionary<RepositoryId, DateTime> _reanalysisStartTimes = new();
     private Dictionary<RepositoryId, int> _repoLatestLineCounts = new();
@@ -323,7 +321,6 @@
 
         if (progress.IsRunning)
         {
-            reanalyzingRepositoryId ??= progress.RepositoryId;
             await InvokeAsync(StateHasChanged);
             return;
         }
@@ -337,7 +334,6 @@
             return;
         }
 
-        if (reanalyzingRepositoryId == progress.RepositoryId) reanalyzingRepositoryId = null;
         _reanalysisStartTimes.Remove(progress.RepositoryId);
         _watcher.StopWatching(progress.RepositoryId);
 
@@ -351,8 +347,8 @@
         {
             _analysisProgress.Remove(progress.RepositoryId);
 
-            await LoadRepositories();
-            await LoadLatestLineCounts();
+            // Independent requests writing disjoint state; no reason to pay for them in series.
+            await Task.WhenAll(LoadRepositories(), LoadLatestLineCounts());
             _ = LoadMovementsAsync();
 
             // Only when the hub is down. While it streams, the activity feed and the row's own
@@ -501,8 +497,7 @@
 
     private async Task HandleAddCompleted()
     {
-        await LoadRepositories();
-        await LoadLatestLineCounts();
+        await Task.WhenAll(LoadRepositories(), LoadLatestLineCounts());
         _watcher.WatchPending(pageState.Repositories);
         StateHasChanged();
     }
@@ -550,12 +545,11 @@
 
     private async Task ReanalyzeRepository(GitHubRepository repo)
     {
-        var priorDate = repo.LastAnalyzedCommitDate; // baseline for polling
+        var priorAttempt = repo.LastAnalysisAttemptUtc; // baseline for polling
         bool successfullyQueued = false;
 
         try
         {
-            reanalyzingRepositoryId = repo.Id;
             _reanalysisStartTimes[repo.Id] = DateTime.UtcNow;
             StateHasChanged();
 
@@ -565,14 +559,13 @@
 
             // Register the wait and let the one fallback loop cover it. It no-ops while the
             // hub is connected, and the hub's frames clear the entry through the same handler.
-            if (successfullyQueued) _watcher.Watch(repo.Id, priorDate);
+            if (successfullyQueued) _watcher.Watch(repo.Id, priorAttempt);
         }
         finally
         {
             // Only clear the badge immediately if the API call failed — on success polling handles cleanup
             if (!successfullyQueued)
             {
-                reanalyzingRepositoryId = null;
                 _reanalysisStartTimes.Remove(repo.Id);
                 _watcher.StopWatching(repo.Id);
                 StateHasChanged();

@@ -37,8 +37,11 @@ public sealed class AnalysisWatcher(
     private static readonly TimeSpan MaxWatch = TimeSpan.FromMinutes(60);
 
     /// <summary>
-    /// Repositories being waited on, each with the <c>LastAnalyzedCommitDate</c> it had when the
-    /// wait began — that value changing is the completion signal.
+    /// Repositories being waited on, each with the <c>LastAnalysisAttemptUtc</c> it had when the
+    /// wait began — that value changing is the completion signal. The server stamps it at the end
+    /// of every run, success or failure. <c>LastAnalyzedCommitDate</c> used to be the signal, but a
+    /// failed run never changes it and a re-analysis with no new commits restores the same value,
+    /// so both left the wait open until the hour cap.
     /// </summary>
     private readonly Dictionary<RepositoryId, DateTime?> _awaiting = [];
 
@@ -51,22 +54,25 @@ public sealed class AnalysisWatcher(
     /// </summary>
     public Func<AnalysisProgressDto, Task>? FrameReady { get; set; }
 
-    /// <summary>Starts waiting on one repository, remembering the date it had beforehand.</summary>
-    public void Watch(RepositoryId repositoryId, DateTime? baseline)
+    /// <summary>
+    /// Starts waiting on one repository, given the <c>LastAnalysisAttemptUtc</c> it had BEFORE the
+    /// job was queued.
+    /// </summary>
+    public void Watch(RepositoryId repositoryId, DateTime? baselineAttemptUtc)
     {
-        _awaiting[repositoryId] = baseline;
+        _awaiting[repositoryId] = baselineAttemptUtc;
         StartIfNeeded();
     }
 
     /// <summary>
-    /// Starts waiting on every repository that has never been analysed. Existing waits keep the
+    /// Starts waiting on every repository that has never been attempted. Existing waits keep the
     /// baseline they were registered with — <see cref="Dictionary{TKey,TValue}.TryAdd"/>, not an
     /// indexer assignment, or re-calling this would reset the baseline of a job already in flight
     /// and its completion would never be recognised.
     /// </summary>
     public void WatchPending(IEnumerable<GitHubRepository> repositories)
     {
-        foreach (var pending in repositories.Where(r => r.LastAnalyzedCommitDate is null))
+        foreach (var pending in repositories.Where(r => r.LastAnalyzedCommitDate is null && r.LastAnalysisAttemptUtc is null))
             _awaiting.TryAdd(pending.Id, null);
 
         StartIfNeeded();
@@ -157,12 +163,13 @@ public sealed class AnalysisWatcher(
                 continue;
             }
 
-            // A changed LastAnalyzedCommitDate is the completion signal. Checked BEFORE the
-            // progress endpoint because a finished job's progress entry expires, and reading
-            // "no progress" as "still working" is what used to leave badges spinning.
-            if (updated.LastAnalyzedCommitDate is not null && updated.LastAnalyzedCommitDate != baseline)
+            // A changed attempt stamp is the completion signal, and the row's error says how it
+            // ended. Checked BEFORE the progress endpoint because a finished job's progress entry
+            // expires, and reading "no progress" as "still working" is what used to leave badges
+            // spinning.
+            if (updated.LastAnalysisAttemptUtc is not null && updated.LastAnalysisAttemptUtc != baseline)
             {
-                await PublishTerminalFrameAsync(updated, error: null);
+                await PublishTerminalFrameAsync(updated, updated.LastAnalysisError);
                 continue;
             }
 
@@ -184,13 +191,14 @@ public sealed class AnalysisWatcher(
 
             if (progress is null) continue;
 
-            if (progress.IsRunning || progress.ErrorMessage is not null)
-            {
+            if (progress.IsRunning)
                 await EmitAsync(progress);
-                if (!progress.IsRunning) _awaiting.Remove(repositoryId);
-            }
+            else if (progress.ErrorMessage is not null)
+                // Through the terminal path, not EmitAsync: a fast failure the poll never saw
+                // running needs its running frame first, or the consumer drops the failure.
+                await PublishTerminalFrameAsync(updated, progress.ErrorMessage);
 
-            // A terminal frame with no error and no date change yet means the write has not
+            // A terminal frame with no error and no stamp change yet means the write has not
             // landed. Leave it outstanding and pick the completion up on a later tick.
         }
     }

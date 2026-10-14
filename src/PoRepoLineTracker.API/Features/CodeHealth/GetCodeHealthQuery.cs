@@ -81,7 +81,7 @@ public sealed class GetCodeHealthQueryHandler(
         report.RepositoryId = repository.Id;
         report.Owner = repository.Owner;
         report.Name = repository.Name;
-        report.CommitSha = newest.CommitSha.Length > 7 ? newest.CommitSha[..7] : newest.CommitSha;
+        report.CommitSha = GitClient.ShortSha(newest.CommitSha);
         report.CommitDate = newest.CommitDate;
 
         if (hasClone)

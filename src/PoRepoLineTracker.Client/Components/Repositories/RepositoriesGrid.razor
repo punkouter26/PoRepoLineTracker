@@ -180,10 +180,8 @@
             <RadzenDataGridColumn @ref="_statusColumn" TItem="RepositoryGridRow" Property="Status" Title="Status" Width="130px" Sortable="true" Filterable="true" FilterOperator="FilterOperator.Contains" Visible="@Shown("Status")">
                 <Template Context="row">
                     <AnalysisStatusCell Progress="@(ProgressMap != null && ProgressMap.TryGetValue(row.Id, out var p) ? p : null)"
-                                        IsReanalyzing="@(ReanalyzingId == row.Id)"
-                                        HasBeenAnalyzed="@row.LastAnalyzedCommitDate.HasValue"
+                                        Status="@row.Status"
                                         LastError="@row.Repository.LastAnalysisError"
-                                        Attempted="@row.Repository.LastAnalysisAttemptUtc.HasValue"
                                         StartedUtc="@(ReanalysisStartTimes != null && ReanalysisStartTimes.TryGetValue(row.Id, out var st) ? st : null)" />
                 </Template>
             </RadzenDataGridColumn>
@@ -218,9 +216,6 @@
 
     /// <summary>Re-analysis start times, keyed by repository id. Owned by the page.</summary>
     [Parameter] public IReadOnlyDictionary<RepositoryId, DateTime>? ReanalysisStartTimes { get; set; }
-
-    /// <summary>The repository currently being re-analysed, if any. Owned by the page.</summary>
-    [Parameter] public RepositoryId? ReanalyzingId { get; set; }
 
     [Parameter] public EventCallback<GitHubRepository> OnReanalyze { get; set; }
     [Parameter] public EventCallback<GitHubRepository> OnDelete { get; set; }
@@ -370,7 +365,7 @@
 
             // Null clears a status filter left by the previous question. Reloads the grid.
             if (_statusColumn is not null)
-                await _statusColumn.SetFilterValueAsync(filter.Status is "Done" or "Failed" or "Empty" or "Pending" ? filter.Status : null);
+                await _statusColumn.SetFilterValueAsync(AnalysisStatus.All.Contains(filter.Status) ? filter.Status : null);
 
             // Same calls the saved-sort restore makes; they raise Sort, so OnSort records it.
             if (SortProperty(filter.SortBy) is { } property && Grid is not null)
@@ -399,14 +394,13 @@
     }
 
     /// <summary>
-    /// Whether a re-analysis is already queued or running for this row. <see cref="ReanalyzingId"/>
-    /// alone is a single slot: with two jobs in flight the second row's button stayed live and a
-    /// click queued the same repository twice. The start-time entry covers the gap between the
-    /// click and the first progress frame.
+    /// Whether a re-analysis is already queued or running for this row. Per repository, not a
+    /// single "the one being re-analysed" slot: with two jobs in flight the second row's button
+    /// stayed live and a click queued the same repository twice. The start-time entry covers the
+    /// gap between the click and the first progress frame.
     /// </summary>
     private bool IsBusy(RepositoryId id) =>
-        ReanalyzingId == id
-        || ReanalysisStartTimes?.ContainsKey(id) == true
+        ReanalysisStartTimes?.ContainsKey(id) == true
         || (ProgressMap is not null && ProgressMap.TryGetValue(id, out var progress) && progress.IsRunning);
 
     private IEnumerable<RepositoryGridRow> FilteredItems =>

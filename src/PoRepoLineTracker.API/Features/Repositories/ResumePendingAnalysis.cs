@@ -50,9 +50,6 @@ public sealed class ResumePendingAnalysis(
         logger.LogInformation("Resume sweep: {Count} repositor{Y} never analyzed — queueing now",
             pending.Count, pending.Count == 1 ? "y" : "ies");
 
-        using var workerScope = scopeFactory.CreateScope();
-        var analyzer = workerScope.ServiceProvider.GetRequiredService<AnalyzeRepositoryCommitsCommandHandler>();
-
         foreach (var repo in pending)
         {
             if (stoppingToken.IsCancellationRequested)
@@ -62,6 +59,11 @@ public sealed class ResumePendingAnalysis(
                 return;
             }
 
+            // A scope per repository, not one for the sweep: the pending rows belong to many
+            // users, and the scoped FileIgnoreFilter (custom globs) and GitHubService line-count
+            // memos would otherwise carry one user's settings into the next user's analysis.
+            using var scope = scopeFactory.CreateScope();
+            var analyzer = scope.ServiceProvider.GetRequiredService<AnalyzeRepositoryCommitsCommandHandler>();
             try
             {
                 logger.LogInformation("Resume: starting analysis for {Owner}/{Name} ({RepoId})", repo.Owner, repo.Name, repo.Id);

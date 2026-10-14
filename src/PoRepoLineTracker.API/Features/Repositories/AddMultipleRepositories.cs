@@ -71,7 +71,7 @@ public class AddMultipleRepositoriesCommandHandler
                     Owner = repo.Owner,
                     Name = repo.RepoName,
                     // Derived, never taken from the request — see BulkRepositoryDto.
-                    CloneUrl = $"https://github.com/{repo.Owner}/{repo.RepoName}.git",
+                    CloneUrl = GitHubRepository.CloneUrlFor(repo.Owner, repo.RepoName),
                     LastAnalyzedCommitDate = null // null until first analysis completes
                 };
 

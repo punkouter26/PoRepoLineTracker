@@ -26,4 +26,18 @@ public class GitHubRepository
 
     /// <summary>Why the last run failed; null when it succeeded or has not run.</summary>
     public string? LastAnalysisError { get; set; }
+
+    /// <summary>
+    /// The only clone URL the server uses: built from owner/name, never accepted from a caller.
+    /// The user's token is embedded in whatever URL git is handed, so a caller-supplied URL sent
+    /// that token to a host of the caller's choosing. Validate owner/name
+    /// (<c>RepositoryValidators.IsGitHubName</c>) before handing the result to git.
+    /// </summary>
+    public static string CloneUrlFor(string owner, string name) => $"https://github.com/{owner}/{name}.git";
+
+    /// <summary>
+    /// The clone's directory under the clone root, derived from the id alone so analysis can
+    /// re-clone after an ephemeral-filesystem restart and delete can find it without the row.
+    /// </summary>
+    public static string CloneDirectoryName(RepositoryId id) => $"repo_{id}";
 }

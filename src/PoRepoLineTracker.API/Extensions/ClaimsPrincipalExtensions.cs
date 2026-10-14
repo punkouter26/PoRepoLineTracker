@@ -24,4 +24,8 @@ internal static class ClaimsPrincipalExtensions
         var claim = principal.FindFirst(UserIdClaim)?.Value;
         return UserId.TryParse(claim, out userId);
     }
+
+    /// <summary>The raw claim, or "anonymous" — a partition/log key, not an identity check.</summary>
+    internal static string UserKey(this ClaimsPrincipal principal) =>
+        principal.FindFirst(UserIdClaim)?.Value ?? "anonymous";
 }

@@ -26,7 +26,7 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests
 
     public RemoveAllRepositoriesCommandHandlerTests()
     {
-        _dataService.GetAllRepositoriesAsync(_userId).Returns([_first, _second]);
+        _dataService.RemoveAllRepositoriesAsync(_userId).Returns([_first, _second]);
     }
 
     private Task WhenRemovingAll() =>

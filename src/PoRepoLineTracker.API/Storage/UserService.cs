@@ -22,10 +22,14 @@ public class UserService : IUserService
     /// who could read the Users table (a leaked storage key, a support export) held all of them.
     /// </summary>
     private readonly IDataProtector _tokenProtector;
+    private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
 
-    public UserService(TableServiceClient tableServiceClient, IConfiguration configuration, IDataProtectionProvider dataProtection, ILogger<UserService> logger)
+    public UserService(TableServiceClient tableServiceClient, IConfiguration configuration, IHostEnvironment environment, IDataProtectionProvider dataProtection, ILogger<UserService> logger)
     {
         _logger = logger;
+        _configuration = configuration;
+        _environment = environment;
         _tokenProtector = dataProtection.CreateProtector("PoRepoLineTracker.GitHubAccessToken");
         var tableName = configuration[ConfigKeys.AzureTableStorage.UserTableName] ?? "PoRepoLineTrackerUsers";
         _userTableClient = tableServiceClient.GetTableClient(tableName);
@@ -68,6 +72,22 @@ public class UserService : IUserService
             throw;
         }
     }
+
+    public async Task<string?> ResolveGitHubTokenAsync(UserId userId) => ChooseGitHubToken(
+        // UserId.Empty: a legacy row with no owner — there is no one to look up.
+        userId == UserId.Empty ? null : (await GetUserByIdAsync(userId))?.AccessToken,
+        _environment, _configuration[ConfigKeys.GitHub.Pat]);
+
+    /// <summary>
+    /// The user's own token wins. Anywhere fake auth does not exist the PAT fallback is a confused
+    /// deputy: any principal whose row lacks a token would act with the server's credential (list,
+    /// and clone, the PAT owner's private repositories). Split out so the rule is testable
+    /// without storage.
+    /// </summary>
+    internal static string? ChooseGitHubToken(string? userToken, IHostEnvironment environment, string? serverPat) =>
+        !string.IsNullOrEmpty(userToken) ? userToken
+        : FakeAuthHandler.IsAllowedIn(environment) ? serverPat
+        : null;
 
     private async Task<User?> GetUserByGitHubIdAsync(string gitHubId)
     {

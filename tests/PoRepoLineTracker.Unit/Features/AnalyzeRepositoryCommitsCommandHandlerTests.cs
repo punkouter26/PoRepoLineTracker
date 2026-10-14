@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -13,8 +12,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IUserPreferencesService _prefsService = Substitute.For<IUserPreferencesService>();
     private readonly IAnalysisProgressService _progressService = Substitute.For<IAnalysisProgressService>();
-    private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
-    private readonly Microsoft.Extensions.Hosting.IHostEnvironment _environment = Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>();
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger = Substitute.For<ILogger<AnalyzeRepositoryCommitsCommandHandler>>();
     private readonly AnalyzeRepositoryCommitsCommandHandler _sut;
 
@@ -22,8 +19,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     {
         _sut = new AnalyzeRepositoryCommitsCommandHandler(
             _gitHubService, _dataService,
-            _userService, _prefsService, _progressService,
-            _configuration, _environment, _logger);
+            _userService, _prefsService, _progressService, _logger);
     }
 
     /// <summary>
@@ -81,7 +77,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ExistingLocalPath_PullsWithUserToken_AndServerPatOnlyInDevelopment()
+    public async Task Handle_ExistingLocalPath_PullsWithTheResolvedToken()
     {
         var repoId = RepositoryId.New();
         var userId = UserId.New();
@@ -96,13 +92,8 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         };
 
         _dataService.GetRepositoryByIdAsync(repoId).Returns(repo);
-        _userService.GetUserByIdAsync(userId).Returns(new User
-        {
-            Id = userId,
-            GitHubId = "12345",
-            Username = "tester",
-            AccessToken = "ghp_test_token"
-        });
+        // Which token (the user's own, or the Dev/Test-only server PAT) is UserServiceTests' concern.
+        _userService.ResolveGitHubTokenAsync(userId).Returns("ghp_test_token");
         _gitHubService.IsRepositoryValidAsync(Arg.Any<string>()).Returns(true);
         _gitHubService.PullRepositoryAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("pulled");
         _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<Action<int, int>?>()).Returns(Enumerable.Empty<CommitStatsDto>());
@@ -110,24 +101,6 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
         await _gitHubService.Received(1).PullRepositoryAsync($"repo_{repoId}", "ghp_test_token");
-
-        // A user with an empty token: the server PAT stands in, but only in Development
-        _userService.GetUserByIdAsync(userId).Returns(new User
-        {
-            Id = userId,
-            GitHubId = "12345",
-            Username = "tokenless",
-            AccessToken = ""
-        });
-        _configuration["GitHub:PAT"].Returns("ghp_server_side_pat");
-
-        _environment.EnvironmentName.Returns("Production");
-        await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
-        await _gitHubService.Received(1).PullRepositoryAsync($"repo_{repoId}", null);
-
-        _environment.EnvironmentName.Returns("Development");
-        await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
-        await _gitHubService.Received(1).PullRepositoryAsync($"repo_{repoId}", "ghp_server_side_pat");
     }
 
     [Fact]
@@ -152,6 +125,8 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId, ClearExistingData: true), CancellationToken.None);
 
         await _dataService.Received(1).DeleteCommitLineCountsForRepositoryAsync(repoId);
+        // The partition was just emptied — reading it back would be a wasted query.
+        await _dataService.DidNotReceive().GetCommitLineCountsByRepositoryIdAsync(repoId);
         await _dataService.Received().UpdateRepositoryAsync(Arg.Is<GitHubRepository>(r => r.LastAnalyzedCommitDate == null));
 
         // ...but not when the repository cannot be fetched: the stored history must survive a
@@ -201,5 +176,9 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         await _dataService.Received(1).AddCommitLineCountAsync(Arg.Is<CommitLineCount>(c =>
             c.CommitSha == "new-sha" && c.TotalLines == 150));
         await _gitHubService.DidNotReceive().CountLinesInCommitAsync(Arg.Any<string>(), "existing-sha", Arg.Any<IEnumerable<string>>());
+
+        // One row write per run: the date and the attempt stamp go together.
+        await _dataService.Received(1).UpdateRepositoryAsync(Arg.Is<GitHubRepository>(r =>
+            r.LastAnalyzedCommitDate != null && r.LastAnalysisAttemptUtc != null && r.LastAnalysisError == null));
     }
 }

@@ -330,7 +330,7 @@ internal static class CommitOutliers
                 RepositoryId = repository.Id,
                 Owner = repository.Owner,
                 Name = repository.Name,
-                CommitSha = c.CommitSha.Length > 7 ? c.CommitSha[..7] : c.CommitSha,
+                CommitSha = GitClient.ShortSha(c.CommitSha),
                 CommitDate = c.CommitDate,
                 LinesAdded = c.LinesAdded,
                 TypicalLinesAdded = median

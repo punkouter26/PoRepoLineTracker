@@ -43,8 +43,8 @@ public class DeleteRepositoryCommandHandler(
 
         try
         {
-            // The clone directory is always derived from the id — see EnsureRepositoryOnDiskAsync.
-            await gitHubService.DeleteLocalRepositoryAsync($"repo_{repositoryId}");
+            // The clone directory is always derived from the id, never read from the (deleted) row.
+            await gitHubService.DeleteLocalRepositoryAsync(GitHubRepository.CloneDirectoryName(repositoryId));
         }
         catch (Exception ex)
         {

@@ -28,11 +28,26 @@ public sealed class GridFilterDto
     /// <summary>Text to put in the name search box; empty for none.</summary>
     public string Search { get; set; } = string.Empty;
 
-    /// <summary>"Done", "Failed", "Empty", "Pending", or empty for any.</summary>
+    /// <summary>One of <see cref="AnalysisStatus.All"/>, or empty for any.</summary>
     public string Status { get; set; } = string.Empty;
 
     /// <summary>"Name", "TotalLines", "NetChange30Days", "Commits30Days", "LastCommit", or empty to leave the sort alone.</summary>
     public string SortBy { get; set; } = string.Empty;
 
     public bool Descending { get; set; }
+}
+
+/// <summary>
+/// The grid's Status column values. One list, because the column computes them, the assistant's
+/// schema offers them and the client re-checks the reply against them — three copies could drift
+/// and a reply the column never produces would filter the grid to nothing.
+/// </summary>
+public static class AnalysisStatus
+{
+    public const string Done = "Done";
+    public const string Failed = "Failed";
+    public const string Empty = "Empty";
+    public const string Pending = "Pending";
+
+    public static readonly string[] All = [Done, Failed, Empty, Pending];
 }

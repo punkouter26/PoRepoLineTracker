@@ -11,11 +11,9 @@ public class RemoveAllRepositoriesCommandHandler(
 {
     public async Task Handle(RemoveAllRepositoriesCommand request, CancellationToken cancellationToken = default)
     {
-        // Read the ids first: once the rows are gone there is nothing left to say which clone
-        // directories were this user's.
-        var repositories = (await repositoryDataService.GetAllRepositoriesAsync(request.UserId)).ToList();
-
-        await repositoryDataService.RemoveAllRepositoriesAsync(request.UserId);
+        // The removal returns the rows it deleted: once they are gone there is nothing left to
+        // say which clone directories were this user's.
+        var repositories = await repositoryDataService.RemoveAllRepositoriesAsync(request.UserId);
 
         // Only this user's clones. This used to delete the configured LocalReposPath root, which
         // is shared by every user of the deployment.

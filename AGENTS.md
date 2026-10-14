@@ -46,3 +46,4 @@ These are the owner's standing rules for this repository. Where one conflicts wi
 - Treat compile warnings as errors and make sure they are fixed.
 - If more than 100 lines of code are removed overall in one prompt, mention it.
 - When the UI changes, take an annotated screenshot showing the old and new UI with the changes marked. Place the image in the `SCREENSHOTS` folder inside an HTML file and give its valid full path.
+- For every code change over 20 lines, give a TL;DR summary at 3 levels: 1. Toddler, 2. Child, 3. Adult.

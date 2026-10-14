@@ -308,7 +308,14 @@ namespace PoRepoLineTracker.Integration
 
                     // Replace Table-backed services with mocks
                     services.AddScoped<IRepositoryDataService>(provider => mockRepoDataService);
-                    services.AddScoped<IUserService>(provider => Substitute.For<IUserService>());
+                    services.AddScoped<IUserService>(provider =>
+                    {
+                        // The real service's Test-environment PAT fallback, which the caching
+                        // tests need to reach IGitHubService at all.
+                        var users = Substitute.For<IUserService>();
+                        users.ResolveGitHubTokenAsync(Arg.Any<UserId>()).Returns("test-pat-value-must-never-be-echoed");
+                        return users;
+                    });
                     services.AddScoped<IUserPreferencesService>(provider => mockUserPreferencesService);
                 }
 

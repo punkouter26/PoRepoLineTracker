@@ -1,6 +1,3 @@
-using System.Net;
-using Serilog;
-
 namespace PoRepoLineTracker.API.Features.Insights;
 
 internal static class InsightsEndpoints
@@ -19,17 +16,8 @@ internal static class InsightsEndpoints
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            try
-            {
-                var result = await portfolioHandler.Handle(new GetPortfolioInsightsQuery(userId));
-                return Results.Ok(result);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error building portfolio insights for user {UserId}", userId);
-                return Results.Problem($"Error building portfolio insights.",
-                    statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            var result = await portfolioHandler.Handle(new GetPortfolioInsightsQuery(userId));
+            return Results.Ok(result);
         })
         .WithName("GetPortfolioInsights");
 
@@ -42,18 +30,9 @@ internal static class InsightsEndpoints
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            try
-            {
-                var preferences = await preferencesService.GetPreferencesAsync(userId);
-                var result = await digestHandler.Handle(new GetWeeklyDigestQuery(userId, preferences.LastSeenUtc));
-                return Results.Ok(result);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error building digest for user {UserId}", userId);
-                return Results.Problem($"Error building digest.",
-                    statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            var preferences = await preferencesService.GetPreferencesAsync(userId);
+            var result = await digestHandler.Handle(new GetWeeklyDigestQuery(userId, preferences.LastSeenUtc));
+            return Results.Ok(result);
         })
         .WithName("GetWeeklyDigest");
 
@@ -65,18 +44,9 @@ internal static class InsightsEndpoints
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
 
-            try
-            {
-                var preferences = await preferencesService.GetPreferencesAsync(userId);
-                await preferencesService.SavePreferencesAsync(preferences with { LastSeenUtc = DateTime.UtcNow });
-                return Results.NoContent();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error recording digest visit for user {UserId}", userId);
-                return Results.Problem($"Error recording visit.",
-                    statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            var preferences = await preferencesService.GetPreferencesAsync(userId);
+            await preferencesService.SavePreferencesAsync(preferences with { LastSeenUtc = DateTime.UtcNow });
+            return Results.NoContent();
         })
         .WithName("MarkDigestSeen");
 

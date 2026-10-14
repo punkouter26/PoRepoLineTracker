@@ -139,13 +139,8 @@
                    EmptyText="No commit activity recorded yet.">
             <Toolbar>
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem" Wrap="FlexWrap.Wrap">
-                    <RadzenSelectBar Value="@HeatmapDays" Change="@OnHeatmapDaysChanged" TValue="int" Size="ButtonSize.ExtraSmall" class="ins-zoom-bar">
-                        <Items>
-                            <RadzenSelectBarItem Value="@ChartFormat.DefaultRangeDays" Text="180d" />
-                            <RadzenSelectBarItem Value="365" Text="1yr" />
-                            <RadzenSelectBarItem Value="@ChartFormat.AllDays" Text="All" />
-                        </Items>
-                    </RadzenSelectBar>
+                    <ChartRangeSelector Days="@HeatmapDays" DaysChanged="@OnHeatmapDaysChanged"
+                                        Label="@null" Size="ButtonSize.ExtraSmall" class="ins-zoom-bar" />
 
                     <div class="ins-heat__legend">
                         <span class="ins-muted">Less</span>
@@ -160,14 +155,14 @@
             </Toolbar>
             <ChildContent>
                 <div class="u-scroll-x ins-heat__scroll">
-                    <div class="@(HeatmapDays == ChartFormat.AllDays ? "ins-heat ins-heat--dense" : "ins-heat")" role="img" aria-label="@HeatmapSummary">
+                    <div class="@(HeatmapDays == ChartFormat.AllDays ? "ins-heat ins-heat--dense" : "ins-heat")" role="img" aria-label="@_heatmapSummary">
                         @* Leading blanks so the first real cell lands on its own weekday row and every
                            column below is a genuine Sunday-to-Saturday week. *@
-                        @for (var i = 0; i < LeadingBlanks; i++)
+                        @for (var i = 0; i < _leadingBlanks; i++)
                         {
                             <span class="ins-heat__cell ins-heat--blank"></span>
                         }
-                        @foreach (var day in DisplayedActivity)
+                        @foreach (var day in _displayedActivity)
                         {
                             <span class="ins-heat__cell @IntensityClass(day.Commits)"
                                   title="@($"{day.Date:MMM d, yyyy} — {day.Commits} commit{(day.Commits == 1 ? "" : "s")}, +{day.LinesAdded:N0} lines")"></span>
@@ -227,8 +222,9 @@
                         }
                     </ul>
                     <p class="ins-outliers__hint">
-                        These are usually vendored or generated files. To leave them out of your totals,
-                        add an ignore pattern under <a href="/settings">Settings → ignore patterns</a> and re-analyze.
+                        These are usually vendored or generated files. Folders that look like a whole vendored
+                        project are already skipped; for anything else, drop its file type from the counted
+                        extensions in <a href="/settings">Settings</a> and re-analyze.
                     </p>
                 </ChartCard>
             }
@@ -303,28 +299,30 @@
     private void OnHeatmapDaysChanged(int days) =>
         Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days)), replace: true);
 
-    private IReadOnlyList<ActivityDayDto> DisplayedActivity
+    // The heatmap's cells and summary, built when the data or the range changes rather than as
+    // properties: each render re-sliced the history several times over.
+    private IReadOnlyList<ActivityDayDto> _displayedActivity = [];
+    private int _leadingBlanks;
+    private string _heatmapSummary = "Commit activity heatmap";
+
+    /// <summary>The range changes by navigation (selector, Back, Forward), which re-sets parameters.</summary>
+    protected override void OnParametersSet() => BuildHeatmap();
+
+    private void BuildHeatmap()
     {
-        get
-        {
-            var activity = _state.HasData ? _state.Data!.Activity : [];
-            // The server sends the whole history; "All" shows it, the others take its tail.
-            return HeatmapDays == ChartFormat.AllDays ? activity : activity.TakeLast(HeatmapDays).ToList();
-        }
-    }
+        var activity = _state.HasData ? _state.Data!.Activity : [];
+        // The server sends the whole history; "All" shows it, the others take its tail.
+        _displayedActivity = HeatmapDays == ChartFormat.AllDays ? activity : activity.TakeLast(HeatmapDays).ToList();
 
-    /// <summary>
-    /// Blank cells before the first day so each grid column is one calendar week.
-    /// <see cref="DayOfWeek.Sunday"/> is 0, which is exactly the offset needed.
-    /// </summary>
-    private int LeadingBlanks =>
-        DisplayedActivity.Count > 0 ? (int)DisplayedActivity[0].Date.DayOfWeek : 0;
+        // Blank cells before the first day so each grid column is one calendar week.
+        // DayOfWeek.Sunday is 0, which is exactly the offset needed.
+        _leadingBlanks = _displayedActivity.Count > 0 ? (int)_displayedActivity[0].Date.DayOfWeek : 0;
 
-    private string HeatmapSummary =>
-        !_state.HasData
+        _heatmapSummary = !_state.HasData
             ? "Commit activity heatmap"
-            : $"Commit activity heatmap: {_state.Data!.Activity.Count(d => d.Commits > 0)} active days in the last year, " +
-              $"{_state.Data!.Activity.Sum(d => d.Commits):N0} commits total";
+            : $"Commit activity heatmap: {activity.Count(d => d.Commits > 0)} active days in the last year, " +
+              $"{activity.Sum(d => d.Commits):N0} commits total";
+    }
 
     /// <summary>
     /// "Current streak: 0d" is technically accurate but reads like a feature is broken. When the
@@ -415,6 +413,7 @@
         }
         finally
         {
+            BuildHeatmap();
             StateHasChanged();
         }
     }

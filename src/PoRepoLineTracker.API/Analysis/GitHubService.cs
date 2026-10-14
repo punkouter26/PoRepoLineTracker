@@ -131,13 +131,19 @@ public class GitHubService : IGitHubService
         if (Directory.Exists(fullLocalPath))
         {
             _logger.LogInformation("Deleting local repository directory {LocalPath}", fullLocalPath);
-
-            // git marks object and pack files read-only, and on Windows Directory.Delete refuses
-            // a read-only file — so without this the delete of any real clone fails there.
-            foreach (var file in Directory.EnumerateFiles(fullLocalPath, "*", SearchOption.AllDirectories))
-                File.SetAttributes(file, FileAttributes.Normal);
-
-            Directory.Delete(fullLocalPath, recursive: true);
+            try
+            {
+                Directory.Delete(fullLocalPath, recursive: true);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // git marks object and pack files read-only, and on Windows Directory.Delete
+                // refuses a read-only file — so clear the attributes and retry. Only on failure:
+                // Linux (where this deploys) deletes them as-is, and the walk costs a stat per file.
+                foreach (var file in Directory.EnumerateFiles(fullLocalPath, "*", SearchOption.AllDirectories))
+                    File.SetAttributes(file, FileAttributes.Normal);
+                Directory.Delete(fullLocalPath, recursive: true);
+            }
         }
         return Task.CompletedTask;
     }
@@ -434,14 +440,12 @@ public class GitHubService : IGitHubService
     ///
     /// <para>The memos hold counts computed under one extension set, and this service is scoped —
     /// one instance serves every repository in a bulk import. Two users' preferences never meet
-    /// here (a scope belongs to one caller), but a re-analysis triggered after a settings change
-    /// legitimately asks for different numbers over the same trees, and returning the previous
-    /// answer would make the new setting appear to have done nothing.</para>
+    /// here (a scope belongs to one caller; the startup resume sweep opens one per repository),
+    /// but the caller can change their settings between two repositories of the same import, and
+    /// returning the previous answer would make the new setting appear to have done nothing.</para>
     ///
     /// <para>The signature includes the custom ignore globs for the same reason: they change
-    /// which files are counted, and the startup resume sweep runs every user's pending
-    /// repositories through ONE scope — so without them a second user's analysis reused counts
-    /// made under the first user's globs.</para>
+    /// which files are counted.</para>
     /// </summary>
     private void InvalidateCachesIfExtensionsChanged(HashSet<string> extensionsToCount)
     {
@@ -590,10 +594,10 @@ public class GitHubService : IGitHubService
             var repoData = new List<GitHubApiRepository>();
             for (var page = 1; page <= 10; page++)
             {
+                // Relative: the named "GitHubClient" supplies the api.github.com base and User-Agent.
                 using var request = new HttpRequestMessage(HttpMethod.Get,
-                    $"https://api.github.com/user/repos?type=owner&sort=name&direction=asc&per_page={pageSize}&page={page}");
+                    $"user/repos?type=owner&sort=name&direction=asc&per_page={pageSize}&page={page}");
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-                request.Headers.UserAgent.ParseAdd("PoRepoLineTracker");
 
                 var response = await _httpClient.SendAsync(request);
                 response.EnsureSuccessStatusCode();

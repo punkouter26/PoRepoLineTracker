@@ -16,4 +16,12 @@ public interface IUserService
     /// If user exists, updates their token and last login time.
     /// </summary>
     Task<User> UpsertUserAsync(User user);
+
+    /// <summary>
+    /// The GitHub token to act for this user with: their own OAuth token, else — only where
+    /// <see cref="FakeAuthHandler.IsAllowedIn"/> (Development/Test, whose users have no token) —
+    /// the server-configured <c>GitHub:PAT</c>. Null when neither applies; a private clone or
+    /// listing then fails and is reported as such.
+    /// </summary>
+    Task<string?> ResolveGitHubTokenAsync(UserId userId);
 }

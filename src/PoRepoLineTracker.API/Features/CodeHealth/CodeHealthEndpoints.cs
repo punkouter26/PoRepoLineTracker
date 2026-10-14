@@ -1,5 +1,4 @@
 using System.Net;
-using Serilog;
 
 namespace PoRepoLineTracker.API.Features.CodeHealth;
 
@@ -36,29 +35,20 @@ internal static class CodeHealthEndpoints
             var (_, error) = await RepositoryOwnership.AuthorizeAsync(repoDataService, repositoryId, userId, "read code health for");
             if (error != null) return error;
 
-            try
-            {
-                var report = await codeHealthHandler.Handle(new GetCodeHealthQuery(repositoryId));
+            var report = await codeHealthHandler.Handle(new GetCodeHealthQuery(repositoryId));
 
-                // Null means the repository has never been analysed. A 404 rather than an empty
-                // report: a page of zeroes is indistinguishable from genuinely terrible code, and
-                // the client renders a "run an analysis first" state off this.
-                return report is null
-                    ? Results.NotFound(new ErrorResponse
-                    {
-                        Title = "Nothing to measure",
-                        Detail = "This repository has no analysed commits yet. Run an analysis and try again.",
-                        Code = "no_analysed_commits",
-                        Status = (int)HttpStatusCode.NotFound
-                    })
-                    : Results.Ok(report);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error building code health for repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error building code health.",
-                    statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            // Null means the repository has never been analysed. A 404 rather than an empty
+            // report: a page of zeroes is indistinguishable from genuinely terrible code, and
+            // the client renders a "run an analysis first" state off this.
+            return report is null
+                ? Results.NotFound(new ErrorResponse
+                {
+                    Title = "Nothing to measure",
+                    Detail = "This repository has no analysed commits yet. Run an analysis and try again.",
+                    Code = "no_analysed_commits",
+                    Status = (int)HttpStatusCode.NotFound
+                })
+                : Results.Ok(report);
         })
         .WithName("GetCodeHealth");
 

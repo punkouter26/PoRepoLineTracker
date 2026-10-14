@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PoRepoLineTracker.API.Telemetry;
 using PoRepoLineTracker.Shared.Models.Dtos;
@@ -26,8 +25,6 @@ public class AnalyzeRepositoryCommitsCommandHandler
     private readonly IUserService _userService;
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly IAnalysisProgressService _progressService;
-    private readonly IConfiguration _configuration;
-    private readonly IHostEnvironment _environment;
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
     private readonly PoRepoLineTracker.API.Analysis.FileIgnoreFilter? _fileIgnoreFilter;
 
@@ -47,8 +44,6 @@ public class AnalyzeRepositoryCommitsCommandHandler
         IUserService userService,
         IUserPreferencesService userPreferencesService,
         IAnalysisProgressService progressService,
-        IConfiguration configuration,
-        IHostEnvironment environment,
         ILogger<AnalyzeRepositoryCommitsCommandHandler> logger,
         PoRepoLineTracker.API.Analysis.FileIgnoreFilter? fileIgnoreFilter = null)
     {
@@ -57,8 +52,6 @@ public class AnalyzeRepositoryCommitsCommandHandler
         _userService = userService;
         _userPreferencesService = userPreferencesService;
         _progressService = progressService;
-        _configuration = configuration;
-        _environment = environment;
         _logger = logger;
         _fileIgnoreFilter = fileIgnoreFilter;
     }
@@ -112,15 +105,15 @@ public class AnalyzeRepositoryCommitsCommandHandler
         // command because this is where the repository (and so its UserId) is actually loaded.
         _progressService.BeginJob(request.RepositoryId, repository.UserId, repository.Owner, repository.Name);
 
-        // Resolve the GitHub access token for the clone/pull. GitHub OAuth is the only
-        // provider, so a stored token is always a GitHub token; the server-configured
-        // GitHub:PAT covers rows with a missing/empty token and user-less legacy rows.
-        var accessToken = await ResolveAccessTokenAsync(repository, cancellationToken);
-
         try
         {
+            // The token for the clone/pull: the owner's own, or the server PAT in Dev/Test only.
+            // Inside the try: it is a Users-table read, and a failure after BeginJob must still
+            // send the terminal frame and stamp the attempt, or the badge spins until the job ages out.
+            var accessToken = await _userService.ResolveGitHubTokenAsync(repository.UserId);
+
             // ── Step 1: Clone/pull OR validate local repository ───────────────────────
-            var repositoryPath = await EnsureRepositoryOnDiskAsync(repository, accessToken, request.RepositoryId);
+            var repositoryPath = await EnsureRepositoryOnDiskAsync(repository, accessToken);
 
             // Clear existing commit data for a full re-analysis — only now that the repository is
             // known to be fetchable. This used to run before the clone/pull, so a revoked token, a
@@ -155,7 +148,10 @@ public class AnalyzeRepositoryCommitsCommandHandler
             var commitStatsList = await FetchAllCommitStatsAsync(repository, repositoryPath, request, fileExtensionsToCount, cancellationToken);
 
             // Pre-load existing commits once, before the loop. See the rationale on the method.
-            var existingCommitsBySha = await PreloadExistingCommitsAsync(request.RepositoryId, cancellationToken);
+            // A full re-analysis has just emptied the partition, so there is nothing to load.
+            var existingCommitsBySha = request.ClearExistingData
+                ? new Dictionary<string, CommitLineCount>(StringComparer.Ordinal)
+                : await PreloadExistingCommitsAsync(request.RepositoryId, cancellationToken);
 
             // ── Step 3: Process each commit ───────────────────────────────────────────
             await ProcessEachCommitAsync(
@@ -163,7 +159,7 @@ public class AnalyzeRepositoryCommitsCommandHandler
                 commitStatsList, existingCommitsBySha, cancellationToken);
 
             // ── Step 4: Save results ──────────────────────────────────────────────────
-            await FinalizeRepositoryAsync(repository, commitStatsList, request.RepositoryId);
+            await FinalizeRepositoryAsync(repository, commitStatsList);
         }
         catch (Exception ex)
         {
@@ -172,29 +168,6 @@ public class AnalyzeRepositoryCommitsCommandHandler
             await RecordAttemptAsync(repository, ex.Message);
             throw; // Re-throw to let the API handle the error
         }
-    }
-
-    /// <summary>
-    /// The user's own OAuth token. In Development and Test only — where fake auth exists and its
-    /// users have no GitHub token — falls back to the server-configured PAT. Anywhere else the fallback is a confused
-    /// deputy: any principal whose row lacks a token would clone with the server's credential.
-    /// Returns null when neither applies; a private clone then fails and that is reported as
-    /// the analysis error.
-    /// </summary>
-    private async Task<string?> ResolveAccessTokenAsync(GitHubRepository repository, CancellationToken cancellationToken)
-    {
-        if (repository.UserId != UserId.Empty)
-        {
-            var user = await _userService.GetUserByIdAsync(repository.UserId);
-            if (!string.IsNullOrEmpty(user?.AccessToken))
-            {
-                return user.AccessToken;
-            }
-        }
-
-        return _environment.IsDevelopment() || _environment.IsEnvironment("Test")
-            ? _configuration[ConfigKeys.GitHub.Pat]
-            : null;
     }
 
     /// <summary>
@@ -226,20 +199,18 @@ public class AnalyzeRepositoryCommitsCommandHandler
     /// </summary>
     private async Task<string> EnsureRepositoryOnDiskAsync(
         GitHubRepository repository,
-        string? accessToken,
-        RepositoryId repositoryId)
+        string? accessToken)
     {
+        var repositoryId = repository.Id;
         if (!RepositoryValidators.IsGitHubName(repository.Owner) || !RepositoryValidators.IsGitHubName(repository.Name))
             throw new InvalidOperationException($"'{repository.Owner}/{repository.Name}' is not a valid GitHub repository name.");
-        var cloneUrl = $"https://github.com/{repository.Owner}/{repository.Name}.git";
+        var cloneUrl = GitHubRepository.CloneUrlFor(repository.Owner, repository.Name);
 
         _progressService.ReportStep(repositoryId, 1, "Cloning",
             $"Step 1/4 — Cloning/pulling {repository.Owner}/{repository.Name}");
         _logger.LogInformation("[Step 1/4] Clone/pull for repository {RepositoryId}", repositoryId);
 
-        // Always derive a stable local path from the repo ID so we can re-clone safely after an
-        // Azure App Service container restart (ephemeral filesystem).
-        var localPath = $"repo_{repositoryId}";
+        var localPath = GitHubRepository.CloneDirectoryName(repositoryId);
         var absolutePath = _gitHubService.ResolveRepositoryPath(localPath);
 
         if (await _gitHubService.IsRepositoryValidAsync(absolutePath))
@@ -267,9 +238,9 @@ public class AnalyzeRepositoryCommitsCommandHandler
         }
 
         // Clone and pull take the RELATIVE path: they own the base-directory convention, and
-        // that relative form is what is persisted on the row.
+        // that relative form is what is persisted on the row — by the run's own row write
+        // (the re-analysis reset, the finalize step, or the failure record), not a write of its own.
         repository.LocalPath = localPath;
-        await _repositoryDataService.UpdateRepositoryAsync(repository);
         return absolutePath;
     }
 
@@ -451,22 +422,24 @@ public class AnalyzeRepositoryCommitsCommandHandler
     /// </summary>
     private async Task FinalizeRepositoryAsync(
         GitHubRepository repository,
-        List<CommitStatsDto> commitStatsList,
-        RepositoryId repositoryId)
+        List<CommitStatsDto> commitStatsList)
     {
+        var repositoryId = repository.Id;
         _progressService.ReportStep(repositoryId, 4, "Saving",
             $"Step 4/4 — Saving results for {repository.Owner}/{repository.Name}");
 
         if (commitStatsList.Count > 0)
-        {
-            var latestCommitDate = commitStatsList.Max(c => c.CommitDate);
-            repository.LastAnalyzedCommitDate = latestCommitDate;
-            await _repositoryDataService.UpdateRepositoryAsync(repository);
-            _logger.LogInformation("Updated LastAnalyzedCommitDate to {Date} for repository {RepositoryId}",
-                latestCommitDate, repositoryId);
-        }
+            repository.LastAnalyzedCommitDate = commitStatsList.Max(c => c.CommitDate);
 
-        await RecordAttemptAsync(repository, error: null);
+        // One row write for the date and the attempt stamp. Not via the best-effort
+        // RecordAttemptAsync: a lost LastAnalyzedCommitDate leaves the UI on "Never analyzed"
+        // behind a "complete" frame, so a failure here must surface as the run's error.
+        repository.LastAnalysisAttemptUtc = DateTime.UtcNow;
+        repository.LastAnalysisError = null;
+        await _repositoryDataService.UpdateRepositoryAsync(repository);
+        _logger.LogInformation("Saved LastAnalyzedCommitDate {Date} for repository {RepositoryId}",
+            repository.LastAnalyzedCommitDate, repositoryId);
+
         _progressService.ReportComplete(repositoryId);
         _logger.LogInformation("Completed analysis for repository ID: {RepositoryId}", repositoryId);
     }

@@ -179,6 +179,9 @@ public class GitClient
         return new Repository(path);
     }
 
+    /// <summary>The 7-character abbreviated SHA every report shows (or the whole value if shorter).</summary>
+    internal static string ShortSha(string sha) => sha.Length > 7 ? sha[..7] : sha;
+
     // ── Private helpers ─────────────────────────────────────────────────────────
 
     /// <summary>

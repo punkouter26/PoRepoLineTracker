@@ -37,18 +37,30 @@ internal sealed class FakeAuthHandler : AuthenticationHandler<AuthenticationSche
     }
 
     /// <summary>
-    /// Fails fast when the fake scheme would be wired up in Production. Called from the
-    /// composition root before registration, so a misconfigured deploy cannot boot with
-    /// header-driven auth enabled.
+    /// The environments where fake auth exists — and so where the server <c>GitHub:PAT</c> may
+    /// stand in for its token-less users. An allow-list, not "anything but Production": header
+    /// auth is a complete bypass, and under that old test a deployment named "Staging" (or a typo
+    /// of "Production") had it switched on. One predicate so the registration and the PAT
+    /// fallback cannot drift apart.
     /// </summary>
-    internal static void ThrowIfProduction(IWebHostEnvironment environment)
+    internal static bool IsAllowedIn(IHostEnvironment environment) =>
+        environment.IsDevelopment() || environment.IsEnvironment("Test");
+
+    /// <summary>
+    /// Fails fast when the fake scheme would be wired up outside <see cref="IsAllowedIn"/>.
+    /// Called from the composition root before registration, so a misconfigured deploy cannot
+    /// boot with header-driven auth enabled. The explicit Production check is a floor that does
+    /// not depend on the allow-list: widening <see cref="IsAllowedIn"/> by mistake still cannot
+    /// switch the bypass on in Production.
+    /// </summary>
+    internal static void ThrowIfProduction(IHostEnvironment environment)
     {
-        if (environment.IsProduction())
+        if (environment.IsProduction() || !IsAllowedIn(environment))
         {
             throw new InvalidOperationException(
-                $"{nameof(FakeAuthHandler)} must never be registered in Production — it authenticates " +
-                $"any caller that sends an '{UserHeader}' header. Remove the registration or change " +
-                "ASPNETCORE_ENVIRONMENT.");
+                $"{nameof(FakeAuthHandler)} must never be registered in Production or any environment but " +
+                $"Development/Test (this is '{environment.EnvironmentName}') — it authenticates any caller " +
+                $"that sends an '{UserHeader}' header. Remove the registration or change ASPNETCORE_ENVIRONMENT.");
         }
     }
 

@@ -146,7 +146,15 @@ public class ApiEndpointTests
     [Fact]
     public async Task DeleteAllRepositories_Authenticated_Returns_NoContent()
     {
-        var response = await _client.DeleteAsync("/api/repositories/all");
+        // The bulk-add tests in this class queue background analyses for the same user, and
+        // remove-all answers 409 while one holds a repository's lock. Wait those out rather than
+        // racing them — the 409 is the guard working, not this endpoint failing.
+        HttpResponseMessage response;
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while ((response = await _client.DeleteAsync("/api/repositories/all")).StatusCode == HttpStatusCode.Conflict
+               && DateTime.UtcNow < deadline)
+            await Task.Delay(250);
+
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 

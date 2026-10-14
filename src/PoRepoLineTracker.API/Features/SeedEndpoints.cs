@@ -67,7 +67,7 @@ internal static class SeedEndpoints
                 UserId = userId,
                 Owner = owner,
                 Name = name,
-                CloneUrl = $"https://github.com/{owner}/{name}.git"
+                CloneUrl = GitHubRepository.CloneUrlFor(owner, name)
             };
             await repoDataService.AddRepositoryAsync(repository);
 

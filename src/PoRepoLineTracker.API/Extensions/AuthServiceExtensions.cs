@@ -56,11 +56,7 @@ public static class AuthServiceExtensions
         // FakeAuthHandler when X-Fake-User is present and to the cookie otherwise. Selecting here
         // (rather than naming schemes on the authorization policies) leaves FallbackPolicy
         // scheme-agnostic, so it keeps working under any DefaultScheme.
-        //
-        // An allow-list, not "anything but Production": header-driven auth is a complete bypass,
-        // and under the old test a deployment named "Staging" (or a typo of "Production") had it
-        // switched on.
-        var useFakeAuth = environment.IsDevelopment() || environment.IsEnvironment("Test");
+        var useFakeAuth = FakeAuthHandler.IsAllowedIn(environment);
         services.AddAuthentication(options =>
         {
             options.DefaultScheme = useFakeAuth

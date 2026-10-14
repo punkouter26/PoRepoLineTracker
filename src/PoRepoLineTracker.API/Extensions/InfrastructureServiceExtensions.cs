@@ -226,12 +226,12 @@ public static class InfrastructureServiceExtensions
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.AddPolicy(RateLimitPolicies.Analysis, context => RateLimitPartition.GetFixedWindowLimiter(
-                context.User.FindFirst(ClaimsPrincipalExtensions.UserIdClaim)?.Value ?? "anonymous",
-                _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
-            options.AddPolicy(RateLimitPolicies.Assistant, context => RateLimitPartition.GetFixedWindowLimiter(
-                context.User.FindFirst(ClaimsPrincipalExtensions.UserIdClaim)?.Value ?? "anonymous",
-                _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+            void PerUserPerMinute(string policy, int limit) =>
+                options.AddPolicy(policy, context => RateLimitPartition.GetFixedWindowLimiter(
+                    context.User.UserKey(),
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromMinutes(1) }));
+            PerUserPerMinute(RateLimitPolicies.Analysis, 30);
+            PerUserPerMinute(RateLimitPolicies.Assistant, 10);
             options.AddPolicy(RateLimitPolicies.Health, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1) }));

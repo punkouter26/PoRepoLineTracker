@@ -57,16 +57,8 @@ internal static class RepositoryEndpoints
             var (_, error) = await RepositoryOwnership.AuthorizeAsync(repoDataService, repositoryId, userId, "read linehistory for");
             if (error != null) return error;
 
-            try
-            {
-                var lineHistory = await lineHistoryHandler.Handle(new GetLineCountHistoryQuery(repositoryId, days));
-                return Results.Ok(lineHistory);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error retrieving line count history for repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error retrieving line count history.", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            var lineHistory = await lineHistoryHandler.Handle(new GetLineCountHistoryQuery(repositoryId, days));
+            return Results.Ok(lineHistory);
         })
         .WithName("GetRepositoryLineHistory");
 
@@ -78,34 +70,18 @@ internal static class RepositoryEndpoints
             var (_, error) = await RepositoryOwnership.AuthorizeAsync(repoDataService, repositoryId, userId, "read punchcard for");
             if (error != null) return error;
 
-            try
-            {
-                var punchcard = await punchcardHandler.Handle(new GetRepositoryPunchcardQuery(repositoryId, days));
-                return Results.Ok(punchcard);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error retrieving punchcard for repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error retrieving punchcard.", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            var punchcard = await punchcardHandler.Handle(new GetRepositoryPunchcardQuery(repositoryId, days));
+            return Results.Ok(punchcard);
         })
         .WithName("GetRepositoryPunchcard");
 
         repos.MapGet("/allcharts/{days}", async (int days, HttpContext ctx, GetAllRepositoriesLineCountHistoryQueryHandler allChartsHandler) =>
         {
-            try
-            {
-                if (!ctx.User.TryGetUserId(out var userId))
-                    return Results.Unauthorized();
+            if (!ctx.User.TryGetUserId(out var userId))
+                return Results.Unauthorized();
 
-                var data = await allChartsHandler.Handle(new GetAllRepositoriesLineCountHistoryQuery(days, userId));
-                return Results.Ok(data);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error retrieving line count history for all repositories");
-                return Results.Problem($"Error retrieving all repositories line count history.", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            var data = await allChartsHandler.Handle(new GetAllRepositoriesLineCountHistoryQuery(days, userId));
+            return Results.Ok(data);
         })
         .WithName("GetAllRepositoriesLineHistory");
 
@@ -132,97 +108,81 @@ internal static class RepositoryEndpoints
             {
                 return Results.NotFound($"Repository with ID {repositoryId} not found.");
             }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error deleting repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error deleting repository.", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
         })
         .WithName("DeleteRepository");
 
-        repos.MapDelete("/all", async (HttpContext ctx, RemoveAllRepositoriesCommandHandler removeAllHandler) =>
+        repos.MapDelete("/all", async (HttpContext ctx, RemoveAllRepositoriesCommandHandler removeAllHandler, IRepositoryDataService repoDataService) =>
         {
-            try
+            if (!ctx.User.TryGetUserId(out var userId))
             {
-                if (!ctx.User.TryGetUserId(out var userId))
-                {
-                    Log.Warning("Remove all repositories failed: No valid UserId claim found");
-                    return Results.Unauthorized();
-                }
+                Log.Warning("Remove all repositories failed: No valid UserId claim found");
+                return Results.Unauthorized();
+            }
 
-                Log.Information("Starting removal of all repositories for user {UserId}", userId);
-                await removeAllHandler.Handle(new RemoveAllRepositoriesCommand(userId));
-                Log.Information("All repositories for user {UserId} removed successfully via API.", userId);
-                return Results.NoContent();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error removing all repositories: {ErrorType} - {ErrorMessage}", ex.GetType().Name, ex.Message);
-                return Results.Problem($"Error removing all repositories.", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            // Same 409 as single delete: a running job would keep upserting commit rows for
+            // repositories this call just removed.
+            if ((await repoDataService.GetAllRepositoriesAsync(userId)).Any(r => AnalyzeRepositoryCommitsCommandHandler.IsRunning(r.Id)))
+                return AnalysisInProgress();
+
+            Log.Information("Starting removal of all repositories for user {UserId}", userId);
+            await removeAllHandler.Handle(new RemoveAllRepositoriesCommand(userId));
+            Log.Information("All repositories for user {UserId} removed successfully via API.", userId);
+            return Results.NoContent();
         })
         .WithName("RemoveAllRepositories");
 
         repos.MapPost("/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, AddMultipleRepositoriesCommandHandler addHandler, IServiceScopeFactory scopeFactory) =>
         {
-            try
+            if (!ctx.User.TryGetUserId(out var userId))
+                return Results.Unauthorized();
+
+            var repoList = repositories?.ToList() ?? [];
+            if (repoList.Count > MaxBulkRepositories)
             {
-                if (!ctx.User.TryGetUserId(out var userId))
-                    return Results.Unauthorized();
-
-                var repoList = repositories?.ToList() ?? [];
-                if (repoList.Count > MaxBulkRepositories)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    ["repositories"] = [$"At most {MaxBulkRepositories} repositories can be added per request."]
+                });
+            }
+
+            // Validate each entry with the shared repository rules.
+            foreach (var dto in repoList)
+            {
+                if (RepositoryValidators.Validate(dto) is { } errors)
+                    return Results.ValidationProblem(errors);
+            }
+
+            var result = await addHandler.Handle(new AddMultipleRepositoriesCommand(
+                repoList, userId));
+
+            Log.Information("Bulk add: Added={Added}, AlreadyTracked={AlreadyTracked}",
+                result.Added.Count, result.AlreadyTracked.Count);
+
+            // Fire analysis only for truly NEW repositories — already-tracked repos are already analyzed
+            if (result.Added.Count > 0)
+            {
+                var newRepoIds = result.Added.Select(r => r.Id).ToList();
+                _ = Task.Run(async () =>
+                {
+                    using var scope = scopeFactory.CreateScope();
+                    var bgAnalyzer = scope.ServiceProvider.GetRequiredService<AnalyzeRepositoryCommitsCommandHandler>();
+                    foreach (var repoId in newRepoIds)
                     {
-                        ["repositories"] = [$"At most {MaxBulkRepositories} repositories can be added per request."]
-                    });
-                }
-
-                // Validate each entry with the shared repository rules.
-                foreach (var dto in repoList)
-                {
-                    if (RepositoryValidators.Validate(dto) is { } errors)
-                        return Results.ValidationProblem(errors);
-                }
-
-                var result = await addHandler.Handle(new AddMultipleRepositoriesCommand(
-                    repoList, userId));
-
-                Log.Information("Bulk add: Added={Added}, AlreadyTracked={AlreadyTracked}",
-                    result.Added.Count, result.AlreadyTracked.Count);
-
-                // Fire analysis only for truly NEW repositories — already-tracked repos are already analyzed
-                if (result.Added.Count > 0)
-                {
-                    var newRepoIds = result.Added.Select(r => r.Id).ToList();
-                    _ = Task.Run(async () =>
-                    {
-                        using var scope = scopeFactory.CreateScope();
-                        var bgAnalyzer = scope.ServiceProvider.GetRequiredService<AnalyzeRepositoryCommitsCommandHandler>();
-                        foreach (var repoId in newRepoIds)
+                        try
                         {
-                            try
-                            {
-                                Log.Information("Background: starting analysis for new repo {RepoId}", repoId);
-                                await bgAnalyzer.Handle(new AnalyzeRepositoryCommitsCommand(repoId));
-                                Log.Information("Background: analysis complete for repo {RepoId}", repoId);
-                            }
-                            catch (Exception bgEx)
-                            {
-                                Log.Error(bgEx, "Background: analysis failed for repo {RepoId}: {Message}", repoId, bgEx.Message);
-                            }
+                            Log.Information("Background: starting analysis for new repo {RepoId}", repoId);
+                            await bgAnalyzer.Handle(new AnalyzeRepositoryCommitsCommand(repoId));
+                            Log.Information("Background: analysis complete for repo {RepoId}", repoId);
                         }
-                    });
-                }
+                        catch (Exception bgEx)
+                        {
+                            Log.Error(bgEx, "Background: analysis failed for repo {RepoId}: {Message}", repoId, bgEx.Message);
+                        }
+                    }
+                });
+            }
 
-                return Results.Ok(result);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "EXCEPTION in bulk repository endpoint: {Message}. Stack: {StackTrace}", ex.Message, ex.StackTrace);
-                return Results.Problem($"Error adding repositories.", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitPolicies.Analysis)
         .WithName("AddMultipleRepositories");
@@ -270,16 +230,8 @@ internal static class RepositoryEndpoints
             var (_, error) = await RepositoryOwnership.AuthorizeAsync(repoDataService, repositoryId, userId, "read file-extension-percentages for");
             if (error != null) return error;
 
-            try
-            {
-                var percentages = await extensionHandler.Handle(new GetFileExtensionPercentagesQuery(repositoryId));
-                return Results.Ok(percentages);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error retrieving file extension percentages for repository {RepositoryId}", repositoryId);
-                return Results.Problem($"Error retrieving file extension percentages.", statusCode: (int)HttpStatusCode.InternalServerError);
-            }
+            var percentages = await extensionHandler.Handle(new GetFileExtensionPercentagesQuery(repositoryId));
+            return Results.Ok(percentages);
         })
         .WithName("GetFileExtensionPercentages");
 
@@ -307,7 +259,7 @@ internal static class RepositoryEndpoints
                     Status = (int)HttpStatusCode.NotFound
                 });
 
-            string[] statuses = ["", "Done", "Failed", "Empty", "Pending"];
+            string[] statuses = ["", .. AnalysisStatus.All];
             string[] sorts = ["", "Name", "TotalLines", "NetChange30Days", "Commits30Days", "LastCommit"];
 
             var reply = await assistant.AskJsonAsync(

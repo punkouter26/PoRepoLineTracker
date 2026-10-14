@@ -8,7 +8,7 @@
            IsLoading="@IsLoading"
            ErrorMessage="@ErrorMessage"
            OnRetry="@OnRetry"
-           IsEmpty="@(!GetDisplayedHistoryData().Any(r => r.DailyLineCounts.Any()))"
+           IsEmpty="@(_available.Count == 0)"
            EmptyIcon="show_chart"
            EmptyText="No history data yet"
            EmptyHint="Analysis is needed for at least one repository.">
@@ -17,8 +17,8 @@
     </Toolbar>
     <ChildContent>
         @{
-            var available = GetDisplayedHistoryData().Where(r => r.DailyLineCounts.Any()).ToList();
-            var plottedRepos = available.Where(r => IsSelected(r.RepositoryId)).ToList();
+            var available = _available;
+            var plottedRepos = _plotted;
         }
 
         <RadzenChart>
@@ -30,7 +30,7 @@
                 var seriesColor = GetSeriesColor(PaletteIndex(available, repo.RepositoryId));
                 var seriesTitle = $"{repo.Owner}/{repo.RepositoryName}";
 
-                <RadzenLineSeries Data="@repo.DailyLineCounts.ToList()"
+                <RadzenLineSeries Data="@repo.DailyLineCounts"
                                   CategoryProperty="Date"
                                   ValueProperty="TotalLines"
                                   Title="@seriesTitle"
@@ -58,7 +58,7 @@
                ChartFormat.DateAxisStep for why neither the default nor TickDistance suffices.
                LabelAutoRotation angles what is left so labels do not collide at narrow widths. *@
             <RadzenCategoryAxis FormatString="{0:MMM d}"
-                                Step="@ChartFormat.DateAxisStep(plottedRepos.SelectMany(r => r.DailyLineCounts).Select(d => d.Date))"
+                                Step="@_axisStep"
                                 LabelAutoRotation="-45">
                 <RadzenAxisTitle Text="Date" />
                 <RadzenGridLines Visible="true" />
@@ -120,7 +120,7 @@
     /// The page's full history, one entry per repository. The chart no longer fetches: it used
     /// to request <c>allcharts/90</c> itself while the page had already loaded the history
     /// for the totals, so every visit paid for the same aggregation twice. The range selector
-    /// now just narrows this in <see cref="GetDisplayedHistoryData"/>.
+    /// now just narrows this in <see cref="OnParametersSet"/>.
     /// </summary>
     [Parameter] public IReadOnlyList<RepositoryLineCountHistoryDto>? History { get; set; }
 
@@ -144,6 +144,7 @@
     private void ToggleRepository(RepositoryId id)
     {
         if (!_hidden.Remove(id)) _hidden.Add(id);
+        Replot();
     }
 
     private void ToggleAll()
@@ -156,27 +157,61 @@
         {
             _hidden.Clear();
         }
+        Replot();
     }
 
     private const string ChartDescription = "Lines of code over time across every tracked repo";
     private const string TooltipValueLabel = "Lines";
 
+    // ─── Render cache ────────────────────────────────────────────────────────────────────────
+    // The page re-renders on every SignalR progress frame, and this chart used to re-slice the
+    // whole history twice per render and hand each series a fresh list — so Radzen redrew every
+    // line several times a second during an import. The slices are now built only when the
+    // history or the range actually changes, and ShouldRender skips renders that change nothing.
+
+    private List<RepositoryLineCountHistoryDto> _available = [];
+    private List<RepositoryLineCountHistoryDto> _plotted = [];
+    private TimeSpan _axisStep = TimeSpan.FromDays(1);
+    private (IReadOnlyList<RepositoryLineCountHistoryDto>? History, int Days, bool IsLoading, string? Error) _builtFor = (null, -1, false, null);
+    private bool _dirty = true;
+
     /// <summary>
     /// <see cref="History"/> narrowed to the selected range. Whole days from midnight UTC, which
     /// is the bucket the server puts a commit in — so the boundary day is kept rather than cut
-    /// at the current time of day.
+    /// at the current time of day. Keyed on the history's reference: the page replaces the list
+    /// on every reload rather than mutating it.
     /// </summary>
-    private List<RepositoryLineCountHistoryDto> GetDisplayedHistoryData()
+    protected override void OnParametersSet()
     {
+        // Tuple == compares the list by reference, which is the point.
+        var inputs = (History, Days, IsLoading, ErrorMessage);
+        if (inputs == _builtFor) return;
+        _builtFor = inputs;
+
         var cutoff = DateTime.UtcNow.Date.AddDays(-Days);
-        return (History ?? []).Select(r => new RepositoryLineCountHistoryDto
+        _available = (History ?? []).Select(r => new RepositoryLineCountHistoryDto
         {
             RepositoryId = r.RepositoryId,
             RepositoryName = r.RepositoryName,
             Owner = r.Owner,
             TotalLines = r.TotalLines,
             DailyLineCounts = r.DailyLineCounts.Where(d => d.Date >= cutoff).ToList()
-        }).ToList();
+        }).Where(r => r.DailyLineCounts.Any()).ToList();
+        Replot();
+    }
+
+    private void Replot()
+    {
+        _plotted = _available.Where(r => IsSelected(r.RepositoryId)).ToList();
+        _axisStep = ChartFormat.DateAxisStep(_plotted.SelectMany(r => r.DailyLineCounts).Select(d => d.Date));
+        _dirty = true;
+    }
+
+    protected override bool ShouldRender()
+    {
+        var dirty = _dirty;
+        _dirty = false;
+        return dirty;
     }
 
     /// <summary>Position in the full repo list, so a series keeps its colour when others are hidden.</summary>

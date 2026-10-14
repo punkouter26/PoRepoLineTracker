@@ -172,8 +172,7 @@ namespace PoRepoLineTracker.API
             // request was tagged UserId "anonymous".
             app.Use(async (context, next) =>
             {
-                using (Serilog.Context.LogContext.PushProperty("UserId",
-                    context.User.FindFirst(ClaimsPrincipalExtensions.UserIdClaim)?.Value ?? "anonymous"))
+                using (Serilog.Context.LogContext.PushProperty("UserId", context.User.UserKey()))
                 {
                     await next(context);
                 }

@@ -16,7 +16,8 @@
 
     // A live frame's error first, then the outcome stored on the row. The frame is gone after a
     // reload, so without the stored one a repository that failed to clone read "Pending" forever.
-    var error = !string.IsNullOrEmpty(progress?.ErrorMessage) ? progress.ErrorMessage : LastError;
+    var error = !string.IsNullOrEmpty(progress?.ErrorMessage) ? progress.ErrorMessage
+        : Status == AnalysisStatus.Failed ? LastError : null;
 }
 @* A plain <div> root, not the bare <RadzenStack> this started as.
 
@@ -26,7 +27,7 @@
    this codebase has already hit twice. The div is display:contents so it adds no box of its own
    inside the grid cell. *@
 <div class="status-cell">
-    @if (IsReanalyzing || (progress != null && progress.IsRunning))
+    @if (StartedUtc is not null || (progress != null && progress.IsRunning))
         {
             <RadzenStack Gap="0.25rem">
                 @* Step badge + spin icon *@
@@ -101,26 +102,26 @@
             <RadzenStack Gap="0.2rem">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
                     <RadzenIcon Icon="error_outline" class="rp-error-icon" />
-                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" title="@error" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="@AnalysisStatus.Failed" title="@error" />
                 </RadzenStack>
                 @* The whole message, clipped by CSS rather than cut in code: a string truncated
                    to 50 characters was all a screen reader ever got. *@
                 <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub rp-error-text" title="@error">@error</RadzenText>
             </RadzenStack>
         }
-        else if (HasBeenAnalyzed)
+        else if (Status == AnalysisStatus.Done)
         {
-            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Done" />
+            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@AnalysisStatus.Done" />
         }
-        else if (Attempted)
+        else if (Status == AnalysisStatus.Empty)
         {
             @* Analysed, and there was nothing to count. "Pending" here promised a result that
                is never coming. *@
-            <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Empty" title="Analyzed — no commits found" />
+            <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@AnalysisStatus.Empty" title="Analyzed — no commits found" />
         }
         else
         {
-            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Pending" />
+            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="@AnalysisStatus.Pending" />
         }
 </div>
 
@@ -128,19 +129,14 @@
     /// <summary>The latest frame for this repository, from the hub or the fallback poll. Null when none has arrived.</summary>
     [Parameter] public AnalysisProgressDto? Progress { get; set; }
 
-    /// <summary>True between queueing a re-analysis and the first frame coming back.</summary>
-    [Parameter] public bool IsReanalyzing { get; set; }
+    /// <summary>The stored outcome (<c>RepositoryGridRow.Status</c>), so the badge and the column's sort/filter key agree.</summary>
+    [Parameter] public string Status { get; set; } = AnalysisStatus.Pending;
 
-    /// <summary>Whether the repository has ever completed an analysis — drives Pending vs Done.</summary>
-    [Parameter] public bool HasBeenAnalyzed { get; set; }
-
-    /// <summary>Why the last finished run failed (<c>LastAnalysisError</c>); null when it succeeded or has not run.</summary>
+    /// <summary>Why the last finished run failed (<c>LastAnalysisError</c>); shown when <see cref="Status"/> is Failed.</summary>
     [Parameter] public string? LastError { get; set; }
 
-    /// <summary>Whether any run has finished (<c>LastAnalysisAttemptUtc</c>). With no commits and no error, that is an empty repository.</summary>
-    [Parameter] public bool Attempted { get; set; }
-
-    /// <summary>When the current re-analysis was requested, for the elapsed caption while no frame has arrived yet.</summary>
+    /// <summary>When the current re-analysis was requested; set from the click until the job finishes, so it also means "queued".
+    /// Drives the elapsed caption while no frame has arrived yet.</summary>
     [Parameter] public DateTime? StartedUtc { get; set; }
 
     private static string Elapsed(DateTime startedUtc)
