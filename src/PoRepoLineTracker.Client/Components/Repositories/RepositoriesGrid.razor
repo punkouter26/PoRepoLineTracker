@@ -7,6 +7,8 @@
 @using Radzen.Blazor
 @inject IJSRuntime JS
 @inject PoRepoLineTracker.Client.Services.AssistantClient Assistant
+@inject PoRepoLineTracker.Client.Services.AnalysisFeedClient Feed
+@implements IDisposable
 
 @*
   Repository grid. Extracted from Repositories.razor so the page can stay focused on
@@ -23,7 +25,21 @@
 
 <div class="rp-grid-toolbar">
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="rz-mb-2">
-        <RadzenText TextStyle="TextStyle.Subtitle1" class="rp-grid-heading">Tracked Repositories</RadzenText>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.6rem">
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rp-grid-heading">Tracked Repositories</RadzenText>
+            @* Connection state of the live progress feed, shown only while a job is running — the
+               rows' Status cells carry the progress itself (this used to be a separate "Live
+               activity" panel above the grid that repeated each running row). A label beside the
+               dot, because colour alone is not an accessible signal; the pulse only while really
+               connected, or it would contradict "Reconnecting…". *@
+            @if (AnyRunning)
+            {
+                <span class="rp-live-state" role="status">
+                    <span class="@($"rp-live-dot {(Feed.IsConnected ? "rp-live-dot--on" : "")}")" aria-hidden="true"></span>
+                    @(Feed.IsConnected ? "Streaming" : "Reconnecting…")
+                </span>
+            }
+        </RadzenStack>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
             @* The name search stays a box here rather than a filter cell on the Repository
                column: the page mirrors it into ?q=, and the column filter covers Status, which
@@ -335,7 +351,19 @@
     private bool _asking;
     private RadzenDataGridColumn<RepositoryGridRow>? _statusColumn;
 
-    protected override async Task OnInitializedAsync() => _assistantAvailable = await Assistant.IsAvailableAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        Feed.StateChanged += OnFeedStateChanged;
+        _assistantAvailable = await Assistant.IsAvailableAsync();
+    }
+
+    private bool AnyRunning =>
+        ReanalysisStartTimes is { Count: > 0 } || ProgressMap?.Values.Any(p => p.IsRunning) == true;
+
+    /// <summary>Repaints the Streaming / Reconnecting label; raised off the renderer's context.</summary>
+    private void OnFeedStateChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Feed.StateChanged -= OnFeedStateChanged;
 
     /// <summary>
     /// The server's sort names are the column titles' meaning, not this grid's property names.

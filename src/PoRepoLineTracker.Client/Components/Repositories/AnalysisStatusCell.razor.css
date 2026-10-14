@@ -60,3 +60,29 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Live tally line. Tabular figures: the count changes several times a second, and proportional
+   digits make it jitter sideways on every update. */
+.rp-live {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 0.45rem;
+    font-size: 0.65rem;
+    color: var(--rz-text-secondary-color);
+    font-variant-numeric: tabular-nums;
+}
+
+::deep .rp-live__count {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Radzen grid cells are nowrap. The running-state captions are sentences, and unwrapped they
+   widened the Status column until Actions was pushed off the right edge. */
+::deep .rp-prog-note.rp-prog-note,
+::deep .rp-prog-sub.rp-prog-sub,
+.rp-live {
+    white-space: normal !important;
+}

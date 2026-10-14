@@ -91,10 +91,6 @@
                             AnalyzedCount="@AnalyzedCount"
                             Trend="@TotalLinesTrend" />
 
-        @* Live analysis feed. Renders nothing while idle. Directly above the grid it reports on,
-           and below the tiles, so its arrival moves one thing instead of the whole page. *@
-        <AnalysisActivityFeed />
-
         @* The grid sits directly under the tiles: it is what the page is for. The growth chart
            used to be between them and pushed the list below the fold on a laptop. *@
         <RadzenCard>
@@ -321,6 +317,12 @@
 
         if (progress.IsRunning)
         {
+            // The grid is the only place progress shows, so a job for a row it has not loaded
+            // (started in another tab, or by the startup resume) would run invisibly. Load the
+            // list on its first frame — once, since every later frame finds the row.
+            if (!wasRunning && pageState.Repositories.All(r => r.Id != progress.RepositoryId))
+                await InvokeAsync(LoadRepositories);
+
             await InvokeAsync(StateHasChanged);
             return;
         }
@@ -577,8 +579,8 @@
     {
         _disposed = true;
 
-        // Unsubscribe only. AnalysisFeedClient is container-owned and shared with the activity
-        // feed, so disposing it here would take the feed's connection down with the page.
+        // Unsubscribe only. AnalysisFeedClient is container-owned and shared with the grid and
+        // the detail page, so disposing it here would take the connection down for them too.
         Feed.ProgressReceived -= OnAnalysisProgressAsync;
         Feed.StateChanged -= _watcher.StartIfNeeded;
 

@@ -105,3 +105,33 @@
     width: 220px;
     max-width: 100%;
 }
+
+/* Live-feed connection state beside the heading (moved from the old Live activity panel). */
+.rp-live-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.rp-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--text-muted);
+}
+
+.rp-live-dot--on {
+    background: var(--status-pos);
+    animation: rp-live-pulse 2s ease-in-out infinite;
+}
+
+@keyframes rp-live-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rp-live-dot--on { animation: none; }
+}

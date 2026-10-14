@@ -1,3 +1,4 @@
+@using PoRepoLineTracker.Client.Components.Shared
 @using PoRepoLineTracker.Shared.Models
 @using Radzen
 @using Radzen.Blazor
@@ -50,6 +51,7 @@
                         <div class="reanalysis-progress-wrap">
                             <RadzenProgressBar Mode="ProgressBarMode.Determinate"
                                                Value="@progress.ProgressPercent"
+                                               ShowValue="false"
                                                class="rp-prog-bar" />
                         </div>
                         <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-sub">
@@ -64,6 +66,25 @@
                                                class="rp-prog-bar" />
                         </div>
                     }
+
+                    @* Live tally, throughput and ETA — what the separate "Live activity" panel above the
+                       grid used to show. Folded in here so a running job is read in its own row: a
+                       percentage alone creeping a point every few seconds is indistinguishable from a
+                       hang. The tally is cumulative churn across every commit replayed, not the
+                       repository's size — hence the label. *@
+                    <div class="rp-live">
+                        <AnimatedNumber Value="@((int)Math.Min(progress.LinesCounted, int.MaxValue))" Class="rp-live__count" />
+                        <span>lines counted</span>
+                        @if (CommitsPerSecond(progress) is { } rate)
+                        {
+                            <span>@rate.ToString("N1") commits/s</span>
+                        }
+                        @if (RemainingTime(progress) is { } remaining)
+                        {
+                            <span>@FormatSpan(remaining, "~") left</span>
+                        }
+                        <span>@FormatSpan(Elapsed(progress), "") elapsed</span>
+                    </div>
 
                     @* Stuck warning *@
                     @if (progress.IsStuck)
@@ -138,6 +159,33 @@
     /// <summary>When the current re-analysis was requested; set from the click until the job finishes, so it also means "queued".
     /// Drives the elapsed caption while no frame has arrived yet.</summary>
     [Parameter] public DateTime? StartedUtc { get; set; }
+
+    private static TimeSpan Elapsed(AnalysisProgressDto progress) =>
+        progress.LastUpdatedUtc > progress.StartedUtc ? progress.LastUpdatedUtc - progress.StartedUtc : TimeSpan.Zero;
+
+    /// <summary>
+    /// Throughput over the whole run, not the last frame: a rate from five commits swings too
+    /// wildly to read. Null for the first second, where a rate is noise.
+    /// </summary>
+    private static double? CommitsPerSecond(AnalysisProgressDto progress)
+    {
+        var seconds = Elapsed(progress).TotalSeconds;
+        return seconds < 1 || progress.CommitsProcessed <= 0 ? null : progress.CommitsProcessed / seconds;
+    }
+
+    /// <summary>Null until the commit total is known — an ETA invented from a step index is a number nobody should trust.</summary>
+    private static TimeSpan? RemainingTime(AnalysisProgressDto progress)
+    {
+        var remaining = progress.CommitsTotal - progress.CommitsProcessed;
+        return progress.CommitsTotal > 0 && remaining > 0 && CommitsPerSecond(progress) is { } rate and > 0
+            ? TimeSpan.FromSeconds(remaining / rate)
+            : null;
+    }
+
+    private static string FormatSpan(TimeSpan span, string prefix) =>
+        span.TotalMinutes < 1 ? $"{prefix}{Math.Max(1, (int)span.TotalSeconds)}s"
+        : span.TotalHours < 1 ? $"{prefix}{(int)span.TotalMinutes}m {span.Seconds}s"
+        : $"{prefix}{(int)span.TotalHours}h {span.Minutes}m";
 
     private static string Elapsed(DateTime startedUtc)
     {

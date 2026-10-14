@@ -94,7 +94,7 @@ src/
     App.razor                     ← Router + CascadingAuthenticationState
     Layout/                       ← MainLayout (skip link via JS FocusAsync, not fragment nav)
     Pages/                        ← Login, Repositories, RepositoryDetail, CodeHealth, ExtensionsCounted, Diagnostics, Insights
-    Components/                   ← AllReposComparisonChart, AnalysisActivityFeed, ContributorChart, Repositories/* (incl. CodeHealthRadar, CommitActivityHeatmap, RepositoriesGrid), Shared/* (incl. OfflineIndicator)
+    Components/                   ← AllReposComparisonChart, ContributorChart, Repositories/* (incl. CodeHealthRadar, CommitActivityHeatmap, RepositoriesGrid), Shared/* (incl. OfflineIndicator)
     Services/                     ← ApiAuthenticationStateProvider, RepositoryCommandClient, UserPreferencesClient, AntiforgeryHandler, AnalysisFeedClient, AnalysisWatcher, AppHttpJsonExtensions
     wwwroot/                      ← service-worker.js (dev no-op), service-worker.published.js (real cache, server-route prefix exceptions)
 
